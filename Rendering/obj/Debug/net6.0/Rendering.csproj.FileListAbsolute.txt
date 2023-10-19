@@ -1,0 +1,15 @@
+C:\github\CommandLineReimagined\Rendering\obj\Debug\net6.0\Rendering.GeneratedMSBuildEditorConfig.editorconfig
+C:\github\CommandLineReimagined\Rendering\obj\Debug\net6.0\Rendering.AssemblyInfoInputs.cache
+C:\github\CommandLineReimagined\Rendering\obj\Debug\net6.0\Rendering.AssemblyInfo.cs
+C:\github\CommandLineReimagined\Rendering\obj\Debug\net6.0\Rendering.csproj.CoreCompileInputs.cache
+C:\github\CommandLineReimagined\Rendering\obj\Debug\net6.0\Rendering.csproj.AssemblyReference.cache
+C:\github\CommandLineReimagined\Rendering\bin\Debug\net6.0\Rendering.deps.json
+C:\github\CommandLineReimagined\Rendering\bin\Debug\net6.0\Rendering.dll
+C:\github\CommandLineReimagined\Rendering\bin\Debug\net6.0\Rendering.pdb
+C:\github\CommandLineReimagined\Rendering\bin\Debug\net6.0\EntityComponentSystem.dll
+C:\github\CommandLineReimagined\Rendering\bin\Debug\net6.0\EntityComponentSystem.pdb
+C:\github\CommandLineReimagined\Rendering\obj\Debug\net6.0\Rendering.csproj.CopyComplete
+C:\github\CommandLineReimagined\Rendering\obj\Debug\net6.0\Rendering.dll
+C:\github\CommandLineReimagined\Rendering\obj\Debug\net6.0\refint\Rendering.dll
+C:\github\CommandLineReimagined\Rendering\obj\Debug\net6.0\Rendering.pdb
+C:\github\CommandLineReimagined\Rendering\obj\Debug\net6.0\ref\Rendering.dll

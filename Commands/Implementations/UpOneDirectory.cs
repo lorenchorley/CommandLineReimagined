@@ -1,6 +1,4 @@
 ﻿using CommandLineReimagine.Commands.Modules;
-using CommandLineReimagine.Console;
-using CommandLineReimagine.Console.Components;
 
 namespace CommandLineReimagine.Commands.Implementations
 {

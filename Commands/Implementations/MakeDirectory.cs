@@ -1,8 +1,6 @@
 ﻿using System.IO;
 using System.Xml.Linq;
 using CommandLineReimagine.Commands.Modules;
-using CommandLineReimagine.Console;
-using CommandLineReimagine.Console.Components;
 
 namespace CommandLineReimagine.Commands.Implementations
 {

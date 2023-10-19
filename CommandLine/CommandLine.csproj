@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net6.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Remove="Commands\Parser\Grammar\CommandLineGrammar.egt" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="Commands\Parser\Grammar\CommandLineGrammar.egt" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="GoldEngine" Version="1.0.0" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="7.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\EntityComponentSystem\EntityComponentSystem.csproj" />
+    <ProjectReference Include="..\VisualInterface\VisualInterface.csproj" />
+  </ItemGroup>
+
+</Project>

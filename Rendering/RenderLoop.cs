@@ -1,9 +1,9 @@
-﻿using Microsoft.Extensions.Options;
-using System;
+﻿using System;
 using System.Drawing;
 using System.Threading.Tasks;
 using System.Timers;
 using CommandLineReimagine.Configuration;
+using Microsoft.Extensions.Options;
 
 namespace CommandLineReimagine.Rendering
 {
@@ -12,7 +12,7 @@ namespace CommandLineReimagine.Rendering
         private readonly object _lock = new object();
         private BitmapBuffer _buffer;
         private Action<Graphics, float, float> _draw;
-        private Timer _timer;
+        private System.Timers.Timer _timer;
         private Action<Bitmap, Action> _renderToScreen;
         private bool _isActive = false;
 
@@ -23,7 +23,7 @@ namespace CommandLineReimagine.Rendering
             _timer.Elapsed += TimerElapsed;
         }
 
-        internal void SetActive(bool isActive)
+        public void SetActive(bool isActive)
         {
             _isActive = isActive;
 
@@ -37,7 +37,7 @@ namespace CommandLineReimagine.Rendering
             }
         }
 
-        internal void RefreshOnce()
+        public void RefreshOnce()
         {
             if (!_isActive)
             {

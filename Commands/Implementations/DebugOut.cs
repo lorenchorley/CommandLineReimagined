@@ -1,20 +1,12 @@
-﻿using CommandLineReimagined.Console.Entities;
-using CommandLineReimagined.Serialisation;
-using Newtonsoft.Json;
-using System;
-using System.Collections.Generic;
+﻿using CommandLineReimagine.Commands.Modules;
+using EntityComponentSystem;
 using System.Diagnostics;
-using System.IO;
-using System.Xml.Serialization;
-using CommandLineReimagine.Commands.Modules;
-using CommandLineReimagine.Console;
-using CommandLineReimagine.Console.Components;
 
 namespace CommandLineReimagine.Commands.Implementations
 {
     public class DebugOut : CommandAction
     {
-        private readonly EntityComponentSystem _ecs;
+        private readonly ECS _ecs;
 
         public override CommandProfile Profile { get; } =
             new CommandProfile(
@@ -26,7 +18,7 @@ namespace CommandLineReimagine.Commands.Implementations
                 CommandActionType: typeof(DebugOut)
             );
 
-        public DebugOut(EntityComponentSystem ecs)
+        public DebugOut(ECS ecs)
         {
             _ecs = ecs;
         }
