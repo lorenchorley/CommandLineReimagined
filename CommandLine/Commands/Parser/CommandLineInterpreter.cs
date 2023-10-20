@@ -1,8 +1,8 @@
 ﻿using GOLD;
 using System;
-using CommandLineReimagine.Commands.Parser.SemanticTree;
+using CommandLineReimagined.Commands.Parser.SemanticTree;
 
-namespace CommandLineReimagine.Commands.Parser;
+namespace CommandLineReimagined.Commands.Parser;
 
 public class CommandLineInterpreter
 {

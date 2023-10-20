@@ -1,6 +1,6 @@
 ﻿using System.IO;
 
-namespace CommandLineReimagine.Commands.Modules
+namespace CommandLine.Modules
 {
     public class PathModule
     {

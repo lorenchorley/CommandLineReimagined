@@ -1,6 +1,6 @@
-﻿using CommandLineReimagine.Commands.Modules;
+﻿using CommandLine.Modules;
 
-namespace CommandLineReimagine.Commands.Implementations
+namespace CommandLineReimagined.Commands.Implementations
 {
     public class UnknownCommand : CommandAction
     {

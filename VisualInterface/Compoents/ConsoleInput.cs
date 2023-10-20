@@ -1,6 +1,7 @@
-﻿using EntityComponentSystem;
+﻿using CommandLineReimagined.Rendering.Components;
+using EntityComponentSystem;
 
-namespace CommandLineReimagine.Console.Components;
+namespace CommandLineReimagined.Console.Components;
 
 public class ConsoleInput : Component
 {

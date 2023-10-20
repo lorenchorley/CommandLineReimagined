@@ -1,7 +1,7 @@
 ﻿using EntityComponentSystem;
 using System.Numerics;
 
-namespace CommandLineReimagine.Console.Components;
+namespace CommandLineReimagined.Console.Components;
 
 public class ConsoleDetails : Component
 {

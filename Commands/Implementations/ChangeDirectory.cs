@@ -1,7 +1,7 @@
-﻿using CommandLineReimagine.Commands.Modules;
-using CommandLineReimagine.Console.Components;
+﻿using CommandLine.Modules;
+using CommandLineReimagined.Console.Components;
 
-namespace CommandLineReimagine.Commands.Implementations
+namespace CommandLineReimagined.Commands.Implementations
 {
     public class ChangeDirectory : CommandAction
     {

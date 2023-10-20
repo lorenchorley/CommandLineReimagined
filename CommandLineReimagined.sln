@@ -10,17 +10,19 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution 
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Application", "CommandLineReimagined\Application.csproj", "{4B704666-51A9-47F0-B297-75058E238AE0}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "EntityComponentSystem", "EntityComponentSystem\EntityComponentSystem.csproj", "{E780D219-BD54-402F-979B-AC8719E774BE}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "EntityComponentSystem", "EntityComponentSystem\EntityComponentSystem.csproj", "{E780D219-BD54-402F-979B-AC8719E774BE}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Rendering", "Rendering\Rendering.csproj", "{7E4DB4F9-BB3B-4541-9E1F-669573038C42}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Rendering", "Rendering\Rendering.csproj", "{7E4DB4F9-BB3B-4541-9E1F-669573038C42}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Commands", "Commands\Commands.csproj", "{900E84A3-3C6B-4899-9E7E-2B9C88ACA2F3}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Commands", "Commands\Commands.csproj", "{900E84A3-3C6B-4899-9E7E-2B9C88ACA2F3}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CommandLine", "CommandLine\CommandLine.csproj", "{BF3EA89E-02DE-47C4-BBA2-6DB46A0B025C}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Terminal", "CommandLine\Terminal.csproj", "{BF3EA89E-02DE-47C4-BBA2-6DB46A0B025C}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "VisualInterface", "VisualInterface\VisualInterface.csproj", "{53CAF118-5E21-4F84-995E-61AB89301C05}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "UIComponents", "VisualInterface\UIComponents.csproj", "{53CAF118-5E21-4F84-995E-61AB89301C05}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Utils", "Utils\Utils.csproj", "{98FA9596-1A9E-4E30-AC58-ED4E37ACB8EA}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Utils", "Utils\Utils.csproj", "{98FA9596-1A9E-4E30-AC58-ED4E37ACB8EA}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RayCasting", "RayCasting\RayCasting.csproj", "{7CB7B361-E3DF-46DC-A227-FF3BFC060EDD}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -56,6 +58,10 @@ Global
 		{98FA9596-1A9E-4E30-AC58-ED4E37ACB8EA}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{98FA9596-1A9E-4E30-AC58-ED4E37ACB8EA}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{98FA9596-1A9E-4E30-AC58-ED4E37ACB8EA}.Release|Any CPU.Build.0 = Release|Any CPU
+		{7CB7B361-E3DF-46DC-A227-FF3BFC060EDD}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{7CB7B361-E3DF-46DC-A227-FF3BFC060EDD}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{7CB7B361-E3DF-46DC-A227-FF3BFC060EDD}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{7CB7B361-E3DF-46DC-A227-FF3BFC060EDD}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

@@ -1,6 +1,6 @@
 ﻿using System.Collections.Generic;
 
-namespace CommandLineReimagine.Commands.Parser.SemanticTree
+namespace CommandLineReimagined.Commands.Parser.SemanticTree
 {
     public abstract record Value : CommandArgument, INode
     {

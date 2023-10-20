@@ -1,7 +1,8 @@
-﻿using CommandLineReimagine.Console.Interaction;
+﻿using CommandLineReimagined.Rendering.Components;
+using CommandLineReimagined.Rendering.Interaction;
 using EntityComponentSystem;
 
-namespace CommandLineReimagine.Console.Components
+namespace CommandLineReimagined.Console.Components
 {
     public class Button : Component, ILineSegment
     {
@@ -23,7 +24,7 @@ namespace CommandLineReimagine.Console.Components
         protected override void InsureDependencies()
         {
             Entity.TryAddComponent<Renderer>();
-            Entity.TryAddComponent<HitBox>();
+            Entity.TryAddComponent<InteractiveComponent>();
         }
 
     }

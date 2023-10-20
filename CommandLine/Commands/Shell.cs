@@ -1,14 +1,14 @@
-﻿using CommandLineReimagine.Commands.Modules;
-using CommandLineReimagine.Commands.Parser;
-using CommandLineReimagine.Commands.Parser.SemanticTree;
-using CommandLineReimagine.Console;
-using CommandLineReimagine.Console.Components;
+﻿using CommandLine.Modules;
+using CommandLineReimagined.Commands.Parser;
+using CommandLineReimagined.Commands.Parser.SemanticTree;
+using CommandLineReimagined.Console;
+using CommandLineReimagined.Console.Components;
 using EntityComponentSystem;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace CommandLineReimagine.Commands
+namespace CommandLineReimagined.Commands
 {
-    public class CommandLine
+    public class Shell
     {
         private readonly List<CommandProfile> _commandProfiles;
         private readonly CommandLineInterpreter _interpreter;
@@ -18,7 +18,7 @@ namespace CommandLineReimagine.Commands
         private readonly CommandHistoryModule _commandHistoryModule;
         private readonly ConsoleOutModule _consoleOutModule;
 
-        public CommandLine(IServiceProvider serviceProvider, ECS ecs, IEnumerable<CommandAction> commandActions, ConsoleLayout consoleRenderer, CommandHistoryModule commandHistoryModule, ConsoleOutModule consoleOutModule)
+        public Shell(IServiceProvider serviceProvider, ECS ecs, IEnumerable<CommandAction> commandActions, ConsoleLayout consoleRenderer, CommandHistoryModule commandHistoryModule, ConsoleOutModule consoleOutModule)
         {
             _commandProfiles = commandActions.Select(c => c.Profile).ToList();
             _interpreter = new CommandLineInterpreter();

@@ -1,8 +1,8 @@
 ﻿using System.IO;
 using System.Xml.Linq;
-using CommandLineReimagine.Commands.Modules;
+using CommandLine.Modules;
 
-namespace CommandLineReimagine.Commands.Implementations
+namespace CommandLineReimagined.Commands.Implementations
 {
     public class MakeDirectory : CommandAction
     {

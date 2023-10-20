@@ -1,7 +1,7 @@
 ﻿using EntityComponentSystem;
 using System.Drawing;
 
-namespace CommandLineReimagine.Console.Components;
+namespace CommandLineReimagined.Rendering.Components;
 
 public class Renderer : Component
 {

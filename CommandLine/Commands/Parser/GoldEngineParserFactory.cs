@@ -3,7 +3,7 @@ using System;
 using System.IO;
 using System.Reflection;
 
-namespace CommandLineReimagine.Commands.Parser;
+namespace CommandLineReimagined.Commands.Parser;
 
 public class GoldEngineParserFactory
 {

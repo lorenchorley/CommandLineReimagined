@@ -1,21 +1,13 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Diagnostics;
-using System.Drawing;
-using System.Linq;
-using System.Numerics;
-using System.Text;
-using System.Threading.Tasks;
-using System.Xml;
+﻿using System.Drawing;
 
-namespace CommandLineReimagine.Rendering
+namespace CommandLineReimagined.Rendering
 {
     public enum RenderState
     {
         Idle,
         Drawing,
         Rendering
-    } 
+    }
     internal class BitmapBuffer : IDisposable
     {
         private readonly object _lock = new object();

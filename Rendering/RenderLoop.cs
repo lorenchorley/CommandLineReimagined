@@ -1,11 +1,9 @@
-﻿using System;
-using System.Drawing;
-using System.Threading.Tasks;
-using System.Timers;
-using CommandLineReimagine.Configuration;
+﻿using CommandLineReimagined.Rendering.Configuration;
 using Microsoft.Extensions.Options;
+using System.Drawing;
+using System.Timers;
 
-namespace CommandLineReimagine.Rendering
+namespace CommandLineReimagined.Rendering
 {
     public class RenderLoop
     {

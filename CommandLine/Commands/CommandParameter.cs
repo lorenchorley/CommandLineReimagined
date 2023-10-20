@@ -1,4 +1,4 @@
-﻿namespace CommandLineReimagine.Commands
+﻿namespace CommandLineReimagined.Commands
 {
     public class CommandParameter
     {

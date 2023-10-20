@@ -1,7 +1,7 @@
 ﻿using GOLD;
-using CommandLineReimagine.Commands.Parser.SemanticTree;
+using CommandLineReimagined.Commands.Parser.SemanticTree;
 
-namespace CommandLineReimagine.Commands.Parser;
+namespace CommandLineReimagined.Commands.Parser;
 
 public static class GoldEngineExtensions
 {

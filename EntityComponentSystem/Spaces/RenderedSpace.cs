@@ -1,7 +1,7 @@
 ﻿
 namespace EntityComponentSystem
 {
-    public class WindowSpace
+    public class RenderedSpace
     {
 
     }

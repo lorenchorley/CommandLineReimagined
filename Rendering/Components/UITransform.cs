@@ -1,7 +1,7 @@
 ﻿using EntityComponentSystem;
 using System.Numerics;
 
-namespace CommandLineReimagine.Console.Components;
+namespace CommandLineReimagined.Rendering.Components;
 
 public class UITransform : Component
 {

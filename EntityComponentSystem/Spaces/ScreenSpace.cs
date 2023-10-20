@@ -1,8 +1,7 @@
 ﻿
-namespace EntityComponentSystem
-{
-    public class ScreenSpace
-    {
+namespace EntityComponentSystem;
 
-    }
+public class ScreenSpace
+{
+
 }

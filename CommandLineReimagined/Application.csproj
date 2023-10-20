@@ -50,6 +50,7 @@
   <ItemGroup>
     <ProjectReference Include="..\Commands\Commands.csproj" />
     <ProjectReference Include="..\EntityComponentSystem\EntityComponentSystem.csproj" />
+    <ProjectReference Include="..\RayCasting\RayCasting.csproj" />
     <ProjectReference Include="..\Rendering\Rendering.csproj" />
   </ItemGroup>
 

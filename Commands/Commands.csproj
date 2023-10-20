@@ -7,9 +7,9 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\CommandLine\CommandLine.csproj" />
+    <ProjectReference Include="..\CommandLine\Terminal.csproj" />
     <ProjectReference Include="..\EntityComponentSystem\EntityComponentSystem.csproj" />
-    <ProjectReference Include="..\VisualInterface\VisualInterface.csproj" />
+    <ProjectReference Include="..\VisualInterface\UIComponents.csproj" />
   </ItemGroup>
 
 </Project>

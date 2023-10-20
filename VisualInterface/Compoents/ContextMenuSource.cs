@@ -1,7 +1,7 @@
-﻿using CommandLineReimagine.Console.Interaction;
+﻿using CommandLineReimagined.Rendering.Interaction;
 using EntityComponentSystem;
 
-namespace CommandLineReimagine.Console.Components
+namespace CommandLineReimagined.Console.Components
 {
     public class ContextMenuSource : Component
     {
@@ -17,7 +17,7 @@ namespace CommandLineReimagine.Console.Components
 
         override protected void InsureDependencies()
         {
-            Entity.TryAddComponent<HitBox>();
+            Entity.TryAddComponent<InteractiveComponent>();
         }
     }
 }

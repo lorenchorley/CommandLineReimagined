@@ -1,58 +1,51 @@
 ﻿using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.DependencyInjection.Extensions;
-using System;
-using System.Configuration;
 using System.Windows;
-using CommandLineReimagine.Configuration;
-using CommandLineReimagine.Console;
-using CommandLineReimagine.Rendering;
 
-namespace CommandLineReimagine
+namespace CommandLineReimagined;
+
+public partial class App : Application
 {
-    /// <summary>
-    /// Interaction logic for App.xaml
-    /// </summary>
-    public partial class App : Application
+    public App()
     {
-        public App()
-        {
-        }
+    }
 
-        private void OnStartup(object sender, StartupEventArgs e)
-        {
-            Host.CreateDefaultBuilder(e.Args)
-                .ConfigureAppConfiguration(InitialiseConfiguration)
-                .ConfigureServices(ConfigureServices)
-                .Build()
-                .Services
-                .GetRequiredService<MainWindow>()
-                .Show();
-        }
+    private void OnStartup(object sender, StartupEventArgs e)
+    {
+        // Create the host builder
+        Host.CreateDefaultBuilder(e.Args)
 
-        private void ConfigureServices(HostBuilderContext hostContext, IServiceCollection services)
-        {
-            // La fenêtre principale
-            services.AddSingleton<MainWindow>();
+            // Configure the host
+            .ConfigureAppConfiguration(InitialiseConfiguration)
+            .ConfigureServices(ConfigureServices)
 
-            // Extraire les sections de configuration qui nous intéressent
-            services.ExtractConfigurations(hostContext.Configuration);
+            // Create the host
+            .Build()
 
-            // Les services coeurs
-            services.AddCoreConsoleFunctions();
+            // Request and open the main window
+            .Services
+            .GetRequiredService<MainWindow>()
+            .Show();
+    }
 
-            // Les modules utilisables par les commandes
-            services.AddConsoleModules();
+    private void ConfigureServices(HostBuilderContext hostContext, IServiceCollection services)
+    {
+        // La fenêtre principale
+        services.AddSingleton<MainWindow>();
 
-            // Les commandes (nouvelle instance à chaque demande)
-            services.ConfigureConsoleCommands();
-        }
-
-        private static void InitialiseConfiguration(HostBuilderContext hostContext, IConfigurationBuilder configuration)
-        {
-            configuration.AddJsonFile("appsettings.json", optional: false, reloadOnChange: true);
-        }
+        services.AddECSServices();
+        services.AddCommands();
+        services.AddModules();
+        services.AddRenderingServices();
+        services.ExtractConfigurations(hostContext.Configuration);
+        services.AddVisualInterfaceServices();
 
     }
+
+    private static void InitialiseConfiguration(HostBuilderContext hostContext, IConfigurationBuilder configuration)
+    {
+        configuration.AddJsonFile("appsettings.json", optional: false, reloadOnChange: true);
+    }
+
 }

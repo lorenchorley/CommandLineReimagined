@@ -1,6 +1,6 @@
 ﻿using EntityComponentSystem;
 
-namespace CommandLineReimagine.Console.Components
+namespace CommandLineReimagined.Console.Components
 {
     public class Line : Component
     {

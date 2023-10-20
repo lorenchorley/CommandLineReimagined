@@ -1,4 +1,4 @@
-﻿namespace CommandLineReimagine.Console.Components
+﻿namespace CommandLineReimagined.Console.Components
 {
     public interface ILineSegment
     {

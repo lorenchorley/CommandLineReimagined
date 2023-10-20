@@ -1,7 +1,8 @@
 ﻿using System.Collections.Generic;
-using CommandLineReimagine.Console;
+using CommandLineReimagined.Commands;
+using CommandLineReimagined.Console;
 
-namespace CommandLineReimagine.Commands.Modules
+namespace CommandLine.Modules
 {
     public class CommandHistoryModule
     {

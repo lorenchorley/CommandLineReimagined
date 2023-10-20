@@ -1,7 +1,7 @@
-﻿using CommandLineReimagine.Console;
-using CommandLineReimagine.Console.Components;
+﻿using CommandLineReimagined.Console;
+using CommandLineReimagined.Console.Components;
 
-public static class ECSExtensions
+public static class LineExtensions
 {
     public static void AddTextBlock(this Line line, string description, string text)
     {

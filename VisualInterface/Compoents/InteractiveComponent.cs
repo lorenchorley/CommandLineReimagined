@@ -1,10 +1,10 @@
 ﻿using System.Drawing;
-using CommandLineReimagine.Console.Components;
+using CommandLineReimagined.Rendering.Components;
 using EntityComponentSystem;
 
-namespace CommandLineReimagine.Console.Interaction
+namespace CommandLineReimagined.Rendering.Interaction
 {
-    public class HitBox : Component
+    public class InteractiveComponent : Component
     {
         public RectangleF Bounds { get; init; }
 

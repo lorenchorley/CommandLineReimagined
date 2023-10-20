@@ -1,8 +1,6 @@
 ﻿using Newtonsoft.Json;
 using System.Drawing;
 
-namespace CommandLineReimagined.Serialisation;
-
 public class RectangleFConverter : JsonConverter
 {
     public override bool CanConvert(Type objectType)

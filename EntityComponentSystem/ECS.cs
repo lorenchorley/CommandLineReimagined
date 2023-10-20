@@ -1,10 +1,4 @@
-﻿using EntityComponentSystem;
-using System;
-using System.Collections.Generic;
-using System.Drawing;
-using System.Linq;
-
-namespace EntityComponentSystem
+﻿namespace EntityComponentSystem
 {
     public class ECS
     {

@@ -1,8 +1,8 @@
 ﻿using Microsoft.Extensions.DependencyInjection;
 using System;
-using CommandLineReimagine.Console;
+using CommandLineReimagined.Console;
 
-namespace CommandLineReimagine.Commands.Modules
+namespace CommandLine.Modules
 {
     public class ConsoleOutModule
     {

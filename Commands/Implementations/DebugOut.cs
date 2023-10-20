@@ -1,8 +1,8 @@
-﻿using CommandLineReimagine.Commands.Modules;
+﻿using CommandLine.Modules;
 using EntityComponentSystem;
 using System.Diagnostics;
 
-namespace CommandLineReimagine.Commands.Implementations
+namespace CommandLineReimagined.Commands.Implementations
 {
     public class DebugOut : CommandAction
     {

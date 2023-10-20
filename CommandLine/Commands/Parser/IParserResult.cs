@@ -1,6 +1,6 @@
 ﻿using System.Collections.Generic;
 
-namespace CommandLineReimagine.Commands.Parser;
+namespace CommandLineReimagined.Commands.Parser;
 
     public interface IParserResult<TNode>
     {

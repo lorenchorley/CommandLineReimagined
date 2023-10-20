@@ -1,8 +1,8 @@
-﻿using CommandLineReimagine.Console;
-using CommandLineReimagine.Console.Components;
+﻿using CommandLineReimagined.Console;
+using CommandLineReimagined.Console.Components;
 using EntityComponentSystem;
 
-namespace CommandLineReimagine.Commands.Modules
+namespace CommandLine.Modules
 {
     public class ConsoleOutScope
     {
