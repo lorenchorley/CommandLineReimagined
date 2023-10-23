@@ -1,4 +1,4 @@
-﻿using CommandLineReimagined.Console;
+﻿using Console;
 using Microsoft.Extensions.DependencyInjection;
 
 public static class VisualInterfaceServiceExtensions

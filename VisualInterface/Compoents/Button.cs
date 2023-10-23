@@ -1,8 +1,8 @@
-﻿using CommandLineReimagined.Rendering.Components;
-using CommandLineReimagined.Rendering.Interaction;
+﻿using Rendering.Components;
+using Rendering.Interaction;
 using EntityComponentSystem;
 
-namespace CommandLineReimagined.Console.Components
+namespace Console.Components
 {
     public class Button : Component, ILineSegment
     {

@@ -1,4 +1,4 @@
-﻿namespace CommandLineReimagined.Commands
+﻿namespace Commands
 {
     public record CommandProfile(
         string Name,

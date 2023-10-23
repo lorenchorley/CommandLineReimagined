@@ -40,7 +40,7 @@ public partial class App : Application
         services.AddRenderingServices();
         services.ExtractConfigurations(hostContext.Configuration);
         services.AddVisualInterfaceServices();
-
+        services.AddInteractionLogicServices();
     }
 
     private static void InitialiseConfiguration(HostBuilderContext hostContext, IConfigurationBuilder configuration)

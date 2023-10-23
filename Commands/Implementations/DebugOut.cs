@@ -2,7 +2,7 @@
 using EntityComponentSystem;
 using System.Diagnostics;
 
-namespace CommandLineReimagined.Commands.Implementations
+namespace Commands.Implementations
 {
     public class DebugOut : CommandAction
     {

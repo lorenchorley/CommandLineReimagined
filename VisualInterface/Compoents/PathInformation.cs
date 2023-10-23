@@ -1,6 +1,6 @@
 ﻿using EntityComponentSystem;
 
-namespace CommandLineReimagined.Console.Components
+namespace Console.Components
 {
     public class PathInformation : Component
     {

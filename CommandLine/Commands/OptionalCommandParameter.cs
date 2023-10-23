@@ -1,4 +1,4 @@
-﻿namespace CommandLineReimagined.Commands
+﻿namespace Commands
 {
     public class OptionalCommandParameter : CommandParameter
     {

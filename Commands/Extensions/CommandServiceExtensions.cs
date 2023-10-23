@@ -1,5 +1,5 @@
-﻿using CommandLineReimagined.Commands;
-using CommandLineReimagined.Commands.Implementations;
+﻿using Commands;
+using Commands.Implementations;
 using Microsoft.Extensions.DependencyInjection;
 
 public static class CommandServiceExtensions

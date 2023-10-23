@@ -1,7 +1,7 @@
-﻿using CommandLineReimagined.Rendering.Interaction;
+﻿using Rendering.Interaction;
 using EntityComponentSystem;
 
-namespace CommandLineReimagined.Console.Components
+namespace Console.Components
 {
     public class ContextMenuSource : Component
     {

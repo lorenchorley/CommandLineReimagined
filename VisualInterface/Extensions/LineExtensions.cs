@@ -1,5 +1,5 @@
-﻿using CommandLineReimagined.Console;
-using CommandLineReimagined.Console.Components;
+﻿using Console;
+using Console.Components;
 
 public static class LineExtensions
 {

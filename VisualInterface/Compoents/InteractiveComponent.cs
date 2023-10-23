@@ -1,8 +1,8 @@
 ﻿using System.Drawing;
-using CommandLineReimagined.Rendering.Components;
+using Rendering.Components;
 using EntityComponentSystem;
 
-namespace CommandLineReimagined.Rendering.Interaction
+namespace Rendering.Interaction
 {
     public class InteractiveComponent : Component
     {

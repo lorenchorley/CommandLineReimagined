@@ -1,5 +1,5 @@
 ﻿using CommandLine.Modules;
-using CommandLineReimagined.Commands;
+using Commands;
 using EntityComponentSystem;
 using Microsoft.Extensions.DependencyInjection;
 

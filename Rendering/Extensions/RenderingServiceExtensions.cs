@@ -1,5 +1,5 @@
-﻿using CommandLineReimagined.Rendering;
-using CommandLineReimagined.Rendering.Configuration;
+﻿using Rendering;
+using Rendering.Configuration;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 

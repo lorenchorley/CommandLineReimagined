@@ -1,5 +1,5 @@
-﻿using CommandLineReimagined.Console;
-using CommandLineReimagined.Console.Components;
+﻿using Console;
+using Console.Components;
 using EntityComponentSystem;
 
 namespace CommandLine.Modules

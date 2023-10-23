@@ -3,7 +3,7 @@ using System.Windows;
 using System.Xml.Linq;
 using CommandLine.Modules;
 
-namespace CommandLineReimagined.Commands.Implementations
+namespace Commands.Implementations
 {
     public class Exit : CommandAction
     {

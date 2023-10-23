@@ -1,6 +1,6 @@
 ﻿using System.Collections.Generic;
-using CommandLineReimagined.Commands;
-using CommandLineReimagined.Console;
+using Commands;
+using Console;
 
 namespace CommandLine.Modules
 {

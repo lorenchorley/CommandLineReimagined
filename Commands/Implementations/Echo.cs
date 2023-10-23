@@ -1,9 +1,9 @@
 ﻿using System.IO;
 using System.Xml.Linq;
 using CommandLine.Modules;
-using CommandLineReimagined.Console.Components;
+using Console.Components;
 
-namespace CommandLineReimagined.Commands.Implementations
+namespace Commands.Implementations
 {
     public class Echo : CommandAction
     {

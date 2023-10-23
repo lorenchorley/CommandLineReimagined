@@ -1,5 +1,5 @@
-﻿using CommandLineReimagined.Rendering.Components;
-using CommandLineReimagined.Rendering.Interaction;
+﻿using Rendering.Components;
+using Rendering.Interaction;
 using System.Drawing;
 
 namespace EntityComponentSystem.RayCasting;

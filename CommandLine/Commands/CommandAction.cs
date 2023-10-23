@@ -1,6 +1,6 @@
 ﻿using CommandLine.Modules;
 
-namespace CommandLineReimagined.Commands
+namespace Commands
 {
     public abstract class CommandAction
     {

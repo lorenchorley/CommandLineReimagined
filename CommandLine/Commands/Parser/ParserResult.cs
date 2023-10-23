@@ -1,7 +1,7 @@
 ﻿using System.Collections.Generic;
-using CommandLineReimagined.Commands.Parser.SemanticTree;
+using Commands.Parser.SemanticTree;
 
-namespace CommandLineReimagined.Commands.Parser;
+namespace Commands.Parser;
 
 public class ParserResult : IParserResult<INode>
 {

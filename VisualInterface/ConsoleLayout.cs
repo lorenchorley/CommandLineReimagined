@@ -3,11 +3,11 @@ using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Linq;
 using System.Numerics;
-using CommandLineReimagined.Console.Components;
-using CommandLineReimagined.Rendering.Components;
+using Console.Components;
+using Rendering.Components;
 using EntityComponentSystem;
 
-namespace CommandLineReimagined.Console
+namespace Console
 {
     public class ConsoleLayout
     {

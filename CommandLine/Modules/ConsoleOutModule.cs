@@ -1,6 +1,6 @@
 ﻿using Microsoft.Extensions.DependencyInjection;
 using System;
-using CommandLineReimagined.Console;
+using Console;
 
 namespace CommandLine.Modules
 {

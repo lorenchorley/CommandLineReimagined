@@ -1,4 +1,4 @@
-﻿//using CommandLineReimagined.Console.Entities;
+﻿//using Console.Entities;
 
 //namespace WPFCanvas.Console.Components
 //{

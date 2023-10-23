@@ -1,12 +1,12 @@
 ﻿using CommandLine.Modules;
-using CommandLineReimagined.Commands.Parser;
-using CommandLineReimagined.Commands.Parser.SemanticTree;
-using CommandLineReimagined.Console;
-using CommandLineReimagined.Console.Components;
+using Commands.Parser;
+using Commands.Parser.SemanticTree;
+using Console;
+using Console.Components;
 using EntityComponentSystem;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace CommandLineReimagined.Commands
+namespace Commands
 {
     public class Shell
     {

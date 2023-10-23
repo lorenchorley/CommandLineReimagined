@@ -4,12 +4,10 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace CommandLineReimagined.Rendering.Configuration
+namespace Rendering.Configuration;
+
+public class RenderingOptions
 {
-    public class RenderingOptions
-    {
-        public const string ConfigurationSection = "RenderingOptions";
-        public int FrameRate { get; set; }
-    }
+    public const string ConfigurationSection = "RenderingOptions";
+    public int FrameRate { get; set; }
 }
- 
