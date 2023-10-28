@@ -25,12 +25,12 @@ namespace Commands.Implementations
 
         public override void Execute(CommandParameterValue[] args, ConsoleOutScope scope)
         {
-            var line = scope.NewLine();
+            //var line = scope.NewLine();
 
             _previousFolder = _pathModule.CurrentFolder;
             _pathModule.Up();
 
-            line.AddTextBlock("up", $"Moved up one to : {_pathModule.CurrentFolder}");
+            //line.AddTextBlock("up", $"Moved up one to : {_pathModule.CurrentFolder}");
         }
 
         public override void Undo(CommandParameterValue[] args, ConsoleOutScope scope)

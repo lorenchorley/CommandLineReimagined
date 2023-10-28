@@ -4,7 +4,7 @@ using EntityComponentSystem;
 
 namespace Console.Components
 {
-    public class Button : Component, ILineSegment
+    public class ButtonComponent : Component, ILineSegment
     {
         public string Text { get; set; }
 

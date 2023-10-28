@@ -1,8 +1,7 @@
-﻿using CommandLine.Modules;
-using Console;
-using Console.Components;
+﻿using Console.Components;
 using EntityComponentSystem;
 using EntityComponentSystem.RayCasting;
+using InteractionLogic.FrameworkAccessors;
 using Rendering;
 using System.IO;
 using System.Windows;
@@ -17,13 +16,41 @@ public class CanvasInteractionEventHandler
     private readonly RenderLoop _renderLoop;
     private readonly RayCaster _rayCaster;
     private readonly TextInputUpdateHandler _textInputUpdateHandler;
+    private readonly ContextMenuAccessor _contextMenuAccessor;
+    private readonly TextInputHandler _textInputHandler;
 
-    public CanvasInteractionEventHandler(CanvasAccessor canvasAccessor, RenderLoop renderLoop, RayCaster rayCaster, TextInputUpdateHandler textInputUpdateHandler)
+    public CanvasInteractionEventHandler(CanvasAccessor canvasAccessor, RenderLoop renderLoop, RayCaster rayCaster, TextInputUpdateHandler textInputUpdateHandler, ContextMenuAccessor contextMenuAccessor, TextInputHandler textInputHandler)
     {
         _canvasAccessor = canvasAccessor;
         _renderLoop = renderLoop;
         _rayCaster = rayCaster;
         _textInputUpdateHandler = textInputUpdateHandler;
+        _contextMenuAccessor = contextMenuAccessor;
+        _textInputHandler = textInputHandler;
+        _canvasAccessor.RegisterEventHandlers<CanvasInteractionEventHandler>(RegisterEventHandlers, UnregisterEventHandlers);
+
+        _contextMenuAccessor.RegisterOnClick("PathNavigationContextMenu", "Enter", Enter_PathNavigation_Click);
+        _contextMenuAccessor.RegisterOnClick("PathNavigationContextMenu", "Copy path as text", CopyPathAsText_PathNavigation_Click);
+        _contextMenuAccessor.RegisterOnClick("PathNavigationContextMenu", "Add path to input", AddPathToInput_PathNavigation_Click);
+        _contextMenuAccessor.RegisterOnClick("PathNavigationContextMenu", "Delete", Delete_Click);
+
+        _contextMenuAccessor.RegisterOnClick("FileNavigationContextMenu", "Add path to input", AddPathToInput_FileNavigation_Click);
+        _contextMenuAccessor.RegisterOnClick("FileNavigationContextMenu", "Delete", Delete_Click);
+        _contextMenuAccessor.RegisterOnClick("FileNavigationContextMenu", "Copy filename as text", CopyFileNameAsText_FileNavigation_Click);
+        _contextMenuAccessor.RegisterOnClick("FileNavigationContextMenu", "Copy path as text", CopyPathAsText_FileNavigation_Click);
+        _contextMenuAccessor.RegisterOnClick("FileNavigationContextMenu", "Copy full path as text", CopyFullPathAsText_FileNavigation_Click);
+
+        _contextMenuAccessor.RegisterOnClick("TextSelectionContextMenu", "Copy", CopyText_Click);
+    }
+
+    private void RegisterEventHandlers(Canvas canvas, Image image)
+    {
+        canvas.MouseDown += Canvas_MouseDown;
+    }
+
+    private void UnregisterEventHandlers(Canvas canvas, Image image)
+    {
+        canvas.MouseDown -= Canvas_MouseDown;
     }
 
     public void Canvas_MouseDown(object sender, MouseButtonEventArgs e)
@@ -33,16 +60,53 @@ public class CanvasInteractionEventHandler
             return;
         }
 
+        if (e.ChangedButton == MouseButton.Left && e.ClickCount == 1)
+        {
+            HandleLeftClick(e, canvas);
+            return;
+        }
+
+        if (e.ChangedButton == MouseButton.Left && e.ClickCount == 2)
+        {
+            HandleDoubleLeftClick(e, canvas);
+            return;
+        }
+
         if (e.ChangedButton == MouseButton.Right)
         {
             HandleRightClick(e, canvas);
             return;
         }
+    }
 
-        if (e.ChangedButton == MouseButton.Left)
+    private void HandleDoubleLeftClick(MouseButtonEventArgs e, Canvas canvas)
+    {
+        System.Windows.Point pos = e.GetPosition(canvas);
+        var hit = _rayCaster.CastRay(new System.Drawing.Point((int)pos.X, (int)pos.Y), InteractableElementLayer.Navigation);
+
+        if (hit == null)
         {
-            HandleLeftClick(e, canvas);
             return;
+        }
+
+        _contexteMenuEntity = hit.Entity;
+        DoubleClickAction? action = hit.Entity.TryGetComponent<DoubleClickAction>();
+
+        if (action == null)
+        {
+            return;
+        }
+
+        switch (action.ActionName)
+        {
+            case "Enter":
+                Enter_PathNavigation_Click(this, new());
+                break;
+            case "Up":
+                Up_PathNavigation_Click(this, new());
+                break;
+            default:
+                throw new NotImplementedException("Double click action type : " + action.ActionName);
         }
     }
 
@@ -61,7 +125,7 @@ public class CanvasInteractionEventHandler
         e.Handled = true;
     }
 
-    public Entity? _contexteMenuEntity { get; private set; }
+    private Entity? _contexteMenuEntity;
 
     private void HandleRightClick(MouseButtonEventArgs e, Canvas canvas)
     {
@@ -81,76 +145,91 @@ public class CanvasInteractionEventHandler
             return;
         }
 
-        ContextMenu? navigationContextMenu = _canvasAccessor.Canvas.FindResource(menu.ContextMenuName) as ContextMenu;
+        if (!_contextMenuAccessor.TryGet(menu.ContextMenuName, out ContextMenu? navigationContextMenu))
+        {
+            throw new Exception();
+        }
 
         if (navigationContextMenu != null)
         {
+            // Ouvrir le menu contextuel
             navigationContextMenu.PlacementTarget = canvas;
             navigationContextMenu.IsOpen = true;
 
             e.Handled = true;
         }
-
     }
 
-    private void AddPathToInput_PathNavigation_Click(object sender, RoutedEventArgs e)
+    public void AddPathToInput_PathNavigation_Click(object sender, RoutedEventArgs e)
     {
-        string command = $"\"{_contexteMenuEntity.GetComponent<PathInformation>().Path}\"";
+        string command = $"\"{_contexteMenuEntity!.GetComponent<PathInformation>().Path}\"";
         _textInputUpdateHandler.InsertTextAtCursor(command);
 
         _renderLoop.RefreshOnce();
     }
 
-    private void Enter_PathNavigation_Click(object sender, RoutedEventArgs e)
+    public void Up_PathNavigation_Click(object sender, RoutedEventArgs e)
+    {
+        string command = $"up";
+
+        _textInputUpdateHandler.InsertTextAtCursor(command);
+        _textInputHandler.ExecuteActiveLine();
+
+        _renderLoop.RefreshOnce();
+    }
+    
+    public void Enter_PathNavigation_Click(object sender, RoutedEventArgs e)
     {
         // Insérer la commande dans l'input où il y a le curseur
-        string command = $"cd \"{_contexteMenuEntity.GetComponent<PathInformation>().Path.GetLowestDirectory()}\"";
+        string command = $"cd \"{_contexteMenuEntity!.GetComponent<PathInformation>().Path.GetLowestDirectory()}\"";
+
+        _textInputUpdateHandler.InsertTextAtCursor(command);
+        _textInputHandler.ExecuteActiveLine();
+
+        _renderLoop.RefreshOnce();
+    }
+
+    public void CopyPathAsText_PathNavigation_Click(object sender, RoutedEventArgs e)
+    {
+        Clipboard.SetText(_contexteMenuEntity!.GetComponent<PathInformation>().Path);
+    }
+
+    public void AddPathToInput_FileNavigation_Click(object sender, RoutedEventArgs e)
+    {
+        string command = $"\"{_contexteMenuEntity!.GetComponent<PathInformation>().Path}\"";
         _textInputUpdateHandler.InsertTextAtCursor(command);
 
         _renderLoop.RefreshOnce();
     }
 
-    private void CopyPathAsText_PathNavigation_Click(object sender, RoutedEventArgs e)
+    public void CopyPathAsText_FileNavigation_Click(object sender, RoutedEventArgs e)
     {
-        Clipboard.SetText(_contexteMenuEntity.GetComponent<PathInformation>().Path);
-    }
-
-    private void AddPathToInput_FileNavigation_Click(object sender, RoutedEventArgs e)
-    {
-        string command = $"\"{_contexteMenuEntity.GetComponent<PathInformation>().Path}\"";
-        _textInputUpdateHandler.InsertTextAtCursor(command);
-
-        _renderLoop.RefreshOnce();
-    }
-
-    private void CopyPathAsText_FileNavigation_Click(object sender, RoutedEventArgs e)
-    {
-        string path = _contexteMenuEntity.GetComponent<PathInformation>().Path;
+        string path = _contexteMenuEntity!.GetComponent<PathInformation>().Path;
         Clipboard.SetText(Path.GetDirectoryName(path));
     }
 
-    private void CopyFileNameAsText_FileNavigation_Click(object sender, RoutedEventArgs e)
+    public void CopyFileNameAsText_FileNavigation_Click(object sender, RoutedEventArgs e)
     {
-        string path = _contexteMenuEntity.GetComponent<PathInformation>().Path;
+        string path = _contexteMenuEntity!.GetComponent<PathInformation>().Path;
         Clipboard.SetText(Path.GetFileName(path));
     }
 
-    private void CopyFullPathAsText_FileNavigation_Click(object sender, RoutedEventArgs e)
+    public void CopyFullPathAsText_FileNavigation_Click(object sender, RoutedEventArgs e)
     {
-        string path = _contexteMenuEntity.GetComponent<PathInformation>().Path;
+        string path = _contexteMenuEntity!.GetComponent<PathInformation>().Path;
         Clipboard.SetText(path);
     }
 
-    private void Delete_Click(object sender, RoutedEventArgs e)
+    public void Delete_Click(object sender, RoutedEventArgs e)
     {
         // Insérer la commande dans l'input où il y a le curseur
-        string command = $"rm {_contexteMenuEntity.GetComponent<PathInformation>().Path}";
+        string command = $"rm {_contexteMenuEntity!.GetComponent<PathInformation>().Path}";
         _textInputUpdateHandler.InsertTextAtCursor(command);
 
         _renderLoop.RefreshOnce();
     }
 
-    private void CopyText_Click(object sender, RoutedEventArgs e)
+    public void CopyText_Click(object sender, RoutedEventArgs e)
     {
         //Clipboard.SetText("qsd");
     }

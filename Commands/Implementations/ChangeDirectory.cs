@@ -27,7 +27,7 @@ namespace Commands.Implementations
 
         public override void Execute(CommandParameterValue[] args, ConsoleOutScope scope)
         {
-            TextBlock segment;
+            TextComponent segment;
             var line = scope.NewLine();
 
             _previousFolder = _pathModule.CurrentPath;
@@ -40,7 +40,7 @@ namespace Commands.Implementations
                 return;
             }
 
-            line.AddTextBlock("cd", $"Moved to : {target}");
+            scope.AbondonLine(line);
         }
 
         public override void Undo(CommandParameterValue[] args, ConsoleOutScope scope)

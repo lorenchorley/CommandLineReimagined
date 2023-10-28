@@ -1,7 +1,7 @@
-﻿using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
+﻿using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using System.Windows;
+using static ServiceExtensions;
 
 namespace CommandLineReimagined;
 
@@ -17,35 +17,19 @@ public partial class App : Application
         Host.CreateDefaultBuilder(e.Args)
 
             // Configure the host
-            .ConfigureAppConfiguration(InitialiseConfiguration)
+            .ConfigureAppConfiguration(AddConfiguration)
             .ConfigureServices(ConfigureServices)
 
             // Create the host
             .Build()
 
-            // Request and open the main window
+            // Initialise the services
             .Services
+            .InitialiseServices()
+
+            // Request and open the main window
             .GetRequiredService<MainWindow>()
             .Show();
-    }
-
-    private void ConfigureServices(HostBuilderContext hostContext, IServiceCollection services)
-    {
-        // La fenêtre principale
-        services.AddSingleton<MainWindow>();
-
-        services.AddECSServices();
-        services.AddCommands();
-        services.AddModules();
-        services.AddRenderingServices();
-        services.ExtractConfigurations(hostContext.Configuration);
-        services.AddVisualInterfaceServices();
-        services.AddInteractionLogicServices();
-    }
-
-    private static void InitialiseConfiguration(HostBuilderContext hostContext, IConfigurationBuilder configuration)
-    {
-        configuration.AddJsonFile("appsettings.json", optional: false, reloadOnChange: true);
     }
 
 }

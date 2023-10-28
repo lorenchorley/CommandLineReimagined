@@ -11,7 +11,7 @@ namespace CommandLine.Modules
         private readonly ECS _ecs;
 
         public string Description { get; set; }
-        public List<Line> Lines { get; set; } = new();
+        public List<LineComponent> Lines { get; set; } = new();
 
         public ConsoleOutScope(IServiceProvider serviceProvider, ConsoleLayout consoleRenderer, ECS ecs)
         {
@@ -26,9 +26,9 @@ namespace CommandLine.Modules
             return this;
         }
 
-        public Line NewLine()
+        public LineComponent NewLine()
         {
-            Line line = _ecs.NewEntity("Scoped : " + Description).AddComponent<Line>();
+            LineComponent line = _ecs.NewEntity("Scoped : " + Description).AddComponent<LineComponent>();
             Lines.Add(line);
             return line;
         }
@@ -39,6 +39,11 @@ namespace CommandLine.Modules
             {
                 _consoleRenderer.Output.Lines.Add(Lines[i]);
             }
+        }
+
+        public void AbondonLine(LineComponent line)
+        {
+            Lines.Remove(line);
         }
     }
 }

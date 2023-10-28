@@ -5,7 +5,7 @@ namespace Console.Components;
 
 public class ConsoleOutput : Component
 {
-    public List<Line> Lines { get; private set; } = new();
+    public List<LineComponent> Lines { get; private set; } = new();
 
     public override IEnumerable<(string, string)> SerialisableDebugProperties
     {

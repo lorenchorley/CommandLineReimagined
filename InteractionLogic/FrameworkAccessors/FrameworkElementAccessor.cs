@@ -1,8 +1,9 @@
-﻿using System.Windows;
+﻿using System.Diagnostics.CodeAnalysis;
+using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Threading;
 
-namespace InteractionLogic;
+namespace InteractionLogic.FrameworkAccessors;
 
 
 public abstract class FrameworkElementAccessor<TValue> where TValue : FrameworkElement
@@ -61,6 +62,27 @@ public abstract class FrameworkElementAccessor<TValue> where TValue : FrameworkE
             }
 
             _removeEventHandlers.Remove(typeof(TAssociatedClass));
+        }
+    }
+
+}
+
+public abstract class KeyedFrameworkElementAccessor<TValue> where TValue : FrameworkElement
+{
+    private Dictionary<string, TValue> Values { get; } = new();
+
+    public bool TryGet(string key, [NotNullWhen(true)] out TValue? value) 
+        => Values.TryGetValue(key, out value);
+
+    public void AddFrameworkElement(string key, TValue value)
+    {
+        if (Values.ContainsKey(key))
+        {
+            Values[key] = value;
+        }
+        else
+        {
+            Values.Add(key, value);
         }
     }
 

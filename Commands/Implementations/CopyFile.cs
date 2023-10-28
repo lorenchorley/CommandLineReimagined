@@ -32,7 +32,7 @@ namespace Commands.Implementations
 
         public override void Execute(CommandParameterValue[] args, ConsoleOutScope scope)
         {
-            TextBlock segment;
+            TextComponent segment;
             var line = scope.NewLine();
 
             _originalFilename = args[0].Value;

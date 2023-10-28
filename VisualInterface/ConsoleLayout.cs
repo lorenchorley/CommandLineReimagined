@@ -16,6 +16,7 @@ namespace Console
         private Pen _pen = new Pen(Color.White);
         private Pen _cursorPen = new Pen(Color.White);
         private Pen _buttonPen = new Pen(new SolidBrush(Color.WhiteSmoke));
+        private Pen _inputBackgroundPen = new Pen(new SolidBrush(Color.RoyalBlue));
         private Pen _debugPen = new Pen(new HatchBrush(HatchStyle.BackwardDiagonal, Color.White));
         private Font _font = new Font(FontFamily.GenericMonospace, 14);
 
@@ -40,13 +41,13 @@ namespace Console
             Output = _ecs.NewEntity("Output").AddComponent<ConsoleOutput>();
 
             Input = _ecs.NewEntity("Input").AddComponent<ConsoleInput>();
-            Input.ActiveLine = _ecs.NewEntity("Active line").AddComponent<Line>();
+            Input.ActiveLine = _ecs.NewEntity("Active line").AddComponent<LineComponent>();
         }
 
-        public Line NewLine(string description)
+        public LineComponent NewLine(string description)
         {
             Entity lineObject = _ecs.NewEntity(description);
-            Line line = lineObject.AddComponent<Line>();
+            LineComponent line = lineObject.AddComponent<LineComponent>();
             Output.Lines.Add(line);
             return line;
         }
@@ -142,14 +143,18 @@ namespace Console
             //RecalculateChildTransforms(Output.Lines, outputTransform);
             RecalculateChildTransforms(GetLines().ToList(), outputTransform);
 
+            // Dessiner les éléments visuels correspondant à l'input
+            if (Input.ActiveLine != null)
+                DrawBackgroundAroundLine(gfx, Input.ActiveLine, canvasWidth, canvasHeight);
 
             // Deuxième passe pour dessiner les éléments
             DrawElements(gfx, componentsToRender);
         }
 
-        private IEnumerable<Line> GetLines()
+        private IEnumerable<LineComponent> GetLines()
         {
-            yield return (Line)Input.ActiveLine;
+            if (Input.ActiveLine != null)
+                yield return Input.ActiveLine;
 
             //foreach (var line in Output.Lines)
             for (int i = Output.Lines.Count - 1; i >= 0; i--)
@@ -158,7 +163,7 @@ namespace Console
             }
         }
 
-        private void RecalculateChildTransforms(List<Line> lines, UITransform transform)
+        private void RecalculateChildTransforms(List<LineComponent> lines, UITransform transform)
         {
             PointF position;
             float calculatedWidth;
@@ -171,29 +176,29 @@ namespace Console
 
             for (int i = 0; i < lines.Count; i++)
             {
-                Line line = lines[i];
+                LineComponent line = lines[i];
 
                 foreach (ILineSegment lineSegment in line.GetOrderedLineSegments())
                 {
                     Renderer renderer = ((Component)lineSegment).Entity.GetComponent<Renderer>();
                     renderer.IsVisible = true; // Marquer comme visible pour le rendu
 
-                    if (lineSegment is TextBlock textBlock)
+                    if (lineSegment is TextComponent textBlock)
                     {
                         // TODO Gérer les retours à la ligne
+                        var newLineCount = textBlock.Text.Where(c => c == '\n').Count();
+                        verticalOffset += letterHeight * newLineCount; // Ajouter de l'hauteur s'il y a des retours à la ligne
 
                         position = NewPosition(horizontalOffset, verticalOffset);
                         calculatedWidth = letterWidth * textBlock.Text.Length;
-                        size = new(calculatedWidth, letterHeight);
-
+                        size = new(calculatedWidth, letterHeight * (newLineCount + 1));
                         renderer.CanvasRenderPosition = new(position, size);
-
                         horizontalOffset += size.Width;
 
                         continue;
                     }
 
-                    if (lineSegment is Button button)
+                    if (lineSegment is ButtonComponent button)
                     {
                         // TODO Gérer les retours à la ligne
                         horizontalOffset += letterWidth;
@@ -232,6 +237,20 @@ namespace Console
             }
         }
 
+        private void DrawBackgroundAroundLine(Graphics gfx, LineComponent line, float canvasWidth, float canvasHeight)
+        {
+            RectangleF boundingBox = 
+                line.GetOrderedLineSegments()
+                    .OfType<Component>()
+                    .Select(s => s.GetComponent<Renderer>())
+                    .Select(r => r.CanvasRenderPosition)
+                    .Aggregate((r, s) => RectangleF.Union(r, s));
+
+            boundingBox = RectangleF.Union(boundingBox, new RectangleF(new PointF(0, canvasHeight), new SizeF(canvasWidth, 0)));
+
+            gfx.DrawRectangle(_inputBackgroundPen, boundingBox);
+        }
+
         // TODO Cette méthode pourrait sortir dans sa propre classe de rendu, il s'agit d'une phase à part
         private void DrawElements(Graphics gfx, List<Renderer> elementsToRender)
         {
@@ -242,19 +261,14 @@ namespace Console
                 if (_debugRendering)
                     gfx.DrawRectangle(_debugPen, bounds);
 
-                if (renderer.Entity.TryGetComponent(out TextBlock? textBlock))
+                if (renderer.Entity.TryGetComponent(out TextComponent? textBlock))
                 {
                     // TODO Gérer les retours à la ligne+
 
                     gfx.DrawString(textBlock.Text, _font, Brushes.White, bounds.Location);
 
                 }
-                //else if (renderer.Entity.TryGetComponent(out NewLine? newLine))
-                //{
-                //    if (_debugRendering)
-                //        gfx.DrawLine(_debugPen, bounds.Location, new PointF(bounds.Location.X, bounds.Location.Y + bounds.Height));
-                //}
-                else if (renderer.Entity.TryGetComponent(out Button? button))
+                else if (renderer.Entity.TryGetComponent(out ButtonComponent? button))
                 {
                     // TODO Gérer les retours à la ligne
 

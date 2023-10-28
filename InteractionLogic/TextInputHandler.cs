@@ -2,14 +2,16 @@
 using Commands;
 using Console;
 using EntityComponentSystem;
+using InteractionLogic.FrameworkAccessors;
 using Rendering;
+using System.Diagnostics;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 
 namespace InteractionLogic;
 
-public class TextInputHandler 
+public class TextInputHandler
 {
     private readonly InputAccessor _inputAccessor;
     private readonly ConsoleLayout _consoleRenderer;
@@ -37,7 +39,7 @@ public class TextInputHandler
         input.TextChanged += Input_TextChanged;
         input.Loaded += Input_Loaded;
         input.LostFocus += Input_LostFocus;
-        input.KeyUp += Input_KeyUp;
+        input.KeyDown += Input_KeyUp;
     }
 
     private void UnregisterEventHandlers(TextBox input)
@@ -45,7 +47,7 @@ public class TextInputHandler
         input.TextChanged -= Input_TextChanged;
         input.Loaded -= Input_Loaded;
         input.LostFocus -= Input_LostFocus;
-        input.KeyUp -= Input_KeyUp;
+        input.KeyDown -= Input_KeyUp;
     }
 
     public void Input_TextChanged(object sender, TextChangedEventArgs e)
@@ -59,12 +61,12 @@ public class TextInputHandler
         _consoleRenderer.Input.ActiveLine.Clear();
         Entity entity = _ecs.NewEntity("Input prompt");
 
-        var textBlock = entity.AddComponent<Console.Components.TextBlock>();
+        var textBlock = entity.AddComponent<Console.Components.TextComponent>();
         textBlock.Text = _pathModule.CurrentFolder + "> ";
         _consoleRenderer.Input.ActiveLine.AddLineSegment(textBlock);
 
         entity = _ecs.NewEntity("Input Textblock");
-        textBlock = entity.AddComponent<Console.Components.TextBlock>();
+        textBlock = entity.AddComponent<Console.Components.TextComponent>();
         textBlock.Text = _inputAccessor.Input.Text;
         _consoleRenderer.Input.ActiveLine.AddLineSegment(textBlock);
 
@@ -84,32 +86,56 @@ public class TextInputHandler
 
     public void Input_KeyUp(object sender, KeyEventArgs e)
     {
-        bool needsRefresh =
-            _consoleRenderer.Input.SelectionStart != _inputAccessor.Input.SelectionStart ||
-            _consoleRenderer.Input.SelectionLength != _inputAccessor.Input.SelectionLength;
+        // S'il y a besoin de rafraîchir l'affichage à cause d'une modification de la sélection
+        if (_consoleRenderer.Input.SelectionStart != _inputAccessor.Input.SelectionStart ||
+            _consoleRenderer.Input.SelectionLength != _inputAccessor.Input.SelectionLength)
+            _renderLoop.RefreshOnce();
 
         // Extraction de la position du curseur pour le rendre dans la console
         _consoleRenderer.Input.SelectionStart = _inputAccessor.Input.SelectionStart;
         _consoleRenderer.Input.SelectionLength = _inputAccessor.Input.SelectionLength;
 
+        Debug.WriteLine(_inputAccessor.Input.Text);
+
         if (e.Key == Key.Enter)
         {
-            _shell.ExecuteCommand(_inputAccessor.Input.Text);
-            _inputAccessor.Input.Text = "";
-            needsRefresh = true;
+            // Si maj est enfoncé, on va forcément à la ligne à la place d'exécuter la commande
+            if (IsModifierPressed(ModifierKeys.Shift))
+            {
+                // On laisse la frapper de clé se faire
+                _renderLoop.RefreshOnce();
+                return;
+            }
+
+            // Sinon il faut qu'on détermine si la commande est exécutable pour continuer
+            if (_shell.IsCommandExecutable(_inputAccessor.Input.Text))
+            {
+                ExecuteActiveLine();
+                e.Handled = true; // TODO Needs mirroring logic in KeyDown to stop the text jumping up and then disappearing
+                _renderLoop.RefreshOnce();
+                return;
+            }
+
+            // Si la commande n'est exécutable à ce stade, on laisse la frappe de clé se faire
+            _renderLoop.RefreshOnce();
+            return;
         }
 
         if (e.Key == Key.Z &&
-            (Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control &&
-            (Keyboard.Modifiers & ModifierKeys.Shift) == ModifierKeys.Shift)
+            IsModifierPressed(ModifierKeys.Control) &&
+            IsModifierPressed(ModifierKeys.Shift))
         {
             _commandHistoryModule.UndoLastCommand();
             RefreshInput(false);
-            needsRefresh = true;
-        }
-
-        if (needsRefresh)
+            e.Handled = true;
             _renderLoop.RefreshOnce();
+            return;
+        }
+    }
+
+    private static bool IsModifierPressed(ModifierKeys modifierKeys)
+    {
+        return (Keyboard.Modifiers & modifierKeys) == modifierKeys;
     }
 
     public void Input_LostFocus(object sender, RoutedEventArgs e)
@@ -122,5 +148,11 @@ public class TextInputHandler
     {
         // Mettre le focus sur l'input initialement
         _inputAccessor.Input.Focus();
+    }
+
+    public void ExecuteActiveLine()
+    {
+        _shell.ExecuteCommand(_inputAccessor.Input.Text);
+        _inputAccessor.Input.Text = "";
     }
 }

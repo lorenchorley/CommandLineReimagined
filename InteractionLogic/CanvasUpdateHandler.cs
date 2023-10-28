@@ -1,6 +1,7 @@
 ﻿using System.Drawing;
 using System.Windows.Controls;
 using System.Windows.Media.Imaging;
+using InteractionLogic.FrameworkAccessors;
 
 namespace InteractionLogic;
 

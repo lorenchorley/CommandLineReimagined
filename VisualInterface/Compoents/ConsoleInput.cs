@@ -5,7 +5,7 @@ namespace Console.Components;
 
 public class ConsoleInput : Component
 {
-    public Line? ActiveLine { get; set; }
+    public LineComponent? ActiveLine { get; set; }
     public int SelectionStart { get; set; }
     public int SelectionLength { get; set; }
 

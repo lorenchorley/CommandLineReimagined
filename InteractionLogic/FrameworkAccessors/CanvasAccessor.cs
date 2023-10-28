@@ -1,6 +1,6 @@
 ﻿using System.Windows.Controls;
 
-namespace InteractionLogic;
+namespace InteractionLogic.FrameworkAccessors;
 
 public class CanvasAccessor : FrameworkElementAccessor<Canvas, Image>
 {

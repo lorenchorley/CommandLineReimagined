@@ -1,0 +1,49 @@
+﻿"Start Symbol" = <Program>
+"Case Sensitive" = False 
+
+! ----------------------------------------------------------------- Sets
+
+{IdentifierCharacter} = {AlphaNumeric} + [_éèàäëïöüùçâêîôûÇÄÅÉæÆÖÜøØƒáíóúñÑÁÂÀãÃðÐÊËÈiÍÎÏÌÓßÔÒõÕµþÞÚÛÙýÝ\/]
+{StringCharacter}      = {All Printable} - ["] + {HT} + {CR} + {LF}
+
+Identifier = {IdentifierCharacter}+
+FlagIdentifier = '-'{IdentifierCharacter}+
+
+!NumberLiteral = {Number}+ ('.' {Number}+)?
+StringLiteral = '"' {StringCharacter}* '"'
+
+<Constant>
+       ::= StringLiteral
+!        |  NumberLiteral
+
+<ID> ::= Identifier
+
+<Flag> ::= FlagIdentifier
+     
+! ===========================================================================
+! C.2.4 Expressions 
+! ===========================================================================
+
+<Program> 
+       ::= <PipedCommandList>
+        |  ! Empty
+
+<PipedCommandList> 
+       ::= <PipedCommandList> '|' <CommandExpression>
+        |  <CommandExpression>
+
+<CommandExpression> 
+       ::= <ID> <CommandArgumentList> 
+
+<CommandArgumentList> 
+       ::= <CommandArgumentList> <CommandArgument> 
+        |  <CommandArgument> 
+        |  ! Empty
+        
+<CommandArgument> 
+       ::= <Flag>
+        |  <Value>
+
+<Value> ::= <Constant>
+
+

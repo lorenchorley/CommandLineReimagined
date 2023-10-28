@@ -52,5 +52,10 @@ namespace CommandLine.Modules
 
             return true;
         }
+
+        public bool IsCurrentPathTheRoot()
+        {
+            return string.Equals(CurrentPath, CurrentPath.GetFullPathOfOneDirectoryUp(), System.StringComparison.Ordinal);
+        }
     }
 }

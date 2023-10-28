@@ -34,6 +34,11 @@ namespace Commands
             _commandProfiles.Add(commandProfile);
         }
 
+        public bool IsCommandExecutable(string command)
+        {
+            return true;
+        }
+
         public void ExecuteCommand(string command)
         {
             ParserResult result = _interpreter.Parse(command);
@@ -96,7 +101,7 @@ namespace Commands
                     // Ajouter le texte du prompt comme ligne
                     var promptLine = scope.NewLine();
 
-                    var promptText = _ecs.NewEntity("Prompt").AddComponent<TextBlock>();
+                    var promptText = _ecs.NewEntity("Prompt").AddComponent<TextComponent>();
                     promptText.Text = $"{_consoleRenderer.Input.ActiveLine.ToText()}";
                     promptLine.AddLineSegment(promptText);
 
@@ -119,7 +124,7 @@ namespace Commands
         {
             var line = scope.NewLine();
 
-            var promptText = _ecs.NewEntity("Error").AddComponent<TextBlock>();
+            var promptText = _ecs.NewEntity("Error").AddComponent<TextComponent>();
             promptText.Text = message;
             line.AddLineSegment(promptText);
         }

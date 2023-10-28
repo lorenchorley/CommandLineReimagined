@@ -1,22 +1,35 @@
-﻿"Start Symbol" = <Program>
+﻿"Start Symbol" = <Program> 
 "Case Sensitive" = False 
 
 ! ----------------------------------------------------------------- Sets
 
-{IdentifierCharacter} = {AlphaNumeric} + [_éèàäëïöüùçâêîôûÇÄÅÉæÆÖÜøØƒáíóúñÑÁÂÀãÃðÐÊËÈiÍÎÏÌÓßÔÒõÕµþÞÚÛÙýÝ\/]
-{StringCharacter}      = {All Printable} - ["] + {HT} + {CR} + {LF}
+{IdentifierCharacter} = {AlphaNumeric} + [_éèàäëïöüùçâêîôûÇÄÅÉæÆÖÜøØƒáíóúñÑÁÂÀãÃðÐÊËÈiÍÎÏÌÓßÔÒõÕµþÞÚÛÙýÝ]
+!{BareStringCharacter} = {AlphaNumeric}
+{StringCharacter}     = {All Printable} - ["] + {HT} + {CR} + {LF}
 
 Identifier = {IdentifierCharacter}+
 FlagIdentifier = '-'{IdentifierCharacter}+
 
 !NumberLiteral = {Number}+ ('.' {Number}+)?
-StringLiteral = '"' {StringCharacter}* '"'
+!StringLiteral1 = {IdentifierCharacter}+
+StringLiteral2 = '"' {StringCharacter}* '"'
+StringLiteral3 = '""' {StringCharacter}* '""'
+StringLiteral4 = '"""' {StringCharacter}* '"""'
 
 <Constant>
-       ::= StringLiteral
+       ::= StringLiteral2
+        |  StringLiteral3        
+        |  StringLiteral3        
 !        |  NumberLiteral
 
 <ID> ::= Identifier
+<ObjectType> ::= Identifier
+<VariableName> ::= Identifier
+<TypeName> ::= Identifier
+<PropertyName> ::= Identifier
+<AttributeName> ::= Identifier
+<VariableName> ::= Identifier
+<ComponentType> ::= Identifier
 
 <Flag> ::= FlagIdentifier
      
@@ -32,18 +45,183 @@ StringLiteral = '"' {StringCharacter}* '"'
        ::= <PipedCommandList> '|' <CommandExpression>
         |  <CommandExpression>
 
-<CommandExpression> 
-       ::= <ID> <CommandArgumentList> 
+<CommandExpression>
+       ::= <FunctionExpression>
+        |  <CommandExpression_CLINotation> 
+        |  <IndividualCLIValue>
+
+
+! Commands function notation
+<FunctionExpression> 
+       ::= <ID> '(' <FunctionArgumentList> ')'
+        |  <ID> '(' ')'
+
+<FunctionArgumentList>
+       ::= <FunctionArgumentList> ',' <FunctionArgument>
+        |  <FunctionArgument>
+
+<FunctionArgument>
+       ::= <RequiredArgument>
+        |  <OptionalArgument>
+
+<RequiredArgument>
+       ::= <Value>
+
+<OptionalArgument>
+       ::= <ID> ':' <Value>
+
+
+
+
+! Commands cli notation
+<CommandExpression_CLINotation> 
+       ::= <ID> <CommandArgumentList>
 
 <CommandArgumentList> 
        ::= <CommandArgumentList> <CommandArgument> 
-        |  <CommandArgument> 
         |  ! Empty
         
 <CommandArgument> 
        ::= <Flag>
         |  <Value>
 
-<Value> ::= <Constant>
+
+! Values
+<Value> 
+       ::= <SimpleValue>
+        |  <InstanceTag>
+         
+<SimpleValue> 
+       ::= <Constant>
+        |  <VariableReference>
+        |  <ID>
+
+<IndividualCLIValue> 
+       ::= <InstanceTag>
+               
+<VariableReference> ::= '$' <VariableName>
+
+
+
+
+
+
+
+! <> instance, entity
+! [] list, map, property, accessor
+! () tuple, priority
+! {} code, interpolation, component
+! $  variable
+! <$ > variable tag
+! |  pipe, assignment
+! .  member access, 
+
+! id param1 param2 -flag1 value1 -flag2 value2 -flag3
+! id(param1, param2, flag1: value1, flag2: value2, flag3: true)
+
+! (,) tuple or list
+! (k:v,k:v) dictionary/map
+
+! strings without spaces, tabs, newlines, or special characters don't need quotes
+! ""
+! "" " "" - escapes "
+! "{}" - first level interpolation
+! ""{{}}"" - second level interpolation
+! ""{}"" - braces escaped
+! """ """ - trims whitespace and trims indents on all lines to the indent of the first line
+
+! <VariableOrObjectName|> <[PrototypeName|...]> (ListName|,) (DictionaryName|:,:) [TypeName]
+! $VariableOrObjectName
+! $. - params object
+! $[1] - first parameter
+
+! Ex
+! <someobject>
+!   <child1/>
+!   <child2/>
+!   {component1/}
+!   {component2}
+!     [prop=123]
+!   {/}
+!   [prop1]=<value/>
+!   [prop2="string"]   
+! </>
+
+
+<TagList> ::= <TagList> <Tag>
+           |
+
+<Tag> ::= <ObjectInstance>
+       |  <PropertyAssignment>
+       |  <ComponentInstance>
+       |  <VariableTag>
+
+<InstanceTagList> ::= <InstanceTagList> <InstanceTag>
+                   |
+
+<InstanceTag> ::= <ObjectInstance>
+               |  <ComponentInstance>
+               |  <VariableTag>
+
+! Object instance tag
+! <type />
+! <type>...</type>
+! <name|type />
+! <type attr=val />
+<ObjectInstance> ::= <ClosedFormObjectInstance>
+                  |  <OpenFormObjectInstance>
+                  
+<ClosedFormObjectInstance> ::= '<' <ObjectType> <AttributeList> '/' '>'
+
+<OpenFormObjectInstance> ::= <OpeningObjectTag> <TagList> <ClosingObjectTag>
+
+<OpeningObjectTag> ::= '<' <ObjectType> <AttributeList> '>'
+                    |  '<' <VariableName> '|' <ObjectType> <AttributeList> '>'
+                    
+<ClosingObjectTag> ::= '<' '/' <ObjectType> '>'
+                    |  '<' '/' '>'
+
+
+
+
+! Property tag
+! []
+<PropertyAssignment> ::= '[' <PropertyName> ']' <InstanceTagList> '[' '/' <PropertyName> ']' ! Tag list
+                      |  '[' <PropertyName> ']' <InstanceTagList> '[' '/' ']' ! Tag list
+                      |  '[' <PropertyName> '=' <SimpleValue> ']'
+                      |  '[' <PropertyName> ']' '=' <InstanceTag> ! Tag
+
+
+
+! Component
+! {type /}
+! {type>...</type}
+! {name|type /}
+! {type attr=val /}
+<ComponentInstance> ::= <ClosedFormComponentInstance>
+                     |  <OpenFormComponentInstance>
+                  
+<ClosedFormComponentInstance> ::= '{' <ComponentType> <AttributeList> '/' '}'
+
+<OpenFormComponentInstance> ::= <OpeningComponentTag> <TagList> <ClosingComponentTag>
+
+<OpeningComponentTag> ::= '{' <ComponentType> <AttributeList> '}'
+                       |  '{' <VariableName> '|' <ComponentType> <AttributeList> '}'
+                    
+<ClosingComponentTag> ::= '{' '/' <ComponentType> '}'
+                       |  '{' '/' '}'
+
+
+
+! Variable tag
+! <$ >
+<VariableTag> ::= '<' '$' <VariableName> '>'
+
+
+! Tag attributes
+<AttributeList> ::= <AttributeList> <Attribute>
+                 | 
+
+<Attribute> ::= <AttributeName> '=' <SimpleValue>
 
 

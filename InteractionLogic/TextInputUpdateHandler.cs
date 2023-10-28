@@ -1,4 +1,6 @@
-﻿namespace InteractionLogic;
+﻿using InteractionLogic.FrameworkAccessors;
+
+namespace InteractionLogic;
 
 public class TextInputUpdateHandler
 {

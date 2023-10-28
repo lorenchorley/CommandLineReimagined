@@ -20,7 +20,7 @@ namespace Commands.Implementations
 
         public override void Execute(CommandParameterValue[] args, ConsoleOutScope scope)
         {
-            Line line = scope.NewLine();
+            LineComponent line = scope.NewLine();
 
             line.AddTextBlock("echo", args[0].Value);
         }

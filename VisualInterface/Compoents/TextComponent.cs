@@ -3,7 +3,7 @@ using EntityComponentSystem;
 
 namespace Console.Components;
 
-public class TextBlock : Component, ILineSegment
+public class TextComponent : Component, ILineSegment
 {
     public string Text { get; set; }
 

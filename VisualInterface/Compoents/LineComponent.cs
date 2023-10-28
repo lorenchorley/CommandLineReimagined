@@ -2,7 +2,7 @@
 
 namespace Console.Components
 {
-    public class Line : Component
+    public class LineComponent : Component
     {
         private List<ILineSegment> _lineSegments = new();
 
