@@ -1,6 +1,8 @@
-﻿using GOLD;
-using System;
-using Commands.Parser.SemanticTree;
+﻿using Commands.Parser.SemanticTree;
+using GOLD;
+using OneOf;
+using OneOf.Types;
+using ValueOf;
 
 namespace Commands.Parser;
 
@@ -17,56 +19,57 @@ public class CommandLineInterpreter
 
     public ParserResult Parse(string filter)
     {
-        ParserResult result = new();
+        List<string> errors = new();
+        RootNode? treeRoot = null;
 
         _goldParser.Open(ref filter);
         _goldParser.TrimReductions = false;
 
         bool continueParsing = true;
-        while (continueParsing && !result.HasErrors)
+        while (continueParsing && errors.Count == 0)
         {
             ParseMessage response = _goldParser.Parse();
-            continueParsing = ProcessResponse(result, response);
+            switch (response)
+            {
+                case ParseMessage.Reduction:
+                    _goldParser.CurrentReduction = CreateNewObject(errors, (Reduction)_goldParser.CurrentReduction);
+                    break;
+
+                case ParseMessage.Accept:
+                    // On a fini de parser, on récupère le résultat
+
+                    treeRoot = (RootNode)_goldParser.CurrentReduction;
+
+                    continueParsing = false;
+                    break;
+
+                case ParseMessage.LexicalError:
+                case ParseMessage.SyntaxError:
+                case ParseMessage.InternalError:
+                case ParseMessage.NotLoadedError:
+                case ParseMessage.GroupError:
+                    errors.Add($"{response} à la ligne {_goldParser.CurrentPosition().Line} et à la colonne {_goldParser.CurrentPosition().Column}");
+
+                    continueParsing = false;
+                    break;
+            }
         }
 
-        return result;
-    }
-
-    private bool ProcessResponse(ParserResult result, ParseMessage response)
-    {
-        switch (response)
+        if (errors.Count > 0)
         {
-            case ParseMessage.Reduction:
-                _goldParser.CurrentReduction = CreateNewObject(result, (Reduction)_goldParser.CurrentReduction);
-                break;
-
-            case ParseMessage.Accept:
-                // On a fini de parser, on récupère le résultat
-
-                result.Tree = (INode)_goldParser.CurrentReduction;
-
-                return false;
-
-            case ParseMessage.LexicalError:
-            case ParseMessage.SyntaxError:
-            case ParseMessage.InternalError:
-            case ParseMessage.NotLoadedError:
-            case ParseMessage.GroupError:
-                result.Errors.Add($"{response} à la ligne {_goldParser.CurrentPosition().Line} et à la colonne {_goldParser.CurrentPosition().Column}");
-
-                return false;
+            return new ParserResult(errors);
         }
 
-        return true; // Continue
+        return new ParserResult(treeRoot);
     }
 
-    private INode? CreateNewObject(ParserResult result, Reduction r)
+    private object CreateNewObject(List<string> errors, Reduction r)
     {
         ProductionIndex productionIndex = (ProductionIndex)r.Parent.TableIndex();
-        return Interpret(result, r, productionIndex);
+        return Interpret(errors, r, productionIndex);
     }
 
-    private static INode? Interpret(ParserResult result, Reduction reduction, ProductionIndex productionIndex)
+    private static object Interpret(List<string> errors, Reduction reduction, ProductionIndex productionIndex)
     {
         switch (productionIndex)
         {
@@ -75,7 +78,7 @@ public class CommandLineInterpreter
 
                 if (reduction[0].Data is not string serialisedStringLiteral2)
                 {
-                    result.Errors.Add("Données parsées n'étaient pas de type String");
+                    errors.Add("Données parsées n'étaient pas de type String");
                     return null;
                 }
 
@@ -89,7 +92,7 @@ public class CommandLineInterpreter
 
                 if (reduction[0].Data is not string serialisedStringLiteral3)
                 {
-                    result.Errors.Add("Données parsées n'étaient pas de type String");
+                    errors.Add("Données parsées n'étaient pas de type String");
                     return null;
                 }
 
@@ -100,38 +103,44 @@ public class CommandLineInterpreter
 
             case ProductionIndex.Id_Identifier:
                 // <ID> ::= Identifier
-                return new CommandName()
+                return new Identifier()
                 {
                     Name = (string)reduction[0].Data
                 };
 
             case ProductionIndex.Objecttype_Identifier:
                 // <ObjectType> ::= Identifier
-                break;
+                return new ObjectType() { Value = (string)reduction[0].Data };
 
             case ProductionIndex.Variablename_Identifier:
                 // <VariableName> ::= Identifier
-                break;
+                return new VariableName() { Name = (string)reduction[0].Data };
 
             case ProductionIndex.Typename_Identifier:
                 // <TypeName> ::= Identifier
-                break;
+                throw new NotImplementedException();
 
             case ProductionIndex.Propertyname_Identifier:
                 // <PropertyName> ::= Identifier
-                break;
+                return new ProperyName()
+                {
+                    Name = (string)reduction[0].Data
+                };
 
-            case ProductionIndex.Attributename_Identifier:
+            case ProductionIndex.Tagattributename_Identifier:
                 // <AttributeName> ::= Identifier
-                break;
+                return new TagAttributeName()
+                {
+                    Name = (string)reduction[0].Data
+                };
 
             case ProductionIndex.Componenttype_Identifier:
                 // <ComponentType> ::= Identifier
-                break;
+                throw new NotImplementedException();
 
             case ProductionIndex.Flag_Flagidentifier:
                 // <Flag> ::= FlagIdentifier
-                return new Flag()
+                return new CommandArgumentFlag()
                 {
                     Name = (string)reduction[0].Data
                 };
@@ -146,73 +155,110 @@ public class CommandLineInterpreter
 
             case ProductionIndex.Pipedcommandlist_Pipe:
                 // <PipedCommandList> ::= <PipedCommandList> '|' <CommandExpression>
-                break;
+                if (reduction.Count() == 0)
+                    return new PipedCommandList();
+                else if (reduction.Count() == 1)
+                    return new PipedCommandList(ConvertToCommandExpression(reduction[0].Data));
+                else
+                {
+                    var list = (PipedCommandList)reduction[0].Data;
+                    list.OrderedCommands.Add(GetCommandExpression(reduction[2].Data));
+                    return list;
+                }
 
             case ProductionIndex.Pipedcommandlist:
                 // <PipedCommandList> ::= <CommandExpression>
                 if (reduction.Count() == 0)
                     return new PipedCommandList();
                 else if (reduction.Count() == 1)
-                    return new PipedCommandList((CommandExpression)reduction[0].Data);
+                    return new PipedCommandList(ConvertToCommandExpression(reduction[0].Data));
                 else
                 {
                     var list = (PipedCommandList)reduction[0].Data;
-                    list.OrderedCommands.Add((CommandExpression)reduction[1].Data);
+                    list.OrderedCommands.Add(GetCommandExpression(reduction[1].Data));
                     return list;
                 }
 
             case ProductionIndex.Commandexpression:
                 // <CommandExpression> ::= <FunctionExpression>
-                break;
+                return reduction.PassOn();
 
             case ProductionIndex.Commandexpression2:
                 // <CommandExpression> ::= <CommandExpression_CLINotation>
-                break;
+                return reduction.PassOn();
 
             case ProductionIndex.Commandexpression3:
                 // <CommandExpression> ::= <IndividualCLIValue>
-                break;
+                return reduction.PassOn();
 
             case ProductionIndex.Functionexpression_Lparen_Rparen:
                 // <FunctionExpression> ::= <ID> '(' <FunctionArgumentList> ')'
-                break;
+                return new FunctionExpression()
+                {
+                    Id = (Identifier)reduction[0].Data,
+                    Arguments = (CommandArguments)reduction[2].Data
+                };
 
             case ProductionIndex.Functionexpression_Lparen_Rparen2:
                 // <FunctionExpression> ::= <ID> '(' ')'
-                break;
+                return new FunctionExpression()
+                {
+                    Id = (Identifier)reduction[0].Data,
+                    Arguments = new CommandArguments()
+                };
 
             case ProductionIndex.Functionargumentlist_Comma:
                 // <FunctionArgumentList> ::= <FunctionArgumentList> ',' <FunctionArgument>
-                break;
+                throw new NotImplementedException();
 
             case ProductionIndex.Functionargumentlist:
                 // <FunctionArgumentList> ::= <FunctionArgument>
-                break;
+                return new CommandArguments((CommandArgument)reduction[0].Data);
 
             case ProductionIndex.Functionargument:
                 // <FunctionArgument> ::= <RequiredArgument>
-                break;
+                return reduction.PassOn();
 
             case ProductionIndex.Functionargument2:
                 // <FunctionArgument> ::= <OptionalArgument>
-                break;
+                return reduction.PassOn();
 
             case ProductionIndex.Requiredargument:
                 // <RequiredArgument> ::= <Value>
-                break;
+                return new RequiredCommandArgument()
+                {
+                    Value = (Value)reduction[0].Data
+                };
 
             case ProductionIndex.Optionalargument_Colon:
                 // <OptionalArgument> ::= <ID> ':' <Value>
-                break;
+                return new OptionalCommandArgument()
+                {
+                    Name = (Identifier)reduction[0].Data,
+                    Value = (Value)reduction[2].Data
+                };
 
             case ProductionIndex.Commandexpression_clinotation:
                 // <CommandExpression_CLINotation> ::= <ID> <CommandArgumentList>
 
-                return new CommandExpression()
+                if (reduction[0].Data is Identifier id)
                 {
-                    Id = (CommandName)reduction[0].Data,
-                    Arguments = GetArguments(reduction[1].Data),
-                };
+                    return new CommandExpressionCli()
+                    {
+                        Name = new CommandName() { Name = id.Name },
+                        Arguments = GetArguments(reduction[1].Data),
+                    };
+                }
+                else if (reduction[0].Data is CommandName commandName)
+                {
+                    return new CommandExpressionCli()
+                    {
+                        Name = commandName,
+                        Arguments = GetArguments(reduction[1].Data),
+                    };
+                }
+
+                throw new NotImplementedException();
 
             case ProductionIndex.Commandargumentlist:
                 // <CommandArgumentList> ::= <CommandArgumentList> <CommandArgument>
@@ -244,186 +290,340 @@ public class CommandLineInterpreter
 
             case ProductionIndex.Commandargument:
                 // <CommandArgument> ::= <Flag>
-                return new Flag()
-                {
-                    Name = (string)reduction[0].Data
-                };
+                return reduction.PassOn();
+            //return new CommandArgumentFlag()
+            //{
+            //    Name = (string)reduction[0].Data
+            //};
 
             case ProductionIndex.Commandargument2:
                 // <CommandArgument> ::= <Value>
-                break;
+                return new CommandArgumentValue()
+                {
+                    Value = (Value)reduction[0].Data
+                };
 
             case ProductionIndex.Value:
                 // <Value> ::= <SimpleValue>
-                break;
+                return reduction.PassOn();
 
             case ProductionIndex.Value2:
                 // <Value> ::= <InstanceTag>
-                break;
+                throw new NotImplementedException();
 
             case ProductionIndex.Simplevalue:
                 // <SimpleValue> ::= <Constant>
-                break;
+                return reduction.PassOn();
 
             case ProductionIndex.Simplevalue2:
                 // <SimpleValue> ::= <VariableReference>
-                break;
+                return reduction.PassOn();
 
             case ProductionIndex.Simplevalue3:
                 // <SimpleValue> ::= <ID>
-                break;
+                return reduction.PassOn();
 
             case ProductionIndex.Individualclivalue:
                 // <IndividualCLIValue> ::= <InstanceTag>
-                break;
+                return reduction.PassOn();
 
             case ProductionIndex.Variablereference_Dollar:
                 // <VariableReference> ::= '$' <VariableName>
-                break;
+                return new VariableReference()
+                {
+                    Name = (VariableName)reduction[1].Data
+                };
 
             case ProductionIndex.Taglist:
                 // <TagList> ::= <TagList> <Tag>
-                break;
+
+                if (reduction.Count() == 0)
+                    return new TagList();
+                else if (reduction.Count() == 1)
+                    return new TagList((Tag)reduction[0].Data);
+                else
+                {
+                    var list = (TagList)reduction[0].Data;
+                    list.Tags.Add((Tag)reduction[1].Data);
+                    return list;
+                }
+
 
             case ProductionIndex.Taglist2:
                 // <TagList> ::= 
-                break;
+
+                if (reduction.Count() == 0)
+                    return new TagList();
+                else if (reduction.Count() == 1)
+                    return new TagList((Tag)reduction[0].Data);
+                else
+                {
+                    var list = (TagList)reduction[0].Data;
+                    list.Tags.Add((Tag)reduction[1].Data);
+                    return list;
+                }
+
 
             case ProductionIndex.Tag:
                 // <Tag> ::= <ObjectInstance>
-                break;
+                return reduction.PassOn();
 
             case ProductionIndex.Tag2:
                 // <Tag> ::= <PropertyAssignment>
-                break;
+                return reduction.PassOn();
 
             case ProductionIndex.Tag3:
                 // <Tag> ::= <ComponentInstance>
-                break;
+                throw new NotImplementedException();
 
             case ProductionIndex.Tag4:
                 // <Tag> ::= <VariableTag>
-                break;
+                throw new NotImplementedException();
 
             case ProductionIndex.Instancetaglist:
                 // <InstanceTagList> ::= <InstanceTagList> <InstanceTag>
-                break;
+                throw new NotImplementedException();
 
             case ProductionIndex.Instancetaglist2:
                 // <InstanceTagList> ::= 
-                break;
+                throw new NotImplementedException();
 
             case ProductionIndex.Instancetag:
                 // <InstanceTag> ::= <ObjectInstance>
-                break;
+                return reduction.PassOn();
 
             case ProductionIndex.Instancetag2:
                 // <InstanceTag> ::= <ComponentInstance>
-                break;
+                throw new NotImplementedException();
 
             case ProductionIndex.Instancetag3:
                 // <InstanceTag> ::= <VariableTag>
-                break;
+                throw new NotImplementedException();
 
             case ProductionIndex.Objectinstance:
                 // <ObjectInstance> ::= <ClosedFormObjectInstance>
-                break;
+                return reduction.PassOn();
 
             case ProductionIndex.Objectinstance2:
                 // <ObjectInstance> ::= <OpenFormObjectInstance>
-                break;
+                return reduction.PassOn();
 
             case ProductionIndex.Closedformobjectinstance_Lt_Div_Gt:
                 // <ClosedFormObjectInstance> ::= '<' <ObjectType> <AttributeList> '/' '>'
-                break;
+                return new ObjectInstance()
+                {
+                    ObjectType = (ObjectType)reduction[1].Data,
+                    Attributes = (TagAttributeList)reduction[2].Data,
+                    Children = null,
+                    VariableName = null
+                };
+
+            case ProductionIndex.Closedformobjectinstance_Lt_Pipe_Div_Gt:
+                // <ClosedFormObjectInstance> ::= '<' <VariableName> '|' <ObjectType> <TagAttributeList> '/' '>'
+                throw new NotImplementedException();
 
             case ProductionIndex.Openformobjectinstance:
                 // <OpenFormObjectInstance> ::= <OpeningObjectTag> <TagList> <ClosingObjectTag>
-                break;
+                Tag tag = (Tag)reduction[0].Data;
+                TagList children = (TagList)reduction[1].Data;
+                ClosingTag closingTag = (ClosingTag)reduction[2].Data;
+
+                if (tag is ObjectInstance obj)
+                {
+                    if (closingTag.TagObjectType != null && !string.Equals(closingTag.TagObjectType.Value, obj.ObjectType.Value, StringComparison.Ordinal))
+                    {
+                        errors.Add($"Le tag de fermeture {closingTag.TagObjectType.Value} ne correspond pas au tag d'ouverture {obj.ObjectType.Value}");
+                    }
+
+                    obj.Children = children;
+                    return tag;
+                }
+
+                throw new NotImplementedException();
 
             case ProductionIndex.Openingobjecttag_Lt_Gt:
                 // <OpeningObjectTag> ::= '<' <ObjectType> <AttributeList> '>'
-                break;
+                return new ObjectInstance()
+                {
+                    ObjectType = (ObjectType)reduction[1].Data,
+                    Attributes = (TagAttributeList)reduction[2].Data,
+                    Children = null,
+                    VariableName = null
+                };
 
             case ProductionIndex.Openingobjecttag_Lt_Pipe_Gt:
                 // <OpeningObjectTag> ::= '<' <VariableName> '|' <ObjectType> <AttributeList> '>'
-                break;
+                return new ObjectInstance()
+                {
+                    VariableName = (VariableName)reduction[1].Data,
+                    ObjectType = (ObjectType)reduction[3].Data,
+                    Attributes = (TagAttributeList)reduction[4].Data
+                };
 
             case ProductionIndex.Closingobjecttag_Lt_Div_Gt:
                 // <ClosingObjectTag> ::= '<' '/' <ObjectType> '>'
-                break;
+                return new ClosingTag()
+                {
+                    TagObjectType = (ObjectType)reduction[2].Data
+                };
 
             case ProductionIndex.Closingobjecttag_Lt_Div_Gt2:
                 // <ClosingObjectTag> ::= '<' '/' '>'
-                break;
+                return new ClosingTag();
 
             case ProductionIndex.Propertyassignment_Lbracket_Rbracket_Lbracket_Div_Rbracket:
                 // <PropertyAssignment> ::= '[' <PropertyName> ']' <InstanceTagList> '[' '/' <PropertyName> ']'
-                break;
+                throw new NotImplementedException();
 
             case ProductionIndex.Propertyassignment_Lbracket_Rbracket_Lbracket_Div_Rbracket2:
                 // <PropertyAssignment> ::= '[' <PropertyName> ']' <InstanceTagList> '[' '/' ']'
-                break;
+                throw new NotImplementedException();
 
             case ProductionIndex.Propertyassignment_Lbracket_Eq_Rbracket:
                 // <PropertyAssignment> ::= '[' <PropertyName> '=' <SimpleValue> ']'
-                break;
+                return new PropertyAssignment()
+                {
+                    Name = (ProperyName)reduction[1].Data,
+                    Value = (SimpleValue)reduction[3].Data
+                };
 
             case ProductionIndex.Propertyassignment_Lbracket_Rbracket_Eq:
                 // <PropertyAssignment> ::= '[' <PropertyName> ']' '=' <InstanceTag>
-                break;
+                throw new NotImplementedException();
 
             case ProductionIndex.Componentinstance:
                 // <ComponentInstance> ::= <ClosedFormComponentInstance>
-                break;
+                throw new NotImplementedException();
 
             case ProductionIndex.Componentinstance2:
                 // <ComponentInstance> ::= <OpenFormComponentInstance>
-                break;
+                throw new NotImplementedException();
 
             case ProductionIndex.Closedformcomponentinstance_Lbrace_Div_Rbrace:
                 // <ClosedFormComponentInstance> ::= '{' <ComponentType> <AttributeList> '/' '}'
-                break;
+                throw new NotImplementedException();
 
             case ProductionIndex.Openformcomponentinstance:
                 // <OpenFormComponentInstance> ::= <OpeningComponentTag> <TagList> <ClosingComponentTag>
-                break;
+                throw new NotImplementedException();
 
             case ProductionIndex.Openingcomponenttag_Lbrace_Rbrace:
                 // <OpeningComponentTag> ::= '{' <ComponentType> <AttributeList> '}'
-                break;
+                throw new NotImplementedException();
 
             case ProductionIndex.Openingcomponenttag_Lbrace_Pipe_Rbrace:
                 // <OpeningComponentTag> ::= '{' <VariableName> '|' <ComponentType> <AttributeList> '}'
-                break;
+                throw new NotImplementedException();
 
             case ProductionIndex.Closingcomponenttag_Lbrace_Div_Rbrace:
                 // <ClosingComponentTag> ::= '{' '/' <ComponentType> '}'
-                break;
+                throw new NotImplementedException();
 
             case ProductionIndex.Closingcomponenttag_Lbrace_Div_Rbrace2:
                 // <ClosingComponentTag> ::= '{' '/' '}'
-                break;
+                throw new NotImplementedException();
 
             case ProductionIndex.Variabletag_Lt_Dollar_Gt:
                 // <VariableTag> ::= '<' '$' <VariableName> '>'
-                break;
+                throw new NotImplementedException();
 
-            case ProductionIndex.Attributelist:
-                // <AttributeList> ::= <AttributeList> <Attribute>
-                break;
+            case ProductionIndex.Tagattributelist:
+                // <TagAttributeList> ::= <TagAttributeList> <TagAttribute>
 
-            case ProductionIndex.Attributelist2:
-                // <AttributeList> ::= 
-                break;
+                if (reduction.Count() == 0)
+                    return new TagAttributeList();
+                else if (reduction.Count() == 1)
+                    return new TagAttributeList((TagAttribute)reduction[0].Data);
+                else
+                {
+                    var list = (TagAttributeList)reduction[0].Data;
+                    list.Attributes.Add((TagAttribute)reduction[1].Data);
+                    return list;
+                }
 
-            case ProductionIndex.Attribute_Eq:
-                // <Attribute> ::= <AttributeName> '=' <SimpleValue>
-                break;
+            case ProductionIndex.Tagattributelist2:
+                // <TagAttributeList> ::= 
+
+                if (reduction.Count() == 0)
+                    return new TagAttributeList();
+                else if (reduction.Count() == 1)
+                    return new TagAttributeList((TagAttribute)reduction[0].Data);
+                else
+                {
+                    var list = (TagAttributeList)reduction[0].Data;
+                    list.Attributes.Add((TagAttribute)reduction[1].Data);
+                    return list;
+                }
+
+            case ProductionIndex.Tagattribute_Eq:
+                // <TagAttribute> ::= <TagAttributeName> '=' <SimpleValue>
+                return new TagAttribute()
+                {
+                    Name = (TagAttributeName)reduction[0].Data,
+                    Value = (SimpleValue)reduction[2].Data
+                };
 
         }
 
         throw new NotImplementedException();
+    }
+
+    private static CommandExpression GetCommandExpression(object value)
+    {
+        if (value is CommandExpression cmd)
+        {
+            return cmd;
+        }
+        else if (value is FunctionExpression fe)
+        {
+            return new CommandExpression()
+            {
+                Expression = fe
+            };
+        }
+        else if (value is CommandExpressionCli cli)
+        {
+            return new CommandExpression()
+            {
+                Expression = cli
+            };
+        } 
+        else if (value is ObjectInstance obj)
+        {
+            return new CommandExpression()
+            {
+                Expression = obj
+            };
+        }
+
+        throw new Exception("Unknown expression type");
+    }
+
+    private static CommandExpression ConvertToCommandExpression(object value)
+    {
+        if (value is ObjectInstance obj)
+        {
+            return new CommandExpression()
+            {
+                Expression = obj
+            };
+        }
+        else if (value is CommandExpressionCli cli)
+        {
+            return new CommandExpression()
+            {
+                Expression = cli
+            };
+        }
+        else if (value is FunctionExpression functionExpression)
+        {
+            return new CommandExpression()
+            {
+                Expression = functionExpression
+            };
+        }
+
+        throw new Exception("Unknown expression type");
     }
 
     private static CommandArguments GetArguments(object obj)
@@ -440,3 +640,4 @@ public class CommandLineInterpreter
         throw new Exception("Unknown argument type");
     }
 }
+

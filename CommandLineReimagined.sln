@@ -24,7 +24,7 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Utils", "Utils\Utils.csproj
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "RayCasting", "RayCasting\RayCasting.csproj", "{7CB7B361-E3DF-46DC-A227-FF3BFC060EDD}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "InteractionLogic", "InteractionLogic\InteractionLogic.csproj", "{F233B193-4518-4DBA-AD7C-8739CDF8090C}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "InteractionLogic", "InteractionLogic\InteractionLogic.csproj", "{F233B193-4518-4DBA-AD7C-8739CDF8090C}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "App", "App", "{B3676750-0B13-4856-9F94-103052288461}"
 EndProject
@@ -33,6 +33,8 @@ EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "CommandLine", "CommandLine", "{F6AAD374-695B-4CCD-A41F-F3CA0C772FB0}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Visueal", "Visueal", "{FD587272-78F1-43CB-9D0B-073C24E250C4}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Terminal.Tests", "Terminal.Tests\Terminal.Tests.csproj", "{0D669BA9-DDD5-4517-80D5-928F19C65328}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -76,6 +78,10 @@ Global
 		{F233B193-4518-4DBA-AD7C-8739CDF8090C}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{F233B193-4518-4DBA-AD7C-8739CDF8090C}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{F233B193-4518-4DBA-AD7C-8739CDF8090C}.Release|Any CPU.Build.0 = Release|Any CPU
+		{0D669BA9-DDD5-4517-80D5-928F19C65328}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{0D669BA9-DDD5-4517-80D5-928F19C65328}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{0D669BA9-DDD5-4517-80D5-928F19C65328}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{0D669BA9-DDD5-4517-80D5-928F19C65328}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -90,6 +96,7 @@ Global
 		{98FA9596-1A9E-4E30-AC58-ED4E37ACB8EA} = {72877AF3-F1F2-4B12-B1BC-45D0B480947E}
 		{7CB7B361-E3DF-46DC-A227-FF3BFC060EDD} = {FD587272-78F1-43CB-9D0B-073C24E250C4}
 		{F233B193-4518-4DBA-AD7C-8739CDF8090C} = {B3676750-0B13-4856-9F94-103052288461}
+		{0D669BA9-DDD5-4517-80D5-928F19C65328} = {F6AAD374-695B-4CCD-A41F-F3CA0C772FB0}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {056E4B17-91F5-4EEC-9FFD-358352086A05}

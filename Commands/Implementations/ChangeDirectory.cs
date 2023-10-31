@@ -9,8 +9,8 @@ namespace Commands.Implementations
 
         private string _previousFolder;
 
-        public override CommandProfile Profile { get; } =
-            new CommandProfile(
+        public override Command Profile { get; } =
+            new Command(
                 Name: "cd",
                 Description: "",
                 Parameters: new CommandParameter[]
@@ -25,7 +25,7 @@ namespace Commands.Implementations
             _pathModule = pathModule;
         }
 
-        public override void Execute(CommandParameterValue[] args, ConsoleOutScope scope)
+        public override void Execute(CommandParameterValue[] args, ConsoleOutBlock scope)
         {
             TextComponent segment;
             var line = scope.NewLine();
@@ -43,7 +43,7 @@ namespace Commands.Implementations
             scope.AbondonLine(line);
         }
 
-        public override void Undo(CommandParameterValue[] args, ConsoleOutScope scope)
+        public override void Undo(CommandParameterValue[] args, ConsoleOutBlock scope)
         {
             _pathModule.MoveTo(_previousFolder);
         }

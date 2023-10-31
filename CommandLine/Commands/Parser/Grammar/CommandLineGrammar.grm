@@ -27,7 +27,7 @@ StringLiteral4 = '"""' {StringCharacter}* '"""'
 <VariableName> ::= Identifier
 <TypeName> ::= Identifier
 <PropertyName> ::= Identifier
-<AttributeName> ::= Identifier
+<TagAttributeName> ::= Identifier
 <VariableName> ::= Identifier
 <ComponentType> ::= Identifier
 
@@ -147,6 +147,12 @@ StringLiteral4 = '"""' {StringCharacter}* '"""'
 !   [prop2="string"]   
 ! </>
 
+! Functional or template notation
+! <{fn| [string]param1 }>
+
+
+
+
 
 <TagList> ::= <TagList> <Tag>
            |
@@ -171,12 +177,13 @@ StringLiteral4 = '"""' {StringCharacter}* '"""'
 <ObjectInstance> ::= <ClosedFormObjectInstance>
                   |  <OpenFormObjectInstance>
                   
-<ClosedFormObjectInstance> ::= '<' <ObjectType> <AttributeList> '/' '>'
+<ClosedFormObjectInstance> ::= '<' <ObjectType> <TagAttributeList> '/' '>'
+                            |  '<' <VariableName> '|' <ObjectType> <TagAttributeList> '/' '>'
 
 <OpenFormObjectInstance> ::= <OpeningObjectTag> <TagList> <ClosingObjectTag>
 
-<OpeningObjectTag> ::= '<' <ObjectType> <AttributeList> '>'
-                    |  '<' <VariableName> '|' <ObjectType> <AttributeList> '>'
+<OpeningObjectTag> ::= '<' <ObjectType> <TagAttributeList> '>'
+                    |  '<' <VariableName> '|' <ObjectType> <TagAttributeList> '>'
                     
 <ClosingObjectTag> ::= '<' '/' <ObjectType> '>'
                     |  '<' '/' '>'
@@ -201,12 +208,12 @@ StringLiteral4 = '"""' {StringCharacter}* '"""'
 <ComponentInstance> ::= <ClosedFormComponentInstance>
                      |  <OpenFormComponentInstance>
                   
-<ClosedFormComponentInstance> ::= '{' <ComponentType> <AttributeList> '/' '}'
+<ClosedFormComponentInstance> ::= '{' <ComponentType> <TagAttributeList> '/' '}'
 
 <OpenFormComponentInstance> ::= <OpeningComponentTag> <TagList> <ClosingComponentTag>
 
-<OpeningComponentTag> ::= '{' <ComponentType> <AttributeList> '}'
-                       |  '{' <VariableName> '|' <ComponentType> <AttributeList> '}'
+<OpeningComponentTag> ::= '{' <ComponentType> <TagAttributeList> '}'
+                       |  '{' <VariableName> '|' <ComponentType> <TagAttributeList> '}'
                     
 <ClosingComponentTag> ::= '{' '/' <ComponentType> '}'
                        |  '{' '/' '}'
@@ -219,9 +226,9 @@ StringLiteral4 = '"""' {StringCharacter}* '"""'
 
 
 ! Tag attributes
-<AttributeList> ::= <AttributeList> <Attribute>
+<TagAttributeList> ::= <TagAttributeList> <TagAttribute>
                  | 
 
-<Attribute> ::= <AttributeName> '=' <SimpleValue>
+<TagAttribute> ::= <TagAttributeName> '=' <SimpleValue>
 
 

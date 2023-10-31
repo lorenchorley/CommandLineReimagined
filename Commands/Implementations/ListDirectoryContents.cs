@@ -7,8 +7,8 @@ namespace Commands.Implementations
     {
         private readonly PathModule _pathModule;
 
-        public override CommandProfile Profile { get; } =
-            new CommandProfile(
+        public override Command Profile { get; } =
+            new Command(
                 Name: "ls",
                 Description: "List files and directories in a directory, the current directory by default",
                 Parameters: new CommandParameter[]
@@ -22,7 +22,7 @@ namespace Commands.Implementations
             _pathModule = pathModule;
         }
 
-        public override void Execute(CommandParameterValue[] args, ConsoleOutScope scope)
+        public override void Execute(CommandParameterValue[] args, ConsoleOutBlock scope)
         {
             LineComponent line = scope.NewLine();
             //line.AddTextBlock("ls title", $"Contenu du dossier {_pathModule.CurrentPath} :");
@@ -60,7 +60,7 @@ namespace Commands.Implementations
             line = scope.NewLine();
         }
 
-        public override void Undo(CommandParameterValue[] args, ConsoleOutScope scope)
+        public override void Undo(CommandParameterValue[] args, ConsoleOutBlock scope)
         {
 
         }

@@ -13,9 +13,9 @@ namespace CommandLine.Modules
             _serviceProvider = serviceProvider;
         }
 
-        public ConsoleOutScope StartScope(string description) // Gérer avec un container de ligne pour que ça perd pas sa place dans la console et pour que tout soit regroupé (si souhaité)
+        public ConsoleOutBlock StartScope(string description) // Gérer avec un container de ligne pour que ça perd pas sa place dans la console et pour que tout soit regroupé (si souhaité)
         {
-            return _serviceProvider.GetRequiredService<ConsoleOutScope>().SetDesciption(description);
+            return _serviceProvider.GetRequiredService<ConsoleOutBlock>().SetDesciption(description);
         }
 
     }

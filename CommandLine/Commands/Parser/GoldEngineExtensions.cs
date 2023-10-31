@@ -11,8 +11,8 @@ public static class GoldEngineExtensions
     /// <param name="reduction"></param>
     /// <param name="index"></param>
     /// <returns></returns>
-    public static INode PassOn(this Reduction reduction, int index = 0)
+    public static object PassOn(this Reduction reduction, int index = 0)
     {
-        return (INode)reduction[index].Data;
+        return reduction[index].Data;
     }
 }

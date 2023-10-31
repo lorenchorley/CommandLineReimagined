@@ -1,5 +1,4 @@
 ﻿using CommandLine.Modules;
-using Commands;
 using Console;
 using EntityComponentSystem;
 using InteractionLogic.FrameworkAccessors;
@@ -8,6 +7,7 @@ using System.Diagnostics;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using Terminal;
 
 namespace InteractionLogic;
 

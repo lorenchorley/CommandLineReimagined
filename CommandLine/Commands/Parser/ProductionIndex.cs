@@ -11,7 +11,7 @@ public enum ProductionIndex
     @Variablename_Identifier = 4,              // <VariableName> ::= Identifier
     @Typename_Identifier = 5,                  // <TypeName> ::= Identifier
     @Propertyname_Identifier = 6,              // <PropertyName> ::= Identifier
-    @Attributename_Identifier = 7,             // <AttributeName> ::= Identifier
+    @Tagattributename_Identifier = 7,          // <TagAttributeName> ::= Identifier
     @Componenttype_Identifier = 8,             // <ComponentType> ::= Identifier
     @Flag_Flagidentifier = 9,                  // <Flag> ::= FlagIdentifier
     @Program = 10,                             // <Program> ::= <PipedCommandList>
@@ -54,26 +54,27 @@ public enum ProductionIndex
     @Instancetag3 = 47,                        // <InstanceTag> ::= <VariableTag>
     @Objectinstance = 48,                      // <ObjectInstance> ::= <ClosedFormObjectInstance>
     @Objectinstance2 = 49,                     // <ObjectInstance> ::= <OpenFormObjectInstance>
-    @Closedformobjectinstance_Lt_Div_Gt = 50,  // <ClosedFormObjectInstance> ::= '<' <ObjectType> <AttributeList> '/' '>'
-    @Openformobjectinstance = 51,              // <OpenFormObjectInstance> ::= <OpeningObjectTag> <TagList> <ClosingObjectTag>
-    @Openingobjecttag_Lt_Gt = 52,              // <OpeningObjectTag> ::= '<' <ObjectType> <AttributeList> '>'
-    @Openingobjecttag_Lt_Pipe_Gt = 53,         // <OpeningObjectTag> ::= '<' <VariableName> '|' <ObjectType> <AttributeList> '>'
-    @Closingobjecttag_Lt_Div_Gt = 54,          // <ClosingObjectTag> ::= '<' '/' <ObjectType> '>'
-    @Closingobjecttag_Lt_Div_Gt2 = 55,         // <ClosingObjectTag> ::= '<' '/' '>'
-    @Propertyassignment_Lbracket_Rbracket_Lbracket_Div_Rbracket = 56,  // <PropertyAssignment> ::= '[' <PropertyName> ']' <InstanceTagList> '[' '/' <PropertyName> ']'
-    @Propertyassignment_Lbracket_Rbracket_Lbracket_Div_Rbracket2 = 57,  // <PropertyAssignment> ::= '[' <PropertyName> ']' <InstanceTagList> '[' '/' ']'
-    @Propertyassignment_Lbracket_Eq_Rbracket = 58,  // <PropertyAssignment> ::= '[' <PropertyName> '=' <SimpleValue> ']'
-    @Propertyassignment_Lbracket_Rbracket_Eq = 59,  // <PropertyAssignment> ::= '[' <PropertyName> ']' '=' <InstanceTag>
-    @Componentinstance = 60,                   // <ComponentInstance> ::= <ClosedFormComponentInstance>
-    @Componentinstance2 = 61,                  // <ComponentInstance> ::= <OpenFormComponentInstance>
-    @Closedformcomponentinstance_Lbrace_Div_Rbrace = 62,  // <ClosedFormComponentInstance> ::= '{' <ComponentType> <AttributeList> '/' '}'
-    @Openformcomponentinstance = 63,           // <OpenFormComponentInstance> ::= <OpeningComponentTag> <TagList> <ClosingComponentTag>
-    @Openingcomponenttag_Lbrace_Rbrace = 64,   // <OpeningComponentTag> ::= '{' <ComponentType> <AttributeList> '}'
-    @Openingcomponenttag_Lbrace_Pipe_Rbrace = 65,  // <OpeningComponentTag> ::= '{' <VariableName> '|' <ComponentType> <AttributeList> '}'
-    @Closingcomponenttag_Lbrace_Div_Rbrace = 66,  // <ClosingComponentTag> ::= '{' '/' <ComponentType> '}'
-    @Closingcomponenttag_Lbrace_Div_Rbrace2 = 67,  // <ClosingComponentTag> ::= '{' '/' '}'
-    @Variabletag_Lt_Dollar_Gt = 68,            // <VariableTag> ::= '<' '$' <VariableName> '>'
-    @Attributelist = 69,                       // <AttributeList> ::= <AttributeList> <Attribute>
-    @Attributelist2 = 70,                      // <AttributeList> ::= 
-    @Attribute_Eq = 71                         // <Attribute> ::= <AttributeName> '=' <SimpleValue>
+    @Closedformobjectinstance_Lt_Div_Gt = 50,  // <ClosedFormObjectInstance> ::= '<' <ObjectType> <TagAttributeList> '/' '>'
+    @Closedformobjectinstance_Lt_Pipe_Div_Gt = 51,  // <ClosedFormObjectInstance> ::= '<' <VariableName> '|' <ObjectType> <TagAttributeList> '/' '>'
+    @Openformobjectinstance = 52,              // <OpenFormObjectInstance> ::= <OpeningObjectTag> <TagList> <ClosingObjectTag>
+    @Openingobjecttag_Lt_Gt = 53,              // <OpeningObjectTag> ::= '<' <ObjectType> <TagAttributeList> '>'
+    @Openingobjecttag_Lt_Pipe_Gt = 54,         // <OpeningObjectTag> ::= '<' <VariableName> '|' <ObjectType> <TagAttributeList> '>'
+    @Closingobjecttag_Lt_Div_Gt = 55,          // <ClosingObjectTag> ::= '<' '/' <ObjectType> '>'
+    @Closingobjecttag_Lt_Div_Gt2 = 56,         // <ClosingObjectTag> ::= '<' '/' '>'
+    @Propertyassignment_Lbracket_Rbracket_Lbracket_Div_Rbracket = 57,  // <PropertyAssignment> ::= '[' <PropertyName> ']' <InstanceTagList> '[' '/' <PropertyName> ']'
+    @Propertyassignment_Lbracket_Rbracket_Lbracket_Div_Rbracket2 = 58,  // <PropertyAssignment> ::= '[' <PropertyName> ']' <InstanceTagList> '[' '/' ']'
+    @Propertyassignment_Lbracket_Eq_Rbracket = 59,  // <PropertyAssignment> ::= '[' <PropertyName> '=' <SimpleValue> ']'
+    @Propertyassignment_Lbracket_Rbracket_Eq = 60,  // <PropertyAssignment> ::= '[' <PropertyName> ']' '=' <InstanceTag>
+    @Componentinstance = 61,                   // <ComponentInstance> ::= <ClosedFormComponentInstance>
+    @Componentinstance2 = 62,                  // <ComponentInstance> ::= <OpenFormComponentInstance>
+    @Closedformcomponentinstance_Lbrace_Div_Rbrace = 63,  // <ClosedFormComponentInstance> ::= '{' <ComponentType> <TagAttributeList> '/' '}'
+    @Openformcomponentinstance = 64,           // <OpenFormComponentInstance> ::= <OpeningComponentTag> <TagList> <ClosingComponentTag>
+    @Openingcomponenttag_Lbrace_Rbrace = 65,   // <OpeningComponentTag> ::= '{' <ComponentType> <TagAttributeList> '}'
+    @Openingcomponenttag_Lbrace_Pipe_Rbrace = 66,  // <OpeningComponentTag> ::= '{' <VariableName> '|' <ComponentType> <TagAttributeList> '}'
+    @Closingcomponenttag_Lbrace_Div_Rbrace = 67,  // <ClosingComponentTag> ::= '{' '/' <ComponentType> '}'
+    @Closingcomponenttag_Lbrace_Div_Rbrace2 = 68,  // <ClosingComponentTag> ::= '{' '/' '}'
+    @Variabletag_Lt_Dollar_Gt = 69,            // <VariableTag> ::= '<' '$' <VariableName> '>'
+    @Tagattributelist = 70,                    // <TagAttributeList> ::= <TagAttributeList> <TagAttribute>
+    @Tagattributelist2 = 71,                   // <TagAttributeList> ::= 
+    @Tagattribute_Eq = 72                      // <TagAttribute> ::= <TagAttributeName> '=' <SimpleValue>
 }

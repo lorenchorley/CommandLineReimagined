@@ -4,7 +4,7 @@ using EntityComponentSystem;
 
 namespace CommandLine.Modules
 {
-    public class ConsoleOutScope
+    public class ConsoleOutBlock
     {
         private readonly IServiceProvider _serviceProvider;
         private readonly ConsoleLayout _consoleRenderer;
@@ -13,14 +13,14 @@ namespace CommandLine.Modules
         public string Description { get; set; }
         public List<LineComponent> Lines { get; set; } = new();
 
-        public ConsoleOutScope(IServiceProvider serviceProvider, ConsoleLayout consoleRenderer, ECS ecs)
+        public ConsoleOutBlock(IServiceProvider serviceProvider, ConsoleLayout consoleRenderer, ECS ecs)
         {
             _serviceProvider = serviceProvider;
             _consoleRenderer = consoleRenderer;
             _ecs = ecs;
         }
 
-        public ConsoleOutScope SetDesciption(string description)
+        public ConsoleOutBlock SetDesciption(string description)
         {
             Description = description;
             return this;

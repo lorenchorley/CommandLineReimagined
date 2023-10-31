@@ -1,7 +1,10 @@
 ﻿using CommandLine.Modules;
-using Commands;
-using EntityComponentSystem;
 using Microsoft.Extensions.DependencyInjection;
+using Terminal;
+using Terminal.Commands;
+using Terminal.Naming;
+using Terminal.Types;
+using Terminal.Variables;
 
 public static class CommandLineServiceExtensions
 {
@@ -12,9 +15,11 @@ public static class CommandLineServiceExtensions
         services.AddSingleton<PathModule>();
         services.AddSingleton<ConsoleOutModule>();
         services.AddSingleton<CommandHistoryModule>();
+        services.AddSingleton<NameResolver>();
+        services.AddSingleton<CommandRegistry>();
 
-        // Il faut une nouvelle instance à chaque fois pour qu'un scope soit propre à une exécution d'une commande
-        services.AddTransient<ConsoleOutScope>();
+        // Il faut une nouvelle instance à chaque fois pour qu'un bloc de texte soit propre à une exécution d'une commande
+        services.AddTransient<ConsoleOutBlock>();
     }
 
 }

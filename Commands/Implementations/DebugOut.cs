@@ -8,8 +8,8 @@ namespace Commands.Implementations
     {
         private readonly ECS _ecs;
 
-        public override CommandProfile Profile { get; } =
-            new CommandProfile(
+        public override Command Profile { get; } =
+            new Command(
                 Name: "debug",
                 Description: "",
                 Parameters: new CommandParameter[]
@@ -23,7 +23,7 @@ namespace Commands.Implementations
             _ecs = ecs;
         }
 
-        public override void Execute(CommandParameterValue[] args, ConsoleOutScope scope)
+        public override void Execute(CommandParameterValue[] args, ConsoleOutBlock scope)
         {
             // Convertir toutes les entites en chaine
             //string text = SerialiseIntoXML();
@@ -77,7 +77,7 @@ namespace Commands.Implementations
             fileopener.Start();
         }
 
-        public override void Undo(CommandParameterValue[] args, ConsoleOutScope scope)
+        public override void Undo(CommandParameterValue[] args, ConsoleOutBlock scope)
         {
 
         }

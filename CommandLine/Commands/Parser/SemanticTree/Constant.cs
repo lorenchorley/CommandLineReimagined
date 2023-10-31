@@ -1,8 +1,9 @@
-﻿using System.Collections.Generic;
+﻿using Isagri.Reporting.Quid.RequestFilters.SemanticTree;
+using System.Collections.Generic;
 
 namespace Commands.Parser.SemanticTree
 {
-    public record Constant : Value, INode
+    public abstract record Constant : SimpleValue
     {
     }
 }

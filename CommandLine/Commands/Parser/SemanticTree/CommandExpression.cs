@@ -1,10 +1,16 @@
-﻿using System.Collections.Generic;
+﻿using Isagri.Reporting.Quid.RequestFilters.SemanticTree;
+using OneOf;
+using System.Collections.Generic;
 
 namespace Commands.Parser.SemanticTree
 {
-    public record CommandExpression : INode
+    public record CommandExpression : IVisitable
     {
-        public CommandName Id { get; init; }
-        public CommandArguments Arguments { get; init; }
+        public OneOf<FunctionExpression, CommandExpressionCli, InstanceTag> Expression { get; init; }
+
+        public void Accept(ISemanticTreeVisitor visitor)
+        {
+            visitor.VisitCommandExpression(this);
+        }
     }
 }

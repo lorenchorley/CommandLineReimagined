@@ -1,8 +1,9 @@
-﻿using System.Collections.Generic;
+﻿using Isagri.Reporting.Quid.RequestFilters.SemanticTree;
+using System.Collections.Generic;
 
 namespace Commands.Parser.SemanticTree
 {
-    public record PipedCommandList : INode
+    public record PipedCommandList : RootNode
     {
         public List<CommandExpression> OrderedCommands { get; init; } = new();
         public PipedCommandList()
@@ -12,6 +13,11 @@ namespace Commands.Parser.SemanticTree
         public PipedCommandList(CommandExpression first)
         {
             OrderedCommands.Add(first);
+        }
+
+        public override void Accept(ISemanticTreeVisitor visitor)
+        {
+            visitor.VisitPipedCommandList(this);
         }
     }
 }

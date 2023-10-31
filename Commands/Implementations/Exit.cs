@@ -7,8 +7,8 @@ namespace Commands.Implementations
 {
     public class Exit : CommandAction
     {
-        public override CommandProfile Profile { get; } =
-            new CommandProfile(
+        public override Command Profile { get; } =
+            new Command(
                 Name: "exit",
                 Description: "",
                 Parameters: new CommandParameter[]
@@ -17,13 +17,13 @@ namespace Commands.Implementations
                 CommandActionType: typeof(Exit)
             );
 
-        public override void Execute(CommandParameterValue[] args, ConsoleOutScope scope)
+        public override void Execute(CommandParameterValue[] args, ConsoleOutBlock scope)
         {
             //Application.Current.Shutdown();
             // Il faut demander ça via une dépendance injectée
         }
 
-        public override void Undo(CommandParameterValue[] args, ConsoleOutScope scope)
+        public override void Undo(CommandParameterValue[] args, ConsoleOutBlock scope)
         {
         }
     }

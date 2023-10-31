@@ -8,14 +8,14 @@ namespace CommandLine.Modules
     {
         private readonly ConsoleLayout _consoleRenderer;
 
-        public Stack<(CommandAction Action, CommandParameterValue[] Args, ConsoleOutScope Scope)> ExecutedCommands { get; set; } = new();
+        public Stack<(CommandAction Action, CommandParameterValue[] Args, ConsoleOutBlock Scope)> ExecutedCommands { get; set; } = new();
 
         public CommandHistoryModule(ConsoleLayout consoleRenderer)
         {
             _consoleRenderer = consoleRenderer;
         }
 
-        public void RegisterCommandAsExecuted(CommandAction action, CommandParameterValue[] args, ConsoleOutScope scope)
+        public void RegisterCommandAsExecuted(CommandAction action, CommandParameterValue[] args, ConsoleOutBlock scope)
         {
             ExecutedCommands.Push((action, args, scope));
         }

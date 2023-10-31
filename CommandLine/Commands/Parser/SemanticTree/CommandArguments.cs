@@ -1,8 +1,9 @@
-﻿using System.Collections.Generic;
+﻿using Isagri.Reporting.Quid.RequestFilters.SemanticTree;
+using System.Collections.Generic;
 
 namespace Commands.Parser.SemanticTree
 {
-    public record CommandArguments : INode
+    public record CommandArguments : IVisitable
     {
         public List<CommandArgument> Arguments { get; init; } = new();
 
@@ -14,6 +15,11 @@ namespace Commands.Parser.SemanticTree
         public CommandArguments(CommandArgument first)
         {
              Arguments.Add(first);
+        }
+
+        public void Accept(ISemanticTreeVisitor visitor)
+        {
+            visitor.VisitCommandArguments(this);
         }
     }
 }

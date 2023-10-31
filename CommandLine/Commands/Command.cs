@@ -1,6 +1,6 @@
 ﻿namespace Commands
 {
-    public record CommandProfile(
+    public record Command(
         string Name,
         string Description,
         CommandParameter[] Parameters,

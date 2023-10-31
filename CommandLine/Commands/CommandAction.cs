@@ -4,8 +4,8 @@ namespace Commands
 {
     public abstract class CommandAction
     {
-        public abstract CommandProfile Profile { get; }
-        public abstract void Execute(CommandParameterValue[] args, ConsoleOutScope scope);
-        public abstract void Undo(CommandParameterValue[] args, ConsoleOutScope scope);
+        public abstract Command Profile { get; }
+        public abstract void Execute(CommandParameterValue[] args, ConsoleOutBlock scope);
+        public abstract void Undo(CommandParameterValue[] args, ConsoleOutBlock scope);
     }
 }

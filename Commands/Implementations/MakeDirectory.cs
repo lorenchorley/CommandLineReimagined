@@ -10,8 +10,8 @@ namespace Commands.Implementations
 
         private string _targetFolder;
 
-        public override CommandProfile Profile { get; } =
-            new CommandProfile(
+        public override Command Profile { get; } =
+            new Command(
                 Name: "mkdir",
                 Description: "",
                 Parameters: new CommandParameter[]
@@ -26,7 +26,7 @@ namespace Commands.Implementations
             _pathModule = pathModule;
         }
 
-        public override void Execute(CommandParameterValue[] args, ConsoleOutScope scope)
+        public override void Execute(CommandParameterValue[] args, ConsoleOutBlock scope)
         {
             var line = scope.NewLine();
 
@@ -44,7 +44,7 @@ namespace Commands.Implementations
             line.AddTextBlock("mkdir", $"Created directory : {_targetFolder}");
         }
 
-        public override void Undo(CommandParameterValue[] args, ConsoleOutScope scope)
+        public override void Undo(CommandParameterValue[] args, ConsoleOutBlock scope)
         {
             Directory.Delete(_targetFolder);
         }
