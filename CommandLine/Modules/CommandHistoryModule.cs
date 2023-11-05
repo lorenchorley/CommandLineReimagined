@@ -8,16 +8,20 @@ namespace CommandLine.Modules
     {
         private readonly ConsoleLayout _consoleRenderer;
 
-        public Stack<(CommandAction Action, CommandParameterValue[] Args, ConsoleOutBlock Scope)> ExecutedCommands { get; set; } = new();
+        public Stack<(ICommandAction Action, CommandParameterValue[] Args, CliBlock CliBlock)> ExecutedCommands { get; set; } = new();
 
         public CommandHistoryModule(ConsoleLayout consoleRenderer)
         {
             _consoleRenderer = consoleRenderer;
         }
 
-        public void RegisterCommandAsExecuted(CommandAction action, CommandParameterValue[] args, ConsoleOutBlock scope)
+        public void RegisterCommandAsStarted(ICommandAction action, CommandParameterValue[] args, CliBlock scope)
         {
             ExecutedCommands.Push((action, args, scope));
+        }
+        
+        public void RegisterCommandAsFinished(ICommandAction action, CommandParameterValue[] args, CliBlock scope)
+        {
         }
 
         public void UndoLastCommand()
@@ -27,16 +31,40 @@ namespace CommandLine.Modules
                 return;
             }
 
-            var lastCommand = ExecutedCommands.Pop();
-            lastCommand.Action.Undo(lastCommand.Args, lastCommand.Scope);
+            var (action, args, cliBlock) = ExecutedCommands.Pop();
 
-            foreach (var line in lastCommand.Scope.Lines)
+            if (action is CommandActionSync syncCommand)
             {
-                _consoleRenderer.Output.Lines.Remove(line);
-                line.Entity.Destroy();
-            }
+                syncCommand.InvokeUndo(args, cliBlock);
 
-            lastCommand.Scope.Lines.Clear();
+                cliBlock.Clear();
+            }
+            else if (action is CommandActionAsync asyncCommand)
+            {
+                // Allows for the undo to asynchronously stop and still show output, while a second undo will clear the output
+                if (asyncCommand.AlreadyCancelled) 
+                {
+                    cliBlock.Clear();
+                    return;
+                }
+
+                asyncCommand.AlreadyCancelled = true;
+                ExecutedCommands.Push((asyncCommand, args, cliBlock));
+
+                // TODO Needs to be synchronous for the undo to be flawless
+                if (asyncCommand.CurrentTask == null)
+                {
+                    Task.Run(async () => await asyncCommand.BeginInvokeUndo(args, cliBlock));
+                }
+                else
+                {
+                    // Theres a chance here that the task will already be completed and so the callback wont get run
+                    asyncCommand.CancellationTokenSource?.Cancel();
+                    asyncCommand.CurrentTask?.ContinueWith(t => asyncCommand.BeginInvokeUndo(args, cliBlock)); 
+
+                }
+
+            }
         }
     }
 }

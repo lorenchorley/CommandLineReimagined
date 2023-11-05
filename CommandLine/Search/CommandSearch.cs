@@ -9,7 +9,7 @@ namespace Terminal.Search;
 
 public class CommandSearch
 {
-    private readonly IEnumerable<CommandAction> _commandActions;
+    private readonly IEnumerable<ICommandAction> _commandActions;
 
     private class JSONLine
     {
@@ -24,10 +24,10 @@ public class CommandSearch
     private ConcurrentDictionary<string, string[]> ThesaurusIndex { get; set; } = new();
     private TrieSearch? AutocompleteTrie { get; set; }
 
-    private ConcurrentDictionary<string, CommandAction[]> CommandActionIndex { get; set; } = new();
+    private ConcurrentDictionary<string, ICommandAction[]> CommandActionIndex { get; set; } = new();
     private TrieSearch? CommandActionMetadataTrie { get; set; }
 
-    public CommandSearch(IEnumerable<CommandAction> commandActions)
+    public CommandSearch(IEnumerable<ICommandAction> commandActions)
     {
         _commandActions = commandActions;
     }
@@ -42,7 +42,7 @@ public class CommandSearch
     {
         CommandActionMetadataTrie = new(_commandActions.Select(a => a.Profile.Name).ToArray());
 
-        foreach (CommandAction action in _commandActions)
+        foreach (ICommandAction action in _commandActions)
         {
             var associatedWords =
                 GetWords(action.Profile.Name)
@@ -51,7 +51,7 @@ public class CommandSearch
 
             foreach (var word in associatedWords)
             {
-                CommandActionIndex.AddOrUpdate(word, new CommandAction[] { action }, (_, existing) =>
+                CommandActionIndex.AddOrUpdate(word, new ICommandAction[] { action }, (_, existing) =>
                 {
                     // Merge synonyms for the same key
                     return existing.Append(action).ToArray();
@@ -380,7 +380,7 @@ public class CommandSearch
 
     private IEnumerable<string> WordToAssociatedCommandNames(string word)
     {
-        if (CommandActionIndex.TryGetValue(word, out CommandAction[]? actions))
+        if (CommandActionIndex.TryGetValue(word, out ICommandAction[]? actions))
         {
             return actions.Select(a => a.Profile.Name);
         }

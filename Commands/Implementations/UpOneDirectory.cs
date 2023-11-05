@@ -2,7 +2,7 @@
 
 namespace Commands.Implementations
 {
-    public class UpOneDirectory : CommandAction
+    public class UpOneDirectory : CommandActionSync
     {
         private readonly PathModule _pathModule;
 
@@ -24,7 +24,7 @@ namespace Commands.Implementations
             _pathModule = pathModule;
         }
 
-        public override void Execute(CommandParameterValue[] args, ConsoleOutBlock scope)
+        public override void Invoke(CommandParameterValue[] args, CliBlock scope)
         {
             //var line = scope.NewLine();
 
@@ -34,7 +34,7 @@ namespace Commands.Implementations
             //line.AddTextBlock("up", $"Moved up one to : {_pathModule.CurrentFolder}");
         }
 
-        public override void Undo(CommandParameterValue[] args, ConsoleOutBlock scope)
+        public override void InvokeUndo(CommandParameterValue[] args, CliBlock scope)
         {
             _pathModule.Enter(_previousFolder);
         }

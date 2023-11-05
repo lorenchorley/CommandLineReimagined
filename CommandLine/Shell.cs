@@ -37,39 +37,6 @@ namespace Terminal
         }
     }
 
-    //public class CommandFailedParsing
-    //{
-    //    public int Line { get; set; }
-    //    public int Column { get; set; }
-    //    public ParsingErrorType ErrorType { get; set; }
-    //    public List<string> Errors { get; set; }
-
-    //    private static readonly Regex _matchSyntaxError = new Regex(@"(?<errorType>SyntaxError|LexicalError) à la ligne (?<line>[\d]) et à la colonne (?<column>[\d])");
-
-    //    public CommandFailedParsing(List<string> errors)
-    //    {
-    //        var first = errors[0];
-    //        var matches = _matchSyntaxError.Match(first);
-    //        if (matches.Success)
-    //        {
-    //            ErrorType = matches.Groups["errorType"].Value switch
-    //            {
-    //                "SyntaxError" => ParsingErrorType.SyntaxError,
-    //                "LexicalError" => ParsingErrorType.LexicalError,
-    //                _ => throw new NotImplementedException("Unknown error type : " + matches.Groups["errorType"].Value)
-    //            };
-    //            Line = int.Parse(matches.Groups["line"].Value);
-    //            Column = int.Parse(matches.Groups["column"].Value);
-    //        }
-    //        else
-    //        {
-    //            throw new NotImplementedException("Unknown error type : " + first);
-    //        }
-
-    //        Errors = errors.Skip(1).ToList();
-    //    }
-    //}
-    
     public class CommandFailedTypeChecking
     {
 
@@ -90,7 +57,7 @@ namespace Terminal
 
         public Shell(IServiceProvider serviceProvider,
                      ECS ecs,
-                     IEnumerable<CommandAction> commandActions,
+                     IEnumerable<ICommandAction> commandActions,
                      ConsoleLayout consoleRenderer,
                      CommandHistoryModule commandHistoryModule,
                      ConsoleOutModule consoleOutModule,
@@ -120,7 +87,7 @@ namespace Terminal
         public CommandAnalysisResult AnalyseCommand(string command)
         {
             ParserResult<RootNode> result = _interpreter.Parse<RootNode>(command);
-            
+
             return result.Match<CommandAnalysisResult>(
                 tree => new CommandPassedChecks(tree),
                 errors => errors
@@ -153,13 +120,13 @@ namespace Terminal
             }
             finally
             {
-                consoleBlock.Finalise();
+                //consoleBlock.Finalise();
             }
 
             return true;
         }
 
-        private void ExecuteNominal(RootNode result, ConsoleOutBlock scope)
+        private void ExecuteNominal(RootNode result, CliBlock scope)
         {
             if (result is EmptyCommand)
             {
@@ -211,7 +178,7 @@ namespace Terminal
 
                 ValidateArguments(args, profile);
 
-                var commandAction = (CommandAction)_serviceProvider.GetRequiredService(profile.CommandActionType);
+                ICommandAction commandAction = (ICommandAction)_serviceProvider.GetRequiredService(profile.CommandActionType);
 
 
                 // Ajouter le texte du prompt comme ligne
@@ -220,7 +187,7 @@ namespace Terminal
                 var promptText = _ecs.NewEntity("Prompt").AddComponent<TextComponent>();
 
                 // TODO
-                promptText.Text = 
+                promptText.Text =
                     _consoleRenderer.Input
                                     .PromptLines
                                     .SelectMany(line => line.GetOrderedLineSegments())
@@ -231,9 +198,40 @@ namespace Terminal
 
                 promptLine.AddLineSegment(promptText);
 
-                commandAction.Execute(args.ToArray(), scope);
+                if (commandAction is CommandActionSync syncCommand)
+                {
+                    _commandHistoryModule.RegisterCommandAsStarted(commandAction, args, scope);
+                    syncCommand.Invoke(args, scope);
+                    _commandHistoryModule.RegisterCommandAsFinished(commandAction, args, scope);
+                }
 
-                _commandHistoryModule.RegisterCommandAsExecuted(commandAction, args, scope);
+                else if (commandAction is CommandActionAsync asyncCommand)
+                {
+                    _commandHistoryModule.RegisterCommandAsStarted(commandAction, args, scope);
+
+                    asyncCommand.CancellationTokenSource = new(); // TODO store in more appropriate place
+                    asyncCommand.CurrentTask = Task.Run(async () => await asyncCommand.BeginInvoke(args, scope, asyncCommand.CancellationTokenSource.Token), asyncCommand.CancellationTokenSource.Token);
+                    asyncCommand.CurrentTask.ContinueWith(async task => 
+                    {
+                        if (task.IsCompletedSuccessfully)
+                        {
+                            await asyncCommand.EndInvoke(args, scope);
+                        }
+                        else // Could call undo here
+                        {
+                            await asyncCommand.FailedInvoke(args, scope, task);
+                        }
+
+                        // TODO Needs to be synchronous for the undo to be flawless
+                        asyncCommand.CancellationTokenSource = null;
+                        asyncCommand.CurrentTask = null;
+                    });
+                }
+                else
+                {
+                    throw new InvalidOperationException("Unknown command type : " + commandAction.GetType().Name);
+                }
+
             }
             catch (ConsoleError e)
             {
@@ -241,7 +239,7 @@ namespace Terminal
             }
         }
 
-        private void WriteError(ConsoleOutBlock scope, string message)
+        private void WriteError(CliBlock scope, string message)
         {
             var line = scope.NewLine();
 

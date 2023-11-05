@@ -3,7 +3,7 @@ using Console.Components;
 
 namespace Commands.Implementations
 {
-    public class ListDirectoryContents : CommandAction
+    public class ListDirectoryContents : CommandActionSync
     {
         private readonly PathModule _pathModule;
 
@@ -23,7 +23,7 @@ namespace Commands.Implementations
             _pathModule = pathModule;
         }
 
-        public override void Execute(CommandParameterValue[] args, ConsoleOutBlock scope)
+        public override void Invoke(CommandParameterValue[] args, CliBlock scope)
         {
             LineComponent line = scope.NewLine();
             //line.AddTextBlock("ls title", $"Contenu du dossier {_pathModule.CurrentPath} :");
@@ -61,7 +61,7 @@ namespace Commands.Implementations
             line = scope.NewLine();
         }
 
-        public override void Undo(CommandParameterValue[] args, ConsoleOutBlock scope)
+        public override void InvokeUndo(CommandParameterValue[] args, CliBlock scope)
         {
 
         }

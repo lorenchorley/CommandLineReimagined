@@ -2,7 +2,7 @@
 
 namespace Commands.Implementations
 {
-    public class UnknownCommand : CommandAction
+    public class UnknownCommand : CommandActionSync
     {
 
         public override CommandDefinition Profile { get; } =
@@ -16,14 +16,14 @@ namespace Commands.Implementations
                 CommandActionType: typeof(UnknownCommand)
             );
 
-        public override void Execute(CommandParameterValue[] args, ConsoleOutBlock scope)
+        public override void Invoke(CommandParameterValue[] args, CliBlock scope)
         {
             var line = scope.NewLine();
 
             line.LinkNewTextBlock("Unknown command", $"Unknown command : {args[0].Value}");
         }
 
-        public override void Undo(CommandParameterValue[] args, ConsoleOutBlock scope)
+        public override void InvokeUndo(CommandParameterValue[] args, CliBlock scope)
         {
         }
     }

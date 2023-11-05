@@ -32,10 +32,11 @@ namespace EntityComponentSystem
 
             _components.Clear();
 
-            if (!ECS.RegisteredEntities.Remove(this))
-            {
-                throw new InvalidOperationException("Entity was not registered at the moment when its Destroy method was called");
-            }
+            ECS.RemoveEntity(this);
+            //if (!ECS.RemoveEntityr(this))
+            //{
+            //    throw new InvalidOperationException("Entity was not registered at the moment when its Destroy method was called");
+            //}
         }
 
         public IEnumerable<Component> Components => _components;

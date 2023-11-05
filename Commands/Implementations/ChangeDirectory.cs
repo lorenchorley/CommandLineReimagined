@@ -3,7 +3,7 @@ using Console.Components;
 
 namespace Commands.Implementations
 {
-    public class ChangeDirectory : CommandAction
+    public class ChangeDirectory : CommandActionSync
     {
         private readonly PathModule _pathModule;
 
@@ -26,7 +26,7 @@ namespace Commands.Implementations
             _pathModule = pathModule;
         }
 
-        public override void Execute(CommandParameterValue[] args, ConsoleOutBlock scope)
+        public override void Invoke(CommandParameterValue[] args, CliBlock scope)
         {
             TextComponent segment;
             var line = scope.NewLine();
@@ -44,7 +44,7 @@ namespace Commands.Implementations
             scope.AbondonLine(line);
         }
 
-        public override void Undo(CommandParameterValue[] args, ConsoleOutBlock scope)
+        public override void InvokeUndo(CommandParameterValue[] args, CliBlock scope)
         {
             _pathModule.MoveTo(_previousFolder);
         }

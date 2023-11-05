@@ -5,7 +5,7 @@ using Console.Components;
 
 namespace Commands.Implementations
 {
-    public class Echo : CommandAction
+    public class Echo : CommandActionSync
     {
         public override CommandDefinition Profile { get; } =
             new CommandDefinition(
@@ -19,14 +19,14 @@ namespace Commands.Implementations
                 CommandActionType: typeof(Echo)
             );
 
-        public override void Execute(CommandParameterValue[] args, ConsoleOutBlock scope)
+        public override void Invoke(CommandParameterValue[] args, CliBlock scope)
         {
             LineComponent line = scope.NewLine();
 
             line.LinkNewTextBlock("echo", args[0].Value);
         }
 
-        public override void Undo(CommandParameterValue[] args, ConsoleOutBlock scope)
+        public override void InvokeUndo(CommandParameterValue[] args, CliBlock scope)
         {
         }
     }

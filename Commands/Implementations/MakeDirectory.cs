@@ -4,7 +4,7 @@ using CommandLine.Modules;
 
 namespace Commands.Implementations
 {
-    public class MakeDirectory : CommandAction
+    public class MakeDirectory : CommandActionSync
     {
         private readonly PathModule _pathModule;
 
@@ -27,7 +27,7 @@ namespace Commands.Implementations
             _pathModule = pathModule;
         }
 
-        public override void Execute(CommandParameterValue[] args, ConsoleOutBlock scope)
+        public override void Invoke(CommandParameterValue[] args, CliBlock scope)
         {
             var line = scope.NewLine();
 
@@ -45,7 +45,7 @@ namespace Commands.Implementations
             line.LinkNewTextBlock("mkdir", $"Created directory : {_targetFolder}");
         }
 
-        public override void Undo(CommandParameterValue[] args, ConsoleOutBlock scope)
+        public override void InvokeUndo(CommandParameterValue[] args, CliBlock scope)
         {
             Directory.Delete(_targetFolder);
         }

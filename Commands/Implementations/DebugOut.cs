@@ -4,7 +4,7 @@ using System.Diagnostics;
 
 namespace Commands.Implementations
 {
-    public class DebugOut : CommandAction
+    public class DebugOut : CommandActionSync
     {
         private readonly ECS _ecs;
 
@@ -24,7 +24,7 @@ namespace Commands.Implementations
             _ecs = ecs;
         }
 
-        public override void Execute(CommandParameterValue[] args, ConsoleOutBlock scope)
+        public override void Invoke(CommandParameterValue[] args, CliBlock scope)
         {
             // Convertir toutes les entites en chaine
             //string text = SerialiseIntoXML();
@@ -42,7 +42,7 @@ namespace Commands.Implementations
         private string SerialiseCustom()
         {
             EntitySerializer s = new();
-            return s.SerializeEntities(_ecs.RegisteredEntities);
+            return _ecs.AccessEntities(list => s.SerializeEntities(list));
         }
 
         //private string SerialiseIntoXML()
@@ -78,7 +78,7 @@ namespace Commands.Implementations
             fileopener.Start();
         }
 
-        public override void Undo(CommandParameterValue[] args, ConsoleOutBlock scope)
+        public override void InvokeUndo(CommandParameterValue[] args, CliBlock scope)
         {
 
         }

@@ -22,7 +22,7 @@ public static class CommandLineServiceExtensions
         services.AddSingleton<CommandSearch>();
 
         // Il faut une nouvelle instance à chaque fois pour qu'un bloc de texte soit propre à une exécution d'une commande
-        services.AddTransient<ConsoleOutBlock>();
+        services.AddTransient<CliBlock>();
     }
 
 }

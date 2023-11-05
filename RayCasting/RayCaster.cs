@@ -17,10 +17,11 @@ public class RayCaster
     // Don't worry about performance
     // Don't worry about performance
     private InteractiveComponent[] GetInteractiveComponents()
-        => _ecs.RegisteredEntities
-               .SelectMany(x => x.Components)
-               .OfType<InteractiveComponent>()
-               .ToArray();
+        => _ecs.AccessEntities(list => 
+               list.SelectMany(x => x.Components)
+                   .OfType<InteractiveComponent>()
+                   .ToArray()
+            );
 
     public CastResult CastRay(Point targetPoint, InteractableElementLayer layer)
     {

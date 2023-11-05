@@ -12,6 +12,7 @@ public static class CommandServiceExtensions
         services.ConfigureCommand<CopyFile>();
         services.ConfigureCommand<UpOneDirectory>();
         services.ConfigureCommand<Echo>();
+        services.ConfigureCommand<ProgressTest>();
 
         // Commandes "systèmes"
         services.ConfigureCommand<DebugOut>();
@@ -19,13 +20,13 @@ public static class CommandServiceExtensions
         services.ConfigureCommand<UnknownCommand>();
     }
 
-    private static void ConfigureCommand<TCommand>(this IServiceCollection services) where TCommand : CommandAction
+    private static void ConfigureCommand<TCommand>(this IServiceCollection services) where TCommand : class, ICommandAction
     {
         // La commande est enregistrée avec son propre type pour qu'on puisse l'instancier
         services.AddTransient<TCommand>();
 
         // La commande est enregistrée avec son type de base pour qu'on puisse retrouver toutes les commandes en liste
-        services.AddTransient<CommandAction, TCommand>();
+        services.AddTransient<ICommandAction, TCommand>();
     }
 
 }

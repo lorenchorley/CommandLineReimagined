@@ -4,9 +4,9 @@ namespace Terminal.Commands;
 
 public class CommandRegistry
 {
-    public List<CommandAction> Commands { get; } = new();
+    public List<ICommandAction> Commands { get; } = new();
 
-    public CommandRegistry(IEnumerable<CommandAction> commands)
+    public CommandRegistry(IEnumerable<ICommandAction> commands)
     {
         Commands = commands.ToList();
     }

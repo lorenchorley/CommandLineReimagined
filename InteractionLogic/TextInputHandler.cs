@@ -153,21 +153,10 @@ public class TextInputHandler
             IsModifierPressed(ModifierKeys.Shift))
         {
             _commandHistoryModule.UndoLastCommand();
-            //RefreshPrompt();
             e.Handled = true;
-            //_renderLoop.RefreshOnce();
+            _renderLoop.RefreshOnce();
             return;
         }
-
-
-        //analysis = _shell.AnalyseCommand(_inputAccessor.Input.Text);
-        //analysis.Switch(
-        //    passed => _consoleRenderer.SetInputTokensFromTree(passed),
-        //    parseError => _consoleRenderer.SetErrorHighlight(parseError),
-        //    typeError => _consoleRenderer.SetErrorHighlight(typeError)
-        //);
-
-        //_renderLoop.RefreshOnce();
     }
 
     private static bool IsModifierPressed(ModifierKeys modifierKeys)

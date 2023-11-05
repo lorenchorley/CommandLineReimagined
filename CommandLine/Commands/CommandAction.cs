@@ -2,10 +2,8 @@
 
 namespace Commands
 {
-    public abstract class CommandAction
+    public interface ICommandAction
     {
-        public abstract CommandDefinition Profile { get; }
-        public abstract void Execute(CommandParameterValue[] args, ConsoleOutBlock scope);
-        public abstract void Undo(CommandParameterValue[] args, ConsoleOutBlock scope);
+        CommandDefinition Profile { get; }
     }
 }

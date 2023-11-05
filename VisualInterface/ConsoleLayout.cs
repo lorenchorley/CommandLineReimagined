@@ -91,10 +91,11 @@ public class ConsoleLayout
 
         // Profil de tous les éléments à dessiner
         List<Renderer> componentsToRender =
-            _ecs.RegisteredEntities
-                .OfType<Entity>()
-                .Choose(e => e.TryGetComponent<Renderer>())
-                .ToList();
+            _ecs.AccessEntities(list => 
+                list.OfType<Entity>()
+                    .Choose(e => e.TryGetComponent<Renderer>())
+                    .ToList()
+            );
 
         componentsToRender.ForEach(r => r.IsVisible = false); // TODO Garder la dernière liste pour ne pas tout reparcourir à chaque fois
 
@@ -120,7 +121,7 @@ public class ConsoleLayout
         }
 
         //foreach (var line in Output.Lines)
-        for (int i = Output.Lines.Count - 1; i >= 0; i--)
+        for (int i = Output.Lines.Count - 1; i >= 0; i--)// TODO Make this operation async safe
         {
             yield return Output.Lines[i];
         }
