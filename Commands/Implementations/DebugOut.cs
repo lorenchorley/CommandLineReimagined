@@ -8,10 +8,11 @@ namespace Commands.Implementations
     {
         private readonly ECS _ecs;
 
-        public override Command Profile { get; } =
-            new Command(
+        public override CommandDefinition Profile { get; } =
+            new CommandDefinition(
                 Name: "debug",
                 Description: "",
+                KeyWords: "diagnostic",
                 Parameters: new CommandParameter[]
                 {
                 },

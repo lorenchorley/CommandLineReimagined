@@ -10,10 +10,11 @@ namespace Commands.Implementations
 
         private string _targetFolder;
 
-        public override Command Profile { get; } =
-            new Command(
+        public override CommandDefinition Profile { get; } =
+            new CommandDefinition(
                 Name: "mkdir",
                 Description: "",
+                KeyWords: "",
                 Parameters: new CommandParameter[]
                 {
                     new CommandParameter() { Name = "FolderName", Description = "" }
@@ -34,14 +35,14 @@ namespace Commands.Implementations
 
             if (Directory.Exists(_targetFolder))
             {
-                line.AddTextBlock("cp error", $"Target directory already exists : {_targetFolder}");
+                line.LinkNewTextBlock("cp error", $"Target directory already exists : {_targetFolder}");
 
                 return;
             }
 
             Directory.CreateDirectory(_targetFolder);
 
-            line.AddTextBlock("mkdir", $"Created directory : {_targetFolder}");
+            line.LinkNewTextBlock("mkdir", $"Created directory : {_targetFolder}");
         }
 
         public override void Undo(CommandParameterValue[] args, ConsoleOutBlock scope)

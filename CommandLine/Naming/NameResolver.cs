@@ -2,6 +2,7 @@
 using Commands.Parser.SemanticTree;
 using OneOf;
 using Terminal.FileSystem;
+using Terminal.Scoping;
 using Terminal.Variables;
 
 namespace Terminal.Naming
@@ -17,7 +18,7 @@ namespace Terminal.Naming
 
     public class NameResolver
     {
-        public OneOf<UnresolvedName, Variable, Command, FileSystemObject, TypeSystem.Type, Constant> Resolve(string name, ResolvableNameType types, Scope scope)
+        public OneOf<UnresolvedName, Variable, CommandDefinition, FileSystemObject, TypeSystem.Type, Constant> Resolve(string name, ResolvableNameType types, Scope scope)
         {
             if (types == ResolvableNameType.None)
             {

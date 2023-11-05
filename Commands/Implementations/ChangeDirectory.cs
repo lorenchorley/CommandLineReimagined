@@ -9,10 +9,11 @@ namespace Commands.Implementations
 
         private string _previousFolder;
 
-        public override Command Profile { get; } =
-            new Command(
+        public override CommandDefinition Profile { get; } =
+            new CommandDefinition(
                 Name: "cd",
                 Description: "",
+                KeyWords: "",
                 Parameters: new CommandParameter[]
                 {
                     new CommandParameter() { Name = "TargetPath", Description = "" }
@@ -36,7 +37,7 @@ namespace Commands.Implementations
 
             if (!_pathModule.Enter(target))
             {
-                line.AddTextBlock("cd error", $"Directory does not exist : {target}");
+                line.LinkNewTextBlock("cd error", $"Directory does not exist : {target}");
                 return;
             }
 

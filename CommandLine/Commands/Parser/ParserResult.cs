@@ -5,7 +5,7 @@ using OneOf;
 namespace Commands.Parser;
 
 [GenerateOneOf]
-public partial class ParserResult : OneOfBase<RootNode, List<string>>
+public partial class ParserResult<TRoot> : OneOfBase<TRoot, ParserError>
 {
 
 }

@@ -2,65 +2,142 @@
 using GOLD;
 using OneOf;
 using OneOf.Types;
+using System.Diagnostics.CodeAnalysis;
+using System.Xml.Schema;
 using ValueOf;
 
 namespace Commands.Parser;
 
+[GenerateOneOf]
+public partial class ParserError : OneOfBase<List<string>, SyntaxError, LexicalError>
+{
+}
+public class SyntaxError
+{
+    public int Line { get; init; }
+    public int Column { get; init; }
+    public SymbolList ExpectedSymbols { get; init; }
+}
+
+public class LexicalError
+{
+    public SyntaxError SyntaxError { get; init; }
+}
+
 public class CommandLineInterpreter
 {
-    private const string COMPILED_GRAMMAR_EMBEDDED_RESSOURCE = "Terminal.Commands.Parser.Grammar.CommandLineGrammar.egt";
+    private const string NameSpace = "Terminal";
+    private const string RelativePath = "Commands.Parser.Grammar";
+    private const string FullGrammarGrammarFile = "CommandLineGrammar.egt";
+    private const string IsValidIdentifierGrammarFile = "IsValidIdentifier.egt";
 
-    private GOLD.Parser _goldParser { get; init; }
+    private GOLD.Parser _fullGrammarParser { get; init; }
+    private GOLD.Parser _isValidIdentifierParser { get; init; }
 
     public CommandLineInterpreter()
     {
-        _goldParser = GoldEngineParserFactory.BuildParser(COMPILED_GRAMMAR_EMBEDDED_RESSOURCE);
+        _fullGrammarParser = GoldEngineParserFactory.BuildParser($"{NameSpace}.{RelativePath}.{FullGrammarGrammarFile}");
+        _isValidIdentifierParser = GoldEngineParserFactory.BuildParser($"{NameSpace}.{RelativePath}.{IsValidIdentifierGrammarFile}");
     }
 
-    public ParserResult Parse(string filter)
+    public bool IsValidIdentifier(string text)
     {
-        List<string> errors = new();
-        RootNode? treeRoot = null;
+        ParserResult<Identifier> result = Parse<Identifier>(text, _isValidIdentifierParser);
 
-        _goldParser.Open(ref filter);
-        _goldParser.TrimReductions = false;
+        return result.IsT0;
+    }
+
+    public SyntaxError? HasSyntaxError(string text)
+    {
+        ParserResult<RootNode> result = Parse<RootNode>(text);
+
+        if (!result.IsT1)
+            return null;
+
+        var parserError = result.AsT1;
+        var syntaxError =
+            parserError.Match<SyntaxError?>(
+                errors => null,
+                syntaxError => syntaxError,
+                lexicalError => lexicalError.SyntaxError
+            );
+
+        return syntaxError;
+    }
+
+    public ParserResult<TRoot> Parse<TRoot>(string filter, GOLD.Parser? parser = null)
+    {
+        parser ??= _fullGrammarParser;
+
+        List<string> errors = new();
+        TRoot? treeRoot = default;
+
+        parser.Open(ref filter);
+        parser.TrimReductions = false;
 
         bool continueParsing = true;
         while (continueParsing && errors.Count == 0)
         {
-            ParseMessage response = _goldParser.Parse();
+            ParseMessage response = parser.Parse();
             switch (response)
             {
                 case ParseMessage.Reduction:
-                    _goldParser.CurrentReduction = CreateNewObject(errors, (Reduction)_goldParser.CurrentReduction);
+                    parser.CurrentReduction = CreateNewObject(errors, (Reduction)parser.CurrentReduction);
                     break;
 
                 case ParseMessage.Accept:
                     // On a fini de parser, on récupère le résultat
 
-                    treeRoot = (RootNode)_goldParser.CurrentReduction;
+                    treeRoot = (TRoot)parser.CurrentReduction;
 
                     continueParsing = false;
                     break;
 
-                case ParseMessage.LexicalError:
                 case ParseMessage.SyntaxError:
+                    var syntaxError = new SyntaxError()
+                    {
+                        Line = parser.CurrentPosition().Line,
+                        Column = parser.CurrentPosition().Column,
+                        ExpectedSymbols = parser.ExpectedSymbols()
+                    };
+
+                    // TODO Si lexicalerror, enleve un charactère et réessaye ?
+                    // Possibilité de revenir sur un état précédent pour donner plus d'indice sur quoi il faut faire ?
+
+                    return new ParserResult<TRoot>(new ParserError(syntaxError));
+
+                case ParseMessage.LexicalError:
+
+                    var lexicalError = new LexicalError()
+                    {
+                        SyntaxError = new SyntaxError()
+                        {
+                            Line = parser.CurrentPosition().Line,
+                            Column = parser.CurrentPosition().Column,
+                            ExpectedSymbols = parser.ExpectedSymbols()
+                        }
+                    };
+
+                    // TODO Si lexicalerror, enleve un charactère et réessaye ?
+                    // Possibilité de revenir sur un état précédent pour donner plus d'indice sur quoi il faut faire ?
+
+                    return new ParserResult<TRoot>(new ParserError(lexicalError));
+
                 case ParseMessage.InternalError:
                 case ParseMessage.NotLoadedError:
                 case ParseMessage.GroupError:
-                    errors.Add($"{response} à la ligne {_goldParser.CurrentPosition().Line} et à la colonne {_goldParser.CurrentPosition().Column}");
 
-                    continueParsing = false;
+                    errors.Add($"Erreur de parsing : {response}");
                     break;
             }
         }
 
         if (errors.Count > 0)
         {
-            return new ParserResult(errors);
+            return new ParserResult<TRoot>(new ParserError(errors));
         }
 
-        return new ParserResult(treeRoot);
+        return new ParserResult<TRoot>(treeRoot);
     }
 
     private object CreateNewObject(List<string> errors, Reduction r)
@@ -378,7 +455,7 @@ public class CommandLineInterpreter
 
             case ProductionIndex.Tag4:
                 // <Tag> ::= <VariableTag>
-                throw new NotImplementedException();
+                return reduction.PassOn();
 
             case ProductionIndex.Instancetaglist:
                 // <InstanceTagList> ::= <InstanceTagList> <InstanceTag>
@@ -398,7 +475,7 @@ public class CommandLineInterpreter
 
             case ProductionIndex.Instancetag3:
                 // <InstanceTag> ::= <VariableTag>
-                throw new NotImplementedException();
+                return reduction.PassOn();
 
             case ProductionIndex.Objectinstance:
                 // <ObjectInstance> ::= <ClosedFormObjectInstance>
@@ -525,7 +602,10 @@ public class CommandLineInterpreter
 
             case ProductionIndex.Variabletag_Lt_Dollar_Gt:
                 // <VariableTag> ::= '<' '$' <VariableName> '>'
-                throw new NotImplementedException();
+                return new VariableTag()
+                {
+                    Name = (VariableName)reduction[2].Data
+                };
 
             case ProductionIndex.Tagattributelist:
                 // <TagAttributeList> ::= <TagAttributeList> <TagAttribute>

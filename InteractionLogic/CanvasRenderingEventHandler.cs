@@ -1,11 +1,15 @@
 ﻿using CommandLine.Modules;
+using Commands.Parser;
 using Console;
+using Console.Components;
 using EntityComponentSystem;
 using EntityComponentSystem.RayCasting;
 using InteractionLogic.FrameworkAccessors;
 using Rendering;
 using System.Windows;
 using System.Windows.Controls;
+using Terminal;
+using Terminal.Commands.Parser.Serialisation;
 
 namespace InteractionLogic;
 
@@ -17,8 +21,9 @@ public class CanvasRenderingEventHandler
     private readonly ConsoleLayout _consoleLayout;
     private readonly ECS _ecs;
     private readonly PathModule _pathModule;
+    private readonly Prompt _prompt;
 
-    public CanvasRenderingEventHandler(CanvasAccessor canvasAccessor, InputAccessor inputAccessor, RenderLoop renderLoop, ConsoleLayout consoleLayout, ECS ecs, PathModule pathModule)
+    public CanvasRenderingEventHandler(CanvasAccessor canvasAccessor, InputAccessor inputAccessor, RenderLoop renderLoop, ConsoleLayout consoleLayout, ECS ecs, PathModule pathModule, Prompt prompt)
     {
         _canvasAccessor = canvasAccessor;
         _inputAccessor = inputAccessor;
@@ -26,7 +31,7 @@ public class CanvasRenderingEventHandler
         _consoleLayout = consoleLayout;
         _ecs = ecs;
         _pathModule = pathModule;
-
+        _prompt = prompt;
         _canvasAccessor.RegisterEventHandlers<CanvasRenderingEventHandler>(RegisterEventHandlers, UnregisterEventHandlers);
     }
 
@@ -52,8 +57,8 @@ public class CanvasRenderingEventHandler
         //_renderLoop = new(ACTIVE_FRAME_RATE, (int)Canvas.ActualWidth, (int)Canvas.ActualHeight, _consoleRenderer.Draw, UpdateVisual);
         _renderLoop.SetCanvasSize((int)_canvasAccessor.Canvas!.ActualWidth, (int)_canvasAccessor.Canvas!.ActualHeight);
 
-        RefreshVisualInputPrompt();
-        _renderLoop.RefreshOnce();
+        _prompt.SetCursorPosition(_inputAccessor.Input.SelectionStart);
+        _prompt.SetPromptText(_inputAccessor.Input.Text);
     }
 
     public void Canvas_SizeChanged(object sender, SizeChangedEventArgs e)
@@ -61,20 +66,5 @@ public class CanvasRenderingEventHandler
         //_buffer.SetSize(e.NewSize.Width, e.NewSize.Height);
     }
 
-    public void RefreshVisualInputPrompt()
-    {
-        // Extraction du texte pour le rendre dans la console
-        _consoleLayout.Input.ActiveLine.Clear();
-        Entity entity = _ecs.NewEntity("Input prompt");
-
-        var textBlock = entity.AddComponent<Console.Components.TextComponent>();
-        textBlock.Text = _pathModule.CurrentFolder + "> ";
-        _consoleLayout.Input.ActiveLine.AddLineSegment(textBlock);
-
-        entity = _ecs.NewEntity("Input Textblock");
-        textBlock = entity.AddComponent<Console.Components.TextComponent>();
-        textBlock.Text = _inputAccessor.Input.Text;
-        _consoleLayout.Input.ActiveLine.AddLineSegment(textBlock);
-    }
 
 }

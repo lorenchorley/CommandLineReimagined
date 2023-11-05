@@ -7,10 +7,11 @@ namespace Commands.Implementations
 {
     public class Echo : CommandAction
     {
-        public override Command Profile { get; } =
-            new Command(
+        public override CommandDefinition Profile { get; } =
+            new CommandDefinition(
                 Name: "echo",
                 Description: "",
+                KeyWords: "",
                 Parameters: new CommandParameter[]
                 {
                     new CommandParameter() { Name = "text", Description = "" }
@@ -22,7 +23,7 @@ namespace Commands.Implementations
         {
             LineComponent line = scope.NewLine();
 
-            line.AddTextBlock("echo", args[0].Value);
+            line.LinkNewTextBlock("echo", args[0].Value);
         }
 
         public override void Undo(CommandParameterValue[] args, ConsoleOutBlock scope)

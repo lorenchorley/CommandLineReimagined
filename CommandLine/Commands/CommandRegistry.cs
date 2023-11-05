@@ -1,11 +1,13 @@
 ﻿using Commands;
-using System.Diagnostics.CodeAnalysis;
-using Terminal.Naming;
 
 namespace Terminal.Commands;
 
 public class CommandRegistry
 {
-    public List<Command> Commands { get; } = new();
+    public List<CommandAction> Commands { get; } = new();
 
+    public CommandRegistry(IEnumerable<CommandAction> commands)
+    {
+        Commands = commands.ToList();
+    }
 }

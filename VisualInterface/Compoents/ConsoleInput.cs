@@ -5,15 +5,19 @@ namespace Console.Components;
 
 public class ConsoleInput : Component
 {
-    public LineComponent? ActiveLine { get; set; }
+    public List<LineComponent> PromptLines { get; set; } = new();
     public int SelectionStart { get; set; }
     public int SelectionLength { get; set; }
+    public bool IsCommandExecutable { get; set; }
 
     public override IEnumerable<(string, string)> SerialisableDebugProperties
     {
         get
         {
-            yield return ("ActiveLine", $"{ActiveLine?.Id} ({ActiveLine?.ToText()})");
+            foreach (var activeLine in PromptLines)
+            {
+                yield return ("ActiveLine", $"{activeLine?.Id} ({activeLine?.ToText()})");
+            }
             yield return ("SelectionStart", SelectionStart.ToString());
             yield return ("SelectionLength", SelectionLength.ToString());
         }

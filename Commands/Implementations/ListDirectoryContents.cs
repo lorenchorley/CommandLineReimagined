@@ -7,10 +7,11 @@ namespace Commands.Implementations
     {
         private readonly PathModule _pathModule;
 
-        public override Command Profile { get; } =
-            new Command(
+        public override CommandDefinition Profile { get; } =
+            new CommandDefinition(
                 Name: "ls",
                 Description: "List files and directories in a directory, the current directory by default",
+                KeyWords: "show",
                 Parameters: new CommandParameter[]
                 {
                 },
@@ -33,7 +34,7 @@ namespace Commands.Implementations
             // La command qui permet de remonter d'un dossier
             if (!_pathModule.IsCurrentPathTheRoot())
             {
-                line.AddButton("ls up", $" up ")
+                line.LinkNewButton("ls up", $" up ")
                         .AddComponent<ContextMenuSource>(c => c.ContextMenuName = "PathNavigationContextMenu")
                         .AddComponent<DoubleClickAction>(c => c.ActionName = "Up");
             }
@@ -41,7 +42,7 @@ namespace Commands.Implementations
             // Les dossiers
             foreach (var folder in Directory.EnumerateDirectories(_pathModule.CurrentPath))
             {
-                line.AddButton("ls folder", $" {Path.GetFileName(folder)}\\ ")
+                line.LinkNewButton("ls folder", $" {Path.GetFileName(folder)}\\ ")
                     .AddComponent<PathInformation>(c => c.Path = folder)
                     .AddComponent<ContextMenuSource>(c => c.ContextMenuName = "PathNavigationContextMenu")
                     .AddComponent<DoubleClickAction>(c => c.ActionName = "Enter");
@@ -50,7 +51,7 @@ namespace Commands.Implementations
             // Les fichiers
             foreach (var file in Directory.EnumerateFiles(_pathModule.CurrentPath))
             {
-                line.AddButton("ls file", $" {Path.GetFileName(file)} ")
+                line.LinkNewButton("ls file", $" {Path.GetFileName(file)} ")
                     .AddComponent<PathInformation>(c => c.Path = file)
                     .AddComponent<ContextMenuSource>(c => c.ContextMenuName = "FileNavigationContextMenu")
                     .AddComponent<DoubleClickAction>(c => c.ActionName = "ShowContents");

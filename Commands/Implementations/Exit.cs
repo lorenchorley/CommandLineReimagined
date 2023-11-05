@@ -7,10 +7,11 @@ namespace Commands.Implementations
 {
     public class Exit : CommandAction
     {
-        public override Command Profile { get; } =
-            new Command(
+        public override CommandDefinition Profile { get; } =
+            new CommandDefinition(
                 Name: "exit",
                 Description: "",
+                KeyWords: "",
                 Parameters: new CommandParameter[]
                 {
                 },

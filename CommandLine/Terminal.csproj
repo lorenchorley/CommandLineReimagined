@@ -8,10 +8,16 @@
 
   <ItemGroup>
     <None Remove="Commands\Parser\Grammar\CommandLineGrammar.egt" />
+    <None Remove="Commands\Parser\Grammar\IsValidIdentifier.egt" />
+    <None Remove="Search\dictionary-en.csv" />
+    <None Remove="Search\en_thesaurus.jsonl" />
   </ItemGroup>
 
   <ItemGroup>
     <EmbeddedResource Include="Commands\Parser\Grammar\CommandLineGrammar.egt" />
+    <EmbeddedResource Include="Commands\Parser\Grammar\IsValidIdentifier.egt" />
+    <EmbeddedResource Include="Search\dictionary-en.csv" />
+    <EmbeddedResource Include="Search\en_thesaurus.jsonl" />
   </ItemGroup>
 
   <ItemGroup>
@@ -25,6 +31,10 @@
   <ItemGroup>
     <ProjectReference Include="..\EntityComponentSystem\EntityComponentSystem.csproj" />
     <ProjectReference Include="..\VisualInterface\UIComponents.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="Prompt\" />
   </ItemGroup>
 
 </Project>

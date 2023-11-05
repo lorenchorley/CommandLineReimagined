@@ -8,10 +8,11 @@ namespace Commands.Implementations
 
         private string _previousFolder;
 
-        public override Command Profile { get; } =
-            new Command(
+        public override CommandDefinition Profile { get; } =
+            new CommandDefinition(
                 Name: "up",
                 Description: "",
+                KeyWords: "move",
                 Parameters: new CommandParameter[]
                 {
                 },

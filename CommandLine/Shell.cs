@@ -6,13 +6,78 @@ using Console;
 using Console.Components;
 using EntityComponentSystem;
 using Microsoft.Extensions.DependencyInjection;
+using OneOf;
+using System.Data.Common;
+using System.Runtime.CompilerServices;
+using System.Text.RegularExpressions;
 using Terminal.Naming;
+using Terminal.Search;
 
 namespace Terminal
 {
+    [GenerateOneOf]
+    public partial class CommandAnalysisResult : OneOfBase<CommandPassedChecks, ParserError, CommandFailedTypeChecking>
+    {
+
+    }
+
+    public enum ParsingErrorType
+    {
+        Unknown,
+        SyntaxError,
+        LexicalError
+    }
+
+    public class CommandPassedChecks
+    {
+        // TODO Break up the tree into a series of tokens that can be easily converted into line segments
+        // Include mouse hover info, types, etc. enough that the text can bei= interacted with and coloured appropriately
+        public CommandPassedChecks(RootNode tree)
+        {
+        }
+    }
+
+    //public class CommandFailedParsing
+    //{
+    //    public int Line { get; set; }
+    //    public int Column { get; set; }
+    //    public ParsingErrorType ErrorType { get; set; }
+    //    public List<string> Errors { get; set; }
+
+    //    private static readonly Regex _matchSyntaxError = new Regex(@"(?<errorType>SyntaxError|LexicalError) à la ligne (?<line>[\d]) et à la colonne (?<column>[\d])");
+
+    //    public CommandFailedParsing(List<string> errors)
+    //    {
+    //        var first = errors[0];
+    //        var matches = _matchSyntaxError.Match(first);
+    //        if (matches.Success)
+    //        {
+    //            ErrorType = matches.Groups["errorType"].Value switch
+    //            {
+    //                "SyntaxError" => ParsingErrorType.SyntaxError,
+    //                "LexicalError" => ParsingErrorType.LexicalError,
+    //                _ => throw new NotImplementedException("Unknown error type : " + matches.Groups["errorType"].Value)
+    //            };
+    //            Line = int.Parse(matches.Groups["line"].Value);
+    //            Column = int.Parse(matches.Groups["column"].Value);
+    //        }
+    //        else
+    //        {
+    //            throw new NotImplementedException("Unknown error type : " + first);
+    //        }
+
+    //        Errors = errors.Skip(1).ToList();
+    //    }
+    //}
+    
+    public class CommandFailedTypeChecking
+    {
+
+    }
+
     public class Shell
     {
-        private readonly List<Command> _commandProfiles;
+        private readonly List<CommandDefinition> _commandProfiles;
         private readonly CommandLineInterpreter _interpreter;
         private readonly IServiceProvider _serviceProvider;
         private readonly ECS _ecs;
@@ -20,6 +85,8 @@ namespace Terminal
         private readonly CommandHistoryModule _commandHistoryModule;
         private readonly ConsoleOutModule _consoleOutModule;
         private readonly NameResolver _nameResolver;
+        private readonly Prompt _prompt;
+        private readonly CommandSearch _commandSearch;
 
         public Shell(IServiceProvider serviceProvider,
                      ECS ecs,
@@ -27,7 +94,9 @@ namespace Terminal
                      ConsoleLayout consoleRenderer,
                      CommandHistoryModule commandHistoryModule,
                      ConsoleOutModule consoleOutModule,
-                     NameResolver nameResolver)
+                     NameResolver nameResolver,
+                     Prompt prompt,
+                     CommandSearch commandSearch)
         {
             _commandProfiles = commandActions.Select(c => c.Profile).ToList();
             _interpreter = new CommandLineInterpreter();
@@ -37,34 +106,57 @@ namespace Terminal
             _commandHistoryModule = commandHistoryModule;
             _consoleOutModule = consoleOutModule;
             _nameResolver = nameResolver;
+            _prompt = prompt;
+            _commandSearch = commandSearch;
+
+            _commandSearch.AsynchronouslyLoadIndexes();
         }
 
-        public void RegisterCommand(Command commandProfile)
+        public void RegisterCommand(CommandDefinition commandProfile)
         {
             _commandProfiles.Add(commandProfile);
         }
 
-        public bool IsCommandExecutable(string command)
+        public CommandAnalysisResult AnalyseCommand(string command)
         {
-            return true;
+            ParserResult<RootNode> result = _interpreter.Parse<RootNode>(command);
+            
+            return result.Match<CommandAnalysisResult>(
+                tree => new CommandPassedChecks(tree),
+                errors => errors
+            );
         }
 
-        public void ExecuteCommand(string command)
+        public bool ExecuteCurrentPrompt()
         {
-            ParserResult result = _interpreter.Parse(command);
+            if (!_prompt.TryGetValidCommand(out RootNode? parsedCommand, out string? commandText))
+            {
+                // Parser ou type validation errors
+                //ShowPropmptErrors(_prompt.GetErrorDetails());
 
-            var scope = _consoleOutModule.StartScope(command);
+                return false;
+            }
+
+            return ExecuteValidCommand(parsedCommand, commandText);
+        }
+
+        private bool ExecuteValidCommand(RootNode parsedCommand, string commandText)
+        {
+            var consoleBlock = _consoleOutModule.StartBlock(commandText);
             try
             {
-                result.Switch(
-                    result => ExecuteNominal(result, scope),
-                    error => WriteError(scope, result.AsT1.Join(", "))
-                    );
+                ExecuteNominal(parsedCommand, consoleBlock);
+            }
+            catch (Exception e)
+            {
+                return false; // Command runtime exception
             }
             finally
             {
-                scope.Finalise();
+                consoleBlock.Finalise();
             }
+
+            return true;
         }
 
         private void ExecuteNominal(RootNode result, ConsoleOutBlock scope)
@@ -93,8 +185,7 @@ namespace Terminal
                     commands.OrderedCommands
                             .First();
 
-
-                if (!firstCommand.Expression.IsT0)
+                if (!firstCommand.Expression.IsT1)
                 {
                     throw new NotImplementedException("Unknown command tree type : " + firstCommand.Expression.GetType().Name);
                 }
@@ -127,7 +218,17 @@ namespace Terminal
                 var promptLine = scope.NewLine();
 
                 var promptText = _ecs.NewEntity("Prompt").AddComponent<TextComponent>();
-                promptText.Text = $"{_consoleRenderer.Input.ActiveLine.ToText()}";
+
+                // TODO
+                promptText.Text = 
+                    _consoleRenderer.Input
+                                    .PromptLines
+                                    .SelectMany(line => line.GetOrderedLineSegments())
+                                    .OfType<TextComponent>()
+                                    .FirstOrDefault()
+                                    ?.ToText()
+                                    ?? "";
+
                 promptLine.AddLineSegment(promptText);
 
                 commandAction.Execute(args.ToArray(), scope);
@@ -150,7 +251,7 @@ namespace Terminal
         }
 
         // TODO 
-        private CommandParameterValue[] ConvertArguments(CommandExpressionCli firstCommand, Command? profile)
+        private CommandParameterValue[] ConvertArguments(CommandExpressionCli firstCommand, CommandDefinition? profile)
         {
             List<CommandParameterValue> args = new();
             int j = 0;
@@ -188,7 +289,7 @@ namespace Terminal
                 return new CommandParameterValue()
                 {
                     Parameter = parameterDefinition,
-                    Value = str.Value[1..^1] // Enleve les doubles quotes
+                    Value = str.Value
                 };
             }
 
@@ -205,10 +306,15 @@ namespace Terminal
             {
                 return ra.Value;
             }
+            else if (arg is CommandArgumentValue av)
+            {
+                return av.Value;
+            }
+
             throw new NotImplementedException("Unknown argument type : " + arg.GetType().Name);
         }
 
-        private void ValidateArguments(CommandParameterValue[] args, Command? profile)
+        private void ValidateArguments(CommandParameterValue[] args, CommandDefinition? profile)
         {
             // TODO 
         }

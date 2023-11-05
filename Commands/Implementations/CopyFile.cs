@@ -13,10 +13,11 @@ namespace Commands.Implementations
         private string _targetPath;
         private string _targetFilename;
 
-        public override Command Profile { get; } =
-            new Command(
+        public override CommandDefinition Profile { get; } =
+            new CommandDefinition(
                 Name: "cp",
                 Description: "",
+                KeyWords: "",
                 Parameters: new CommandParameter[]
                 {
                     new CommandParameter() { Name = "sourcePathAndFile", Description = "" },
@@ -39,7 +40,7 @@ namespace Commands.Implementations
 
             if (!File.Exists(_originalFilename))
             {
-                line.AddTextBlock("cp error", $"File does not exist : {_pathModule.CurrentFolder}");
+                line.LinkNewTextBlock("cp error", $"File does not exist : {_pathModule.CurrentFolder}");
                 return;
             }
 
@@ -47,7 +48,7 @@ namespace Commands.Implementations
 
             if (!Directory.Exists(_targetPath))
             {
-                line.AddTextBlock("cp error", $"Target directory does not exist : {_pathModule.CurrentFolder}");
+                line.LinkNewTextBlock("cp error", $"Target directory does not exist : {_pathModule.CurrentFolder}");
                 return;
             }
 
@@ -55,13 +56,13 @@ namespace Commands.Implementations
 
             if (File.Exists(_targetFilename))
             {
-                line.AddTextBlock("cp error", $"Target file already exists : {_pathModule.CurrentFolder}");
+                line.LinkNewTextBlock("cp error", $"Target file already exists : {_pathModule.CurrentFolder}");
                 return;
             }
 
             File.Copy(_originalFilename, _targetFilename);
 
-            line.AddTextBlock("cp", $"Moved file to : {_pathModule.CurrentFolder}");
+            line.LinkNewTextBlock("cp", $"Moved file to : {_pathModule.CurrentFolder}");
         }
 
         public override void Undo(CommandParameterValue[] args, ConsoleOutBlock scope)

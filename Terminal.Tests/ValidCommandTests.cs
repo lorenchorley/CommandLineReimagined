@@ -1,4 +1,5 @@
 using Commands.Parser;
+using Commands.Parser.SemanticTree;
 using Isagri.Reporting.Quid.RequestFilters.SemanticTree;
 using System.Diagnostics;
 
@@ -17,7 +18,7 @@ public class ValidCommandTests
 
 
         // Act
-        var result = lineInterpreter.Parse(command);
+        var result = lineInterpreter.Parse<RootNode>(command);
 
 
         // Assert
@@ -47,7 +48,7 @@ public class ValidCommandTests
 
 
         // Act
-        ParserResult result1 = lineInterpreter.Parse(command);
+        ParserResult<RootNode> result1 = lineInterpreter.Parse<RootNode>(command);
 
         string reserialisatedCommand =
             result1.Match(
@@ -59,7 +60,7 @@ public class ValidCommandTests
                 errors => throw new Exception(string.Join("\n", errors))
                 );
 
-        ParserResult result2 = lineInterpreter.Parse(command);
+        ParserResult<RootNode> result2 = lineInterpreter.Parse<RootNode>(command);
 
 
         // Assert

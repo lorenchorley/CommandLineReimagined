@@ -5,10 +5,11 @@ namespace Commands.Implementations
     public class UnknownCommand : CommandAction
     {
 
-        public override Command Profile { get; } =
-            new Command(
+        public override CommandDefinition Profile { get; } =
+            new CommandDefinition(
                 Name: "UnknownCommand",
                 Description: "",
+                KeyWords: "",
                 Parameters: new CommandParameter[]
                 {
                 },
@@ -19,7 +20,7 @@ namespace Commands.Implementations
         {
             var line = scope.NewLine();
 
-            line.AddTextBlock("Unknown command", $"Unknown command : {args[0].Value}");
+            line.LinkNewTextBlock("Unknown command", $"Unknown command : {args[0].Value}");
         }
 
         public override void Undo(CommandParameterValue[] args, ConsoleOutBlock scope)

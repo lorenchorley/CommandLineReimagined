@@ -35,6 +35,6 @@
         <Canvas Name="Canvas" Background="DarkMagenta" Margin="10" Grid.Column="0" Grid.Row="0">
             <Image Name="CanvasImage"/>
         </Canvas>
-        <TextBox x:Name="Input" Height="0" Grid.Column="0" Grid.Row="1" MaxLines="10" MinLines="1" TextWrapping="Wrap" AcceptsReturn="True"></TextBox>
+        <TextBox x:Name="Input" Height="0" Grid.Column="0" Grid.Row="1" MaxLines="10" MinLines="1" TextWrapping="Wrap"></TextBox>
     </Grid>
 </Window>

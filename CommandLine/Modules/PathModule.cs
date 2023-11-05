@@ -1,9 +1,13 @@
-﻿using System.IO;
+﻿using Terminal;
+using Terminal.Naming;
+using Terminal.Scoping;
 
 namespace CommandLine.Modules
 {
     public class PathModule
     {
+        private readonly ScopeRegistry _scopeRegistry;
+
         public string CurrentPath { get; private set; } = @"C:\CLR\"; //Environment.CurrentDirectory;
         public string CurrentFolder
         {
@@ -18,6 +22,26 @@ namespace CommandLine.Modules
                     return CurrentPath.GetLowestDirectory();
                 }
             }
+        }
+
+        public Scope CurrentPathScope
+        {
+            get
+            {
+                return new Scope()
+                {
+                    Namespace = new Namespace()
+                    {
+                        Segments = new string[] { "CurrentFolder" } // TODO
+                    },
+                    Parent = _scopeRegistry.Global
+                };
+            }
+        }
+
+        public PathModule(ScopeRegistry scopeRegistry)
+        {
+            _scopeRegistry = scopeRegistry;
         }
 
         public void Up()
