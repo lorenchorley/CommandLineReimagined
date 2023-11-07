@@ -3,6 +3,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using System;
+using System.Net.Http;
 
 public static class ServiceExtensions
 {
@@ -10,6 +11,8 @@ public static class ServiceExtensions
     {
         // La fenêtre principale
         services.AddSingleton<MainWindow>();
+
+        services.AddHttpClient();
 
         services.AddECSServices();
         services.AddCommands();

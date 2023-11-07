@@ -12,7 +12,8 @@ public static class CommandServiceExtensions
         services.ConfigureCommand<CopyFile>();
         services.ConfigureCommand<UpOneDirectory>();
         services.ConfigureCommand<Echo>();
-        services.ConfigureCommand<ProgressTest>();
+        //services.ConfigureCommand<ProgressTest>();
+        services.ConfigureCommand<Download>();
 
         // Commandes "systèmes"
         services.ConfigureCommand<DebugOut>();
