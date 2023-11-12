@@ -5,9 +5,9 @@ using System.Drawing;
 
 namespace Console.Components
 {
-    public class ButtonComponent : Component, ILineSegment
+    public class ButtonComponent : LineSegmentComponent
     {
-        public string Text { get; set; }
+        [State] public string Text { get; set; }
 
         public override IEnumerable<(string, string)> SerialisableDebugProperties
         {
@@ -17,15 +17,16 @@ namespace Console.Components
             }
         }
 
-        public string ToText()
+        
+        public override string ToText()
         {
             return Text;
         }
 
-        protected override void InsureDependencies()
+        public override void OnInit()
         {
-            Entity.TryAddComponent<Renderer>();
-            Entity.TryAddComponent<InteractiveComponent>();
+            EnsureDependency<Renderer>();
+            EnsureDependency<InteractiveComponent>();
         }
 
     }

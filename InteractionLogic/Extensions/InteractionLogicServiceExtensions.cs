@@ -1,4 +1,5 @@
 ﻿using InteractionLogic;
+using InteractionLogic.EventHandlers;
 using InteractionLogic.FrameworkAccessors;
 using Microsoft.Extensions.DependencyInjection;
 using Rendering;

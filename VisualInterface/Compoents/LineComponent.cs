@@ -4,28 +4,33 @@ namespace Console.Components
 {
     public class LineComponent : Component
     {
-        private List<ILineSegment> _lineSegments = new();
+        [State] public List<LineSegmentComponent> LineSegments = new();
 
-        public IEnumerable<ILineSegment> GetOrderedLineSegments() => _lineSegments;
-
-        public void AddLineSegment<T>(T segment) where T : Component, ILineSegment
+        public void AddLineSegment<T>(T segment) where T : LineSegmentComponent
         {
-            _lineSegments.Add(segment);
+            if (segment.Entity == Entity)
+            {
+                throw new InvalidOperationException("Cannot add a line segment to the entity of the line");
+            }
+
+            segment.Entity.Parent = Entity;
+
+            LineSegments.Add(segment);
         }
 
         public void Clear()
         {
-            foreach (var segment in _lineSegments)
+            foreach (var segment in LineSegments)
             {
                 ((Component)segment).Entity.Destroy();
             }
 
-            _lineSegments.Clear();
+            LineSegments.Clear();
         }
 
         public string ToText()
         {
-            return _lineSegments.Select(l => l.ToText())
+            return LineSegments.Select(l => l.ToText())
                                 .Join("");
         }
 
@@ -33,9 +38,9 @@ namespace Console.Components
         {
             get
             {
-                for (int i = 0; i < _lineSegments.Count; i++)
+                for (int i = 0; i < LineSegments.Count; i++)
                 {
-                    var lineSegment = _lineSegments[i];
+                    var lineSegment = LineSegments[i];
                     yield return ($"LineSegment[{i}]", lineSegment.ToText());
                 }
             }

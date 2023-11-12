@@ -1,23 +1,72 @@
-﻿using Rendering.Components;
-using EntityComponentSystem;
+﻿using EntityComponentSystem;
+using Rendering.Components;
 using System.Drawing;
-using static System.Net.Mime.MediaTypeNames;
 
 namespace Console.Components;
 
-public class TextComponent : Component, ILineSegment
+public class TextComponentDifferenceObject
 {
-    public string Text { get; set; }
-    public bool Highlighted { get; set; } = false;
+    public string? Text;
+    public bool? Highlighted;
+    public void ApplyTo(TextComponent textComponent)
+    {
+        if (Text is not null)
+        {
+            textComponent.Text = Text;
+        }
+        if (Highlighted is not null)
+        {
+            textComponent.Highlighted = Highlighted.Value;
+        }
+    }
+}
 
-    public string ToText()
+public class TextComponentProxy : TextComponent
+{
+    public Func<TextComponentDifferenceObject> GetCurrentDifference { get; init; }
+
+    public string _text;
+    public override string Text
+    {
+        get
+        {
+            return _text;
+        }
+        set
+        {
+            _text = value;
+            GetCurrentDifference().Text = value;
+        }
+    }
+
+    public bool _highlighted;
+    public override bool Highlighted
+    {
+        get
+        {
+            return _highlighted;
+        }
+        set
+        {
+            _highlighted = value;
+            GetCurrentDifference().Highlighted = value;
+        }
+    }
+}
+
+public class TextComponent : LineSegmentComponent
+{
+    [State] public virtual string Text { get; set; }
+    [State] public virtual bool Highlighted { get; set; } = false;
+
+    public override string ToText()
     {
         return Text;
     }
 
-    protected override void InsureDependencies()
+    public override void OnInit()
     {
-        Entity.TryAddComponent<Renderer>();
+        EnsureDependency<Renderer>();
     }
 
     public override IEnumerable<(string, string)> SerialisableDebugProperties

@@ -7,11 +7,13 @@ using Console.Components;
 using EntityComponentSystem;
 using Microsoft.Extensions.DependencyInjection;
 using OneOf;
+using Rendering.Components;
 using System.Data.Common;
 using System.Runtime.CompilerServices;
 using System.Text.RegularExpressions;
 using Terminal.Naming;
 using Terminal.Search;
+using UIComponents.Compoents.Console;
 
 namespace Terminal
 {
@@ -48,17 +50,17 @@ namespace Terminal
         private readonly CommandLineInterpreter _interpreter;
         private readonly IServiceProvider _serviceProvider;
         private readonly ECS _ecs;
-        private readonly ConsoleLayout _consoleRenderer;
         private readonly CommandHistoryModule _commandHistoryModule;
         private readonly ConsoleOutModule _consoleOutModule;
         private readonly NameResolver _nameResolver;
         private readonly Prompt _prompt;
         private readonly CommandSearch _commandSearch;
 
+        public event EventHandler<EventArgs> OnInit;
+
         public Shell(IServiceProvider serviceProvider,
                      ECS ecs,
                      IEnumerable<ICommandAction> commandActions,
-                     ConsoleLayout consoleRenderer,
                      CommandHistoryModule commandHistoryModule,
                      ConsoleOutModule consoleOutModule,
                      NameResolver nameResolver,
@@ -66,17 +68,41 @@ namespace Terminal
                      CommandSearch commandSearch)
         {
             _commandProfiles = commandActions.Select(c => c.Profile).ToList();
-            _interpreter = new CommandLineInterpreter();
             _serviceProvider = serviceProvider;
             _ecs = ecs;
-            _consoleRenderer = consoleRenderer;
             _commandHistoryModule = commandHistoryModule;
             _consoleOutModule = consoleOutModule;
             _nameResolver = nameResolver;
             _prompt = prompt;
             _commandSearch = commandSearch;
 
+            _interpreter = new CommandLineInterpreter();
+        }
+
+        public void Init()
+        {
             _commandSearch.AsynchronouslyLoadIndexes();
+            SetupScene();
+            
+            OnInit?.Invoke(this, new EventArgs());
+        }
+
+        public UICamera Camera { get; private set; }
+        public ConsoleOutputPanel Output { get; private set; }
+        public ConsoleInputPanel Input { get; private set; }
+
+        private void SetupScene()
+        {
+            Camera = _ecs.NewEntity("MainCamera").AddComponent<UICamera>();
+            ConsoleLayout Layout = _ecs.NewEntity("Layout").AddComponent<ConsoleLayout>();
+
+            Output = _ecs.NewEntity("Output").AddComponent<ConsoleOutputPanel>();
+            Output.Entity.Parent = Layout.Entity;
+            Input = _ecs.NewEntity("Input").AddComponent<ConsoleInputPanel>();
+            Input.Entity.Parent = Layout.Entity;
+
+            _prompt.Input = Input;
+            _prompt.Output = Output;
         }
 
         public void RegisterCommand(CommandDefinition commandProfile)
@@ -188,13 +214,12 @@ namespace Terminal
 
                 // TODO
                 promptText.Text =
-                    _consoleRenderer.Input
-                                    .PromptLines
-                                    .SelectMany(line => line.GetOrderedLineSegments())
-                                    .OfType<TextComponent>()
-                                    .FirstOrDefault()
-                                    ?.ToText()
-                                    ?? "";
+                    Input.PromptLines
+                         .SelectMany(line => line.LineSegments)
+                         .OfType<TextComponent>()
+                         .FirstOrDefault()
+                         ?.ToText()
+                         ?? "";
 
                 promptLine.AddLineSegment(promptText);
 
@@ -316,5 +341,6 @@ namespace Terminal
         {
             // TODO 
         }
+
     }
 }

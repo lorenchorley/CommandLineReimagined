@@ -1,4 +1,5 @@
-﻿using Console.Components;
+﻿using Console;
+using Console.Components;
 using EntityComponentSystem;
 using EntityComponentSystem.RayCasting;
 using InteractionLogic.FrameworkAccessors;
@@ -7,8 +8,9 @@ using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using Terminal;
 
-namespace InteractionLogic;
+namespace InteractionLogic.EventHandlers;
 
 public class CanvasInteractionEventHandler
 {
@@ -18,8 +20,12 @@ public class CanvasInteractionEventHandler
     private readonly TextInputUpdateHandler _textInputUpdateHandler;
     private readonly ContextMenuAccessor _contextMenuAccessor;
     private readonly TextInputHandler _textInputHandler;
+    private readonly Shell _shell;
+    private readonly ECS _ecs;
 
-    public CanvasInteractionEventHandler(CanvasAccessor canvasAccessor, RenderLoop renderLoop, RayCaster rayCaster, TextInputUpdateHandler textInputUpdateHandler, ContextMenuAccessor contextMenuAccessor, TextInputHandler textInputHandler)
+    private ConsoleLayout ConsoleLayout { get; set; }
+
+    public CanvasInteractionEventHandler(CanvasAccessor canvasAccessor, RenderLoop renderLoop, RayCaster rayCaster, TextInputUpdateHandler textInputUpdateHandler, ContextMenuAccessor contextMenuAccessor, TextInputHandler textInputHandler, Shell shell, ECS ecs)
     {
         _canvasAccessor = canvasAccessor;
         _renderLoop = renderLoop;
@@ -27,6 +33,8 @@ public class CanvasInteractionEventHandler
         _textInputUpdateHandler = textInputUpdateHandler;
         _contextMenuAccessor = contextMenuAccessor;
         _textInputHandler = textInputHandler;
+        _shell = shell;
+        _ecs = ecs;
         _canvasAccessor.RegisterEventHandlers<CanvasInteractionEventHandler>(RegisterEventHandlers, UnregisterEventHandlers);
 
         _contextMenuAccessor.RegisterOnClick("PathNavigationContextMenu", "Enter", Enter_PathNavigation_Click);
@@ -41,6 +49,14 @@ public class CanvasInteractionEventHandler
         _contextMenuAccessor.RegisterOnClick("FileNavigationContextMenu", "Copy full path as text", CopyFullPathAsText_FileNavigation_Click);
 
         _contextMenuAccessor.RegisterOnClick("TextSelectionContextMenu", "Copy", CopyText_Click);
+     
+        _shell.OnInit += Shell_OnInit;
+    }
+
+    private void Shell_OnInit(object? sender, EventArgs e)
+    {
+        ConsoleLayout = _ecs.SearchForEntityWithComponent<ConsoleLayout>("Layout") ?? throw new Exception("No console layout found");
+
     }
 
     private void RegisterEventHandlers(Canvas canvas, Image image)
@@ -81,7 +97,7 @@ public class CanvasInteractionEventHandler
 
     private void HandleDoubleLeftClick(MouseButtonEventArgs e, Canvas canvas)
     {
-        System.Windows.Point pos = e.GetPosition(canvas);
+        Point pos = e.GetPosition(canvas);
         var hit = _rayCaster.CastRay(new System.Drawing.Point((int)pos.X, (int)pos.Y), InteractableElementLayer.Navigation);
 
         if (hit == null)
@@ -112,7 +128,7 @@ public class CanvasInteractionEventHandler
 
     private void HandleLeftClick(MouseButtonEventArgs e, Canvas canvas)
     {
-        System.Windows.Point pos = e.GetPosition(canvas);
+        Point pos = e.GetPosition(canvas);
         var hit = _rayCaster.CastRay(new System.Drawing.Point((int)pos.X, (int)pos.Y), InteractableElementLayer.Navigation);
 
         if (hit == null)
@@ -129,7 +145,7 @@ public class CanvasInteractionEventHandler
 
     private void HandleRightClick(MouseButtonEventArgs e, Canvas canvas)
     {
-        System.Windows.Point pos = e.GetPosition(canvas);
+        Point pos = e.GetPosition(canvas);
         CastResult hit = _rayCaster.CastRay(new System.Drawing.Point((int)pos.X, (int)pos.Y), InteractableElementLayer.Navigation);
 
         if (hit.Entity == null)
@@ -177,7 +193,7 @@ public class CanvasInteractionEventHandler
 
         _renderLoop.RefreshOnce();
     }
-    
+
     public void Enter_PathNavigation_Click(object sender, RoutedEventArgs e)
     {
         // Insérer la commande dans l'input où il y a le curseur

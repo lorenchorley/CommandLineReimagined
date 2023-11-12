@@ -1,4 +1,5 @@
 ﻿using CommandLine.Modules;
+using Console;
 using Microsoft.Extensions.DependencyInjection;
 using Terminal;
 using Terminal.Commands;

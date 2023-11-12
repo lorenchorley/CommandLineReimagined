@@ -8,16 +8,18 @@ namespace Rendering;
 public class RenderLoop
 {
     private readonly object _lock = new object();
+    private readonly ComponentRenderPipeline _componentRenderPipeline;
     private BitmapBuffer _buffer;
-    private Action<Graphics, float, float> _draw;
+    //private Action<Graphics, float, float> _draw;
     //private System.Timers.Timer _timer;
     private Action<Bitmap, Action> _renderToScreen;
     //private bool _isActive = false;
     //private bool _isCurrentlyRefreshing = false;
     private Task? EnqueuedRefreshTask = null;
 
-    public RenderLoop(IOptions<RenderingOptions> options)
+    public RenderLoop(IOptions<RenderingOptions> options, ComponentRenderPipeline componentRenderPipeline)
     {
+        _componentRenderPipeline = componentRenderPipeline;
         //_timer = new();
         //_timer.Interval = 1000 / options.Value.FrameRate;
         //_timer.Elapsed += TimerElapsed;
@@ -64,7 +66,7 @@ public class RenderLoop
             if (_buffer.IsIdle)
             {
                 _buffer.MarkAsDrawing();
-                _draw(_buffer.Gfx, _buffer.Width, _buffer.Height);
+                _componentRenderPipeline.Draw(_buffer.Gfx, _buffer.Width, _buffer.Height);
                 _buffer.MarkAsRendering();
                 _renderToScreen(_buffer.ExtractFinishedFrame(), _buffer.MarkAsIdle);
             }
@@ -78,10 +80,10 @@ public class RenderLoop
         _buffer = new BitmapBuffer(width, height);
     }
 
-    public void SetDrawAction(Action<Graphics, float, float> draw)
-    {
-        _draw = draw;
-    }
+    //public void SetDrawAction(Action<Graphics, float, float> draw)
+    //{
+    //    _draw = draw;
+    //}
 
     public void SetRenderToScreenAction(Action<Bitmap, Action> renderToScreen)
     {

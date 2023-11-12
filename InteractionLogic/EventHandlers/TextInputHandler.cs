@@ -8,13 +8,13 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using Terminal;
+using UIComponents.Compoents.Console;
 
-namespace InteractionLogic;
+namespace InteractionLogic.EventHandlers;
 
 public class TextInputHandler
 {
     private readonly InputAccessor _inputAccessor;
-    private readonly ConsoleLayout _consoleRenderer;
     private readonly ECS _ecs;
     private readonly PathModule _pathModule;
     private readonly RenderLoop _renderLoop;
@@ -22,10 +22,11 @@ public class TextInputHandler
     private readonly CommandHistoryModule _commandHistoryModule;
     private readonly Prompt _prompt;
 
-    public TextInputHandler(InputAccessor inputAccessor, ConsoleLayout consoleRenderer, ECS ecs, PathModule pathModule, RenderLoop renderLoop, Shell shell, CommandHistoryModule commandHistoryModule, Prompt promptPanel)
+    private ConsoleLayout ConsoleLayout { get; set; }
+
+    public TextInputHandler(InputAccessor inputAccessor, ECS ecs, PathModule pathModule, RenderLoop renderLoop, Shell shell, CommandHistoryModule commandHistoryModule, Prompt promptPanel)
     {
         _inputAccessor = inputAccessor;
-        _consoleRenderer = consoleRenderer;
         _ecs = ecs;
         _pathModule = pathModule;
         _renderLoop = renderLoop;
@@ -33,6 +34,13 @@ public class TextInputHandler
         _commandHistoryModule = commandHistoryModule;
         _prompt = promptPanel;
         _inputAccessor.RegisterEventHandlers<TextInputHandler>(RegisterEventHandlers, UnregisterEventHandlers);
+
+        _shell.OnInit += Shell_OnInit;
+    }
+
+    private void Shell_OnInit(object? sender, EventArgs e)
+    {
+        ConsoleLayout = _ecs.SearchForEntityWithComponent<ConsoleLayout>("Layout") ?? throw new Exception("No console layout found");
     }
 
     private void RegisterEventHandlers(TextBox input)
@@ -103,13 +111,13 @@ public class TextInputHandler
         CommandAnalysisResult analysis;
 
         // S'il y a besoin de rafraîchir l'affichage à cause d'une modification de la sélection
-        if (_consoleRenderer.Input.SelectionStart != _inputAccessor.Input.SelectionStart ||
-            _consoleRenderer.Input.SelectionLength != _inputAccessor.Input.SelectionLength)
+        if (ConsoleLayout.Input.SelectionStart != _inputAccessor.Input.SelectionStart ||
+            ConsoleLayout.Input.SelectionLength != _inputAccessor.Input.SelectionLength)
             _renderLoop.RefreshOnce();
 
         // Extraction de la position du curseur pour le rendre dans la console
-        _consoleRenderer.Input.SelectionStart = _inputAccessor.Input.SelectionStart;
-        _consoleRenderer.Input.SelectionLength = _inputAccessor.Input.SelectionLength;
+        ConsoleLayout.Input.SelectionStart = _inputAccessor.Input.SelectionStart;
+        ConsoleLayout.Input.SelectionLength = _inputAccessor.Input.SelectionLength;
 
         _prompt.SetPromptText(_inputAccessor.Input.Text);
 
@@ -135,10 +143,10 @@ public class TextInputHandler
             //analysis = _shell.AnalyseCommand(_inputAccessor.Input.Text);
             //if (analysis.IsT0)
             //{
-                ExecuteActiveLine();
-                e.Handled = true; // TODO Needs mirroring logic in KeyDown to stop the text jumping up and then disappearing
-                //_renderLoop.RefreshOnce();
-                return;
+            ExecuteActiveLine();
+            e.Handled = true; // TODO Needs mirroring logic in KeyDown to stop the text jumping up and then disappearing
+                              //_renderLoop.RefreshOnce();
+            return;
             //}
 
             // TODO Gérer les erreurs de syntaxe et de vérification de type

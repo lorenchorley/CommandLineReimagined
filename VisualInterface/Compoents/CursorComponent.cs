@@ -4,20 +4,20 @@ using System.Drawing;
 
 namespace Console.Components;
 
-public class CursorComponent : Component, ILineSegment
+public class CursorComponent : LineSegmentComponent
 {
-    public int Position { get; set; }
-    public TextComponent TextComponentReference { get; set; }
-    public string Text{ get; set; }
+    [State] public int Position { get; set; }
+    [State] public TextComponent TextComponentReference { get; set; }
+    [State] public string Text{ get; set; }
 
-    public string ToText()
+    public override string ToText()
     {
         return Position.ToString();
     }
 
-    protected override void InsureDependencies()
+    public override void OnInit()
     {
-        Entity.TryAddComponent<Renderer>();
+        EnsureDependency<Renderer>();
     }
 
     public override IEnumerable<(string, string)> SerialisableDebugProperties

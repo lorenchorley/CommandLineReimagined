@@ -11,32 +11,41 @@ using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using Terminal.Commands.Parser.Serialisation;
 using Terminal.Search;
+using UIComponents.Compoents.Console;
 
 namespace Terminal;
 
 public class Prompt
 {
     private readonly ECS _ecs;
-    private readonly ConsoleLayout _consoleLayout;
     private readonly PathModule _pathModule;
     private readonly RenderLoop _renderLoop;
     private readonly CommandSearch _commandSearch;
-    private string _text;
+
+    private string _text = "";
     private RootNode? _parsedCommand = null;
     private CommandLineInterpreter _commandLineInterpreter = new();
 
     private int _cursorPosition;
     private CursorComponent cursor;
 
-    public Prompt(ECS ecs, ConsoleLayout consoleLayout, PathModule pathModule, RenderLoop renderLoop, CommandSearch commandSearch)
+    public ConsoleInputPanel Input { get; set; }
+    public ConsoleOutputPanel Output { get; set; }
+
+    public Prompt(ECS ecs, PathModule pathModule, RenderLoop renderLoop, CommandSearch commandSearch)
     {
         _ecs = ecs;
-        _consoleLayout = consoleLayout;
         _pathModule = pathModule;
         _renderLoop = renderLoop;
         _commandSearch = commandSearch;
         Entity cursorEntity = _ecs.NewEntity("Cursor");
         cursor = cursorEntity.AddComponent<CursorComponent>();
+    }
+
+    public void InitPromptText()
+    {
+        RefreshText();
+        _renderLoop.RefreshOnce();
     }
 
     public void SetPromptText(string text)
@@ -69,11 +78,11 @@ public class Prompt
     private void RefreshText()
     {
         // Cleanup ?
-        _consoleLayout.Input.PromptLines.Clear();
+        Input.PromptLines.Clear();
 
         Entity entity = _ecs.NewEntity("Input prompt and command");
         LineComponent currentLine = entity.AddComponent<LineComponent>();
-        _consoleLayout.Input.PromptLines.Add(currentLine);
+        Input.PromptLines.Add(currentLine);
 
         // Ajouter et configurer le cursor pour le texte actuel
         currentLine.AddLineSegment(cursor);
@@ -89,26 +98,26 @@ public class Prompt
             {
                 _parsedCommand = tree;
 
-                var visitor = new UITokenisationVisitor(_consoleLayout.Input.PromptLines);
+                var visitor = new UITokenisationVisitor(Input.PromptLines);
                 tree.Accept(visitor);
 
                 cursor.TextComponentReference =
-                    _consoleLayout.Input
-                                  .PromptLines
-                                  .SelectMany(line => line.GetOrderedLineSegments())
-                                  .OfType<TextComponent>()
-                                  .First();
+                    Input
+                          .PromptLines
+                          .SelectMany(line => line.LineSegments)
+                          .OfType<TextComponent>()
+                          .First();
 
                 // Type check here or in Shell ?
 
                 // Si le texte termine avec un identifiant, on affiche les suggestions de complétion
                 ShowIdentifierSuggestions(_text, currentLine);
 
-                _consoleLayout.Input.IsCommandExecutable = true;
+                Input.IsCommandExecutable = true;
             },
             parserError =>
             {
-                _consoleLayout.Input.IsCommandExecutable = false;
+                Input.IsCommandExecutable = false;
 
                 parserError.Switch(
 
@@ -121,7 +130,7 @@ public class Prompt
 
                             Entity entity = _ecs.NewEntity("Input prompt and command");
                             currentLine = entity.AddComponent<LineComponent>();
-                            _consoleLayout.Input.PromptLines.Add(currentLine);
+                            Input.PromptLines.Add(currentLine);
                         }
 
                         currentLine.LinkNewTextBlock("Text with parsing error", _text);
@@ -209,7 +218,7 @@ public class Prompt
 
         Entity entity = _ecs.NewEntity("Input prompt and command");
         currentLine = entity.AddComponent<LineComponent>();
-        _consoleLayout.Input.PromptLines.Add(currentLine);
+        Input.PromptLines.Add(currentLine);
 
         var textInError = currentLine.LinkNewTextBlock("Text with parsing error", _text);
         currentLine.LinkNewTextHighlight(textInError, lexicalError.SyntaxError.Line, lexicalError.SyntaxError.Column);
@@ -221,7 +230,7 @@ public class Prompt
 
         Entity entity = _ecs.NewEntity("Input prompt and command");
         currentLine = entity.AddComponent<LineComponent>();
-        _consoleLayout.Input.PromptLines.Add(currentLine);
+        Input.PromptLines.Add(currentLine);
 
         var textInError = currentLine.LinkNewTextBlock("Text with parsing error", _text);
         currentLine.LinkNewTextHighlight(textInError, syntaxError.Line, syntaxError.Column);
@@ -235,7 +244,7 @@ public class Prompt
 
         Entity entity = _ecs.NewEntity("Input prompt and command");
         currentLine = entity.AddComponent<LineComponent>();
-        _consoleLayout.Input.PromptLines.Add(currentLine);
+        Input.PromptLines.Add(currentLine);
 
         var textInError = currentLine.LinkNewTextBlock("Text with parsing error", _text);
     }

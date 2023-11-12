@@ -1,11 +1,12 @@
-﻿using Rendering.Components;
+﻿using Console.Components;
 using EntityComponentSystem;
+using Rendering.Components;
 
-namespace Console.Components;
+namespace UIComponents.Compoents.Console;
 
-public class ConsoleOutput : Component
+public class ConsoleOutputPanel : UILayoutComponent
 {
-    public List<LineComponent> Lines { get; private set; } = new();
+    [State] public List<LineComponent> Lines { get; private set; } = new();
 
     public override IEnumerable<(string, string)> SerialisableDebugProperties
     {
@@ -15,7 +16,7 @@ public class ConsoleOutput : Component
             {
                 var line = Lines[i];
                 var firstCoordinates
-                    = line.GetOrderedLineSegments()
+                    = line.LineSegments
                           .OfType<Component>()
                           .FirstOrDefault()
                           ?.Entity
@@ -27,9 +28,13 @@ public class ConsoleOutput : Component
         }
     }
 
-    protected override void InsureDependencies()
+    public override void OnInit()
     {
-        Entity.TryAddComponent<Renderer>();
+        EnsureDependency<Renderer>();
     }
 
+    public override void RecalculateChildTransforms()
+    {
+        throw new NotImplementedException();
+    }
 }

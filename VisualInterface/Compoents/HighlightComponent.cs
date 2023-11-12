@@ -4,21 +4,21 @@ using System.Drawing;
 
 namespace Console.Components;
 
-public class HighlightComponent : Component, ILineSegment
+public class HighlightComponent : LineSegmentComponent
 {
-    public int Line { get; set; }
-    public int Column { get; set; }
-    public TextComponent TextComponent { get; set; }
+    [State] public int Line { get; set; }
+    [State] public int Column { get; set; }
+    [State] public TextComponent TextComponent { get; set; }
 
     private static readonly Brush _fillColor = new SolidBrush(Color.Red);
     public Brush FillColor { get; internal set; } = _fillColor;
 
-    protected override void InsureDependencies()
+    public override void OnInit()
     {
-        Entity.TryAddComponent<Renderer>();
+        EnsureDependency<Renderer>();
     }
 
-    public string ToText()
+    public override string ToText()
     {
         return $"{Line}:{Column}";
     }

@@ -5,7 +5,7 @@ namespace Console.Components
 {
     public class ContextMenuSource : Component
     {
-        public string ContextMenuName { get; set; }
+        [State] public string ContextMenuName { get; set; }
 
         public override IEnumerable<(string, string)> SerialisableDebugProperties
         {
@@ -15,9 +15,9 @@ namespace Console.Components
             }
         }
 
-        override protected void InsureDependencies()
-        {
-            Entity.TryAddComponent<InteractiveComponent>();
+        public override void OnInit()
+        { 
+            EnsureDependency<InteractiveComponent>();
         }
     }
 }

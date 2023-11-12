@@ -5,7 +5,7 @@ namespace Console.Components
 {
     public class DoubleClickAction : Component
     {
-        public string ActionName { get; set; } = "";
+        [State] public string ActionName { get; set; } = "";
 
         public override IEnumerable<(string, string)> SerialisableDebugProperties
         {
@@ -15,9 +15,9 @@ namespace Console.Components
             }
         }
 
-        override protected void InsureDependencies()
+        public override void OnInit()
         {
-            Entity.TryAddComponent<InteractiveComponent>();
+            EnsureDependency<InteractiveComponent>();
         }
     }
 }

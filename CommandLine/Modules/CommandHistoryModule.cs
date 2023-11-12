@@ -6,14 +6,7 @@ namespace CommandLine.Modules
 {
     public class CommandHistoryModule
     {
-        private readonly ConsoleLayout _consoleRenderer;
-
         public Stack<(ICommandAction Action, CommandParameterValue[] Args, CliBlock CliBlock)> ExecutedCommands { get; set; } = new();
-
-        public CommandHistoryModule(ConsoleLayout consoleRenderer)
-        {
-            _consoleRenderer = consoleRenderer;
-        }
 
         public void RegisterCommandAsStarted(ICommandAction action, CommandParameterValue[] args, CliBlock scope)
         {

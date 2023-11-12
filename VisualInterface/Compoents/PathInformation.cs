@@ -4,7 +4,7 @@ namespace Console.Components
 {
     public class PathInformation : Component
     {
-        public string Path { get; set; }
+        [State] public string Path { get; set; }
 
         public override IEnumerable<(string, string)> SerialisableDebugProperties
         {

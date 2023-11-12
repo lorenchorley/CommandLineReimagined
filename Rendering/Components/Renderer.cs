@@ -10,11 +10,6 @@ public class Renderer : Component, IComparable<Renderer>
     public int ZIndex { get; set; } = 0;
     public IRenderingBehaviour? RenderingBehaviour { get; set; }
 
-    override protected void InsureDependencies()
-    {
-        Entity.TryAddComponent<UITransform>();
-    }
-
     public int CompareTo(Renderer? other)
     {
         if (other == null)
@@ -23,6 +18,15 @@ public class Renderer : Component, IComparable<Renderer>
         }
 
         return ZIndex - other.ZIndex;
+    }
+
+    public override void OnInit()
+    {
+        EnsureDependency<UITransform>();
+    }
+
+    public override void OnDestroy()
+    {
     }
 
     public override IEnumerable<(string, string)> SerialisableDebugProperties

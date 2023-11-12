@@ -8,7 +8,7 @@ namespace Terminal.Commands.Parser.Serialisation;
 
 public class UITokenisationVisitor : VisitorBase
 {
-    private readonly List<ILineSegment> _segments = new();
+    private readonly List<LineSegmentComponent> _segments = new();
 
     private List<LineComponent> Lines;
     private LineComponent CurrentLine;

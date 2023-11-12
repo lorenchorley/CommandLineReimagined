@@ -1,16 +1,17 @@
-﻿using EntityComponentSystem;
+﻿using EntityComponentSystem.Serialisation;
 using Newtonsoft.Json;
-using System;
-using System.Collections.Generic;
 
 namespace EntityComponentSystem
 {
     public abstract class Component
     {
         public int Id { get; init; }
+        public bool IsDestoried { get; private set; } = false;
 
         private Entity? _entity;
+
         [JsonIgnore]
+        [NonSerialisableState]
         public Entity Entity
         {
             get
@@ -19,8 +20,13 @@ namespace EntityComponentSystem
 
                 return _entity;
             }
-            set
+            private set
             {
+                if (IsDestoried)
+                {
+                    throw new InvalidOperationException("Component is already destroyed.");
+                }
+
                 // On ne peut pas changer l'entité d'un composant déjà initialisé
                 if (value != null && _entity != null)
                 {
@@ -29,25 +35,45 @@ namespace EntityComponentSystem
 
                 _entity = value;
 
-                // Si on n'est pas en train de supprimer l'entité
-                if (value != null)
-                {
-                    // On a besoin de s'assurer que les dépendances sont satisfaites
-                    InsureDependencies();
-                }
+                //// Si on n'est pas en train de supprimer l'entité
+                //if (value != null)
+                //{
+                //    // On a besoin de s'assurer que les dépendances sont satisfaites
+                //    InsureDependencies();
+                //}
             }
         }
 
         [JsonIgnore]
+        [NonSerialisableState]
         public ECS ECS => Entity.ECS;
-        
+
         public abstract IEnumerable<(string, string)> SerialisableDebugProperties { get; }
 
-        protected virtual void InsureDependencies() { }
-
-        internal void OnDestroy()
+        protected TDependency EnsureDependency<TDependency>() where TDependency : Component, new()
         {
-            // TODO ?
+            return Entity.TryAddComponent<TDependency>();
+        }
+
+        public virtual void OnInit() { }
+        public virtual void OnDestroy() { }
+
+        internal void Init(Entity entity)
+        {
+            Entity = entity;
+
+            OnInit();
+        }
+
+        internal void InternalDestroy()
+        {
+            IsDestoried = true;
+            OnDestroy();
+        }
+
+        public void Destroy() 
+        {
+            Entity.RemoveComponent(this);
         }
     }
 }

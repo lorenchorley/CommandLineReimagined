@@ -6,7 +6,7 @@ namespace Rendering.Interaction
 {
     public class InteractiveComponent : Component
     {
-        public RectangleF Bounds { get; init; }
+        [State] public RectangleF Bounds { get; init; }
 
         public override IEnumerable<(string, string)> SerialisableDebugProperties
         {
@@ -16,9 +16,9 @@ namespace Rendering.Interaction
             }
         }
 
-        override protected void InsureDependencies()
+        public override void OnInit()
         {
-            Entity.TryAddComponent<UITransform>();
+            EnsureDependency<UITransform>();
         }
     }
 }

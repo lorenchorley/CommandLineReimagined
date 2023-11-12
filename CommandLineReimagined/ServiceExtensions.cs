@@ -31,10 +31,13 @@ public static class ServiceExtensions
 
     public static IServiceProvider InitialiseServices(this IServiceProvider serviceProvider)
     {
+        // Open the main window and set up links required for interaction 
         serviceProvider.GetRequiredService<MainWindow>();
 
         serviceProvider.InitialVisualInterfaceServices();
         serviceProvider.InitialiseInteractionLogicServices();
+
+
 
         return serviceProvider;
     }
