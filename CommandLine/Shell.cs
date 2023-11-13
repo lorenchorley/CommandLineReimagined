@@ -2,8 +2,8 @@
 using Commands;
 using Commands.Parser;
 using Commands.Parser.SemanticTree;
-using Console;
-using Console.Components;
+using UIComponents;
+using UIComponents.Components;
 using EntityComponentSystem;
 using Microsoft.Extensions.DependencyInjection;
 using OneOf;
@@ -94,11 +94,12 @@ namespace Terminal
         private void SetupScene()
         {
             Camera = _ecs.NewEntity("MainCamera").AddComponent<UICamera>();
-            ConsoleLayout Layout = _ecs.NewEntity("Layout").AddComponent<ConsoleLayout>();
 
             Output = _ecs.NewEntity("Output").AddComponent<ConsoleOutputPanel>();
-            Output.Entity.Parent = Layout.Entity;
             Input = _ecs.NewEntity("Input").AddComponent<ConsoleInputPanel>();
+
+            ConsoleLayout Layout = _ecs.NewEntity("Layout").AddComponent<ConsoleLayout>();
+            Output.Entity.Parent = Layout.Entity;
             Input.Entity.Parent = Layout.Entity;
 
             _prompt.Input = Input;

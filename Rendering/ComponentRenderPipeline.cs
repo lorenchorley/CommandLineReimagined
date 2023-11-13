@@ -44,7 +44,13 @@ public class ComponentRenderPipeline
     /// <param name="canvasHeight"></param>
     public void Draw(Graphics gfx, float canvasWidth, float canvasHeight)
     {
-        Camera ??= _ecs.AccessEntities(list => list.OfType<UICamera>().First());
+        Camera ??= _ecs.AccessEntities(list => list.OfType<UICamera>().FirstOrDefault());
+
+        if (Camera == null)
+        {
+            return;
+        }
+
         RecalulateCameraInfo(Camera, gfx, canvasWidth, canvasHeight);
 
         // TODO Positionner les transforms de Input et Output selon les bidouilles

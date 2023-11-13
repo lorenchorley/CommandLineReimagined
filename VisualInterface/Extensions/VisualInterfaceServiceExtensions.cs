@@ -1,5 +1,5 @@
-﻿using Console;
-using Console.Components;
+﻿using UIComponents;
+using UIComponents.Components;
 using EntityComponentSystem;
 using Microsoft.Extensions.DependencyInjection;
 using Rendering;

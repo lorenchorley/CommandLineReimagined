@@ -1,6 +1,6 @@
 ﻿using EntityComponentSystem;
 
-namespace Console.Components
+namespace UIComponents.Components
 {
     public abstract class LineSegmentComponent : Component
     {

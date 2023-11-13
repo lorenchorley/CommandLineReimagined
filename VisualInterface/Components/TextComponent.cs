@@ -2,9 +2,9 @@
 using Rendering.Components;
 using System.Drawing;
 
-namespace Console.Components;
+namespace UIComponents.Components;
 
-public class TextComponentDifferenceObject
+public class TextComponentDifferential
 {
     public string? Text;
     public bool? Highlighted;
@@ -23,7 +23,7 @@ public class TextComponentDifferenceObject
 
 public class TextComponentProxy : TextComponent
 {
-    public Func<TextComponentDifferenceObject> GetCurrentDifference { get; init; }
+    public Func<TextComponentDifferential> GetCurrentDifferential { get; init; }
 
     public string _text;
     public override string Text
@@ -35,7 +35,7 @@ public class TextComponentProxy : TextComponent
         set
         {
             _text = value;
-            GetCurrentDifference().Text = value;
+            GetCurrentDifferential().Text = value;
         }
     }
 
@@ -49,7 +49,7 @@ public class TextComponentProxy : TextComponent
         set
         {
             _highlighted = value;
-            GetCurrentDifference().Highlighted = value;
+            GetCurrentDifferential().Highlighted = value;
         }
     }
 }

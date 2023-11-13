@@ -1,5 +1,5 @@
 ﻿using CommandLine.Modules;
-using Console;
+using UIComponents;
 using EntityComponentSystem;
 using InteractionLogic.FrameworkAccessors;
 using Rendering;

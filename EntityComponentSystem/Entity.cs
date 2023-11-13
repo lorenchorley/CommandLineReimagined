@@ -88,11 +88,12 @@ public sealed class Entity
             throw new InvalidOperationException($"Component of type {typeof(T).Name} already exists");
         }
 
-        T component = ECS.CreateProxyComponent<T>();
-        //T component = new()
-        //{
-        //    Id = ECS.NewId
-        //};
+        T? component = 
+            ECS.CreateProxyComponent<T>() // Use proxy class system
+            ?? new() // Otherwise just create a new instance
+            {
+                Id = ECS.NewId
+            };
 
         _components.Add(component);
 

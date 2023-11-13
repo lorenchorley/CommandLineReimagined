@@ -1,7 +1,7 @@
 ﻿using System.IO;
 using System.Xml.Linq;
 using CommandLine.Modules;
-using Console.Components;
+using UIComponents.Components;
 
 namespace Commands.Implementations
 {

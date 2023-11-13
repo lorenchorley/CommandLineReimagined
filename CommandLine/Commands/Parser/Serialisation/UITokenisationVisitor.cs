@@ -1,6 +1,6 @@
 ﻿using CommandLine.Modules;
-using Console;
-using Console.Components;
+using UIComponents;
+using UIComponents.Components;
 using EntityComponentSystem;
 using Isagri.Reporting.Quid.RequestFilters.SemanticTree;
 

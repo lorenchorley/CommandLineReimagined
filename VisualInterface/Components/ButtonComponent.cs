@@ -3,7 +3,7 @@ using Rendering.Interaction;
 using EntityComponentSystem;
 using System.Drawing;
 
-namespace Console.Components
+namespace UIComponents.Components
 {
     public class ButtonComponent : LineSegmentComponent
     {

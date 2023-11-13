@@ -1,5 +1,5 @@
 ﻿using CommandLine.Modules;
-using Console;
+using UIComponents;
 using Microsoft.Extensions.DependencyInjection;
 using Terminal;
 using Terminal.Commands;

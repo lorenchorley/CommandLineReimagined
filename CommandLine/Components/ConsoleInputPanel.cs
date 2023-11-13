@@ -2,7 +2,7 @@
 using EntityComponentSystem;
 using EntityComponentSystem.Serialisation;
 using System.Drawing;
-using Console.Components;
+using UIComponents.Components;
 
 namespace UIComponents.Compoents.Console;
 

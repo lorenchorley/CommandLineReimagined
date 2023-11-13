@@ -62,7 +62,7 @@ namespace EntityComponentSystem
         {
             Entity = entity;
 
-            OnInit();
+            OnInit(); // NEeds to be offset from the constructor to allow for dependencies to be set
         }
 
         internal void InternalDestroy()

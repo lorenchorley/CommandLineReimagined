@@ -1,7 +1,7 @@
 ﻿using Rendering.Interaction;
 using EntityComponentSystem;
 
-namespace Console.Components
+namespace UIComponents.Components
 {
     public class ContextMenuSource : Component
     {

@@ -1,11 +1,11 @@
-﻿using Console.Components;
+﻿using UIComponents.Components;
 using EntityComponentSystem;
 using EntityComponentSystem.Attributes;
 using Rendering.Components;
 using System.Drawing;
 using UIComponents.Compoents.Console;
 
-namespace Console;
+namespace UIComponents;
 
 public class ConsoleLayout : UILayoutComponent
 {

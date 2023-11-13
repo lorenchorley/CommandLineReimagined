@@ -1,7 +1,7 @@
 ﻿using CommandLine.Modules;
 using Commands.Parser;
-using Console;
-using Console.Components;
+using UIComponents;
+using UIComponents.Components;
 using EntityComponentSystem;
 using EntityComponentSystem.RayCasting;
 using InteractionLogic.FrameworkAccessors;
@@ -56,7 +56,7 @@ public class CanvasRenderingEventHandler
         _renderLoop.SetCanvasSize((int)_canvasAccessor.Canvas!.ActualWidth, (int)_canvasAccessor.Canvas!.ActualHeight);
 
         _prompt.SetCursorPosition(_inputAccessor.Input.SelectionStart);
-        _prompt.InitPromptText();
+        //_prompt.InitPromptText();
     }
 
     public void Canvas_SizeChanged(object sender, SizeChangedEventArgs e)

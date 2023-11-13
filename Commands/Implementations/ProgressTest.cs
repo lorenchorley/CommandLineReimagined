@@ -1,5 +1,5 @@
 ﻿using CommandLine.Modules;
-using Console.Components;
+using UIComponents.Components;
 using Rendering;
 using System.Threading;
 

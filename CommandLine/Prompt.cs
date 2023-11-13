@@ -1,8 +1,8 @@
 ﻿using CommandLine.Modules;
 using Commands.Parser;
 using Commands.Parser.SemanticTree;
-using Console;
-using Console.Components;
+using UIComponents;
+using UIComponents.Components;
 using EntityComponentSystem;
 using GOLD;
 using OneOf;

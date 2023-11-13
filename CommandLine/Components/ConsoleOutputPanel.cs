@@ -1,4 +1,4 @@
-﻿using Console.Components;
+﻿using UIComponents.Components;
 using EntityComponentSystem;
 using Rendering.Components;
 

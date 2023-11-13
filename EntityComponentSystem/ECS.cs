@@ -88,11 +88,11 @@
             _proxyComponentFactories.Add(typeof(T), factory);
         }
 
-        internal T CreateProxyComponent<T>() where T : Component, new()
+        internal T? CreateProxyComponent<T>() where T : Component, new()
         {
             if (!_proxyComponentFactories.TryGetValue(typeof(T), out var factory))
             {
-                throw new InvalidOperationException($"No proxy component factory registered for type {typeof(T).Name}");
+                return null;
             }
 
             return (T)factory(NewId);
