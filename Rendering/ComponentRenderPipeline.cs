@@ -44,7 +44,7 @@ public class ComponentRenderPipeline
     /// <param name="canvasHeight"></param>
     public void Draw(Graphics gfx, float canvasWidth, float canvasHeight)
     {
-        Camera ??= _ecs.AccessEntities(list => list.OfType<UICamera>().FirstOrDefault());
+        Camera ??= _ecs.AccessEntityTree(list => list.OfType<UICamera>().FirstOrDefault());
 
         if (Camera == null)
         {
@@ -65,7 +65,7 @@ public class ComponentRenderPipeline
 
 
         List<UILayoutComponent> layouts =
-            _ecs.AccessEntities(list => GetLayouts(list).ToList());
+            _ecs.AccessEntityTree(list => GetLayouts(list).ToList());
 
         // Première passe pour savoir quels élements devraient y être et où il faut les placer
         foreach (var layout in layouts)
@@ -75,7 +75,7 @@ public class ComponentRenderPipeline
 
         // Profil de tous les éléments à dessiner
         List<Renderer> componentsToRender =
-            _ecs.AccessEntities(list =>
+            _ecs.AccessEntityTree(list =>
                 list.OfType<Entity>()
                     .Choose(e => e.TryGetComponent<Renderer>())
                     .ToList()

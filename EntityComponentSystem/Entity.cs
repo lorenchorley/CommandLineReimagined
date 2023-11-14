@@ -81,6 +81,11 @@ public sealed class Entity
     #region Component functions
     public IEnumerable<Component> Components => _components;
 
+    public Component AddComponent(Type componentType)
+    {
+        throw new NotImplementedException();
+    }
+
     public T AddComponent<T>() where T : Component, new()
     {
         if (HasComponent<T>())

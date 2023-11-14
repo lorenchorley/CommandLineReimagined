@@ -4,12 +4,48 @@ using System.Drawing;
 
 namespace UIComponents.Components;
 
-public class TextComponentDifferential
+public interface IComponentCreation : IEntityModification
 {
+    EntityAccessor Entity { init; }
+    void ApplyTo(Entity entity);
+}
+
+public interface IComponentDifferential : IComponentModification
+{
+    ComponentAccessor Component { init; }
+    void ApplyTo(Component component);
+}
+
+public interface IComponentSuppression : IComponentModification
+{
+    ComponentAccessor Component { init; }
+    void ApplyTo(Component component);
+}
+
+
+
+
+
+public class TextComponentCreation : IComponentCreation
+{
+    public EntityAccessor Entity { get; init; }
+
+    public void ApplyTo(Entity entity)
+    {
+        entity.AddComponent(typeof(TextComponent));
+    }
+}
+
+public class TextComponentDifferential : IComponentDifferential
+{
+    public ComponentAccessor Component { get; init; }
+
     public string? Text;
     public bool? Highlighted;
-    public void ApplyTo(TextComponent textComponent)
+    public void ApplyTo(Component component)
     {
+        TextComponent textComponent = (TextComponent)component;
+
         if (Text is not null)
         {
             textComponent.Text = Text;
@@ -21,8 +57,26 @@ public class TextComponentDifferential
     }
 }
 
-public class TextComponentProxy : TextComponent
+public class TextComponentSuppression : IComponentSuppression
 {
+    public ComponentAccessor Component { get; init; }
+
+    public string? Text;
+    public bool? Highlighted;
+    public void ApplyTo(Component component)
+    {
+        component.Entity.RemoveComponent(component);
+    }
+}
+
+public interface IComponentProxy
+{
+
+}
+
+public class TextComponentProxy : TextComponent, IComponentProxy
+{
+    public Component ShadowComponent { get; set; }
     public Func<TextComponentDifferential> GetCurrentDifferential { get; init; }
 
     public string _text;

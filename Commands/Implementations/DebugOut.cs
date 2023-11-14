@@ -42,7 +42,7 @@ namespace Commands.Implementations
         private string SerialiseCustom()
         {
             EntitySerializer s = new();
-            return _ecs.AccessEntities(list => s.SerializeEntities(list));
+            return _ecs.AccessEntityTree(list => s.SerializeEntities(list));
         }
 
         //private string SerialiseIntoXML()
