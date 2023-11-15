@@ -1,9 +1,10 @@
 ﻿using EntityComponentSystem.Serialisation;
 using Newtonsoft.Json;
+using System.Text;
 
 namespace EntityComponentSystem
 {
-    public abstract class Component
+    public abstract class Component : IIdentifiable
     {
         public int Id { get; init; }
         public bool IsDestoried { get; private set; } = false;
@@ -52,10 +53,11 @@ namespace EntityComponentSystem
 
         protected TDependency EnsureDependency<TDependency>() where TDependency : Component, new()
         {
-            return Entity.TryAddComponent<TDependency>();
+            return Entity.GetOrAddComponent<TDependency>();
         }
 
         public virtual void OnInit() { }
+        public virtual void OnStart() { }
         public virtual void OnDestroy() { }
 
         internal void Init(Entity entity)
@@ -71,9 +73,9 @@ namespace EntityComponentSystem
             OnDestroy();
         }
 
-        public void Destroy() 
+        public void Destroy()
         {
-            Entity.RemoveComponent(this);
+            Entity.RemoveComponent(this); 
         }
     }
 }

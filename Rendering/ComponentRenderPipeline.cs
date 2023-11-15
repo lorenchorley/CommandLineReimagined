@@ -1,5 +1,6 @@
 ﻿using EntityComponentSystem;
 using Rendering.Components;
+using Rendering.Events;
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Numerics;
@@ -44,7 +45,11 @@ public class ComponentRenderPipeline
     /// <param name="canvasHeight"></param>
     public void Draw(Graphics gfx, float canvasWidth, float canvasHeight)
     {
-        Camera ??= _ecs.AccessEntityTree(list => list.OfType<UICamera>().FirstOrDefault());
+        _ecs.RegisterEvent(new RenderEvent());
+
+        ECS.ShadowECS shadowECS = _ecs.TriggerMerge();
+
+        Camera ??= shadowECS.Components.OfType<UICamera>().FirstOrDefault();
 
         if (Camera == null)
         {
@@ -65,7 +70,7 @@ public class ComponentRenderPipeline
 
 
         List<UILayoutComponent> layouts =
-            _ecs.AccessEntityTree(list => GetLayouts(list).ToList());
+            GetLayouts(shadowECS.Entities.ToList()).ToList();
 
         // Première passe pour savoir quels élements devraient y être et où il faut les placer
         foreach (var layout in layouts)
@@ -75,11 +80,9 @@ public class ComponentRenderPipeline
 
         // Profil de tous les éléments à dessiner
         List<Renderer> componentsToRender =
-            _ecs.AccessEntityTree(list =>
-                list.OfType<Entity>()
-                    .Choose(e => e.TryGetComponent<Renderer>())
-                    .ToList()
-            );
+            shadowECS.Components
+                     .OfType<Renderer>()
+                     .ToList();
 
         componentsToRender.ForEach(r => r.IsVisible = false); // TODO Garder la dernière liste pour ne pas tout reparcourir à chaque fois
 

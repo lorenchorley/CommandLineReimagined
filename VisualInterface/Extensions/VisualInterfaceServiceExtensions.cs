@@ -10,9 +10,9 @@ public static class VisualInterfaceServiceExtensions
     {
     }
     
-    public static void InitialVisualInterfaceServices(this IServiceProvider serviceProvider)
+    public static void InitialiseVisualInterfaceServices(this IServiceProvider serviceProvider)
     {
         var ecs = serviceProvider.GetRequiredService<ECS>();
-        ecs.RegisterProxyComponent<TextComponent>((id) => new TextComponentProxy() { Id = id });
+        ecs.RegisterProxyComponent<TextComponent>((id) => new TextComponentProxy() { Id = id, RegisterDifferential = ecs.RegisterEvent });
     }
 }

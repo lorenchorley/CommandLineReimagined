@@ -25,6 +25,8 @@ public class RayCaster
 
     public CastResult CastRay(Point targetPoint, InteractableElementLayer layer)
     {
+        // TODO transform the point from screen space to ui space
+
         var entity =
             GetInteractiveComponents()
                 .Select(h => h.Entity.GetComponent<Renderer>())

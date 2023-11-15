@@ -9,6 +9,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using Terminal;
 using UIComponents.Compoents.Console;
+using Controller;
 
 namespace InteractionLogic.EventHandlers;
 
@@ -17,19 +18,19 @@ public class TextInputHandler
     private readonly InputAccessor _inputAccessor;
     private readonly ECS _ecs;
     private readonly PathModule _pathModule;
-    private readonly RenderLoop _renderLoop;
+    private readonly LoopController _loopController;
     private readonly Shell _shell;
     private readonly CommandHistoryModule _commandHistoryModule;
     private readonly Prompt _prompt;
 
     private ConsoleLayout ConsoleLayout { get; set; }
 
-    public TextInputHandler(InputAccessor inputAccessor, ECS ecs, PathModule pathModule, RenderLoop renderLoop, Shell shell, CommandHistoryModule commandHistoryModule, Prompt promptPanel)
+    public TextInputHandler(InputAccessor inputAccessor, ECS ecs, PathModule pathModule, LoopController loopController, Shell shell, CommandHistoryModule commandHistoryModule, Prompt promptPanel)
     {
         _inputAccessor = inputAccessor;
         _ecs = ecs;
         _pathModule = pathModule;
-        _renderLoop = renderLoop;
+        _loopController = loopController;
         _shell = shell;
         _commandHistoryModule = commandHistoryModule;
         _prompt = promptPanel;
@@ -93,7 +94,7 @@ public class TextInputHandler
 
     //private void RefreshPrompt()
     //{
-    //    _renderLoop.RefreshOnce();
+    //    _loopController.RequestLoop();
     //}
 
     //private void Input_PreviewKeyDown(object sender, KeyEventArgs e)
@@ -113,7 +114,7 @@ public class TextInputHandler
         // S'il y a besoin de rafraîchir l'affichage à cause d'une modification de la sélection
         if (ConsoleLayout.Input.SelectionStart != _inputAccessor.Input.SelectionStart ||
             ConsoleLayout.Input.SelectionLength != _inputAccessor.Input.SelectionLength)
-            _renderLoop.RefreshOnce();
+            _loopController.RequestLoop();
 
         // Extraction de la position du curseur pour le rendre dans la console
         ConsoleLayout.Input.SelectionStart = _inputAccessor.Input.SelectionStart;
@@ -135,7 +136,7 @@ public class TextInputHandler
 
                 _inputAccessor.Input.SelectionStart = previousStart + 1; // Pour se positionner sur la nouvelle ligne
 
-                _renderLoop.RefreshOnce();
+                _loopController.RequestLoop();
                 return;
             }
 
@@ -145,14 +146,14 @@ public class TextInputHandler
             //{
             ExecuteActiveLine();
             e.Handled = true; // TODO Needs mirroring logic in KeyDown to stop the text jumping up and then disappearing
-                              //_renderLoop.RefreshOnce();
+                              //_loopController.RequestLoop();
             return;
             //}
 
             // TODO Gérer les erreurs de syntaxe et de vérification de type
 
             // Si la commande n'est exécutable à ce stade, on laisse la frappe de clé se faire
-            //_renderLoop.RefreshOnce();
+            //_loopController.RequestLoop();
             //return;
         }
 
@@ -162,7 +163,7 @@ public class TextInputHandler
         {
             _commandHistoryModule.UndoLastCommand();
             e.Handled = true;
-            _renderLoop.RefreshOnce();
+            _loopController.RequestLoop();
             return;
         }
     }

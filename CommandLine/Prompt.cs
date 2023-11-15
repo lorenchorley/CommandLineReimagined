@@ -12,40 +12,34 @@ using System.Diagnostics.CodeAnalysis;
 using Terminal.Commands.Parser.Serialisation;
 using Terminal.Search;
 using UIComponents.Compoents.Console;
+using Controller;
 
 namespace Terminal;
 
 public class Prompt
 {
     private readonly ECS _ecs;
-    private readonly PathModule _pathModule;
-    private readonly RenderLoop _renderLoop;
+    private readonly LoopController _loopController;
     private readonly CommandSearch _commandSearch;
-
+    private readonly Scene _scene;
     private string _text = "";
     private RootNode? _parsedCommand = null;
     private CommandLineInterpreter _commandLineInterpreter = new();
 
     private int _cursorPosition;
-    private CursorComponent cursor;
 
-    public ConsoleInputPanel Input { get; set; }
-    public ConsoleOutputPanel Output { get; set; }
-
-    public Prompt(ECS ecs, PathModule pathModule, RenderLoop renderLoop, CommandSearch commandSearch)
+    public Prompt(ECS ecs, LoopController loopController, CommandSearch commandSearch, Scene scene)
     {
         _ecs = ecs;
-        _pathModule = pathModule;
-        _renderLoop = renderLoop;
+        _loopController = loopController;
         _commandSearch = commandSearch;
-        Entity cursorEntity = _ecs.NewEntity("Cursor");
-        cursor = cursorEntity.AddComponent<CursorComponent>();
+        _scene = scene;
     }
 
     public void InitPromptText()
     {
         RefreshText();
-        _renderLoop.RefreshOnce();
+        _loopController.RequestLoop();
     }
 
     public void SetPromptText(string text)
@@ -56,7 +50,7 @@ public class Prompt
 
             _text = text;
             RefreshText();
-            _renderLoop.RefreshOnce();
+            _loopController.RequestLoop();
 
         }
     }
@@ -71,23 +65,23 @@ public class Prompt
     public void SetCursorPosition(int cursorPosition)
     {
         _cursorPosition = cursorPosition;
-        cursor.Position = _cursorPosition;
-        _renderLoop.RefreshOnce();
+        _scene.Cursor.Position = _cursorPosition;
+        _loopController.RequestLoop();
     }
 
     private void RefreshText()
     {
         // Cleanup ?
-        Input.PromptLines.Clear();
+        _scene.Input.PromptLines.Clear();
 
         Entity entity = _ecs.NewEntity("Input prompt and command");
         LineComponent currentLine = entity.AddComponent<LineComponent>();
-        Input.PromptLines.Add(currentLine);
+        _scene.Input.PromptLines.Add(currentLine);
 
         // Ajouter et configurer le cursor pour le texte actuel
-        currentLine.AddLineSegment(cursor);
-        cursor.Position = _cursorPosition;
-        cursor.Text = _text;
+        currentLine.AddLineSegment(_scene.Cursor);
+        _scene.Cursor.Position = _cursorPosition;
+        _scene.Cursor.Text = _text;
 
         ParserResult<RootNode> result = _commandLineInterpreter.Parse<RootNode>(_text);
 
@@ -98,11 +92,11 @@ public class Prompt
             {
                 _parsedCommand = tree;
 
-                var visitor = new UITokenisationVisitor(Input.PromptLines);
+                var visitor = new UITokenisationVisitor(_scene.Input.PromptLines);
                 tree.Accept(visitor);
 
-                cursor.TextComponentReference =
-                    Input
+                _scene.Cursor.TextComponentReference =
+                    _scene.Input
                           .PromptLines
                           .SelectMany(line => line.LineSegments)
                           .OfType<TextComponent>()
@@ -113,11 +107,11 @@ public class Prompt
                 // Si le texte termine avec un identifiant, on affiche les suggestions de complétion
                 ShowIdentifierSuggestions(_text, currentLine);
 
-                Input.IsCommandExecutable = true;
+                _scene.Input.IsCommandExecutable = true;
             },
             parserError =>
             {
-                Input.IsCommandExecutable = false;
+                _scene.Input.IsCommandExecutable = false;
 
                 parserError.Switch(
 
@@ -130,7 +124,7 @@ public class Prompt
 
                             Entity entity = _ecs.NewEntity("Input prompt and command");
                             currentLine = entity.AddComponent<LineComponent>();
-                            Input.PromptLines.Add(currentLine);
+                            _scene.Input.PromptLines.Add(currentLine);
                         }
 
                         currentLine.LinkNewTextBlock("Text with parsing error", _text);
@@ -218,7 +212,7 @@ public class Prompt
 
         Entity entity = _ecs.NewEntity("Input prompt and command");
         currentLine = entity.AddComponent<LineComponent>();
-        Input.PromptLines.Add(currentLine);
+        _scene.Input.PromptLines.Add(currentLine);
 
         var textInError = currentLine.LinkNewTextBlock("Text with parsing error", _text);
         currentLine.LinkNewTextHighlight(textInError, lexicalError.SyntaxError.Line, lexicalError.SyntaxError.Column);
@@ -230,7 +224,7 @@ public class Prompt
 
         Entity entity = _ecs.NewEntity("Input prompt and command");
         currentLine = entity.AddComponent<LineComponent>();
-        Input.PromptLines.Add(currentLine);
+        _scene.Input.PromptLines.Add(currentLine);
 
         var textInError = currentLine.LinkNewTextBlock("Text with parsing error", _text);
         currentLine.LinkNewTextHighlight(textInError, syntaxError.Line, syntaxError.Column);
@@ -244,7 +238,7 @@ public class Prompt
 
         Entity entity = _ecs.NewEntity("Input prompt and command");
         currentLine = entity.AddComponent<LineComponent>();
-        Input.PromptLines.Add(currentLine);
+        _scene.Input.PromptLines.Add(currentLine);
 
         var textInError = currentLine.LinkNewTextBlock("Text with parsing error", _text);
     }

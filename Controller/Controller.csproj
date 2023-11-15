@@ -8,7 +8,11 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="8.0.0" />
-    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\EntityComponentSystem\EntityComponentSystem.csproj" />
+    <ProjectReference Include="..\Rendering\Rendering.csproj" />
   </ItemGroup>
 
 </Project>

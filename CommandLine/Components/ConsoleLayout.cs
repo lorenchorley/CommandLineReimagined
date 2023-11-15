@@ -23,7 +23,10 @@ public class ConsoleLayout : UILayoutComponent
     public override void OnInit()
     {
         Transform = EnsureDependency<UITransform>();
+    }
 
+    public override void OnStart() 
+    { 
         Camera = ECS.SearchForEntityWithComponent<UICamera>("MainCamera") ?? throw new Exception("No camera found");
         Output = ECS.SearchForEntityWithComponent<ConsoleOutputPanel>("Output") ?? throw new Exception("No output panel found");
         Input = ECS.SearchForEntityWithComponent<ConsoleInputPanel>("Input") ?? throw new Exception("No input panel found");

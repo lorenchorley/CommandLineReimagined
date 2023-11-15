@@ -14,6 +14,7 @@ using System.Text.RegularExpressions;
 using Terminal.Naming;
 using Terminal.Search;
 using UIComponents.Compoents.Console;
+using Rendering;
 
 namespace Terminal
 {
@@ -54,7 +55,9 @@ namespace Terminal
         private readonly ConsoleOutModule _consoleOutModule;
         private readonly NameResolver _nameResolver;
         private readonly Prompt _prompt;
+        private readonly RenderLoop _renderLoop;
         private readonly CommandSearch _commandSearch;
+        private readonly Scene _scene;
 
         public event EventHandler<EventArgs> OnInit;
 
@@ -65,7 +68,9 @@ namespace Terminal
                      ConsoleOutModule consoleOutModule,
                      NameResolver nameResolver,
                      Prompt prompt,
-                     CommandSearch commandSearch)
+                     RenderLoop renderLoop,
+                     CommandSearch commandSearch,
+                     Scene sceneSetup)
         {
             _commandProfiles = commandActions.Select(c => c.Profile).ToList();
             _serviceProvider = serviceProvider;
@@ -74,36 +79,18 @@ namespace Terminal
             _consoleOutModule = consoleOutModule;
             _nameResolver = nameResolver;
             _prompt = prompt;
+            _renderLoop = renderLoop;
             _commandSearch = commandSearch;
-
+            _scene = sceneSetup;
             _interpreter = new CommandLineInterpreter();
         }
 
         public void Init()
         {
             _commandSearch.AsynchronouslyLoadIndexes();
-            SetupScene();
+            _scene.SetupScene();
             
             OnInit?.Invoke(this, new EventArgs());
-        }
-
-        public UICamera Camera { get; private set; }
-        public ConsoleOutputPanel Output { get; private set; }
-        public ConsoleInputPanel Input { get; private set; }
-
-        private void SetupScene()
-        {
-            Camera = _ecs.NewEntity("MainCamera").AddComponent<UICamera>();
-
-            Output = _ecs.NewEntity("Output").AddComponent<ConsoleOutputPanel>();
-            Input = _ecs.NewEntity("Input").AddComponent<ConsoleInputPanel>();
-
-            ConsoleLayout Layout = _ecs.NewEntity("Layout").AddComponent<ConsoleLayout>();
-            Output.Entity.Parent = Layout.Entity;
-            Input.Entity.Parent = Layout.Entity;
-
-            _prompt.Input = Input;
-            _prompt.Output = Output;
         }
 
         public void RegisterCommand(CommandDefinition commandProfile)
@@ -215,12 +202,13 @@ namespace Terminal
 
                 // TODO
                 promptText.Text =
-                    Input.PromptLines
-                         .SelectMany(line => line.LineSegments)
-                         .OfType<TextComponent>()
-                         .FirstOrDefault()
-                         ?.ToText()
-                         ?? "";
+                    _scene.Input
+                               .PromptLines
+                               .SelectMany(line => line.LineSegments)
+                               .OfType<TextComponent>()
+                               .FirstOrDefault()
+                               ?.ToText()
+                               ?? "";
 
                 promptLine.AddLineSegment(promptText);
 

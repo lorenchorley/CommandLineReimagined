@@ -13,6 +13,7 @@ public static class CommandLineServiceExtensions
     {
         services.AddSingleton<Shell>();
         services.AddSingleton<Prompt>();
+        services.AddSingleton<Scene>();
 
         services.AddSingleton<PathModule>();
         services.AddSingleton<ConsoleOutModule>();

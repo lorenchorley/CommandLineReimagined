@@ -2,12 +2,13 @@
 using UIComponents.Components;
 using Rendering;
 using System.Threading;
+using Controller;
 
 namespace Commands.Implementations
 {
     public class ProgressTest : CommandActionAsync
     {
-        private readonly RenderLoop _renderLoop;
+        private readonly LoopController _loopController;
         private readonly Random _random = new();
         private int _lastProcessedPercentage = 0;
 
@@ -22,9 +23,9 @@ namespace Commands.Implementations
                 CommandActionType: typeof(ProgressTest)
             );
 
-        public ProgressTest(RenderLoop renderLoop)
+        public ProgressTest(LoopController loopController)
         {
-            _renderLoop = renderLoop;
+            _loopController = loopController;
         }
 
         private TextComponent? progressCounter;
@@ -35,7 +36,7 @@ namespace Commands.Implementations
             progressCounter = scope.NewLine().LinkNewTextBlock("Failed", "0%");
             progressBar = scope.NewLine().LinkNewTextBlock("Failed", "");
 
-            _renderLoop.RefreshOnce();
+            _loopController.RequestLoop();
 
             foreach (var i in Enumerable.Range(0, 100))
             {
@@ -48,7 +49,7 @@ namespace Commands.Implementations
                 progressCounter.Text = $"{i}%";
                 progressBar.Text = new string('=', i) + ">";
                 _lastProcessedPercentage = i;
-                _renderLoop.RefreshOnce();
+                _loopController.RequestLoop();
 
                 if(_random.Next(0, 100) == 0)
                 {
@@ -61,13 +62,13 @@ namespace Commands.Implementations
         {
             var status = CancellationTokenSource.Token.IsCancellationRequested ? "unsuccessfully" : "successfully";
             scope.NewLine().LinkNewTextBlock("Failed", $"Progress test ended {status}");
-            _renderLoop.RefreshOnce();
+            _loopController.RequestLoop();
         }
 
         public override async Task FailedInvoke(CommandParameterValue[] args, CliBlock scope, Task task)
         {
             scope.NewLine().LinkNewTextBlock("Failed", $"Progress test task failed with status {task.Status} : {task.Exception?.Message}");
-            _renderLoop.RefreshOnce();
+            _loopController.RequestLoop();
         }
 
         public override async Task BeginInvokeUndo(CommandParameterValue[] args, CliBlock scope)
@@ -76,13 +77,13 @@ namespace Commands.Implementations
 
             await Task.Delay(500);
             undoText.Text += ", undoing";
-            _renderLoop.RefreshOnce();
+            _loopController.RequestLoop();
 
             foreach (var _ in Enumerable.Range(1, 3))
             {
                 await Task.Delay(200);
                 undoText.Text += ".";
-                _renderLoop.RefreshOnce();
+                _loopController.RequestLoop();
             }
 
             foreach (var i in Enumerable.Range(1, _lastProcessedPercentage))
@@ -91,7 +92,7 @@ namespace Commands.Implementations
                 int progress = _lastProcessedPercentage - i;
                 progressCounter.Text = $"{progress}%";
                 progressBar.Text = new string('=', progress) + "<";
-                _renderLoop.RefreshOnce();
+                _loopController.RequestLoop();
             }
         }
 

@@ -1,14 +1,15 @@
 ﻿using EntityComponentSystem.Attributes;
 using Microsoft.Extensions.DependencyInjection;
 using Newtonsoft.Json;
+using System;
 using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 
 namespace EntityComponentSystem;
 
-public sealed class Entity
+public sealed class Entity : IIdentifiable
 {
-    public readonly int Id;
+    public int Id { get; private init; }
     public readonly string Name;
 
     [JsonIgnore]
@@ -83,41 +84,45 @@ public sealed class Entity
 
     public Component AddComponent(Type componentType)
     {
-        throw new NotImplementedException();
-    }
-
-    public T AddComponent<T>() where T : Component, new()
-    {
-        if (HasComponent<T>())
+        if (HasComponent(componentType))
         {
-            throw new InvalidOperationException($"Component of type {typeof(T).Name} already exists");
+            throw new InvalidOperationException($"Component of type {componentType.Name} already exists");
         }
 
-        T? component = 
-            ECS.CreateProxyComponent<T>() // Use proxy class system
-            ?? new() // Otherwise just create a new instance
-            {
-                Id = ECS.NewId
-            };
+        Component? component =
+            ECS.CreateProxyComponent(componentType); // Use proxy class system
+
+        if (component == null)
+        {
+            // Otherwise just create a new instance
+            component = (Component)Activator.CreateInstance(componentType);
+            component.GetType().GetProperty("Id").SetValue(component, ECS.NewId);
+        }
 
         _components.Add(component);
+        ECS.RegisterNewComponent(component);
 
-        InjectDependencies<T>();
-        SetupStateListeners<T>();
+        InjectDependencies(componentType, component);
+        SetupStateListeners(componentType);
 
         component.Init(this);
 
         return component;
     }
 
-    private void SetupStateListeners<T>() where T : Component, new()
+    public T AddComponent<T>() where T : Component, new()
+    {
+        return (T)AddComponent(typeof(T));
+    }
+
+    private void SetupStateListeners(Type componentType)
     {
 
     }
 
-    private void InjectDependencies<T>()
+    private void InjectDependencies(Type componentType, Component component)
     {
-        var properties = typeof(T).GetProperties(BindingFlags.Instance);
+        var properties = componentType.GetProperties(BindingFlags.Public | BindingFlags.Instance);
 
         foreach (var property in properties)
         {
@@ -129,7 +134,7 @@ public sealed class Entity
             }
 
             var dependency = ECS.ServiceProvider.GetRequiredService(property.PropertyType);
-            property.SetValue(this, dependency);
+            property.SetValue(component, dependency);
         }
     }
 
@@ -140,7 +145,7 @@ public sealed class Entity
         return component;
     }
 
-    public T TryAddComponent<T>() where T : Component, new()
+    public T GetOrAddComponent<T>() where T : Component, new()
     {
         if (TryGetComponent(out T? component))
             return component;
@@ -169,6 +174,11 @@ public sealed class Entity
         return _components.OfType<T>().First();
     }
 
+    public bool HasComponent(Type componentType)
+    {
+        return _components.Where(s => componentType.IsSubclassOf(s.GetType())).Any(); // TODO Verify
+    }
+    
     public bool HasComponent<T>() where T : Component
     {
         return _components.OfType<T>().Any();
@@ -186,6 +196,7 @@ public sealed class Entity
         component.InternalDestroy();
     }
 
+    // Should create event and the event should call an InternalRemoveComponent
     public void RemoveComponent(Component component)
     {
         if (!_components.Contains(component))

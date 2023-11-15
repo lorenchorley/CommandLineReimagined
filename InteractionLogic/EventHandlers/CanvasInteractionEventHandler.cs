@@ -9,13 +9,14 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using Terminal;
+using Controller;
 
 namespace InteractionLogic.EventHandlers;
 
 public class CanvasInteractionEventHandler
 {
     private readonly CanvasAccessor _canvasAccessor;
-    private readonly RenderLoop _renderLoop;
+    private readonly LoopController _loopController;
     private readonly RayCaster _rayCaster;
     private readonly TextInputUpdateHandler _textInputUpdateHandler;
     private readonly ContextMenuAccessor _contextMenuAccessor;
@@ -25,10 +26,10 @@ public class CanvasInteractionEventHandler
 
     private ConsoleLayout ConsoleLayout { get; set; }
 
-    public CanvasInteractionEventHandler(CanvasAccessor canvasAccessor, RenderLoop renderLoop, RayCaster rayCaster, TextInputUpdateHandler textInputUpdateHandler, ContextMenuAccessor contextMenuAccessor, TextInputHandler textInputHandler, Shell shell, ECS ecs)
+    public CanvasInteractionEventHandler(CanvasAccessor canvasAccessor, LoopController loopController, RayCaster rayCaster, TextInputUpdateHandler textInputUpdateHandler, ContextMenuAccessor contextMenuAccessor, TextInputHandler textInputHandler, Shell shell, ECS ecs)
     {
         _canvasAccessor = canvasAccessor;
-        _renderLoop = renderLoop;
+        _loopController = loopController;
         _rayCaster = rayCaster;
         _textInputUpdateHandler = textInputUpdateHandler;
         _contextMenuAccessor = contextMenuAccessor;
@@ -181,7 +182,7 @@ public class CanvasInteractionEventHandler
         string command = $"\"{_contexteMenuEntity!.GetComponent<PathInformation>().Path}\"";
         _textInputUpdateHandler.InsertTextAtCursor(command);
 
-        _renderLoop.RefreshOnce();
+        _loopController.RequestLoop();
     }
 
     public void Up_PathNavigation_Click(object sender, RoutedEventArgs e)
@@ -191,7 +192,7 @@ public class CanvasInteractionEventHandler
         _textInputUpdateHandler.InsertTextAtCursor(command);
         _textInputHandler.ExecuteActiveLine();
 
-        _renderLoop.RefreshOnce();
+        _loopController.RequestLoop();
     }
 
     public void Enter_PathNavigation_Click(object sender, RoutedEventArgs e)
@@ -202,7 +203,7 @@ public class CanvasInteractionEventHandler
         _textInputUpdateHandler.InsertTextAtCursor(command);
         _textInputHandler.ExecuteActiveLine();
 
-        _renderLoop.RefreshOnce();
+        _loopController.RequestLoop();
     }
 
     public void CopyPathAsText_PathNavigation_Click(object sender, RoutedEventArgs e)
@@ -215,7 +216,7 @@ public class CanvasInteractionEventHandler
         string command = $"\"{_contexteMenuEntity!.GetComponent<PathInformation>().Path}\"";
         _textInputUpdateHandler.InsertTextAtCursor(command);
 
-        _renderLoop.RefreshOnce();
+        _loopController.RequestLoop();
     }
 
     public void CopyPathAsText_FileNavigation_Click(object sender, RoutedEventArgs e)
@@ -242,7 +243,7 @@ public class CanvasInteractionEventHandler
         string command = $"rm {_contexteMenuEntity!.GetComponent<PathInformation>().Path}";
         _textInputUpdateHandler.InsertTextAtCursor(command);
 
-        _renderLoop.RefreshOnce();
+        _loopController.RequestLoop();
     }
 
     public void CopyText_Click(object sender, RoutedEventArgs e)
