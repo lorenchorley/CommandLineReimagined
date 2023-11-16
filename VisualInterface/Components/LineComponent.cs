@@ -34,17 +34,5 @@ namespace UIComponents.Components
                                 .Join("");
         }
 
-        public override IEnumerable<(string, string)> SerialisableDebugProperties
-        {
-            get
-            {
-                for (int i = 0; i < LineSegments.Count; i++)
-                {
-                    var lineSegment = LineSegments[i];
-                    yield return ($"LineSegment[{i}]", lineSegment.ToText());
-                }
-            }
-        }
-
     }
 }

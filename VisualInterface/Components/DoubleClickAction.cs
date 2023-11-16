@@ -7,14 +7,6 @@ namespace UIComponents.Components
     {
         [State] public string ActionName { get; set; } = "";
 
-        public override IEnumerable<(string, string)> SerialisableDebugProperties
-        {
-            get
-            {
-                yield return ("ActionName", ActionName);
-            }
-        }
-
         public override void OnInit()
         {
             EnsureDependency<InteractiveComponent>();

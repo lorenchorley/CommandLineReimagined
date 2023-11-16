@@ -23,15 +23,6 @@ public class HighlightComponent : LineSegmentComponent
         return $"{Line}:{Column}";
     }
 
-    public override IEnumerable<(string, string)> SerialisableDebugProperties
-    {
-        get
-        {
-            yield return ("Line", Line.ToString());
-            yield return ("Column", Column.ToString());
-        }
-    }
-
 }
 
 public struct HighlightRenderer : IRenderingBehaviour

@@ -7,14 +7,6 @@ namespace UIComponents.Components
     {
         [State] public string ContextMenuName { get; set; }
 
-        public override IEnumerable<(string, string)> SerialisableDebugProperties
-        {
-            get
-            {
-                yield return ("ContextMenuName", ContextMenuName.ToString());
-            }
-        }
-
         public override void OnInit()
         { 
             EnsureDependency<InteractiveComponent>();

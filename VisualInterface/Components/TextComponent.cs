@@ -75,11 +75,6 @@ public class TextComponentSuppression : IComponentSuppression
     }
 }
 
-public interface IComponentProxy
-{
-
-}
-
 public class TextComponentProxy : TextComponent, IComponentProxy
 {
     public Action<IEvent> RegisterDifferential { get; init; }
@@ -135,15 +130,6 @@ public class TextComponent : LineSegmentComponent
     {
         EnsureDependency<Renderer>();
     }
-
-    public override IEnumerable<(string, string)> SerialisableDebugProperties
-    {
-        get
-        {
-            yield return ("Text", Text);
-        }
-    }
-
 }
 
 //public struct TextPositioner : IPositioningBehaviour

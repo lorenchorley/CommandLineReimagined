@@ -1,0 +1,12 @@
+{
+  "profiles": {
+    "SourceGenerators.Tests": {
+      "commandName": "DebugRoslynComponent",
+      "targetProject": "..\\SourceGenerators.Tests\\SourceGenerators.Tests.csproj"
+    },
+    "UIComponents": {
+      "commandName": "DebugRoslynComponent",
+      "targetProject": "..\\VisualInterface\\UIComponents.csproj"
+    }
+  }
+}

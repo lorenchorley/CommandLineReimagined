@@ -49,8 +49,6 @@ namespace EntityComponentSystem
         [NonSerialisableState]
         public ECS ECS => Entity.ECS;
 
-        public abstract IEnumerable<(string, string)> SerialisableDebugProperties { get; }
-
         protected TDependency EnsureDependency<TDependency>() where TDependency : Component, new()
         {
             return Entity.GetOrAddComponent<TDependency>();

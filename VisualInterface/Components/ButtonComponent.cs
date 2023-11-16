@@ -8,15 +8,6 @@ namespace UIComponents.Components
     public class ButtonComponent : LineSegmentComponent
     {
         [State] public string Text { get; set; }
-
-        public override IEnumerable<(string, string)> SerialisableDebugProperties
-        {
-            get
-            {
-                yield return ("Text", Text);
-            }
-        }
-
         
         public override string ToText()
         {

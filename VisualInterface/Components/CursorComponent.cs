@@ -20,14 +20,6 @@ public class CursorComponent : LineSegmentComponent
         EnsureDependency<Renderer>();
     }
 
-    public override IEnumerable<(string, string)> SerialisableDebugProperties
-    {
-        get
-        {
-            yield return ("Position", Position.ToString());
-        }
-    }
-
 }
 
 public struct CursorRenderer : IRenderingBehaviour
