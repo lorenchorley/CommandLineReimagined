@@ -1,9 +1,9 @@
 ﻿using EntityComponentSystem;
 
-namespace UIComponents.Components
+namespace UIComponents.Components;
+
+public class PathInformation : Component
 {
-    public class PathInformation : Component
-    {
-        [State] public string Path { get; set; }
-    }
+    [State]
+    public virtual string Path { get; set; }
 }

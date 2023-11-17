@@ -1,6 +1,6 @@
 ﻿using Rendering.Components;
-using Rendering.Interaction;
 using System.Drawing;
+using UIComponents.Components;
 
 namespace EntityComponentSystem.RayCasting;
 
@@ -17,7 +17,7 @@ public class RayCaster
     // Don't worry about performance
     // Don't worry about performance
     private InteractiveComponent[] GetInteractiveComponents()
-        => _ecs.AccessEntityTree(list => 
+        => _ecs.AccessEntityTree(list =>
                list.SelectMany(x => x.Components)
                    .OfType<InteractiveComponent>()
                    .ToArray()

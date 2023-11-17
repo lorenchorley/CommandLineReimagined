@@ -1,5 +1,4 @@
 ﻿using Rendering.Components;
-using Rendering.Interaction;
 using EntityComponentSystem;
 using System.Drawing;
 
@@ -7,7 +6,8 @@ namespace UIComponents.Components
 {
     public class ButtonComponent : LineSegmentComponent
     {
-        [State] public string Text { get; set; }
+        [State]
+        public virtual string Text { get; set; }
         
         public override string ToText()
         {

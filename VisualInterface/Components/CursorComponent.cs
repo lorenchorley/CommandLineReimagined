@@ -6,9 +6,12 @@ namespace UIComponents.Components;
 
 public class CursorComponent : LineSegmentComponent
 {
-    [State] public int Position { get; set; }
-    [State] public TextComponent TextComponentReference { get; set; }
-    [State] public string Text{ get; set; }
+    [State]
+    public virtual int Position { get; set; }
+    [State]
+    public virtual TextComponent TextComponentReference { get; set; }
+    [State]
+    public virtual string Text{ get; set; }
 
     public override string ToText()
     {

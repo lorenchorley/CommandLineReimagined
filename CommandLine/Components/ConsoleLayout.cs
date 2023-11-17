@@ -18,8 +18,6 @@ public class ConsoleLayout : UILayoutComponent
 
     public UITransform Transform { get; private set; }
 
-    public override IEnumerable<(string, string)> SerialisableDebugProperties => throw new NotImplementedException();
-
     public override void OnInit()
     {
         Transform = EnsureDependency<UITransform>();

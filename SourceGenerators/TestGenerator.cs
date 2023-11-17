@@ -12,7 +12,6 @@ public class TestGenerator : ISourceGenerator
 {
     private string GenerateTemplate(List<IPropertySymbol> properties, string componentTypeName, string ns)
     {
-        var privateBackingFields = IndentLines(GeneratePrivateDifferentialFields(properties), 1);
         return $$"""
             using System.Text;
             using EntityComponentSystem;
@@ -41,13 +40,14 @@ public class TestGenerator : ISourceGenerator
             {
                 public ComponentAccessor Component { get; set; }
 
-                {{privateBackingFields}}
+                {{IndentLines(GeneratePublicModifiedFlagFields(properties), 1)}}
+                {{IndentLines(GeneratePublicFields(properties), 1)}}
 
                 public void ApplyTo(IdentifiableList list)
                 {
                     {{componentTypeName}} component = ({{componentTypeName}})list.Get(Component);
 
-                    {{IndentLines(GenerateDifferentialApplicators(), 2)}}
+                    {{IndentLines(GenerateDifferentialApplicators(properties), 2)}}
                 }
 
                 public void Serialise(System.Text.StringBuilder sb, IdentifiableList list)
@@ -75,44 +75,38 @@ public class TestGenerator : ISourceGenerator
                     sb.Append(" (Entity : ");
                     sb.Append(component.Entity.Name);
                     sb.Append(')');
-                    sb.Append('\n');
+                    sb.Append(Environment.NewLine);
                 }
             }
-
-
                         
             public class {{componentTypeName}}Proxy : {{componentTypeName}}, IComponentProxy
             {
                 public Action<IEvent> RegisterDifferential { get; init; }
 
-                {{privateBackingFields}}
+                {{IndentLines(GeneratePrivateFields(properties), 1)}}
                 {{IndentLines(GeneratePublicDifferentialProperties(componentTypeName, properties), 1)}}
             }
             
             """;
     }
 
-    private string GeneratePrivateDifferentialFields(List<IPropertySymbol> properties)
-        => string.Join("\n", properties.Select(FormatPropertyDefinition));
+    private string GeneratePrivateFields(List<IPropertySymbol> properties)
+        => string.Join(Environment.NewLine, properties.Select(p => $"private {p.OriginalDefinition.Type.ToDisplayString()} _{ToCamelCase(p.OriginalDefinition.Name)};"));
 
-    private static string FormatPropertyDefinition(IPropertySymbol p)
+    private string GeneratePublicFields(List<IPropertySymbol> properties)
+        => string.Join(Environment.NewLine, properties.Select(p => $"public {p.OriginalDefinition.Type.ToDisplayString()} {p.OriginalDefinition.Name};"));
+    
+    private string GeneratePublicModifiedFlagFields(List<IPropertySymbol> properties)
+        => string.Join(Environment.NewLine, properties.Select(p => $"public bool {p.OriginalDefinition.Name}_ModifiedFlag = false;"));
+
+    private static string ToCamelCase(string propertyName)
     {
-        string propertyName = p.OriginalDefinition.Name;
-        string ns = p.OriginalDefinition.Type.FullNamespace();
-        string fullyQualifiedName = p.OriginalDefinition.Type.ToDisplayString();
-
-        string typeName = p.OriginalDefinition.Type.Name.ToString();
-        return $"private {fullyQualifiedName} {ToPrivateCamelCase(propertyName)};";
-    }
-
-    private static string ToPrivateCamelCase(string propertyName)
-    {
-        return "_" + char.ToLowerInvariant(propertyName[0]) + propertyName.Substring(1);
+        return char.ToLowerInvariant(propertyName[0]) + propertyName.Substring(1);
     }
 
     private string GeneratePublicDifferentialProperties(string componentTypeName, List<IPropertySymbol> properties)
-        => properties.Select(p => GeneratePublicDifferentialProperties(componentTypeName, p.propertyName, p.propertyType))
-                     .Join("\n\n");
+        => properties.Select(p => GeneratePublicDifferentialProperties(componentTypeName, p.OriginalDefinition.Name, p.OriginalDefinition.Type.ToDisplayString()))
+                     .Join(Environment.NewLine + Environment.NewLine);
 
     private string GeneratePublicDifferentialProperties(string componentTypeName, string propertyName, string propertyType)
         => $$"""
@@ -120,101 +114,97 @@ public class TestGenerator : ISourceGenerator
             {
                 get
                 {
-                    return {{ToPrivateCamelCase(propertyName)}};
+                    return _{{ToCamelCase(propertyName)}};
                 }
                 set
                 {
-                    {{ToPrivateCamelCase(propertyName)}} = value;
+                    _{{ToCamelCase(propertyName)}} = value;
                     RegisterDifferential(new {{componentTypeName}}Differential()
                     {
                         {{propertyName}} = value,
+                        {{propertyName}}_ModifiedFlag = true,
                         Component = new ComponentAccessor(this)
                     });
                 }
             }
             """;
-            //$$"""
-            //public override string Text
-            //{
-            //    get
-            //    {
-            //        return _text;
-            //    }
-            //    set
-            //    {
-            //        _text = value;
-            //        RegisterDifferential(new TextComponentDifferential()
-            //        {
-            //            Text = value,
-            //            Component = new ComponentAccessor(this)
-            //        });
-            //    }
-            //}
-            //public override bool Highlighted
-            //{
-            //    get
-            //    {
-            //        return _highlighted;
-            //    }
-            //    set
-            //    {
-            //        _highlighted = value;
-            //        RegisterDifferential(new TextComponentDifferential()
-            //        {
-            //            Highlighted = value,
-            //            Component = new ComponentAccessor(this)
-            //        });
-            //    }
-            //}
-            //""";
-    private string GenerateDifferentialApplicators()
+ 
+    private string GenerateDifferentialApplicators(List<IPropertySymbol> properties)
+        => properties.Select(p => GenerateDifferentialApplicator(p.OriginalDefinition.Name))
+                     .Join(Environment.NewLine + Environment.NewLine);
+
+    private string GenerateDifferentialApplicator(string propertyName)
         => $$"""
-            if (Text is not null)
+            if ({{propertyName}}_ModifiedFlag)
             {
-                component.Text = Text;
-            }
-            if (Highlighted is not null)
-            {
-                component.Highlighted = Highlighted.Value;
+                component.{{propertyName}} = {{propertyName}};
             }
             """;
 
-        public void Execute(GeneratorExecutionContext context)
+
+    public void Execute(GeneratorExecutionContext context)
+    {
+        if (!(context.SyntaxContextReceiver is SyntaxReceiver receiver))
+            return;
+
+        foreach (var workItem in receiver.WorkItems)
         {
-            if (!(context.SyntaxContextReceiver is SyntaxReceiver receiver))
-                return;
+            var fileName = workItem.TestClass.FullName() + ".cs";
 
-            foreach (var workItem in receiver.WorkItems)
+            if (workItem.TestClass.IsAbstract)
             {
-                var fileName = workItem.TestClass.FullName() + ".cs";
-
-                if (workItem.TestClass.IsAbstract)
-                {
-                    continue;
-                }
-                List<IPropertySymbol> properties = workItem.TestClass.GetMembers().OfType<IPropertySymbol>().ToList();
-
-                var generatedCode =
-                    GenerateTemplate(
-                        properties,
-                        workItem.TestClass.Name,
-                        workItem.TestClass.FullNamespace());
-
-                context.AddSource(fileName, SourceText.From(generatedCode, Encoding.UTF8));
+                continue;
             }
 
-            context.AddSource("Logs", SourceText.From($@"/*{Environment.NewLine + string.Join(Environment.NewLine, receiver.Log) + Environment.NewLine}*/", Encoding.UTF8));
+            List<IPropertySymbol> properties = 
+                workItem.TestClass
+                        .GetMembers()
+                        .OfType<IPropertySymbol>()
+                        .Where(IsStateProperty)
+                        .ToList();
+
+            foreach (var property in properties)
+            {
+                if (!property.Type.IsVirtual)
+                {
+                    receiver.Log.Add($"Property {property.Name} is not virtual !");
+                }
+            }
+
+            var generatedCode =
+                GenerateTemplate(
+                    properties,
+                    workItem.TestClass.Name,
+                    workItem.TestClass.FullNamespace());
+
+            context.AddSource(fileName, SourceText.From(generatedCode, Encoding.UTF8));
         }
 
-        private string IndentLines(string text, int indentLevel)
-        {
-            string indent = new string('\t', indentLevel);
-            return string.Join("\n" + indent, text.Split('\n'));
-        }
-
-        public void Initialize(GeneratorInitializationContext context)
-        {
-            context.RegisterForSyntaxNotifications(() => new SyntaxReceiver());
-        }
-
+        context.AddSource("Logs", SourceText.From($@"/*{Environment.NewLine + string.Join(Environment.NewLine, receiver.Log) + Environment.NewLine}*/", Encoding.UTF8));
     }
+
+    private static bool IsStateProperty(IPropertySymbol property)
+    {
+        var attributes = property.GetAttributes();
+        foreach (var attribute in attributes)
+        {
+            if (string.Equals(attribute?.AttributeClass?.Name ?? "", "StateAttribute", StringComparison.Ordinal))
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private string IndentLines(string text, int indentLevel)
+    {
+        string indent = new string('\t', indentLevel);
+        return text.Replace(Environment.NewLine, Environment.NewLine + indent);
+    }
+
+    public void Initialize(GeneratorInitializationContext context)
+    {
+        context.RegisterForSyntaxNotifications(() => new SyntaxReceiver());
+    }
+
+}

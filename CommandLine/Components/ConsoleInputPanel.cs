@@ -15,19 +15,6 @@ public class ConsoleInputPanel : UILayoutComponent
     [State] public int SelectionLength { get; set; }
     [State] public bool IsCommandExecutable { get; set; }
 
-    public override IEnumerable<(string, string)> SerialisableDebugProperties
-    {
-        get
-        {
-            foreach (var activeLine in PromptLines)
-            {
-                yield return ("ActiveLine", $"{activeLine?.Id} ({activeLine?.ToText()})");
-            }
-            yield return ("SelectionStart", SelectionStart.ToString());
-            yield return ("SelectionLength", SelectionLength.ToString());
-        }
-    }
-
     public override void OnInit()
     {
         EnsureDependency<Renderer>();

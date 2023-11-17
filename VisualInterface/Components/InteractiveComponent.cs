@@ -2,11 +2,12 @@
 using Rendering.Components;
 using EntityComponentSystem;
 
-namespace Rendering.Interaction
+namespace UIComponents.Components
 {
     public class InteractiveComponent : Component
     {
-        [State] public RectangleF Bounds { get; init; }
+        [State]
+        public virtual RectangleF Bounds { get; set; }
 
         public override void OnInit()
         {

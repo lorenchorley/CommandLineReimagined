@@ -5,7 +5,13 @@ namespace Rendering.Components;
 
 public class UICamera : Component
 {
-    public Vector2 RenderSpaceSize { get; set; }
+    [State]
+    public virtual Vector2 RenderSpaceSize { get; set; }
+    [State]
+    public virtual float LetterHeight { get; private set; }
+    [State]
+    public virtual float LetterWidth { get; private set; }
+
     public Vector2 LetterSize
     {
         get
@@ -18,16 +24,4 @@ public class UICamera : Component
             LetterHeight = value.Y;
         }
     }
-    public float LetterHeight { get; private set; }
-    public float LetterWidth { get; private set; }
-
-    public override IEnumerable<(string, string)> SerialisableDebugProperties
-    {
-        get
-        {
-            yield return ("RenderSpaceSize", RenderSpaceSize.ToString());
-            yield return ("LetterSize", LetterSize.ToString());
-        }
-    }
-
 }

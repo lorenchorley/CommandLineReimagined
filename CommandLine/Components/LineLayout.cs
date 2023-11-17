@@ -10,8 +10,6 @@ namespace UIComponents.Compoents.Console;
 
 public class LineLayout : UILayoutComponent
 {
-    public override IEnumerable<(string, string)> SerialisableDebugProperties => throw new NotImplementedException();
-
     public override void RecalculateChildTransforms()
     {
         throw new NotImplementedException();

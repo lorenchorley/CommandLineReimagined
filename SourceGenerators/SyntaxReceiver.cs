@@ -29,7 +29,7 @@ namespace SourceGenerators
                 {
                     var testClass = (INamedTypeSymbol)context.SemanticModel.GetDeclaredSymbol(context.Node)!;
 
-                    if (testClass?.BaseType?.Name == "Component")
+                    if (IsComponent(testClass))
                     {
                         Log.Add($"Found a class named {testClass.Name}");
                         WorkItems.Add(new WorkItem(testClass));
@@ -42,6 +42,22 @@ namespace SourceGenerators
             }
         }
 
+        private static bool IsComponent(INamedTypeSymbol testClass)
+        {
+            INamedTypeSymbol? baseType = testClass?.BaseType;
+
+            if (baseType is null)
+            {
+                return false;
+            }
+
+            if (string.Equals(baseType.Name, "Component", StringComparison.Ordinal))
+            {
+                return true;
+            }
+            
+            return IsComponent(baseType);
+        }
 
     }
 }
