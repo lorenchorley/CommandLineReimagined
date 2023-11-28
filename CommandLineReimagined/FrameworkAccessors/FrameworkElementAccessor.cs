@@ -1,9 +1,10 @@
-﻿using System.Diagnostics.CodeAnalysis;
+﻿using System;
+using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.Windows;
-using System.Windows.Controls;
 using System.Windows.Threading;
 
-namespace InteractionLogic.FrameworkAccessors;
+namespace Application.FrameworkAccessors;
 
 
 public abstract class FrameworkElementAccessor<TValue> where TValue : FrameworkElement
@@ -71,7 +72,7 @@ public abstract class KeyedFrameworkElementAccessor<TValue> where TValue : Frame
 {
     private Dictionary<string, TValue> Values { get; } = new();
 
-    public bool TryGet(string key, [NotNullWhen(true)] out TValue? value) 
+    public bool TryGet(string key, [NotNullWhen(true)] out TValue? value)
         => Values.TryGetValue(key, out value);
 
     public void AddFrameworkElement(string key, TValue value)

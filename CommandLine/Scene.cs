@@ -1,30 +1,16 @@
-﻿using CommandLine.Modules;
-using Commands;
-using Commands.Parser;
-using Commands.Parser.SemanticTree;
-using UIComponents;
-using UIComponents.Components;
+﻿using Controller;
 using EntityComponentSystem;
-using Microsoft.Extensions.DependencyInjection;
-using OneOf;
 using Rendering.Components;
-using System.Data.Common;
-using System.Runtime.CompilerServices;
-using System.Text.RegularExpressions;
-using Terminal.Naming;
-using Terminal.Search;
+using UIComponents;
 using UIComponents.Compoents.Console;
-using Rendering;
-using Controller;
+using UIComponents.Components;
 
 namespace Terminal
 {
-    public class Scene
+    public class Scene : IECSSystem
     {
         private readonly ECS _ecs;
         private readonly LoopController _loopController;
-
-        public event EventHandler<EventArgs> OnInit;
 
         public Scene(ECS ecs,
                      LoopController loopController)
@@ -34,27 +20,37 @@ namespace Terminal
         }
 
         public UICamera Camera { get; private set; }
-        public ConsoleOutputPanel Output { get; private set; }
-        public ConsoleInputPanel Input { get; private set; }
+        public ConsoleOutputPanel OutputPanel { get; private set; }
+        public ConsoleInputPanel InputPanel { get; private set; }
         public ConsoleLayout Layout { get; private set; }
         public CursorComponent Cursor { get; private set; }
+        public MouseInputHandler MouseInputHandler { get; private set; }
+        public KeyInputHandler KeyInputHandler { get; private set; }
 
-        public void SetupScene()
+        public void OnInit()
         {
             Camera = _ecs.NewEntity("MainCamera").AddComponent<UICamera>();
 
-            Output = _ecs.NewEntity("Output").AddComponent<ConsoleOutputPanel>();
-            Input = _ecs.NewEntity("Input").AddComponent<ConsoleInputPanel>();
+            OutputPanel = _ecs.NewEntity("Output").AddComponent<ConsoleOutputPanel>();
+            InputPanel = _ecs.NewEntity("Input").AddComponent<ConsoleInputPanel>();
 
             Layout = _ecs.NewEntity("Layout").AddComponent<ConsoleLayout>();
-            Output.Entity.Parent = Layout.Entity;
-            Input.Entity.Parent = Layout.Entity;
+            OutputPanel.Entity.Parent = Layout.Entity;
+            InputPanel.Entity.Parent = Layout.Entity;
+
+            MouseInputHandler = _ecs.NewEntity("MouseInputHandler").AddComponent<MouseInputHandler>();
+            KeyInputHandler = _ecs.NewEntity("KeyInputHandler").AddComponent<KeyInputHandler>();
 
             Entity cursorEntity = _ecs.NewEntity("Cursor");
             Cursor = cursorEntity.AddComponent<CursorComponent>();
             //cursorEntity.Parent = Layout.Entity;
 
             _loopController.RequestLoop();
+        }
+
+        public void OnStart()
+        {
+
         }
 
     }

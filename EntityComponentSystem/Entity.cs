@@ -1,9 +1,10 @@
 ﻿using EntityComponentSystem.Attributes;
+using EntityComponentSystem.EventSourcing;
 using Microsoft.Extensions.DependencyInjection;
 using Newtonsoft.Json;
-using System;
 using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
+using System.Runtime.InteropServices;
 
 namespace EntityComponentSystem;
 
@@ -11,6 +12,7 @@ public sealed class Entity : IIdentifiable
 {
     public int Id { get; private init; }
     public readonly string Name;
+    private readonly TreeType _treeType;
 
     [JsonIgnore]
     public ECS ECS { get; init; }
@@ -40,11 +42,12 @@ public sealed class Entity : IIdentifiable
         }
     }
 
-    public Entity(ECS ecs, int id, string name)
+    public Entity(ECS ecs, int id, string name, TreeType treeType)
     {
         ECS = ecs;
         Id = id;
         Name = name;
+        _treeType = treeType;
     }
 
     #region Entity functions
@@ -66,46 +69,102 @@ public sealed class Entity : IIdentifiable
     #endregion
 
     #region Child functions
-    public IEnumerable<Entity> Children => _children;
+    private readonly object _lockChildren = new();
+
+    public Span<Entity> Children
+    {
+        get
+        {
+            lock (_lockChildren)
+            {
+                return CollectionsMarshal.AsSpan(_children);
+            }
+        }
+    }
 
     internal void AddChild(Entity child)
     {
-        _children.Add(child);
+        lock (_lockChildren)
+        {
+            _children.Add(child);
+        }
     }
 
     internal void RemoveChild(Entity child)
     {
-        _children.Remove(child);
+        lock (_lockChildren)
+        {
+            _children.Remove(child);
+        }
     }
     #endregion
 
     #region Component functions
-    public IEnumerable<Component> Components => _components;
+    private readonly object _lockComponents = new();
+
+    public Span<Component> Components
+    {
+        get
+        {
+            lock (_lockComponents)
+            {
+                return CollectionsMarshal.AsSpan(_components);
+            }
+        }
+    }
 
     public Component AddComponent(Type componentType)
     {
-        if (HasComponent(componentType))
+        lock (_lockComponents)
         {
-            throw new InvalidOperationException($"Component of type {componentType.Name} already exists");
+            if (HasComponent(componentType))
+            {
+                throw new InvalidOperationException($"Component of type {componentType.Name} already exists");
+            }
+
+            // Find type in the same assembly as componentType, but with Proxy at the end
+            var creationType = componentType.Assembly.GetType($"{componentType.Namespace}.{componentType.Name}Creation");
+            IComponentCreation? creation = (IComponentCreation)Activator.CreateInstance(creationType);
+            creation.Entity = new(this);
+            creation.Component = new(ECS.NewId);
+
+            ECS.RegisterEvent(creation);
+            ECS.RegisterNewComponent(creation);
+
+            return creation.CreatedComponent;
         }
+    }
 
-        Component? component =
-            ECS.CreateProxyComponent(componentType); // Use proxy class system
+    public Component InternalAddComponent(Type proxyType, ComponentIndex componentIndex, TreeType treeType)
+    {
+        // Otherwise just create a new instance
+        Component component = (Component)(Activator.CreateInstance(proxyType) ?? throw new InvalidOperationException($"Activator.CreateInstance({proxyType.Name})"));
+        IComponentProxy proxy = (IComponentProxy)component;
 
-        if (component == null)
+        var idProp = component.GetType().GetProperty(nameof(component.Id)) ?? throw new NullReferenceException(nameof(component.Id));
+        idProp.SetValue(component, componentIndex.Id);
+
+        var treeTypeProp = component.GetType().GetProperty(nameof(component.TreeType)) ?? throw new NullReferenceException(nameof(component.Id));
+        treeTypeProp.SetValue(component, treeType);
+
+        var registerDifferentialProp = component.GetType().GetProperty(nameof(proxy.RegisterDifferential)) ?? throw new NullReferenceException(nameof(proxy.RegisterDifferential));
+        registerDifferentialProp.SetValue(component, (object)ECS.RegisterEvent);
+        
+        if (treeType == TreeType.Shadow)
         {
-            // Otherwise just create a new instance
-            component = (Component)Activator.CreateInstance(componentType);
-            component.GetType().GetProperty("Id").SetValue(component, ECS.NewId);
+            // Désactivation des differentiels dans le shadow tree
+            var differentialActiveProp = component.GetType().GetProperty(nameof(proxy.DifferentialActive)) ?? throw new NullReferenceException(nameof(proxy.DifferentialActive));
+            differentialActiveProp.SetValue(component, false);
         }
-
-        _components.Add(component);
-        ECS.RegisterNewComponent(component);
-
-        InjectDependencies(componentType, component);
-        SetupStateListeners(componentType);
 
         component.Init(this);
+
+        _components.Add(component);
+
+        InjectDependencies(proxyType, component);
+        SetupStateListeners(proxyType);
+
+        component.OnInit();
 
         return component;
     }
@@ -155,33 +214,33 @@ public sealed class Entity : IIdentifiable
 
     public T? TryGetComponent<T>() where T : Component
     {
-        return _components.OfType<T>().FirstOrDefault();
+        return Components.ToArray().OfType<T>().FirstOrDefault();
     }
 
     public T? TryGetComponentByInterface<T>()
     {
-        return _components.OfType<T>().FirstOrDefault();
+        return Components.ToArray().OfType<T>().FirstOrDefault();
     }
 
     public bool TryGetComponent<T>([NotNullWhen(true)] out T? component) where T : Component
     {
-        component = _components.OfType<T>().FirstOrDefault();
+        component = Components.ToArray().OfType<T>().FirstOrDefault();
         return component != null;
     }
 
     public T GetComponent<T>() where T : Component
     {
-        return _components.OfType<T>().First();
+        return Components.ToArray().OfType<T>().First();
     }
 
     public bool HasComponent(Type componentType)
     {
-        return _components.Where(s => componentType.IsSubclassOf(s.GetType())).Any(); // TODO Verify
+        return Components.ToArray().Where(s => componentType.IsSubclassOf(s.GetType())).Any(); // TODO Verify
     }
-    
+
     public bool HasComponent<T>() where T : Component
     {
-        return _components.OfType<T>().Any();
+        return Components.ToArray().OfType<T>().Any();
     }
 
     public void RemoveComponent<T>() where T : Component
@@ -191,7 +250,7 @@ public sealed class Entity : IIdentifiable
             throw new InvalidOperationException($"Component of type {typeof(T).Name} does not exist");
         }
 
-        _components.Remove(component);
+        RemoveComponent(component);
 
         component.InternalDestroy();
     }
@@ -199,12 +258,12 @@ public sealed class Entity : IIdentifiable
     // Should create event and the event should call an InternalRemoveComponent
     public void RemoveComponent(Component component)
     {
-        if (!_components.Contains(component))
+        if (!Components.ToArray().Contains(component))
         {
             throw new InvalidOperationException($"Component of type {component.GetType().Name} does not exist");
         }
 
-        _components.Remove(component);
+        RemoveComponent(component);
 
         component.InternalDestroy();
     }

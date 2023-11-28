@@ -32,8 +32,10 @@ public class EventSourceSerialiser
         sb.Append(indent);
         sb.Append('<');
         sb.Append(entity.Name);
+        sb.Append("|");
+        sb.Append("Entity");
         sb.Append(" Id=");
-        sb.Append(entity.Id);
+        sb.Append(entity.Id.ToString("000"));
         sb.AppendLine(">");
 
         foreach (var component in entity.Components)
@@ -41,8 +43,15 @@ public class EventSourceSerialiser
             InternalSerialiseComponent(sb, indent + "  ", component);
         }
 
-        foreach (var child in entity.Children)
+        Span<Entity> children = entity.Children;
+        for (int i = 0; i < children.Length; i++)
         {
+            var child = children[i];
+            if (child == null)
+            {
+                continue;
+            }
+
             InternalSerialiseEntityComponentTree(sb, indent + "  ", child);
         }
 
@@ -81,4 +90,5 @@ public class EventSourceSerialiser
 
         sb.AppendLine("/]");
     }
+
 }

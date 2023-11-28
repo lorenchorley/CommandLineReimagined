@@ -1,11 +1,11 @@
 ﻿using EntityComponentSystem;
 using Rendering;
-using System.Security.Cryptography;
+using Rendering.Components;
 
 namespace Controller;
 public class LoopController
 {
-    private readonly object _lock = new object();
+    private readonly object _requestLock = new object();
     private Task? EnqueuedRefreshTask = null;
 
     private readonly ECS _ecs;
@@ -19,24 +19,61 @@ public class LoopController
 
     public void Start()
     {
-
+        RequestLoop();
     }
 
+    // Need to shift the responsibility of the main loop to here
+    // instead of letting input action dictate the thread and the timing of actions.
     private void MainLoop()
     {
-        // Not ideal that this function is here, but it needs to be done sometime after all operations were completed
-        // Might be able to set up a more generalised loop that takes into account the render cycle, the object life cycle, etc
-        _ecs.Update();
+        lock (_requestLock) // Not sure if necessary, also means that other threads can be locked while render loop is running
+        {
+            // Not ideal that this function is here, but it needs to be done sometime after all operations were completed
+            // Might be able to set up a more generalised loop that takes into account the render cycle, the object life cycle, etc
+            _ecs.Update();
 
-        _renderLoop.Update();
+            UpdateLayoutsInActiveTree(); // Should produce a number of UITransformDifferentials
 
-        EnqueuedRefreshTask = null;
+            ECS.ShadowECS shadowECS = _ecs.TriggerMerge();
+
+            _renderLoop.Update(shadowECS);
+
+            EnqueuedRefreshTask = null;
+        }
     }
 
+    private void UpdateLayoutsInActiveTree()
+    {
+        List<UILayoutComponent> layouts =
+            GetLayouts(_ecs.Entities.ToList()).ToList();
+
+        // Première passe pour savoir quels élements devraient y être et où il faut les placer
+        foreach (var layout in layouts)
+        {
+            layout.RecalculateChildTransforms();
+        }
+    }
+
+    private IEnumerable<UILayoutComponent> GetLayouts(IEnumerable<Entity> entites)
+    {
+        // Search for all uilayoutcomponents and recursively return them from the lowest layer first
+        foreach (var entity in entites)
+        {
+            foreach (var layout in GetLayouts(entity.Children.ToArray()))
+            {
+                yield return layout;
+            }
+
+            if (entity.TryGetComponent(out UILayoutComponent? uILayoutComponent))
+            {
+                yield return uILayoutComponent;
+            }
+        }
+    }
 
     public void RequestLoop()
     {
-        lock (_lock)
+        lock (_requestLock)
         {
             //if (!_isActive)
             //{

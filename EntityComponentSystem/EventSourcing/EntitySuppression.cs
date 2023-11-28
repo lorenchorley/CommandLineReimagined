@@ -1,11 +1,12 @@
 ﻿using System.Text;
+using static EntityComponentSystem.ECS;
 
 namespace EntityComponentSystem.EventSourcing;
 
 public class EntitySuppression : IEvent
 {
-    public EntityAccessor Entity { get; set; } 
-    public void ApplyTo(IdentifiableList list)
+    public EntityIndex Entity { get; set; } 
+    public void ApplyTo(IdentifiableList list, TreeType treeType)
     {
         Entity e = list.Get(Entity);
 

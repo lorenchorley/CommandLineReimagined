@@ -1,22 +1,22 @@
-﻿using CommandLineReimagined;
+﻿using Application;
+using Application.EventHandlers;
+using Application.FrameworkAccessors;
+using Application.UpdateHandlers;
 using Controller;
+using InteractionLogic;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Rendering;
 using System;
-using System.Net.Http;
-using Terminal;
 
 public static class ServiceExtensions
 {
     public static void ConfigureServices(HostBuilderContext hostContext, IServiceCollection services)
     {
-        // La fenêtre principale
-        services.AddSingleton<MainWindow>();
-
         services.AddHttpClient();
 
-        services.AddECSServices();
+        services.AddCoreECSServices();
         services.AddCommands();
         services.AddModules();
         services.AddRenderingServices();
@@ -25,6 +25,17 @@ public static class ServiceExtensions
         services.AddInteractionLogicServices();
         services.AddRayCastingServices();
         services.AddControllerServices();
+
+        services.AddSingleton<CanvasAccessor>();
+        services.AddSingleton<InputAccessor>();
+        services.AddSingleton<ContextMenuAccessor>();
+
+        services.AddECSSingleton<MainWindow>();
+        services.AddECSSingleton<ICanvasUpdateSystem, CanvasUpdateHandler>();
+        services.AddECSSingleton<CanvasInteractionEventHandler>();
+        services.AddECSSingleton<CanvasRenderingEventHandler>();
+        services.AddECSSingleton<TextInputHandler>();
+        services.AddECSSingleton<ITextUpdateSystem, TextInputUpdateHandler>();
     }
 
     public static void AddConfiguration(HostBuilderContext hostContext, IConfigurationBuilder configuration)
@@ -47,23 +58,27 @@ public static class ServiceExtensions
 
     public static IServiceProvider Initialise(this IServiceProvider serviceProvider)
     {
-        
-        // Request and initialise the shell
-        // Aspect : scene setup and initialisation
-        serviceProvider
-            .GetRequiredService<Shell>()
-            .Init();
-        // Request and open the main window
-        // Aspect : window and rendering
-        serviceProvider
-            .GetRequiredService<MainWindow>()
-            .Show();
+        serviceProvider.InitialiseECSSystems();
+
+        //// Request and initialise the shell
+        //// Aspect : scene setup and initialisation
+        //serviceProvider
+        //    .InitialiseTerminal();
+
+        //// Request and open the main window
+        //// Aspect : window and rendering
+        //serviceProvider
+        //    .GetRequiredService<MainWindow>()
+        //    .Show();
 
         return serviceProvider;
     }
 
     public static IServiceProvider Start(this IServiceProvider serviceProvider)
     {
+        serviceProvider.StartECSSystems();
+
+        // The LoopController is a special object in the system that must be managed that so that it starts only once all other objects are fully initialised
         serviceProvider
             .GetRequiredService<LoopController>()
             .Start();

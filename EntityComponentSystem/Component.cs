@@ -7,6 +7,7 @@ namespace EntityComponentSystem
     public abstract class Component : IIdentifiable
     {
         public int Id { get; init; }
+        public TreeType TreeType { get; init; }
         public bool IsDestoried { get; private set; } = false;
 
         private Entity? _entity;
@@ -61,8 +62,6 @@ namespace EntityComponentSystem
         internal void Init(Entity entity)
         {
             Entity = entity;
-
-            OnInit(); // NEeds to be offset from the constructor to allow for dependencies to be set
         }
 
         internal void InternalDestroy()

@@ -9,9 +9,9 @@ namespace UIComponents;
 
 public class ConsoleLayout : UILayoutComponent
 {
-    public UICamera Camera { get; private set; }
-    public ConsoleInputPanel Input { get; private set; }
-    public ConsoleOutputPanel Output { get; private set; }
+    public virtual UICamera Camera { get; set; }
+    public virtual ConsoleInputPanel Input { get; set; }
+    public virtual ConsoleOutputPanel Output { get; set; }
 
     [Inject]
     public ECS ECS { get; init; }
@@ -49,8 +49,9 @@ public class ConsoleLayout : UILayoutComponent
     public override void RecalculateChildTransforms()
     {
         List<LineComponent> lines =
-            Input.Entity
+            Input.Entity // NullRef : parce qu'on est sur un objet shadow qui n'a pas des valeurs de propriétés ! Comment faire pour les UILayout dans ce cas ?
                  .Children
+                 .ToArray()
                  .Select(c => c.GetComponent<LineComponent>())
                  .ToList();
 

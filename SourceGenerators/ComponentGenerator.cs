@@ -8,7 +8,7 @@ using System.Text;
 namespace SourceGenerators;
 
 [Generator]
-public class TestGenerator : ISourceGenerator
+public class ComponentGenerator : ISourceGenerator
 {
     private string GenerateTemplate(List<IPropertySymbol> properties, string componentTypeName, string ns)
     {
@@ -21,46 +21,67 @@ public class TestGenerator : ISourceGenerator
 
             public class {{componentTypeName}}Creation : IComponentCreation
             {
-                public EntityAccessor Entity { get; set; }
+                public EntityIndex Entity { get; set; } // Parent entity
+                public ComponentIndex Component { get; set; } // Component to create
+                public Component CreatedComponent { get; set; }
 
-                public void ApplyTo(IdentifiableList list)
+                public void ApplyTo(IdentifiableList list, TreeType treeType)
                 {
                     Entity e = list.Get(Entity);
 
-                    e.AddComponent(typeof({{componentTypeName}}));
+                    CreatedComponent = e.InternalAddComponent(typeof({{componentTypeName}}Proxy), Component, treeType);
+                    list.Set(CreatedComponent);
                 }
 
                 public void Serialise(System.Text.StringBuilder sb, IdentifiableList list)
                 {
-                    throw new NotImplementedException();
+                    var component = list.Get(Component);
+
+                    sb.Append(nameof({{componentTypeName}}Creation));
+                    sb.Append(" (Entity : ");
+                    sb.Append(component.Entity.Name);
+                    sb.Append(')');
+                    sb.Append(Environment.NewLine);
                 }
             }
 
             public class {{componentTypeName}}Differential : IComponentDifferential
             {
-                public ComponentAccessor Component { get; set; }
+                public ComponentIndex Component { get; set; }
 
                 {{IndentLines(GeneratePublicModifiedFlagFields(properties), 1)}}
                 {{IndentLines(GeneratePublicFields(properties), 1)}}
 
-                public void ApplyTo(IdentifiableList list)
+                public void ApplyTo(IdentifiableList list, TreeType treeType)
                 {
                     {{componentTypeName}} component = ({{componentTypeName}})list.Get(Component);
+                    var proxy = (IComponentProxy)component;
+                    
+                    proxy.DifferentialActive = false;
 
                     {{IndentLines(GenerateDifferentialApplicators(properties), 2)}}
+
+                    if (treeType == TreeType.Active)
+                        proxy.DifferentialActive = true;
                 }
 
                 public void Serialise(System.Text.StringBuilder sb, IdentifiableList list)
                 {
-                    throw new NotImplementedException();
+                    var component = list.Get(Component);
+
+                    sb.Append(nameof({{componentTypeName}}Differential));
+                    sb.Append(" (Entity : ");
+                    sb.Append(component.Entity.Name);
+                    sb.Append(')');
+                    sb.Append(Environment.NewLine);
                 }
             }
 
             public class {{componentTypeName}}Suppression : IComponentSuppression
             {
-                public ComponentAccessor Component { get; set; }
+                public ComponentIndex Component { get; set; }
 
-                public void ApplyTo(IdentifiableList list)
+                public void ApplyTo(IdentifiableList list, TreeType treeType)
                 {
                     Component component = list.Get(Component);
                     component.Destroy();
@@ -81,7 +102,25 @@ public class TestGenerator : ISourceGenerator
                         
             public class {{componentTypeName}}Proxy : {{componentTypeName}}, IComponentProxy
             {
+                public bool DifferentialActive { get; set; } = true;
                 public Action<IEvent> RegisterDifferential { get; init; }
+
+                public IComponentCreation GenerateCreationEvent()
+                {
+                    return new {{componentTypeName}}Creation()
+                    {
+                        Entity = new EntityIndex(Entity),
+                        Component = new ComponentIndex(this)
+                    };
+                }
+
+                public IComponentSuppression GenerateSuppressionEvent()
+                {
+                    return new {{componentTypeName}}Suppression()
+                    {
+                        Component = new ComponentIndex(this)
+                    };
+                }
 
                 {{IndentLines(GeneratePrivateFields(properties), 1)}}
                 {{IndentLines(GeneratePublicDifferentialProperties(componentTypeName, properties), 1)}}
@@ -119,12 +158,15 @@ public class TestGenerator : ISourceGenerator
                 set
                 {
                     _{{ToCamelCase(propertyName)}} = value;
-                    RegisterDifferential(new {{componentTypeName}}Differential()
+                    if (DifferentialActive) 
                     {
-                        {{propertyName}} = value,
-                        {{propertyName}}_ModifiedFlag = true,
-                        Component = new ComponentAccessor(this)
-                    });
+                        RegisterDifferential(new {{componentTypeName}}Differential()
+                        {
+                            {{propertyName}} = value,
+                            {{propertyName}}_ModifiedFlag = true,
+                            Component = new ComponentIndex(this)
+                        });
+                    }
                 }
             }
             """;

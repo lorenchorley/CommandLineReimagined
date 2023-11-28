@@ -5,7 +5,12 @@ namespace UIComponents.Components
     public class LineComponent : Component
     {
         [State]
-        public virtual List<LineSegmentComponent> LineSegments { get; set; } = new();
+        public virtual List<LineSegmentComponent> LineSegments { get; set; }
+
+        public override void OnInit()
+        {
+            LineSegments = new();
+        }
 
         public void AddLineSegment<T>(T segment) where T : LineSegmentComponent
         {

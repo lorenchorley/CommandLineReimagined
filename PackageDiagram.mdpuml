@@ -1,0 +1,46 @@
+@startuml
+skinparam BackgroundColor transparent
+skinparam componentStyle rectangle
+
+Package "CommandLine" {
+  [Terminal]
+  [Commands]
+}
+
+Package "Visual" {
+  [UIComponents]
+  [RayCasting]
+  [InteractionLogic]
+}
+
+Package "Core" {
+  [Rendering]
+  [Controller]
+}
+
+[Application] --> [CommandLine]
+[Application] --> [ECS]
+[Application] --> [Visual]
+
+[InteractionLogic] --> [RayCasting]
+[InteractionLogic] --> [UIComponents]
+[InteractionLogic] --> [Core]
+
+[CommandLine] --> [ECS]
+[Core] --> [ECS]
+[Visual] --> [ECS]
+
+[Commands] --> [Terminal]
+[Commands] --> [UIComponents]
+
+[RayCasting] --> [UIComponents]
+
+[Controller] --> [Rendering]
+
+[Terminal] --> [UIComponents]
+[Terminal] --> [InteractionLogic]
+  
+[UIComponents] --> [Rendering]
+[UIComponents] --> [Utils]
+
+@enduml

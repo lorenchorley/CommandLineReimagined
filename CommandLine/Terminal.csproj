@@ -1,7 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net8.0</TargetFramework>
+    <TargetFramework>net7.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
   </PropertyGroup>
@@ -31,7 +31,10 @@
   <ItemGroup>
     <ProjectReference Include="..\Controller\Controller.csproj" />
     <ProjectReference Include="..\EntityComponentSystem\EntityComponentSystem.csproj" />
+    <ProjectReference Include="..\InteractionLogic\Interaction.csproj" />
+    <ProjectReference Include="..\RayCasting\RayCasting.csproj" />
     <ProjectReference Include="..\VisualInterface\UIComponents.csproj" />
+	  <ProjectReference Include="..\SourceGenerators\SourceGenerators.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="true" />
   </ItemGroup>
 
   <ItemGroup>

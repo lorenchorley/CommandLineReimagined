@@ -18,7 +18,7 @@ public class RayCaster
     // Don't worry about performance
     private InteractiveComponent[] GetInteractiveComponents()
         => _ecs.AccessEntityTree(list =>
-               list.SelectMany(x => x.Components)
+               list.SelectMany(x => x.Components.ToArray())
                    .OfType<InteractiveComponent>()
                    .ToArray()
             );

@@ -7,8 +7,8 @@ public static class RenderingServiceExtensions
 {
     public static void AddRenderingServices(this IServiceCollection services)
     {
-        services.AddSingleton<RenderLoop>();
-        services.AddSingleton<ComponentRenderPipeline>();
+        services.AddECSSingleton<RenderLoop>();
+        services.AddECSSingleton<ComponentRenderPipeline>();
     }
 
     public static void ExtractConfigurations(this IServiceCollection services, IConfiguration configuration)
@@ -18,9 +18,8 @@ public static class RenderingServiceExtensions
 
     public static void InitialiseRenderingServices(this IServiceProvider serviceProvider)
     {
-        //var pipeline = serviceProvider.GetRequiredService<ComponentRenderPipeline>();
-        //var renderLoop = serviceProvider.GetRequiredService<RenderLoop>();
-
-        //renderLoop.SetDrawAction(pipeline.Draw);
+        var canvasUpdateHandler = serviceProvider.GetRequiredService<ICanvasUpdateSystem>();
+        var renderLoop = serviceProvider.GetRequiredService<RenderLoop>();
+        renderLoop.SetRenderToScreenAction(canvasUpdateHandler.UpdateVisual);
     }
 }

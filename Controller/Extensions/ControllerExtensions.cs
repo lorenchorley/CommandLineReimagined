@@ -5,7 +5,7 @@ public static class ControllerServiceExtensions
 {
     public static void AddControllerServices(this IServiceCollection services)
     {
-        services.AddSingleton<LoopController>();
+        services.AddECSSingleton<LoopController>();
     }
 
     public static void InitialiseControllerServices(this IServiceProvider serviceProvider)

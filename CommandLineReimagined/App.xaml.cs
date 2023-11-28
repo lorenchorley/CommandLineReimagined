@@ -1,12 +1,10 @@
-﻿using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
+﻿using Microsoft.Extensions.Hosting;
 using System.Windows;
-using Terminal;
 using static ServiceExtensions;
 
-namespace CommandLineReimagined;
+namespace Application;
 
-public partial class App : Application
+public partial class App : System.Windows.Application
 {
     public App()
     {

@@ -6,7 +6,7 @@ namespace UIComponents.Compoents.Console;
 
 public class ConsoleOutputPanel : UILayoutComponent
 {
-    [State] public List<LineComponent> Lines { get; private set; } = new();
+    [State] public virtual List<LineComponent> Lines { get; set; } = new();
 
     public override void OnInit()
     {
@@ -15,6 +15,5 @@ public class ConsoleOutputPanel : UILayoutComponent
 
     public override void RecalculateChildTransforms()
     {
-        throw new NotImplementedException();
     }
 }

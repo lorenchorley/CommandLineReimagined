@@ -1,17 +1,31 @@
-﻿using System.Drawing;
+﻿using Application.FrameworkAccessors;
+using EntityComponentSystem;
+using Rendering;
+using System;
+using System.Drawing;
+using System.Reflection;
 using System.Windows.Controls;
 using System.Windows.Media.Imaging;
-using InteractionLogic.FrameworkAccessors;
 
-namespace InteractionLogic;
+namespace Application.UpdateHandlers;
 
-public class CanvasUpdateHandler
+public class CanvasUpdateHandler : ICanvasUpdateSystem, IECSSystem
 {
     private readonly CanvasAccessor _canvasAccessor;
+    private readonly ContextMenuAccessor _contextMenuAccessor;
 
-    public CanvasUpdateHandler(CanvasAccessor canvasAccessor)
+    public CanvasUpdateHandler(CanvasAccessor canvasAccessor, ContextMenuAccessor contextMenuAccessor)
     {
         _canvasAccessor = canvasAccessor;
+        _contextMenuAccessor = contextMenuAccessor;
+    }
+
+    public void OnInit()
+    {
+    }
+
+    public void OnStart()
+    {
     }
 
     public void UpdateVisual(Bitmap bmp, Action markAsRenderedToScreen)
@@ -42,4 +56,22 @@ public class CanvasUpdateHandler
             return bitmapImage;
         }
     }
+
+    public void OpenContextMenu(string contextMenuName)
+    {
+        if (!_contextMenuAccessor.TryGet(contextMenuName, out ContextMenu? navigationContextMenu))
+        {
+            throw new Exception();
+        }
+
+        if (navigationContextMenu != null)
+        {
+            // Ouvrir le menu contextuel
+            navigationContextMenu.PlacementTarget = _canvasAccessor.Canvas;
+            navigationContextMenu.IsOpen = true;
+
+
+        }
+    }
+
 }

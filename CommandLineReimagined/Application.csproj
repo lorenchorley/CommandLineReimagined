@@ -9,7 +9,7 @@
 
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
-    <TargetFramework>net8.0-windows</TargetFramework>
+    <TargetFramework>net7.0-windows</TargetFramework>
     <Nullable>enable</Nullable>
     <UseWPF>true</UseWPF>
   </PropertyGroup>
@@ -53,9 +53,10 @@
     <ProjectReference Include="..\Commands\Commands.csproj" />
     <ProjectReference Include="..\Controller\Controller.csproj" />
     <ProjectReference Include="..\EntityComponentSystem\EntityComponentSystem.csproj" />
-    <ProjectReference Include="..\InteractionLogic\InteractionLogic.csproj" />
+    <ProjectReference Include="..\InteractionLogic\Interaction.csproj" />
     <ProjectReference Include="..\RayCasting\RayCasting.csproj" />
     <ProjectReference Include="..\Rendering\Rendering.csproj" />
+    <ProjectReference Include="..\VisualInterface\UIComponents.csproj" />
   </ItemGroup>
 
 </Project>

@@ -43,11 +43,9 @@ public class ComponentRenderPipeline
     /// <param name="gfx"></param>
     /// <param name="canvasWidth"></param>
     /// <param name="canvasHeight"></param>
-    public void Draw(Graphics gfx, float canvasWidth, float canvasHeight)
+    public void Draw(Graphics gfx, float canvasWidth, float canvasHeight, ECS.ShadowECS shadowECS)
     {
         _ecs.RegisterEvent(new RenderEvent());
-
-        ECS.ShadowECS shadowECS = _ecs.TriggerMerge();
 
         Camera ??= shadowECS.Components.OfType<UICamera>().FirstOrDefault();
 
@@ -69,14 +67,14 @@ public class ComponentRenderPipeline
         // TODO Adjuster l'input pour predre en compte la quantité de lignes produites avant de faire la positionnement de l'output
 
 
-        List<UILayoutComponent> layouts =
-            GetLayouts(shadowECS.Entities.ToList()).ToList();
+        //List<UILayoutComponent> layouts =
+        //    GetLayouts(shadowECS.Entities.ToList()).ToList();
 
-        // Première passe pour savoir quels élements devraient y être et où il faut les placer
-        foreach (var layout in layouts)
-        {
-            layout.RecalculateChildTransforms();
-        }
+        //// Première passe pour savoir quels élements devraient y être et où il faut les placer
+        //foreach (var layout in layouts)
+        //{
+        //    layout.RecalculateChildTransforms();
+        //}
 
         // Profil de tous les éléments à dessiner
         List<Renderer> componentsToRender =
@@ -95,7 +93,7 @@ public class ComponentRenderPipeline
         // Search for all uilayoutcomponents and recursively return them from the lowest layer first
         foreach (var entity in entites)
         {
-            foreach (var layout in GetLayouts(entity.Children))
+            foreach (var layout in GetLayouts(entity.Children.ToArray()))
             {
                 yield return layout;
             }
