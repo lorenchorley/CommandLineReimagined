@@ -2,6 +2,9 @@
 using Microsoft.Extensions.Options;
 using System.Drawing;
 using System.Timers;
+using EntityComponentSystem;
+using EntityComponentSystem.Serialisation;
+using InteractionLogic;
 
 namespace Rendering;
 
@@ -9,20 +12,24 @@ public class RenderLoop
 {
     private readonly object _lock = new object();
     private readonly ComponentRenderPipeline _componentRenderPipeline;
+    private readonly ICanvasEventEmitter _canvasEventEmitter;
     private BitmapBuffer _buffer;
     //private Action<Graphics, float, float> _draw;
     //private System.Timers.Timer _timer;
     private Action<Bitmap, Action> _renderToScreen;
     //private bool _isActive = false;
     //private bool _isCurrentlyRefreshing = false;
-    private Task? EnqueuedRefreshTask = null;
+    //private Task? EnqueuedRefreshTask = null;
 
-    public RenderLoop(IOptions<RenderingOptions> options, ComponentRenderPipeline componentRenderPipeline)
+    public RenderLoop(IOptions<RenderingOptions> options, ComponentRenderPipeline componentRenderPipeline, ICanvasEventEmitter canvasEventEmitter)
     {
         _componentRenderPipeline = componentRenderPipeline;
+        _canvasEventEmitter = canvasEventEmitter;
         //_timer = new();
         //_timer.Interval = 1000 / options.Value.FrameRate;
         //_timer.Elapsed += TimerElapsed;
+
+        _canvasEventEmitter.RegisterSizeUpdateHandler(SetCanvasSize);
     }
 
     //public void SetActive(bool isActive)
@@ -39,39 +46,40 @@ public class RenderLoop
     //    }
     //}
 
-    public void RefreshOnce()
-    {
-        lock (_lock)
-        {
-            //if (!_isActive)
-            //{
-            //    return;
-            //}
+    //public void RefreshOnce()
+    //{
+    //    lock (_lock)
+    //    {
+    //        //if (!_isActive)
+    //        //{
+    //        //    return;
+    //        //}
 
-            if (EnqueuedRefreshTask is not null)
-            {
-                return;
-            }
+    //        if (EnqueuedRefreshTask is not null)
+    //        {
+    //            return;
+    //        }
 
-            // Enqueue si pas déjà demandé
-            EnqueuedRefreshTask = Task.Delay(15).ContinueWith(_ => Refresh());
-        }
-    }
+    //        // Enqueue si pas déjà demandé
+    //        EnqueuedRefreshTask = Task.Delay(15).ContinueWith(_ => Refresh());
+    //    }
+    //}
 
     //private void TimerElapsed(object? sender, ElapsedEventArgs e) => Refresh();
-    private void Refresh()
+        
+    public void Update(ECS.ShadowECS shadowECS)
     {
-        lock (_lock)
+        lock (_lock) // TODO remove
         {
-            if (_buffer.IsIdle)
+            if (_buffer != null && _buffer.IsIdle)
             {
                 _buffer.MarkAsDrawing();
-                _componentRenderPipeline.Draw(_buffer.Gfx, _buffer.Width, _buffer.Height);
+                _componentRenderPipeline.Draw(_buffer.Gfx, _buffer.Width, _buffer.Height, shadowECS);
                 _buffer.MarkAsRendering();
                 _renderToScreen(_buffer.ExtractFinishedFrame(), _buffer.MarkAsIdle);
             }
 
-            EnqueuedRefreshTask = null;
+            //EnqueuedRefreshTask = null;
         }
     }
 

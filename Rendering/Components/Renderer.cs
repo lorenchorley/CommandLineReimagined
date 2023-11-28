@@ -5,9 +5,12 @@ namespace Rendering.Components;
 
 public class Renderer : Component, IComparable<Renderer>
 {
-    public RectangleF CanvasRenderPosition { get; set; }
-    public bool IsVisible { get; set; } = false;
-    public int ZIndex { get; set; } = 0;
+    [State]
+    public virtual RectangleF CanvasRenderPosition { get; set; }
+    [State]
+    public virtual bool IsVisible { get; set; } = false;
+    [State]
+    public virtual int ZIndex { get; set; } = 0;
     public IRenderingBehaviour? RenderingBehaviour { get; set; }
 
     public int CompareTo(Renderer? other)
@@ -27,15 +30,6 @@ public class Renderer : Component, IComparable<Renderer>
 
     public override void OnDestroy()
     {
-    }
-
-    public override IEnumerable<(string, string)> SerialisableDebugProperties
-    {
-        get
-        {
-            yield return ("CanvasRenderPosition", CanvasRenderPosition.ToString());
-            yield return ("IsVisible", IsVisible.ToString());
-        }
     }
 
     public IPositioningBehaviour? Positioner { get; set; }

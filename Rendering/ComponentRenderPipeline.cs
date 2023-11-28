@@ -1,5 +1,6 @@
 ﻿using EntityComponentSystem;
 using Rendering.Components;
+using Rendering.Events;
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Numerics;
@@ -42,9 +43,11 @@ public class ComponentRenderPipeline
     /// <param name="gfx"></param>
     /// <param name="canvasWidth"></param>
     /// <param name="canvasHeight"></param>
-    public void Draw(Graphics gfx, float canvasWidth, float canvasHeight)
+    public void Draw(Graphics gfx, float canvasWidth, float canvasHeight, ECS.ShadowECS shadowECS)
     {
-        Camera ??= _ecs.AccessEntities(list => list.OfType<UICamera>().FirstOrDefault());
+        _ecs.RegisterEvent(new RenderEvent());
+
+        Camera ??= shadowECS.Components.OfType<UICamera>().FirstOrDefault();
 
         if (Camera == null)
         {
@@ -64,22 +67,20 @@ public class ComponentRenderPipeline
         // TODO Adjuster l'input pour predre en compte la quantité de lignes produites avant de faire la positionnement de l'output
 
 
-        List<UILayoutComponent> layouts =
-            _ecs.AccessEntities(list => GetLayouts(list).ToList());
+        //List<UILayoutComponent> layouts =
+        //    GetLayouts(shadowECS.Entities.ToList()).ToList();
 
-        // Première passe pour savoir quels élements devraient y être et où il faut les placer
-        foreach (var layout in layouts)
-        {
-            layout.RecalculateChildTransforms();
-        }
+        //// Première passe pour savoir quels élements devraient y être et où il faut les placer
+        //foreach (var layout in layouts)
+        //{
+        //    layout.RecalculateChildTransforms();
+        //}
 
         // Profil de tous les éléments à dessiner
         List<Renderer> componentsToRender =
-            _ecs.AccessEntities(list =>
-                list.OfType<Entity>()
-                    .Choose(e => e.TryGetComponent<Renderer>())
-                    .ToList()
-            );
+            shadowECS.Components
+                     .OfType<Renderer>()
+                     .ToList();
 
         componentsToRender.ForEach(r => r.IsVisible = false); // TODO Garder la dernière liste pour ne pas tout reparcourir à chaque fois
 
@@ -92,7 +93,7 @@ public class ComponentRenderPipeline
         // Search for all uilayoutcomponents and recursively return them from the lowest layer first
         foreach (var entity in entites)
         {
-            foreach (var layout in GetLayouts(entity.Children))
+            foreach (var layout in GetLayouts(entity.Children.ToArray()))
             {
                 yield return layout;
             }

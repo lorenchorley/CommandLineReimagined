@@ -46,6 +46,6 @@ public static class ComponentExtensions
 
     public static T TryAddComponent<T>(this Component component) where T : Component, new()
     {
-        return component.Entity.TryAddComponent<T>();
+        return component.Entity.GetOrAddComponent<T>();
     }
 }

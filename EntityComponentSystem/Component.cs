@@ -1,11 +1,13 @@
 ﻿using EntityComponentSystem.Serialisation;
 using Newtonsoft.Json;
+using System.Text;
 
 namespace EntityComponentSystem
 {
-    public abstract class Component
+    public abstract class Component : IIdentifiable
     {
         public int Id { get; init; }
+        public TreeType TreeType { get; init; }
         public bool IsDestoried { get; private set; } = false;
 
         private Entity? _entity;
@@ -48,21 +50,18 @@ namespace EntityComponentSystem
         [NonSerialisableState]
         public ECS ECS => Entity.ECS;
 
-        public abstract IEnumerable<(string, string)> SerialisableDebugProperties { get; }
-
         protected TDependency EnsureDependency<TDependency>() where TDependency : Component, new()
         {
-            return Entity.TryAddComponent<TDependency>();
+            return Entity.GetOrAddComponent<TDependency>();
         }
 
         public virtual void OnInit() { }
+        public virtual void OnStart() { }
         public virtual void OnDestroy() { }
 
         internal void Init(Entity entity)
         {
             Entity = entity;
-
-            OnInit(); // NEeds to be offset from the constructor to allow for dependencies to be set
         }
 
         internal void InternalDestroy()
@@ -71,9 +70,9 @@ namespace EntityComponentSystem
             OnDestroy();
         }
 
-        public void Destroy() 
+        public void Destroy()
         {
-            Entity.RemoveComponent(this);
+            Entity.RemoveComponent(this); 
         }
     }
 }

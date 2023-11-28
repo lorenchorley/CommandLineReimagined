@@ -1,6 +1,6 @@
 ﻿using Rendering.Components;
-using Rendering.Interaction;
 using System.Drawing;
+using UIComponents.Components;
 
 namespace EntityComponentSystem.RayCasting;
 
@@ -17,14 +17,16 @@ public class RayCaster
     // Don't worry about performance
     // Don't worry about performance
     private InteractiveComponent[] GetInteractiveComponents()
-        => _ecs.AccessEntities(list => 
-               list.SelectMany(x => x.Components)
+        => _ecs.AccessEntityTree(list =>
+               list.SelectMany(x => x.Components.ToArray())
                    .OfType<InteractiveComponent>()
                    .ToArray()
             );
 
     public CastResult CastRay(Point targetPoint, InteractableElementLayer layer)
     {
+        // TODO transform the point from screen space to ui space
+
         var entity =
             GetInteractiveComponents()
                 .Select(h => h.Entity.GetComponent<Renderer>())

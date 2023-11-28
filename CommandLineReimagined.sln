@@ -6,6 +6,7 @@ MinimumVisualStudioVersion = 10.0.40219.1
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{5A1C2714-6A0D-4A87-8E70-7004E57971B4}"
 	ProjectSection(SolutionItems) = preProject
 		.editorconfig = .editorconfig
+		PackageDiagram.mdpuml = PackageDiagram.mdpuml
 		README.md = README.md
 	EndProjectSection
 EndProject
@@ -25,7 +26,7 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Utils", "Utils\Utils.csproj
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "RayCasting", "RayCasting\RayCasting.csproj", "{7CB7B361-E3DF-46DC-A227-FF3BFC060EDD}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "InteractionLogic", "InteractionLogic\InteractionLogic.csproj", "{F233B193-4518-4DBA-AD7C-8739CDF8090C}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Interaction", "InteractionLogic\Interaction.csproj", "{F233B193-4518-4DBA-AD7C-8739CDF8090C}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "App", "App", "{B3676750-0B13-4856-9F94-103052288461}"
 EndProject
@@ -38,6 +39,16 @@ EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Terminal.Tests", "Terminal.Tests\Terminal.Tests.csproj", "{0D669BA9-DDD5-4517-80D5-928F19C65328}"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Utils.Tests", "Utils.Tests\Utils.Tests.csproj", "{BB52CBE1-34AF-45E7-BE8D-3F9566E300B8}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Coordination", "Coordination", "{1E8768B0-12CE-4B33-B38A-1532C04D6B44}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Controller", "Controller\Controller.csproj", "{64231F59-0116-4C2D-BCEE-897B0580FD3B}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "SourceGenerators", "SourceGenerators\SourceGenerators.csproj", "{B5261020-69B6-4907-B012-E303A9DD19D2}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "SourceGenerators.Tests", "SourceGenerators.Tests\SourceGenerators.Tests.csproj", "{BD82F332-3DE9-4CF1-9A3B-AAC0161C276E}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "EntityComponentSystem.Tests", "EntityComponentSystem.Tests\EntityComponentSystem.Tests.csproj", "{C05A58BD-E316-4318-B9AC-FF2DAC0366B1}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -89,6 +100,22 @@ Global
 		{BB52CBE1-34AF-45E7-BE8D-3F9566E300B8}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{BB52CBE1-34AF-45E7-BE8D-3F9566E300B8}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{BB52CBE1-34AF-45E7-BE8D-3F9566E300B8}.Release|Any CPU.Build.0 = Release|Any CPU
+		{64231F59-0116-4C2D-BCEE-897B0580FD3B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{64231F59-0116-4C2D-BCEE-897B0580FD3B}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{64231F59-0116-4C2D-BCEE-897B0580FD3B}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{64231F59-0116-4C2D-BCEE-897B0580FD3B}.Release|Any CPU.Build.0 = Release|Any CPU
+		{B5261020-69B6-4907-B012-E303A9DD19D2}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B5261020-69B6-4907-B012-E303A9DD19D2}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B5261020-69B6-4907-B012-E303A9DD19D2}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B5261020-69B6-4907-B012-E303A9DD19D2}.Release|Any CPU.Build.0 = Release|Any CPU
+		{BD82F332-3DE9-4CF1-9A3B-AAC0161C276E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{BD82F332-3DE9-4CF1-9A3B-AAC0161C276E}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{BD82F332-3DE9-4CF1-9A3B-AAC0161C276E}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{BD82F332-3DE9-4CF1-9A3B-AAC0161C276E}.Release|Any CPU.Build.0 = Release|Any CPU
+		{C05A58BD-E316-4318-B9AC-FF2DAC0366B1}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C05A58BD-E316-4318-B9AC-FF2DAC0366B1}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C05A58BD-E316-4318-B9AC-FF2DAC0366B1}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C05A58BD-E316-4318-B9AC-FF2DAC0366B1}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -105,6 +132,10 @@ Global
 		{F233B193-4518-4DBA-AD7C-8739CDF8090C} = {B3676750-0B13-4856-9F94-103052288461}
 		{0D669BA9-DDD5-4517-80D5-928F19C65328} = {F6AAD374-695B-4CCD-A41F-F3CA0C772FB0}
 		{BB52CBE1-34AF-45E7-BE8D-3F9566E300B8} = {72877AF3-F1F2-4B12-B1BC-45D0B480947E}
+		{64231F59-0116-4C2D-BCEE-897B0580FD3B} = {1E8768B0-12CE-4B33-B38A-1532C04D6B44}
+		{B5261020-69B6-4907-B012-E303A9DD19D2} = {72877AF3-F1F2-4B12-B1BC-45D0B480947E}
+		{BD82F332-3DE9-4CF1-9A3B-AAC0161C276E} = {72877AF3-F1F2-4B12-B1BC-45D0B480947E}
+		{C05A58BD-E316-4318-B9AC-FF2DAC0366B1} = {72877AF3-F1F2-4B12-B1BC-45D0B480947E}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {056E4B17-91F5-4EEC-9FFD-358352086A05}

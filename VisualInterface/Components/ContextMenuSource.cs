@@ -1,22 +1,14 @@
-﻿using Rendering.Interaction;
-using EntityComponentSystem;
+﻿using EntityComponentSystem;
 
 namespace UIComponents.Components
 {
     public class ContextMenuSource : Component
     {
-        [State] public string ContextMenuName { get; set; }
-
-        public override IEnumerable<(string, string)> SerialisableDebugProperties
-        {
-            get
-            {
-                yield return ("ContextMenuName", ContextMenuName.ToString());
-            }
-        }
+        [State]
+        public virtual string ContextMenuName { get; set; }
 
         public override void OnInit()
-        { 
+        {
             EnsureDependency<InteractiveComponent>();
         }
     }

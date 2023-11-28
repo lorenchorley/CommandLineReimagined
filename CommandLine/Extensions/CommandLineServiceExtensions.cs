@@ -11,19 +11,21 @@ public static class CommandLineServiceExtensions
 {
     public static void AddModules(this IServiceCollection services)
     {
-        services.AddSingleton<Shell>();
-        services.AddSingleton<Prompt>();
+        services.AddECSSingleton<Shell>();
+        services.AddECSSingleton<Prompt>();
+        services.AddECSSingleton<Scene>();
+        services.AddECSSingleton<MouseInputHandler>(); // Component, needs accessor via ecs instance if injected into IoC
+        services.AddECSSingleton<KeyInputHandler>();
 
-        services.AddSingleton<PathModule>();
-        services.AddSingleton<ConsoleOutModule>();
-        services.AddSingleton<CommandHistoryModule>();
-        services.AddSingleton<NameResolver>();
-        services.AddSingleton<CommandRegistry>();
-        services.AddSingleton<ScopeRegistry>();
-        services.AddSingleton<CommandSearch>();
+        services.AddECSSingleton<PathModule>();
+        services.AddECSSingleton<ConsoleOutModule>();
+        services.AddECSSingleton<CommandHistoryModule>();
+        services.AddECSSingleton<NameResolver>();
+        services.AddECSSingleton<CommandRegistry>();
+        services.AddECSSingleton<ScopeRegistry>();
+        services.AddECSSingleton<CommandSearch>();
 
         // Il faut une nouvelle instance à chaque fois pour qu'un bloc de texte soit propre à une exécution d'une commande
         services.AddTransient<CliBlock>();
     }
-
 }

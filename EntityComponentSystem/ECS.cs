@@ -1,126 +1,296 @@
-﻿namespace EntityComponentSystem
+﻿using EntityComponentSystem.EventSourcing;
+using EntityComponentSystem.Serialisation;
+using System.Collections;
+using System.Collections.Concurrent;
+using System.ComponentModel;
+using System.Linq;
+using static EntityComponentSystem.ECS;
+
+namespace EntityComponentSystem;
+
+public sealed partial class ECS
 {
-    public sealed class ECS
+    public class ShadowECS
     {
-        // TODO Transform this into an event sourcing system based on the generated difference objects
-        private readonly List<Entity> _registeredEntities = new();
-        private readonly List<Entity> _newEntities = new();
-        private readonly List<Entity> _removedEntities = new();
+        private Entity _shadowRoot { get; init; }
+        private IdentifiableList _allShadowEntitiesAndComponentsById { get; init; }
 
-        private static readonly object _lockMainListAccess = new();
-        private int _idCounter = 0;
+        public IEnumerable<Entity> Entities => _allShadowEntitiesAndComponentsById.Entities;
+        public IEnumerable<Component> Components => _allShadowEntitiesAndComponentsById.Components;
 
-        public int NewId => _idCounter++;
-
-        internal IServiceProvider ServiceProvider { get; }
-
-        public ECS(IServiceProvider serviceProvider)
+        public ShadowECS(Entity shadowRoot, IdentifiableList allShadowEntitiesAndComponentsById)
         {
-            ServiceProvider = serviceProvider;
-        }
-
-        public Entity NewEntity(string name)
-        {
-            lock (_lockMainListAccess)
-            {
-                var entity = new Entity(this, _idCounter++, name);
-
-                _newEntities.Add(entity);
-
-                return entity;
-            }
-        }
-
-        public void RemoveEntity(Entity entity)
-        {
-            lock (_lockMainListAccess)
-            {
-                _removedEntities.Add(entity);
-
-                foreach (var component in entity.Components)
-                {
-                    component.OnDestroy();
-                }
-            }
-        }
-
-        public void MergeEntities()
-        {
-            lock (_lockMainListAccess)
-            {
-                InternalMergeEntities();
-            }
-        }
-
-        public void AccessEntities(Action<List<Entity>> callback)
-        {
-            lock (_lockMainListAccess)
-            {
-                InternalMergeEntities();
-
-                callback(_registeredEntities);
-            }
-        }
-
-        public T AccessEntities<T>(Func<List<Entity>, T> callback)
-        {
-            lock (_lockMainListAccess)
-            {
-                InternalMergeEntities();
-
-                return callback(_registeredEntities);
-            }
-        }
-
-        private void InternalMergeEntities()
-        {
-            _registeredEntities.AddRange(_newEntities);
-            _newEntities.Clear();
-
-            _removedEntities.ForEach(e => _registeredEntities.Remove(e));
-            _removedEntities.Clear();
-        }
-
-        private readonly Dictionary<Type, Func<int, Component>> _proxyComponentFactories = new();
-
-        public void RegisterProxyComponent<T>(Func<int, T> factory) where T : Component, new()
-        {
-            _proxyComponentFactories.Add(typeof(T), factory);
-        }
-
-        internal T? CreateProxyComponent<T>() where T : Component, new()
-        {
-            if (!_proxyComponentFactories.TryGetValue(typeof(T), out var factory))
-            {
-                return null;
-            }
-
-            return (T)factory(NewId);
+            _shadowRoot = shadowRoot;
+            _allShadowEntitiesAndComponentsById = allShadowEntitiesAndComponentsById;
         }
 
         public Entity? SearchForEntity(string name)
         {
-            return AccessEntities(list => list.FirstOrDefault(e => string.Equals(e.Name, name, StringComparison.Ordinal)));
+            return _allShadowEntitiesAndComponentsById.Entities.FirstOrDefault(e => string.Equals(e.Name, name, StringComparison.Ordinal));
         }
 
         public TComponent? SearchForEntityWithComponent<TComponent>(string name) where TComponent : Component
         {
-            return AccessEntities(list =>
+            var entity = _allShadowEntitiesAndComponentsById.Entities.FirstOrDefault(e => string.Equals(e.Name, name, StringComparison.Ordinal));
+
+            if (entity == null)
             {
-                var entity = list.FirstOrDefault(e => string.Equals(e.Name, name, StringComparison.Ordinal));
+                return null;
+            }
 
-                if (entity == null)
-                {
-                    return null;
-                }
+            if (!entity.TryGetComponent<TComponent>(out var component))
+            {
+                return null;
+            }
 
-                if (!entity.TryGetComponent<TComponent>(out var component))
-                {
-                    return null;
-                }
-
-                return component;
-            });
+            return component;
         }
+
     }
+
+    // TODO Transform this into an event sourcing system based on the generated difference objects
+    private readonly Entity _activeRoot;
+    private readonly IdentifiableList _allActiveEntitiesAndComponentsById = new();
+    private readonly Entity _shadowRoot;
+    private readonly IdentifiableList _allShadowEntitiesAndComponentsById = new();
+
+    private ConcurrentQueue<IEvent> _unsynchronisedActiveEvents = new();
+    private ConcurrentQueue<IEvent> _activeHistory = new();
+    private ConcurrentQueue<IEvent> _shadowHistory = new();
+
+    private static readonly object _lockMainListAccess = new();
+    private int _idCounter = 0;
+
+    public int NewId => _idCounter++;
+
+    internal IServiceProvider ServiceProvider { get; }
+
+    public IEnumerable<Entity> Entities => _allActiveEntitiesAndComponentsById.Entities;
+    public IEnumerable<Component> Components => _allActiveEntitiesAndComponentsById.Components;
+
+    public ECS(IServiceProvider serviceProvider)
+    {
+        ServiceProvider = serviceProvider;
+
+        _activeRoot = new Entity(this, NewId, "Root", TreeType.Active);
+        _allActiveEntitiesAndComponentsById.Set(_activeRoot);
+
+        _shadowRoot = new Entity(this, _activeRoot.Id, "Root", TreeType.Shadow);
+        _allShadowEntitiesAndComponentsById.Set(_shadowRoot);
+
+        //File.Delete("RegisteredEvents.txt");
+        //File.Delete("ShadowEvents.txt");
+    }
+
+    public Entity NewEntity(string name, Entity? parent = null)
+    {
+        parent ??= _activeRoot;
+
+        EntityCreation creation;
+        lock (_lockMainListAccess)
+        {
+            creation = new()
+            {
+                ECS = this,
+                Name = name,
+                Id = NewId,
+                Entity = new EntityIndex(parent)
+            };
+            RegisterEvent(creation);
+        }
+
+        Apply(creation);
+
+        return creation.CreatedEntity!;
+    }
+
+    public void RemoveEntity(Entity entity)
+    {
+        EntitySuppression suppression;
+        lock (_lockMainListAccess)
+        {
+            suppression = new()
+            {
+                Entity = new EntityIndex() { Id = entity.Id }
+            };
+            RegisterEvent(suppression);
+        }
+        Apply(suppression);
+    }
+
+    private Queue<Component> _componentsToStart = new();
+
+    public void Update()
+    {
+        foreach (var component in _componentsToStart)
+        {
+            component.OnStart();
+        }
+
+        _componentsToStart.Clear();
+
+
+    }
+
+    private void Serialise()
+    {
+        EventSourceSerialiser serialiser = new();
+
+        var activeEventSource = serialiser.SerialiseEventSource(_activeHistory.ToArray(), _allActiveEntitiesAndComponentsById);
+        File.WriteAllText(Path.GetFullPath("EventHistory_Active.txt"), activeEventSource);
+        
+        var shadowEventSource = serialiser.SerialiseEventSource(_shadowHistory.ToArray(), _allShadowEntitiesAndComponentsById);
+        File.WriteAllText(Path.GetFullPath("EventHistory_Shadow.txt"), shadowEventSource);
+
+        var activeTree = serialiser.SerialiseEntityComponentTree(_activeRoot);
+        File.WriteAllText(Path.GetFullPath("Tree_Active.txt"), activeTree);
+
+        var shadowTree = serialiser.SerialiseEntityComponentTree(_shadowRoot);
+        File.WriteAllText(Path.GetFullPath("Tree_Shadow.txt"), shadowTree);
+
+        var activeList = _allActiveEntitiesAndComponentsById.SerialiseIdentifiableList();
+        File.WriteAllText(Path.GetFullPath("ObjectList_Active.txt"), activeList);
+
+        var shadowList = _allShadowEntitiesAndComponentsById.SerialiseIdentifiableList();
+        File.WriteAllText(Path.GetFullPath("ObjectList_Shadow.txt"), shadowList);
+    }
+
+    internal void RegisterNewComponent(IComponentCreation creation)
+    {
+        Apply(creation);
+
+        // Il faut lancer les OnStart de ces comonents qui veinnent d'être créés
+        _componentsToStart.Enqueue(creation.CreatedComponent);
+    }
+
+    public void RegisterEvent(IEvent @event)
+    {
+        bool processed = false;
+        while (!processed)
+        {
+            try
+            {
+                //File.AppendAllText("RegisteredEvents.txt", $"{activeCounter++} : {@event.GetType().Name} ({GetId(@event)})\n");
+                processed = true;
+            }
+            catch (IOException)
+            {
+
+            }
+        }
+
+        _activeHistory.Enqueue(@event);
+        _unsynchronisedActiveEvents.Enqueue(@event);
+    }
+
+    private static string GetId(IEvent @event)
+    {
+        return @event switch
+        {
+            EntityCreation e => $"Entity : {e.Entity.Id:000}",
+            EntitySuppression e => $"Entity : {e.Entity.Id:000}",
+            IComponentCreation e => $"Entity : {e.Entity.Id:000}",
+            IComponentSuppression e => $"Component : {e.Component.Id:000}",
+            IComponentDifferential e => $"Component : {e.Component.Id:000}",
+            _ => @event.GetType().Name
+        };
+    }
+
+    public void Apply(IEvent @event)
+    {
+        @event.ApplyTo(_allActiveEntitiesAndComponentsById, TreeType.Active);
+    }
+
+    static int shadowCounter = 0;
+    static int activeCounter = 0;
+
+    public ShadowECS TriggerMerge()
+    {
+        while (_unsynchronisedActiveEvents.TryDequeue(out var @event))
+        {
+            //File.AppendAllText("ShadowEvents.txt", $"{shadowCounter++} : {@event.GetType().Name} ({GetId(@event)})\n");
+
+            @event.ApplyTo(_allShadowEntitiesAndComponentsById, TreeType.Shadow);
+            _shadowHistory.Enqueue(@event);
+        }
+
+        // TODO coherence verification if possible
+        Serialise();
+
+        return new ShadowECS(_shadowRoot, _allShadowEntitiesAndComponentsById);
+    }
+
+    public void AccessEntityTree(Action<Entity[]> callback)
+    {
+        callback(_activeRoot.Children.ToArray());
+    }
+
+    public T AccessEntityTree<T>(Func<Entity[], T> callback)
+    {
+        return callback(_activeRoot.Children.ToArray());
+    }
+
+    private readonly Dictionary<Type, Func<int, Component>> _proxyComponentFactories = new();
+
+    public void RegisterProxyComponent<T>(Func<int, T> factory) where T : Component, new()
+    {
+        _proxyComponentFactories.Add(typeof(T), factory);
+    }
+
+    internal Component? CreateProxyComponent(Type componentType)
+    {
+        if (!_proxyComponentFactories.TryGetValue(componentType, out var factory))
+        {
+            return null;
+        }
+
+        return factory(NewId);
+    }
+
+    public Entity? SearchForEntity(string name)
+    {
+        return Entities.FirstOrDefault(e => string.Equals(e.Name, name, StringComparison.Ordinal));
+    }
+
+    public TComponent? SearchForEntityWithComponent<TComponent>(string name) where TComponent : Component
+    {
+        var entity = Entities.FirstOrDefault(e => string.Equals(e.Name, name, StringComparison.Ordinal));
+
+        if (entity == null)
+        {
+            return null;
+        }
+
+        if (!entity.TryGetComponent<TComponent>(out var component))
+        {
+            return null;
+        }
+
+        return component;
+    }
+
+    public TComponent[] GetComponents<TComponent>() where TComponent : Component
+        => Components.OfType<TComponent>().ToArray();
+
+    //public static IEnumerable<TResult> IsType<TResult>(IEnumerable source)
+    //{
+    //    if (source == null)
+    //    {
+    //        ArgumentNullException.ThrowIfNull(source, nameof(source));
+    //    }
+
+    //    return OfTypeIterator<TResult>(source);
+    //}
+
+    //private static IEnumerable<TResult> OfTypeIterator<TResult>(IEnumerable source)
+    //{
+    //    foreach (object? obj in source)
+    //    {
+    //        if (obj is TResult result)
+    //        {
+    //            yield return result;
+    //        }
+    //    }
+    //}
+
 }

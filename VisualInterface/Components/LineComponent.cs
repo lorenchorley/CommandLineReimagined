@@ -4,7 +4,13 @@ namespace UIComponents.Components
 {
     public class LineComponent : Component
     {
-        [State] public List<LineSegmentComponent> LineSegments = new();
+        [State]
+        public virtual List<LineSegmentComponent> LineSegments { get; set; }
+
+        public override void OnInit()
+        {
+            LineSegments = new();
+        }
 
         public void AddLineSegment<T>(T segment) where T : LineSegmentComponent
         {
@@ -31,19 +37,7 @@ namespace UIComponents.Components
         public string ToText()
         {
             return LineSegments.Select(l => l.ToText())
-                                .Join("");
-        }
-
-        public override IEnumerable<(string, string)> SerialisableDebugProperties
-        {
-            get
-            {
-                for (int i = 0; i < LineSegments.Count; i++)
-                {
-                    var lineSegment = LineSegments[i];
-                    yield return ($"LineSegment[{i}]", lineSegment.ToText());
-                }
-            }
+                               .Join("");
         }
 
     }

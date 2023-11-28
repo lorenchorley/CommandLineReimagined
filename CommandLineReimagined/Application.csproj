@@ -35,14 +35,14 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.AspNet.WebApi" Version="5.3.0" />
     <PackageReference Include="Microsoft.AspNet.WebApi.Client" Version="6.0.0" />
-    <PackageReference Include="Microsoft.Extensions.Configuration" Version="7.0.0" />
-    <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" Version="7.0.0" />
-    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="7.0.0" />
-    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="7.0.0" />
-    <PackageReference Include="Microsoft.Extensions.Hosting" Version="7.0.1" />
-    <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" Version="7.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Configuration" Version="8.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" Version="8.0.0" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="8.0.0" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="8.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Hosting" Version="8.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" Version="8.0.0" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
-    <PackageReference Include="System.Drawing.Common" Version="7.0.0" />
+    <PackageReference Include="System.Drawing.Common" Version="8.0.0" />
   </ItemGroup>
 
   <ItemGroup>
@@ -51,10 +51,12 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Commands\Commands.csproj" />
+    <ProjectReference Include="..\Controller\Controller.csproj" />
     <ProjectReference Include="..\EntityComponentSystem\EntityComponentSystem.csproj" />
-    <ProjectReference Include="..\InteractionLogic\InteractionLogic.csproj" />
+    <ProjectReference Include="..\InteractionLogic\Interaction.csproj" />
     <ProjectReference Include="..\RayCasting\RayCasting.csproj" />
     <ProjectReference Include="..\Rendering\Rendering.csproj" />
+    <ProjectReference Include="..\VisualInterface\UIComponents.csproj" />
   </ItemGroup>
 
 </Project>

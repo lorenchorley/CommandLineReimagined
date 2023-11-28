@@ -41,8 +41,9 @@ namespace Commands.Implementations
 
         private string SerialiseCustom()
         {
-            EntitySerializer s = new();
-            return _ecs.AccessEntities(list => s.SerializeEntities(list));
+            throw new NotImplementedException();
+            //EntitySerializer s = new();
+            //return s.SerializeEntities(_ecs.Entities.ToList());
         }
 
         //private string SerialiseIntoXML()

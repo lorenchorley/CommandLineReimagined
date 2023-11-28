@@ -10,26 +10,14 @@ public class ConsoleInputPanel : UILayoutComponent
 {
     private Brush _inputBackgroundBrush = new SolidBrush(Color.RoyalBlue);
 
-    [State] public List<LineComponent> PromptLines { get; set; } = new();
-    [State] public int SelectionStart { get; set; }
-    [State] public int SelectionLength { get; set; }
-    [State] public bool IsCommandExecutable { get; set; }
-
-    public override IEnumerable<(string, string)> SerialisableDebugProperties
-    {
-        get
-        {
-            foreach (var activeLine in PromptLines)
-            {
-                yield return ("ActiveLine", $"{activeLine?.Id} ({activeLine?.ToText()})");
-            }
-            yield return ("SelectionStart", SelectionStart.ToString());
-            yield return ("SelectionLength", SelectionLength.ToString());
-        }
-    }
+    [State] public virtual List<LineComponent> PromptLines { get; set; }
+    [State] public virtual int SelectionStart { get; set; }
+    [State] public virtual int SelectionLength { get; set; }
+    [State] public virtual bool IsCommandExecutable { get; set; }
 
     public override void OnInit()
     {
+        PromptLines = new();
         EnsureDependency<Renderer>();
     }
 
@@ -48,6 +36,5 @@ public class ConsoleInputPanel : UILayoutComponent
 
     public override void RecalculateChildTransforms()
     {
-        throw new NotImplementedException();
     }
 }

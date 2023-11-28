@@ -6,12 +6,14 @@ using System.Diagnostics;
 using System.IO;
 using System.Net.Http;
 using System.Threading;
+using Controller;
 
 namespace Commands.Implementations
 {
     public class Download : CommandActionAsync
     {
         private readonly RenderLoop _renderLoop;
+        private readonly LoopController _loopController;
         private readonly IHttpClientFactory _httpClientFactory;
         private readonly Random _random = new();
         //private string _url = @"http://research.nhm.org/pdfs/10840/10840-002.pdf";
@@ -30,9 +32,9 @@ namespace Commands.Implementations
                 CommandActionType: typeof(Download)
             );
 
-        public Download(RenderLoop renderLoop, IHttpClientFactory httpClientFactory)
+        public Download(LoopController loopController, IHttpClientFactory httpClientFactory)
         {
-            _renderLoop = renderLoop;
+            _loopController = loopController;
             _httpClientFactory = httpClientFactory;
         }
 
@@ -46,7 +48,7 @@ namespace Commands.Implementations
             progressBar = scope.NewLine().LinkNewTextBlock("Download", "");
             speedCounter = scope.NewLine().LinkNewTextBlock("Download", "");
 
-            _renderLoop.RefreshOnce();
+            _loopController.RequestLoop();
 
             // TODO Get from args
             var filename = Path.GetFileName(_url);
@@ -113,7 +115,7 @@ namespace Commands.Implementations
                     bytesDownloadedInLastSecond = 0;
                 }
 
-                _renderLoop.RefreshOnce();
+                _loopController.RequestLoop();
             }
 
             await fileStream.FlushAsync(cancellationToken);
@@ -131,7 +133,7 @@ namespace Commands.Implementations
         {
             var status = CancellationTokenSource.Token.IsCancellationRequested ? "unsuccessfully" : "successfully";
             scope.NewLine().LinkNewTextBlock("Download", $"Progress test ended {status}");
-            _renderLoop.RefreshOnce();
+            _loopController.RequestLoop();
         }
 
         public override async Task FailedInvoke(CommandParameterValue[] args, CliBlock scope, Task task)
@@ -145,7 +147,7 @@ namespace Commands.Implementations
                 scope.NewLine().LinkNewTextBlock("Failed", $"Progress test task failed with status {task.Status} : {task.Exception?.Message}");
             }
 
-            _renderLoop.RefreshOnce();
+            _loopController.RequestLoop();
         }
 
         public override async Task BeginInvokeUndo(CommandParameterValue[] args, CliBlock scope)
@@ -156,7 +158,7 @@ namespace Commands.Implementations
                 scope.NewLine().LinkNewTextBlock("Undo", "Download deleted");
             }
 
-            _renderLoop.RefreshOnce();
+            _loopController.RequestLoop();
         }
 
     }

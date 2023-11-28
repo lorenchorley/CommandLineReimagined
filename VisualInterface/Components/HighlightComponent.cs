@@ -6,9 +6,12 @@ namespace UIComponents.Components;
 
 public class HighlightComponent : LineSegmentComponent
 {
-    [State] public int Line { get; set; }
-    [State] public int Column { get; set; }
-    [State] public TextComponent TextComponent { get; set; }
+    [State]
+    public virtual int Line { get; set; }
+    [State]
+    public virtual int Column { get; set; }
+    [State]
+    public virtual TextComponent TextComponent { get; set; }
 
     private static readonly Brush _fillColor = new SolidBrush(Color.Red);
     public Brush FillColor { get; internal set; } = _fillColor;
@@ -21,15 +24,6 @@ public class HighlightComponent : LineSegmentComponent
     public override string ToText()
     {
         return $"{Line}:{Column}";
-    }
-
-    public override IEnumerable<(string, string)> SerialisableDebugProperties
-    {
-        get
-        {
-            yield return ("Line", Line.ToString());
-            yield return ("Column", Column.ToString());
-        }
     }
 
 }

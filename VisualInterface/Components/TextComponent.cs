@@ -1,63 +1,127 @@
 ﻿using EntityComponentSystem;
+using EntityComponentSystem.EventSourcing;
 using Rendering.Components;
 using System.Drawing;
+using System.Text;
 
 namespace UIComponents.Components;
 
-public class TextComponentDifferential
-{
-    public string? Text;
-    public bool? Highlighted;
-    public void ApplyTo(TextComponent textComponent)
-    {
-        if (Text is not null)
-        {
-            textComponent.Text = Text;
-        }
-        if (Highlighted is not null)
-        {
-            textComponent.Highlighted = Highlighted.Value;
-        }
-    }
-}
+//public class TextComponentCreation : IComponentCreation
+//{
+//    public EntityAccessor Entity { get; set; }
 
-public class TextComponentProxy : TextComponent
-{
-    public Func<TextComponentDifferential> GetCurrentDifferential { get; init; }
+//    public void ApplyTo(IdentifiableList list)
+//    {
+//        Entity e = list.Get(Entity);
 
-    public string _text;
-    public override string Text
-    {
-        get
-        {
-            return _text;
-        }
-        set
-        {
-            _text = value;
-            GetCurrentDifferential().Text = value;
-        }
-    }
+//        e.AddComponent(typeof(TextComponent));
+//    }
 
-    public bool _highlighted;
-    public override bool Highlighted
-    {
-        get
-        {
-            return _highlighted;
-        }
-        set
-        {
-            _highlighted = value;
-            GetCurrentDifferential().Highlighted = value;
-        }
-    }
-}
+//    public void Serialise(StringBuilder sb, IdentifiableList list)
+//    {
+//        throw new NotImplementedException();
+//    }
+//}
+
+//public class TextComponentDifferential : IComponentDifferential
+//{
+//    public ComponentAccessor Component { get; set; }
+
+//    public string? Text;
+//    public bool? Highlighted;
+
+//    public void ApplyTo(IdentifiableList list)
+//    {
+//        TextComponent textComponent = (TextComponent)list.Get(Component);
+
+//        if (Text is not null)
+//        {
+//            textComponent.Text = Text;
+//        }
+//        if (Highlighted is not null)
+//        {
+//            textComponent.Highlighted = Highlighted.Value;
+//        }
+//    }
+
+//    public void Serialise(StringBuilder sb, IdentifiableList list)
+//    {
+//        throw new NotImplementedException();
+//    }
+//}
+
+//public class TextComponentSuppression : IComponentSuppression
+//{
+//    public ComponentAccessor Component { get; set; }
+
+//    public string? Text;
+//    public bool? Highlighted;
+//    public void ApplyTo(IdentifiableList list)
+//    {
+//        Component component = list.Get(Component);
+//        component.Destroy();
+//        list.Unset(Component);
+//    }
+
+//    public void Serialise(StringBuilder sb, IdentifiableList list)
+//    {
+//        var component = list.Get(Component);
+
+//        sb.Append(nameof(TextComponentSuppression));
+//        sb.Append(" (Entity : ");
+//        sb.Append(component.Entity.Name);
+//        sb.Append(')');
+//        sb.Append('\n');
+//    }
+//}
+
+//public class TextComponentProxy : TextComponent, IComponentProxy
+//{
+//    public Action<IEvent> RegisterDifferential { get; init; }
+
+//    public string _text;
+//    public override string Text
+//    {
+//        get
+//        {
+//            return _text;
+//        }
+//        set
+//        {
+//            _text = value;
+//            RegisterDifferential(new TextComponentDifferential()
+//            {
+//                Text = value,
+//                Component = new ComponentAccessor(this)
+//            });
+//        }
+//    }
+
+//    public bool _highlighted;
+//    public override bool Highlighted
+//    {
+//        get
+//        {
+//            return _highlighted;
+//        }
+//        set
+//        {
+//            _highlighted = value;
+//            RegisterDifferential(new TextComponentDifferential()
+//            {
+//                Highlighted = value,
+//                Component = new ComponentAccessor(this)
+//            });
+//        }
+//    }
+//}
 
 public class TextComponent : LineSegmentComponent
 {
-    [State] public virtual string Text { get; set; }
-    [State] public virtual bool Highlighted { get; set; } = false;
+    [State]
+    public virtual string Text { get; set; }
+    [State]
+    public virtual bool Highlighted { get; set; } = false;
 
     public override string ToText()
     {
@@ -68,15 +132,6 @@ public class TextComponent : LineSegmentComponent
     {
         EnsureDependency<Renderer>();
     }
-
-    public override IEnumerable<(string, string)> SerialisableDebugProperties
-    {
-        get
-        {
-            yield return ("Text", Text);
-        }
-    }
-
 }
 
 //public struct TextPositioner : IPositioningBehaviour

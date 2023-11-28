@@ -8,7 +8,7 @@ public static class RayCastingServiceExtensions
 {
     public static void AddRayCastingServices(this IServiceCollection services)
     {
-        services.AddSingleton<RayCaster>();
+        services.AddECSSingleton<RayCaster>();
     }
 
 }

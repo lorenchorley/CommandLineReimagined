@@ -9,21 +9,22 @@ namespace UIComponents;
 
 public class ConsoleLayout : UILayoutComponent
 {
-    public UICamera Camera { get; private set; }
-    public ConsoleInputPanel Input { get; private set; }
-    public ConsoleOutputPanel Output { get; private set; }
+    public virtual UICamera Camera { get; set; }
+    public virtual ConsoleInputPanel Input { get; set; }
+    public virtual ConsoleOutputPanel Output { get; set; }
 
     [Inject]
     public ECS ECS { get; init; }
 
     public UITransform Transform { get; private set; }
 
-    public override IEnumerable<(string, string)> SerialisableDebugProperties => throw new NotImplementedException();
-
     public override void OnInit()
     {
         Transform = EnsureDependency<UITransform>();
+    }
 
+    public override void OnStart() 
+    { 
         Camera = ECS.SearchForEntityWithComponent<UICamera>("MainCamera") ?? throw new Exception("No camera found");
         Output = ECS.SearchForEntityWithComponent<ConsoleOutputPanel>("Output") ?? throw new Exception("No output panel found");
         Input = ECS.SearchForEntityWithComponent<ConsoleInputPanel>("Input") ?? throw new Exception("No input panel found");
@@ -48,8 +49,9 @@ public class ConsoleLayout : UILayoutComponent
     public override void RecalculateChildTransforms()
     {
         List<LineComponent> lines =
-            Input.Entity
+            Input.Entity // NullRef : parce qu'on est sur un objet shadow qui n'a pas des valeurs de propriétés ! Comment faire pour les UILayout dans ce cas ?
                  .Children
+                 .ToArray()
                  .Select(c => c.GetComponent<LineComponent>())
                  .ToList();
 
