@@ -19,9 +19,10 @@ namespace Terminal
             _loopController = loopController;
         }
 
+        public bool IsCommandExecutable { get; set; }
         public UICamera Camera { get; private set; }
-        public ConsoleOutputPanel OutputPanel { get; private set; }
-        public ConsoleInputPanel InputPanel { get; private set; }
+        public ConsolePanel OutputPanel { get; private set; }
+        public ConsolePanel InputPanel { get; private set; }
         public ConsoleLayout Layout { get; private set; }
         public CursorComponent Cursor { get; private set; }
         public MouseInputHandler MouseInputHandler { get; private set; }
@@ -31,8 +32,8 @@ namespace Terminal
         {
             Camera = _ecs.NewEntity("MainCamera").AddComponent<UICamera>();
 
-            OutputPanel = _ecs.NewEntity("Output").AddComponent<ConsoleOutputPanel>();
-            InputPanel = _ecs.NewEntity("Input").AddComponent<ConsoleInputPanel>();
+            OutputPanel = _ecs.NewEntity("Output").AddComponent<ConsolePanel>();
+            InputPanel = _ecs.NewEntity("Input").AddComponent<ConsolePanel>();
 
             Layout = _ecs.NewEntity("Layout").AddComponent<ConsoleLayout>();
             OutputPanel.Entity.Parent = Layout.Entity;
@@ -43,7 +44,6 @@ namespace Terminal
 
             Entity cursorEntity = _ecs.NewEntity("Cursor");
             Cursor = cursorEntity.AddComponent<CursorComponent>();
-            //cursorEntity.Parent = Layout.Entity;
 
             _loopController.RequestLoop();
         }

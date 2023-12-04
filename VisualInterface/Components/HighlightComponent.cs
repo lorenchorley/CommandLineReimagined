@@ -4,7 +4,7 @@ using System.Drawing;
 
 namespace UIComponents.Components;
 
-public class HighlightComponent : LineSegmentComponent
+public class HighlightComponent : LineSegmentComponent, IRenderableComponent
 {
     [State]
     public virtual int Line { get; set; }
@@ -26,9 +26,13 @@ public class HighlightComponent : LineSegmentComponent
         return $"{Line}:{Column}";
     }
 
+    public void Render(Graphics gfx, Renderer renderer, RectangleF bounds)
+    {
+        throw new NotImplementedException();
+    }
 }
 
-public struct HighlightRenderer : IRenderingBehaviour
+public struct HighlightRenderer : IRenderableComponent
 {
     private readonly float _letterWidth;
     private readonly float _letterHeight;

@@ -210,7 +210,7 @@ public class Shell : IECSSystem
             // TODO
             promptText.Text =
                 _scene.InputPanel
-                      .PromptLines
+                      .Lines
                       .SelectMany(line => line.LineSegments)
                       .OfType<TextComponent>()
                       .FirstOrDefault()

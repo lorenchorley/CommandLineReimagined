@@ -4,7 +4,7 @@ using System.Drawing;
 
 namespace UIComponents.Components
 {
-    public class ButtonComponent : LineSegmentComponent
+    public class ButtonComponent : LineSegmentComponent, IRenderableComponent
     {
         [State]
         public virtual string Text { get; set; }
@@ -20,10 +20,14 @@ namespace UIComponents.Components
             EnsureDependency<InteractiveComponent>();
         }
 
+        public void Render(Graphics gfx, Renderer renderer, RectangleF bounds)
+        {
+            throw new NotImplementedException();
+        }
     }
 }
 
-public struct ButtonRenderer : IRenderingBehaviour
+public struct ButtonRenderer : IRenderableComponent
 {
     public string Text { get; set; }
 

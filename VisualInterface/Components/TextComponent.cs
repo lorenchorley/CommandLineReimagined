@@ -116,7 +116,7 @@ namespace UIComponents.Components;
 //    }
 //}
 
-public class TextComponent : LineSegmentComponent
+public class TextComponent : LineSegmentComponent, IRenderableComponent
 {
     [State]
     public virtual string Text { get; set; }
@@ -131,6 +131,11 @@ public class TextComponent : LineSegmentComponent
     public override void OnInit()
     {
         EnsureDependency<Renderer>();
+    }
+
+    public void Render(Graphics gfx, Renderer renderer, RectangleF bounds)
+    {
+        throw new NotImplementedException();
     }
 }
 
@@ -161,7 +166,7 @@ public class TextComponent : LineSegmentComponent
 //    }
 //}
 
-public struct TextRenderer : IRenderingBehaviour
+public struct TextRenderer : IRenderableComponent
 {
     public string Text { get; set; }
     public bool Highlighted { get; set; }

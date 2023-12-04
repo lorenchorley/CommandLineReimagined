@@ -44,8 +44,7 @@ public class LoopController
 
     private void UpdateLayoutsInActiveTree()
     {
-        List<UILayoutComponent> layouts =
-            GetLayouts(_ecs.Entities.ToList()).ToList();
+        List<UILayoutComponent> layouts = ComponentTreeSearchLowestFirst<UILayoutComponent>(_ecs.Entities).ToList();
 
         // Première passe pour savoir quels élements devraient y être et où il faut les placer
         foreach (var layout in layouts)
@@ -54,19 +53,20 @@ public class LoopController
         }
     }
 
-    private IEnumerable<UILayoutComponent> GetLayouts(IEnumerable<Entity> entites)
+    private IEnumerable<T> ComponentTreeSearchLowestFirst<T>(IEnumerable<Entity> entites) where T : Component
     {
         // Search for all uilayoutcomponents and recursively return them from the lowest layer first
         foreach (var entity in entites)
         {
-            foreach (var layout in GetLayouts(entity.Children.ToArray()))
+            var children = entity.Children.ToArray();
+            foreach (var layout in ComponentTreeSearchLowestFirst<T>(children))
             {
                 yield return layout;
             }
 
-            if (entity.TryGetComponent(out UILayoutComponent? uILayoutComponent))
+            if (entity.TryGetComponent(out T? match))
             {
-                yield return uILayoutComponent;
+                yield return match;
             }
         }
     }

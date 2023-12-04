@@ -11,7 +11,7 @@ public class Renderer : Component, IComparable<Renderer>
     public virtual bool IsVisible { get; set; } = false;
     [State]
     public virtual int ZIndex { get; set; } = 0;
-    public IRenderingBehaviour? RenderingBehaviour { get; set; }
+    public IRenderableComponent? RenderingBehaviour { get; set; }
 
     public int CompareTo(Renderer? other)
     {

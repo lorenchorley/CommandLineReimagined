@@ -4,17 +4,24 @@ using EntityComponentSystem.Attributes;
 using Rendering.Components;
 using System.Drawing;
 using UIComponents.Compoents.Console;
+using Rendering.Spaces;
+using System.Numerics;
 
 namespace UIComponents;
 
-public class ConsoleLayout : UILayoutComponent
+public class ConsoleLayout : UILayoutComponent, IRenderableComponent
 {
-    public virtual UICamera Camera { get; set; }
-    public virtual ConsoleInputPanel Input { get; set; }
-    public virtual ConsoleOutputPanel Output { get; set; }
+    private Brush _inputBackgroundBrush = new SolidBrush(Color.RoyalBlue);
 
-    [Inject]
-    public ECS ECS { get; init; }
+    public virtual UICamera Camera { get; set; }
+    public virtual ConsolePanel Input { get; set; } // Fit horizontally, respect height
+    public virtual UITransform InputTransform { get; set; }
+    public virtual ConsolePanel Output { get; set; } // Fit horizontally, fill vertically
+    public virtual UITransform OutputTransform { get; set; }
+
+    [Inject] public ECS ECS { get; init; }
+    [Inject] public ConceptualUISpace UISpace { get; init; }
+    [Inject] public PhysicalScreenSpace ScreenSpace { get; init; }
 
     public UITransform Transform { get; private set; }
 
@@ -23,38 +30,43 @@ public class ConsoleLayout : UILayoutComponent
         Transform = EnsureDependency<UITransform>();
     }
 
-    public override void OnStart() 
-    { 
-        Camera = ECS.SearchForEntityWithComponent<UICamera>("MainCamera") ?? throw new Exception("No camera found");
-        Output = ECS.SearchForEntityWithComponent<ConsoleOutputPanel>("Output") ?? throw new Exception("No output panel found");
-        Input = ECS.SearchForEntityWithComponent<ConsoleInputPanel>("Input") ?? throw new Exception("No input panel found");
-    }
-
-    private IEnumerable<LineComponent> GetLines()
+    public override void OnStart()
     {
-        //foreach (var line in Input.PromptLines)
-        for (int i = Input.PromptLines.Count - 1; i >= 0; i--)
-        {
-            yield return Input.PromptLines[i];
-        }
-
-        //foreach (var line in Output.Lines)
-        for (int i = Output.Lines.Count - 1; i >= 0; i--)// TODO Make this operation async safe
-        {
-            yield return Output.Lines[i];
-        }
+        Camera = ECS.SearchForEntityWithComponent<UICamera>("MainCamera") ?? throw new Exception("No camera found");
+        Input = ECS.SearchForEntityWithComponent<ConsolePanel>("Input") ?? throw new Exception("No input panel found");
+        InputTransform = Input.GetComponent<UITransform>();
+        Output = ECS.SearchForEntityWithComponent<ConsolePanel>("Output") ?? throw new Exception("No output panel found");
+        OutputTransform = Output.GetComponent<UITransform>();
     }
 
     // One of the only things that should be part of a layout behaviour
     public override void RecalculateChildTransforms()
     {
+        Transform.Position = ConceptualUISpace.BottomLeft;
+        Transform.Size = ConceptualUISpace.TopRight;
+
+        if (Input.Height < 0 || Input.Height > 1)
+        {
+            throw new Exception($"Input height is not set correctly ({Input.Height})");
+        }
+
+        // Fit the input panel horizontally, respecting the given height, to the bottom of the ui space
+        InputTransform.Position = ConceptualUISpace.BottomLeft;
+        InputTransform.Size = new Vector2(1, Input.Height);
+
+        // Fit horizontally and vertically the output panel to the remaining space
+        OutputTransform.Position = new Vector2(0, Input.Height);
+        OutputTransform.Size = new Vector2(1, 1 - Input.Height);
+
+
+        return;
+
         List<LineComponent> lines =
             Input.Entity // NullRef : parce qu'on est sur un objet shadow qui n'a pas des valeurs de propriétés ! Comment faire pour les UILayout dans ce cas ?
                  .Children
                  .ToArray()
                  .Select(c => c.GetComponent<LineComponent>())
                  .ToList();
-
 
         PointF position;
         float calculatedWidth;
@@ -63,7 +75,7 @@ public class ConsoleLayout : UILayoutComponent
         float verticalOffset = Transform.Position.Y;
         float horizontalOffset = Transform.Position.X; // TODO cette valeur n'est pas exploitée pour faire des retours à la ligne
 
-        PointF NewPosition(float x, float y) => new PointF(x, Transform.Size.Y - y);
+        PointF NewPosition(float x, float y) => new(x, Transform.Size.Y - y);
 
         for (int i = 0; i < lines.Count; i++)
         {
@@ -148,7 +160,7 @@ public class ConsoleLayout : UILayoutComponent
                     renderer.CanvasRenderPosition = new(position, size);
                     renderer.ZIndex = 1;
 
-                    renderer.RenderingBehaviour = new CursorRenderer(textRenderer, Input.IsCommandExecutable);
+                    //renderer.RenderingBehaviour = new CursorRenderer(textRenderer, Input.IsCommandExecutable);
 
                     continue;
                 }
@@ -174,6 +186,20 @@ public class ConsoleLayout : UILayoutComponent
             }
 
         }
+    }
+
+    public void DrawBackgroundAroundLine(Graphics gfx/*, float canvasWidth, float canvasHeight*/)
+    {
+        RectangleF boundingBox =
+            Input.Lines
+                 .SelectMany(s => s.LineSegments)
+                 .Where(s => s.HasComponent<Renderer>())
+                 .Select(r => r.GetComponent<UITransform>())
+                 .Select(t => t.GetBoundingBox())
+                 //.Append(new RectangleF(new PointF(0, canvasHeight), new SizeF(canvasWidth, 0))) // TODO Keep ?
+                 .Aggregate(RectangleF.Union);
+
+        gfx.FillRectangle(_inputBackgroundBrush, boundingBox);
     }
 
     private static (int lineNumber, int columnNumber) GetLineAndColumnNumberFromString(CursorComponent cursor, string text)
@@ -206,4 +232,9 @@ public class ConsoleLayout : UILayoutComponent
         return line.Length - columnNumber;
     }
 
+    public void Render(Graphics gfx, Renderer renderer, RectangleF bounds)
+    {
+        // Draw the background around the input panel
+        DrawBackgroundAroundLine(gfx);
+    }
 }

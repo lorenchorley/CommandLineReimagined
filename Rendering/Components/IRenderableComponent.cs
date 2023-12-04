@@ -3,7 +3,7 @@ using System.Drawing;
 
 namespace Rendering.Components;
 
-public interface IRenderingBehaviour
+public interface IRenderableComponent
 {
     void Render(Graphics gfx, Renderer renderer, RectangleF bounds);
 }

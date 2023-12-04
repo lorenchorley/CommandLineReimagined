@@ -2,6 +2,7 @@
 using Rendering.Configuration;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Rendering.Spaces;
 
 public static class RenderingServiceExtensions
 {
@@ -9,6 +10,8 @@ public static class RenderingServiceExtensions
     {
         services.AddECSSingleton<RenderLoop>();
         services.AddECSSingleton<ComponentRenderPipeline>();
+        services.AddECSSingleton<ConceptualUISpace>();
+        services.AddECSSingleton<PhysicalScreenSpace>();
     }
 
     public static void ExtractConfigurations(this IServiceCollection services, IConfiguration configuration)

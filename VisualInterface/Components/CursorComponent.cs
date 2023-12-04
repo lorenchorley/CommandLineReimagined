@@ -4,7 +4,7 @@ using System.Drawing;
 
 namespace UIComponents.Components;
 
-public class CursorComponent : LineSegmentComponent
+public class CursorComponent : LineSegmentComponent, IRenderableComponent
 {
     [State]
     public virtual int Position { get; set; }
@@ -23,9 +23,13 @@ public class CursorComponent : LineSegmentComponent
         EnsureDependency<Renderer>();
     }
 
+    public void Render(Graphics gfx, Renderer renderer, RectangleF bounds)
+    {
+        throw new NotImplementedException();
+    }
 }
 
-public struct CursorRenderer : IRenderingBehaviour
+public struct CursorRenderer : IRenderableComponent
 {
     public Renderer TextRenderer { get; }
     public bool IsCommandExecutable { get; set; }

@@ -1,18 +1,14 @@
-﻿using CommandLine.Modules;
-using Commands.Parser;
+﻿using Commands.Parser;
 using Commands.Parser.SemanticTree;
-using UIComponents;
-using UIComponents.Components;
+using Controller;
 using EntityComponentSystem;
 using GOLD;
 using OneOf;
-using Rendering;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using Terminal.Commands.Parser.Serialisation;
 using Terminal.Search;
-using UIComponents.Compoents.Console;
-using Controller;
+using UIComponents.Components;
 
 namespace Terminal;
 
@@ -81,11 +77,11 @@ public class Prompt : IECSSystem
     private void RefreshText()
     {
         // Cleanup ?
-        _scene.InputPanel.PromptLines.Clear();
+        _scene.InputPanel.Lines.Clear();
 
         Entity entity = _ecs.NewEntity("Input prompt and command");
         LineComponent currentLine = entity.AddComponent<LineComponent>();
-        _scene.InputPanel.PromptLines.Add(currentLine);
+        _scene.InputPanel.Lines.Add(currentLine);
 
         // Ajouter et configurer le cursor pour le texte actuel
         currentLine.AddLineSegment(_scene.Cursor);
@@ -101,12 +97,12 @@ public class Prompt : IECSSystem
             {
                 _parsedCommand = tree;
 
-                var visitor = new UITokenisationVisitor(_scene.InputPanel.PromptLines);
+                var visitor = new UITokenisationVisitor(_scene.InputPanel.Lines);
                 tree.Accept(visitor);
 
                 _scene.Cursor.TextComponentReference =
                     _scene.InputPanel
-                          .PromptLines
+                          .Lines
                           .SelectMany(line => line.LineSegments)
                           .OfType<TextComponent>()
                           .First();
@@ -116,11 +112,11 @@ public class Prompt : IECSSystem
                 // Si le texte termine avec un identifiant, on affiche les suggestions de complétion
                 ShowIdentifierSuggestions(_text, currentLine);
 
-                _scene.InputPanel.IsCommandExecutable = true;
+                _scene.IsCommandExecutable = true;
             },
             parserError =>
             {
-                _scene.InputPanel.IsCommandExecutable = false;
+                _scene.IsCommandExecutable = false;
 
                 parserError.Switch(
 
@@ -133,7 +129,7 @@ public class Prompt : IECSSystem
 
                             Entity entity = _ecs.NewEntity("Input prompt and command");
                             currentLine = entity.AddComponent<LineComponent>();
-                            _scene.InputPanel.PromptLines.Add(currentLine);
+                            _scene.InputPanel.Lines.Add(currentLine);
                         }
 
                         currentLine.LinkNewTextBlock("Text with parsing error", _text);
@@ -196,7 +192,7 @@ public class Prompt : IECSSystem
 
         if (string.IsNullOrWhiteSpace(word))
             return;
-            
+
         var suggestions = _commandSearch.GetSuggestions(word).ToList();
 
         if (suggestions != null)
@@ -221,7 +217,7 @@ public class Prompt : IECSSystem
 
         Entity entity = _ecs.NewEntity("Input prompt and command");
         currentLine = entity.AddComponent<LineComponent>();
-        _scene.InputPanel.PromptLines.Add(currentLine);
+        _scene.InputPanel.Lines.Add(currentLine);
 
         var textInError = currentLine.LinkNewTextBlock("Text with parsing error", _text);
         currentLine.LinkNewTextHighlight(textInError, lexicalError.SyntaxError.Line, lexicalError.SyntaxError.Column);
@@ -233,7 +229,7 @@ public class Prompt : IECSSystem
 
         Entity entity = _ecs.NewEntity("Input prompt and command");
         currentLine = entity.AddComponent<LineComponent>();
-        _scene.InputPanel.PromptLines.Add(currentLine);
+        _scene.InputPanel.Lines.Add(currentLine);
 
         var textInError = currentLine.LinkNewTextBlock("Text with parsing error", _text);
         currentLine.LinkNewTextHighlight(textInError, syntaxError.Line, syntaxError.Column);
@@ -247,7 +243,7 @@ public class Prompt : IECSSystem
 
         Entity entity = _ecs.NewEntity("Input prompt and command");
         currentLine = entity.AddComponent<LineComponent>();
-        _scene.InputPanel.PromptLines.Add(currentLine);
+        _scene.InputPanel.Lines.Add(currentLine);
 
         var textInError = currentLine.LinkNewTextBlock("Text with parsing error", _text);
     }
