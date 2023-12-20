@@ -18,11 +18,6 @@ public class CursorComponent : LineSegmentComponent, IRenderableComponent
         return Position.ToString();
     }
 
-    public override void OnInit()
-    {
-        EnsureDependency<Renderer>();
-    }
-
     public void Render(Graphics gfx, Renderer renderer, RectangleF bounds)
     {
         throw new NotImplementedException();

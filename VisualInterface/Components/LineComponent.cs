@@ -1,4 +1,5 @@
 ﻿using EntityComponentSystem;
+using Rendering.Components;
 
 namespace UIComponents.Components
 {
@@ -10,6 +11,7 @@ namespace UIComponents.Components
         public override void OnInit()
         {
             LineSegments = new();
+            EnsureDependency<UITransform>();
         }
 
         public void AddLineSegment<T>(T segment) where T : LineSegmentComponent

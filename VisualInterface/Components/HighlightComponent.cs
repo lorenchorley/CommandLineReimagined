@@ -16,11 +16,6 @@ public class HighlightComponent : LineSegmentComponent, IRenderableComponent
     private static readonly Brush _fillColor = new SolidBrush(Color.Red);
     public Brush FillColor { get; internal set; } = _fillColor;
 
-    public override void OnInit()
-    {
-        EnsureDependency<Renderer>();
-    }
-
     public override string ToText()
     {
         return $"{Line}:{Column}";

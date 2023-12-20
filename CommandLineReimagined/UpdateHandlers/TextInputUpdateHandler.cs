@@ -5,7 +5,7 @@ using System.Windows;
 
 namespace Application.UpdateHandlers;
 
-public class TextInputUpdateHandler : IECSSystem, ITextUpdateSystem
+public class TextInputUpdateHandler : IECSSubsystem, ITextUpdateSystem
 {
     private readonly InputAccessor _inputAccessor;
 

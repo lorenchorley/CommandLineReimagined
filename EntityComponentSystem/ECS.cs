@@ -2,6 +2,7 @@
 using EntityComponentSystem.Serialisation;
 using System.Collections;
 using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.ComponentModel;
 using System.Linq;
 using static EntityComponentSystem.ECS;
@@ -10,6 +11,15 @@ namespace EntityComponentSystem;
 
 public sealed partial class ECS
 {
+
+    public static ECS Instance { get; set; }
+
+    public static void ComponentCreationCheck(string componentType, EntityIndex Entity)
+    {
+        Entity e = Instance._allActiveEntitiesAndComponentsById.Get(Entity);
+        bool isInput = e.Name == "Input" && componentType.StartsWith("Renderer");
+    }
+
     public class ShadowECS
     {
         private Entity _shadowRoot { get; init; }
@@ -65,11 +75,14 @@ public sealed partial class ECS
 
     internal IServiceProvider ServiceProvider { get; }
 
-    public IEnumerable<Entity> Entities => _allActiveEntitiesAndComponentsById.Entities;
-    public IEnumerable<Component> Components => _allActiveEntitiesAndComponentsById.Components;
+    public Entity RootEntity => _activeRoot;
+    public IEnumerable<Entity> FlatEntityList => _allActiveEntitiesAndComponentsById.Entities;
+    public IEnumerable<Component> FlatComponentList => _allActiveEntitiesAndComponentsById.Components;
 
     public ECS(IServiceProvider serviceProvider)
     {
+        Instance = this;
+
         ServiceProvider = serviceProvider;
 
         _activeRoot = new Entity(this, NewId, "Root", TreeType.Active);
@@ -84,38 +97,32 @@ public sealed partial class ECS
 
     public Entity NewEntity(string name, Entity? parent = null)
     {
+        if (string.IsNullOrEmpty(name))
+            throw new ArgumentNullException("name");
+
         parent ??= _activeRoot;
 
-        EntityCreation creation;
-        lock (_lockMainListAccess)
+        EntityCreation creation = new()
         {
-            creation = new()
-            {
-                ECS = this,
-                Name = name,
-                Id = NewId,
-                Entity = new EntityIndex(parent)
-            };
-            RegisterEvent(creation);
-        }
+            ECS = this,
+            Name = name,
+            Id = NewId,
+            Entity = new EntityIndex(parent)
+        };
 
-        Apply(creation);
+        RegisterAndApplyEvent(creation);
 
         return creation.CreatedEntity!;
     }
 
     public void RemoveEntity(Entity entity)
     {
-        EntitySuppression suppression;
-        lock (_lockMainListAccess)
+        EntitySuppression suppression = new()
         {
-            suppression = new()
-            {
-                Entity = new EntityIndex() { Id = entity.Id }
-            };
-            RegisterEvent(suppression);
-        }
-        Apply(suppression);
+            Entity = new EntityIndex() { Id = entity.Id }
+        };
+
+        RegisterAndApplyEvent(suppression);
     }
 
     private Queue<Component> _componentsToStart = new();
@@ -136,11 +143,17 @@ public sealed partial class ECS
     {
         EventSourceSerialiser serialiser = new();
 
-        var activeEventSource = serialiser.SerialiseEventSource(_activeHistory.ToArray(), _allActiveEntitiesAndComponentsById);
+        var activeEventSource = serialiser.SerialiseEventSourceHistory(_activeHistory.ToArray(), _allActiveEntitiesAndComponentsById);
         File.WriteAllText(Path.GetFullPath("EventHistory_Active.txt"), activeEventSource);
-        
-        var shadowEventSource = serialiser.SerialiseEventSource(_shadowHistory.ToArray(), _allShadowEntitiesAndComponentsById);
+
+        var shadowEventSource = serialiser.SerialiseEventSourceHistory(_shadowHistory.ToArray(), _allShadowEntitiesAndComponentsById);
         File.WriteAllText(Path.GetFullPath("EventHistory_Shadow.txt"), shadowEventSource);
+
+        var activeList = _allActiveEntitiesAndComponentsById.SerialiseObjectList();
+        File.WriteAllText(Path.GetFullPath("ObjectList_Active.txt"), activeList);
+
+        var shadowList = _allShadowEntitiesAndComponentsById.SerialiseObjectList();
+        File.WriteAllText(Path.GetFullPath("ObjectList_Shadow.txt"), shadowList);
 
         var activeTree = serialiser.SerialiseEntityComponentTree(_activeRoot);
         File.WriteAllText(Path.GetFullPath("Tree_Active.txt"), activeTree);
@@ -148,19 +161,18 @@ public sealed partial class ECS
         var shadowTree = serialiser.SerialiseEntityComponentTree(_shadowRoot);
         File.WriteAllText(Path.GetFullPath("Tree_Shadow.txt"), shadowTree);
 
-        var activeList = _allActiveEntitiesAndComponentsById.SerialiseIdentifiableList();
-        File.WriteAllText(Path.GetFullPath("ObjectList_Active.txt"), activeList);
-
-        var shadowList = _allShadowEntitiesAndComponentsById.SerialiseIdentifiableList();
-        File.WriteAllText(Path.GetFullPath("ObjectList_Shadow.txt"), shadowList);
     }
 
     internal void RegisterNewComponent(IComponentCreation creation)
     {
-        Apply(creation);
-
         // Il faut lancer les OnStart de ces comonents qui veinnent d'être créés
         _componentsToStart.Enqueue(creation.CreatedComponent);
+    }
+
+    public void RegisterAndApplyEvent(IEvent @event)
+    {
+        RegisterEvent(@event);
+        Apply(@event);
     }
 
     public void RegisterEvent(IEvent @event)
@@ -188,6 +200,7 @@ public sealed partial class ECS
         return @event switch
         {
             EntityCreation e => $"Entity : {e.Entity.Id:000}",
+            EntityDifferential e => $"Entity : {e.Entity.Id:000}",
             EntitySuppression e => $"Entity : {e.Entity.Id:000}",
             IComponentCreation e => $"Entity : {e.Entity.Id:000}",
             IComponentSuppression e => $"Component : {e.Component.Id:000}",
@@ -199,6 +212,15 @@ public sealed partial class ECS
     public void Apply(IEvent @event)
     {
         @event.ApplyTo(_allActiveEntitiesAndComponentsById, TreeType.Active);
+
+        if (@event is IComponentCreation c)
+        {
+            if (c.AppliedToActive)
+            {
+                throw new InvalidOperationException("Component creation event has already been applied to the active tree");
+            }
+            c.AppliedToActive = true;
+        }
     }
 
     static int shadowCounter = 0;
@@ -211,6 +233,16 @@ public sealed partial class ECS
             //File.AppendAllText("ShadowEvents.txt", $"{shadowCounter++} : {@event.GetType().Name} ({GetId(@event)})\n");
 
             @event.ApplyTo(_allShadowEntitiesAndComponentsById, TreeType.Shadow);
+
+            if (@event is IComponentCreation c)
+            {
+                if (c.AppliedToShadow)
+                {
+                    throw new InvalidOperationException("Component creation event has already been applied to the shadow tree");
+                }
+                c.AppliedToShadow = true;
+            }
+
             _shadowHistory.Enqueue(@event);
         }
 
@@ -249,12 +281,12 @@ public sealed partial class ECS
 
     public Entity? SearchForEntity(string name)
     {
-        return Entities.FirstOrDefault(e => string.Equals(e.Name, name, StringComparison.Ordinal));
+        return FlatEntityList.FirstOrDefault(e => string.Equals(e.Name, name, StringComparison.Ordinal));
     }
 
     public TComponent? SearchForEntityWithComponent<TComponent>(string name) where TComponent : Component
     {
-        var entity = Entities.FirstOrDefault(e => string.Equals(e.Name, name, StringComparison.Ordinal));
+        var entity = FlatEntityList.FirstOrDefault(e => string.Equals(e.Name, name, StringComparison.Ordinal));
 
         if (entity == null)
         {
@@ -270,7 +302,7 @@ public sealed partial class ECS
     }
 
     public TComponent[] GetComponents<TComponent>() where TComponent : Component
-        => Components.OfType<TComponent>().ToArray();
+        => FlatComponentList.OfType<TComponent>().ToArray();
 
     //public static IEnumerable<TResult> IsType<TResult>(IEnumerable source)
     //{

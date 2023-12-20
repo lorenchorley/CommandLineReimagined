@@ -29,7 +29,7 @@ namespace CommandLine.Modules
         public LineComponent NewLine()
         {
             LineComponent line = _ecs.NewEntity("Scoped : " + Description).AddComponent<LineComponent>();
-            _consoleRenderer.Output.Lines.Add(line); // TODO Make this operation async safe
+            //_consoleRenderer.Output.Lines.Add(line); // TODO Make this operation async safe
             Lines.Add(line);
             return line;
         }
@@ -44,7 +44,7 @@ namespace CommandLine.Modules
 
         public void AbondonLine(LineComponent line)
         {
-            _consoleRenderer.Output.Lines.Remove(line);
+            //_consoleRenderer.Output.Lines.Remove(line);
             Lines.Remove(line);
             line.Entity.Destroy();
         }
@@ -53,7 +53,7 @@ namespace CommandLine.Modules
         {
             foreach (var line in Lines)
             {
-                _consoleRenderer.Output.Lines.Remove(line);
+                //_consoleRenderer.Output.Lines.Remove(line);
                 line.Entity.Destroy();
             }
 

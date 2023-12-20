@@ -1,6 +1,6 @@
 ﻿namespace EntityComponentSystem;
 
-public interface IECSSystem
+public interface IECSSubsystem
 {
     void OnInit();
     void OnStart();

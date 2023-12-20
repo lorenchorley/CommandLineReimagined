@@ -9,7 +9,7 @@ namespace Application;
 /// <summary>
 /// La fenêtre principale qui héberge le canvas et d'autres composants qui permet l'intéraction
 /// </summary>
-public partial class MainWindow : Window, IECSSystem
+public partial class MainWindow : Window, IECSSubsystem
 {
     private readonly CanvasAccessor _canvasAccessor;
     private readonly InputAccessor _inputTextBoxAccessor;

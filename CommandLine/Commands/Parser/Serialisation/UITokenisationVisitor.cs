@@ -10,18 +10,23 @@ public class UITokenisationVisitor : VisitorBase
 {
     private readonly List<LineSegmentComponent> _segments = new();
 
-    private List<LineComponent> Lines;
+    private Entity _panelEntity;
     private LineComponent CurrentLine;
 
-    public UITokenisationVisitor(List<LineComponent> lines)
+    public UITokenisationVisitor(Entity panelEntity)
     {
-        Lines = lines;
-        CurrentLine = Lines.Last();
+        _panelEntity = panelEntity;
+        CurrentLine = 
+            panelEntity.Children
+                       .ToArray()
+                       .Choose(s => s.TryGetComponent<LineComponent>())
+                       .LastOrDefault()
+                       ?? _panelEntity.NewChildEntity("Input prompt").AddComponent<LineComponent>();
     }
 
     public override void Append(string str)
     {
-        var segment = CurrentLine.LinkNewTextBlock("", str);
+        var segment = CurrentLine.LinkNewTextBlock("Text", str);
 
         _segments.Add(segment);
     }
@@ -33,9 +38,8 @@ public class UITokenisationVisitor : VisitorBase
 
     public override void AppendNewLine()
     {
-        Entity entity = CurrentLine.ECS.NewEntity("Input prompt and command");
+        Entity entity = _panelEntity.NewChildEntity("Input prompt");
         CurrentLine = entity.AddComponent<LineComponent>();
-        Lines.Add(CurrentLine);
     }
 
     public override string GetResult()

@@ -13,6 +13,8 @@ public class Renderer : Component, IComparable<Renderer>
     public virtual int ZIndex { get; set; } = 0;
     public IRenderableComponent? RenderingBehaviour { get; set; }
 
+    public UITransform UITransform { get; set; }
+
     public int CompareTo(Renderer? other)
     {
         if (other == null)
@@ -25,7 +27,7 @@ public class Renderer : Component, IComparable<Renderer>
 
     public override void OnInit()
     {
-        EnsureDependency<UITransform>();
+        UITransform = EnsureDependency<UITransform>();
     }
 
     public override void OnDestroy()

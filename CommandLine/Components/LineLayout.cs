@@ -1,10 +1,4 @@
-﻿using UIComponents.Components;
-using EntityComponentSystem;
-using Rendering.Components;
-using System.Diagnostics;
-using System.Drawing;
-using System.Drawing.Drawing2D;
-using System.Numerics;
+﻿using Rendering.Components;
 
 namespace UIComponents.Compoents.Console;
 

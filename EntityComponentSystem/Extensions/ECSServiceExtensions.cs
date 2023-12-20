@@ -13,9 +13,9 @@ public static class ECSServiceExtensions
     {
         services.AddSingleton<TService>();
 
-        if (typeof(IECSSystem).IsAssignableFrom(typeof(TService)))
+        if (typeof(IECSSubsystem).IsAssignableFrom(typeof(TService)))
         {
-            services.AddSingleton<IECSSystem>(x => (IECSSystem)x.GetRequiredService<TService>());
+            services.AddSingleton<IECSSubsystem>(x => (IECSSubsystem)x.GetRequiredService<TService>());
         }
     }
     
@@ -26,15 +26,15 @@ public static class ECSServiceExtensions
         services.TryAddSingleton<TService>();
         services.AddSingleton<TInterface>(x => x.GetRequiredService<TService>());
 
-        if (typeof(IECSSystem).IsAssignableFrom(typeof(TInterface)))
+        if (typeof(IECSSubsystem).IsAssignableFrom(typeof(TInterface)))
         {
-            services.TryAddSingleton<IECSSystem>(x => (IECSSystem)x.GetRequiredService<TService>());
+            services.TryAddSingleton<IECSSubsystem>(x => (IECSSubsystem)x.GetRequiredService<TService>());
         }
     }
     
     public static void InitialiseECSSystems(this IServiceProvider serviceProvider)
     {
-        foreach (var system in serviceProvider.GetServices<IECSSystem>())
+        foreach (var system in serviceProvider.GetServices<IECSSubsystem>())
         {
             system.OnInit();
         }
@@ -42,7 +42,7 @@ public static class ECSServiceExtensions
     
     public static void StartECSSystems(this IServiceProvider serviceProvider)
     {
-        foreach (var system in serviceProvider.GetServices<IECSSystem>())
+        foreach (var system in serviceProvider.GetServices<IECSSubsystem>())
         {
             system.OnStart();
         }

@@ -5,7 +5,7 @@ public static class LineExtensions
 {
     public static TextComponent LinkNewTextBlock(this LineComponent line, string description, string text, bool highlighted = false)
     {
-        TextComponent textComponent = line.ECS.NewEntity(description).AddComponent<TextComponent>();
+        TextComponent textComponent = line.Entity.NewChildEntity(description).AddComponent<TextComponent>();
         textComponent.Text = text;
         textComponent.Highlighted = highlighted;
         line.AddLineSegment(textComponent);
@@ -15,7 +15,7 @@ public static class LineExtensions
 
     public static HighlightComponent LinkNewTextHighlight(this LineComponent line, TextComponent textComponent, int lineNumber, int columnNumber)
     {
-        HighlightComponent highlight = textComponent.ECS.NewEntity("").AddComponent<HighlightComponent>();
+        HighlightComponent highlight = textComponent.Entity.NewChildEntity("Highlight").AddComponent<HighlightComponent>();
         highlight.TextComponent = textComponent;
         highlight.Line = lineNumber;
         highlight.Column = columnNumber;
@@ -27,7 +27,7 @@ public static class LineExtensions
 
     public static ButtonComponent LinkNewButton(this LineComponent line, string description, string text)
     {
-        var entity = line.ECS.NewEntity(description);
+        var entity = line.Entity.NewChildEntity(description);
         ButtonComponent button = entity.AddComponent<ButtonComponent>();
         button.Text = text;
         line.AddLineSegment(button);

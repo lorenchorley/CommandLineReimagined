@@ -16,7 +16,7 @@ namespace UIComponents.Components
 
         public override void OnInit()
         {
-            EnsureDependency<Renderer>();
+            base.OnInit();
             EnsureDependency<InteractiveComponent>();
         }
 

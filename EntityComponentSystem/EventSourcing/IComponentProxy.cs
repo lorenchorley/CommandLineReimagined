@@ -4,8 +4,9 @@ namespace EntityComponentSystem.EventSourcing;
 
 public interface IComponentProxy
 {
+    public int Id { get; }
     bool DifferentialActive { get; set; }
     Action<IEvent> RegisterDifferential { get; }
-    IComponentCreation GenerateCreationEvent();
+    //IComponentCreation GenerateCreationEvent();
     IComponentSuppression GenerateSuppressionEvent();
 }

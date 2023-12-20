@@ -7,7 +7,7 @@ using System.Windows.Input;
 
 namespace Application.EventHandlers;
 
-public class TextInputHandler : IECSSystem
+public class TextInputHandler : IECSSubsystem
 {
     private readonly InputAccessor _inputAccessor;
     private readonly InputSystem _inputSystem;

@@ -6,10 +6,10 @@ namespace Rendering.Spaces;
 
 public class ConceptualUISpace
 {
-    public static readonly Vector2 TopLeft = new(0, 1);
-    public static readonly Vector2 TopRight = new(1, 1);
-    public static readonly Vector2 BottomLeft = new(0, 0);
-    public static readonly Vector2 BottomRight = new(1, 0);
+    public static readonly PointF TopLeft = new(0, 1);
+    public static readonly PointF TopRight = new(1, 1);
+    public static readonly PointF BottomLeft = new(0, 0);
+    public static readonly PointF BottomRight = new(1, 0);
 
     private readonly PhysicalScreenSpace _screenSpace;
 
@@ -18,7 +18,7 @@ public class ConceptualUISpace
         _screenSpace = screenSpace;
     }
 
-    public static void AssertWithinUIBounds(Vector2 uiPoint)
+    public static void AssertWithinUIBounds(PointF uiPoint)
     {
         if (uiPoint.X > 1 || uiPoint.Y > 1 || uiPoint.X < 0 || uiPoint.Y < 0)
         {
@@ -26,7 +26,7 @@ public class ConceptualUISpace
         }
     }
 
-    public Vector2 TransformFromScreenSpace(Vector2 screenPoint)
+    public PointF TransformFromScreenSpace(PointF screenPoint)
         => _screenSpace.TransformToUISpace(screenPoint);
 
 }

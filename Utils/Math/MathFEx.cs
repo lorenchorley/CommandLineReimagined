@@ -9,8 +9,8 @@ public class MathFEx
         return a + (b - a) * t;
     }
 
-    public static Vector2 Lerp(Vector2 a, Vector2 b, float t)
+    public static PointF Lerp(PointF a, PointF b, float t)
     {
-        return new Vector2(Lerp(a.X, b.X, t), Lerp(a.Y, b.Y, t));
+        return new PointF(Lerp(a.X, b.X, t), Lerp(a.Y, b.Y, t));
     }
 }

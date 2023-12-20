@@ -3,7 +3,7 @@ using Interaction.Entities;
 
 namespace InteractionLogic;
 
-public class InputSystem : IECSSystem
+public class InputSystem : IECSSubsystem
 {
     private readonly ECS _ecs;
     private int _selectionStart = -1;

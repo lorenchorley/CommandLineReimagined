@@ -16,14 +16,23 @@ public class ComponentGenerator : ISourceGenerator
             using System.Text;
             using EntityComponentSystem;
             using EntityComponentSystem.EventSourcing;
-
+            using System.Diagnostics;
+            
             namespace {{ns}};
 
             public class {{componentTypeName}}Creation : IComponentCreation
             {
+                public bool AppliedToActive { get; set; } = false;
+                public bool AppliedToShadow { get; set; } = false;
                 public EntityIndex Entity { get; set; } // Parent entity
                 public ComponentIndex Component { get; set; } // Component to create
                 public Component CreatedComponent { get; set; }
+
+                public {{componentTypeName}}Creation(EntityIndex entity) 
+                {
+                    Entity = entity;
+                    ECS.ComponentCreationCheck(GetType().Name, Entity);
+                }
 
                 public void ApplyTo(IdentifiableList list, TreeType treeType)
                 {
@@ -99,20 +108,21 @@ public class ComponentGenerator : ISourceGenerator
                     sb.Append(Environment.NewLine);
                 }
             }
-                        
+             
+            [DebuggerDisplay("Component \"{{componentTypeName}}\" On {Entity.Name}")]
             public class {{componentTypeName}}Proxy : {{componentTypeName}}, IComponentProxy
             {
                 public bool DifferentialActive { get; set; } = true;
                 public Action<IEvent> RegisterDifferential { get; init; }
 
-                public IComponentCreation GenerateCreationEvent()
-                {
-                    return new {{componentTypeName}}Creation()
-                    {
-                        Entity = new EntityIndex(Entity),
-                        Component = new ComponentIndex(this)
-                    };
-                }
+                //public IComponentCreation GenerateCreationEvent()
+                //{
+                //    return new {{componentTypeName}}Creation()
+                //    {
+                //        Entity = new EntityIndex(Entity),
+                //        Component = new ComponentIndex(this)
+                //    };
+                //}
 
                 public IComponentSuppression GenerateSuppressionEvent()
                 {

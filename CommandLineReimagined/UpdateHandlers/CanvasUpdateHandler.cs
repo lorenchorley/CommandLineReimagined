@@ -9,7 +9,7 @@ using System.Windows.Media.Imaging;
 
 namespace Application.UpdateHandlers;
 
-public class CanvasUpdateHandler : ICanvasUpdateSystem, IECSSystem
+public class CanvasUpdateHandler : ICanvasUpdateSystem, IECSSubsystem
 {
     private readonly CanvasAccessor _canvasAccessor;
     private readonly ContextMenuAccessor _contextMenuAccessor;

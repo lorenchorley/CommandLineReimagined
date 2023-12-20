@@ -6,7 +6,7 @@ using System.Windows.Controls;
 
 namespace Application.EventHandlers;
 
-public class CanvasRenderingEventHandler : IECSSystem
+public class CanvasRenderingEventHandler : IECSSubsystem
 {
     private readonly CanvasAccessor _canvasAccessor;
     private readonly ScreenSystem _screenSystem;

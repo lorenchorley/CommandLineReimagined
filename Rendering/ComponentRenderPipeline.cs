@@ -1,6 +1,8 @@
 ﻿using EntityComponentSystem;
+using EntityComponentSystem.Attributes;
 using Rendering.Components;
 using Rendering.Events;
+using Rendering.Spaces;
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Numerics;
@@ -29,12 +31,12 @@ public class ComponentRenderPipeline
     private float _letterHeight;
 
     private readonly ECS _ecs;
+    private readonly PhysicalScreenSpace _physicalScreenSpace;
 
-    public UICamera? Camera { get; private set; }
-
-    public ComponentRenderPipeline(ECS ecs)
+    public ComponentRenderPipeline(ECS ecs, PhysicalScreenSpace physicalScreenSpace)
     {
         _ecs = ecs;
+        _physicalScreenSpace = physicalScreenSpace;
     }
 
     /// <summary>
@@ -46,15 +48,6 @@ public class ComponentRenderPipeline
     public void Draw(Graphics gfx, float canvasWidth, float canvasHeight, ECS.ShadowECS shadowECS)
     {
         _ecs.RegisterEvent(new RenderEvent());
-
-        Camera ??= shadowECS.Components.OfType<UICamera>().FirstOrDefault();
-
-        if (Camera == null)
-        {
-            return;
-        }
-
-        RecalulateCameraInfo(Camera, gfx, canvasWidth, canvasHeight);
 
         // TODO Positionner les transforms de Input et Output selon les bidouilles
         // Ajouter la marge à ce niveau
@@ -82,7 +75,7 @@ public class ComponentRenderPipeline
                      .OfType<Renderer>()
                      .ToList();
 
-        componentsToRender.ForEach(r => r.IsVisible = false); // TODO Garder la dernière liste pour ne pas tout reparcourir à chaque fois
+        //componentsToRender.ForEach(r => r.IsVisible = false); // TODO Garder la dernière liste pour ne pas tout reparcourir à chaque fois
 
         // Deuxième passe pour dessiner les éléments
         RenderElements(gfx, componentsToRender);
@@ -105,35 +98,20 @@ public class ComponentRenderPipeline
         }
     }
 
-    private void RecalulateCameraInfo(UICamera camera, Graphics gfx, float canvasWidth, float canvasHeight)
-    {
-        camera.RenderSpaceSize = new Vector2(canvasWidth, canvasHeight);
-
-        float bidouilleHorizontalRatio = 0.655f;
-        float bidouilleVerticalRatio = 0.85f;
-
-        if (_needsCalculationRefresh)
-        {
-            SizeF letterSize = gfx.MeasureString("w", _font);
-            _letterWidth = letterSize.Width * bidouilleHorizontalRatio;
-            _letterHeight = letterSize.Height * bidouilleVerticalRatio;
-
-            Camera.LetterSize = new Vector2(_letterWidth, _letterHeight);
-
-            _needsCalculationRefresh = false;
-        }
-    }
-
     private void RenderElements(Graphics gfx, List<Renderer> elementsToRender)
     {
-        var renderers = elementsToRender.Where(r => r.IsVisible).ToList();
+        //var renderers = elementsToRender.Where(r => r.IsVisible).ToList();
 
         // Sort by ZIndex
-        renderers.Sort();
+        elementsToRender.Sort();
 
-        foreach (var renderer in renderers)
+        foreach (var renderer in elementsToRender)
         {
-            RectangleF bounds = renderer.CanvasRenderPosition;
+            //RectangleF bounds = renderer.CanvasRenderPosition;
+
+            renderer.UITransform ??= renderer.Entity.GetOrAddComponent<UITransform>();
+            RectangleF bounds = renderer.UITransform.BoundsToScreenSpace(_physicalScreenSpace);
+            renderer.CanvasRenderPosition = bounds;
 
             //if (_debugRendering)
             //    gfx.DrawRectangle(_debugPen, bounds);

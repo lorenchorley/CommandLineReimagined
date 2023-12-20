@@ -2,12 +2,14 @@
 using EntityComponentSystem.EventSourcing;
 using Microsoft.Extensions.DependencyInjection;
 using Newtonsoft.Json;
+using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using System.Runtime.InteropServices;
 
 namespace EntityComponentSystem;
 
+[DebuggerDisplay("Entity {Name}")]
 public sealed class Entity : IIdentifiable
 {
     public int Id { get; private init; }
@@ -28,17 +30,32 @@ public sealed class Entity : IIdentifiable
         }
         set
         {
-            if (_parent != null)
+            var differential = new EntityDifferential()
             {
-                _parent.RemoveChild(this);
-            }
+                ECS = ECS,
+                Entity = new(this),
+                NewParent = value == null ? null : new(value),
+                ParentalModification = DetectParentalModificationCase(hasNewValue: value != null)
+            };
 
-            _parent = value;
+            ECS.RegisterAndApplyEvent(differential);
+        }
+    }
 
-            if (_parent != null)
-            {
-                _parent.AddChild(this);
-            }
+    internal void InternalSetParent(Entity entity)
+    {
+        _parent = entity;
+    }
+
+    private ParentalModification DetectParentalModificationCase(bool hasNewValue)
+    {
+        if (Parent == null)
+        {
+            return hasNewValue ? ParentalModification.Set : ParentalModification.None;
+        }
+        else
+        {
+            return hasNewValue ? ParentalModification.Change : ParentalModification.Remove;
         }
     }
 
@@ -90,12 +107,42 @@ public sealed class Entity : IIdentifiable
         }
     }
 
-    internal void RemoveChild(Entity child)
+    internal void InternalAddChild(Entity child)
+    {
+        lock (_lockChildren)
+        {
+            _children.Add(child);
+        }
+    }
+
+    internal void InternalRemoveChild(Entity child)
     {
         lock (_lockChildren)
         {
             _children.Remove(child);
         }
+    }
+
+    public void RemoveChild(Entity child)
+    {
+        ECS.RegisterAndApplyEvent(new EntitySuppression()
+        {
+            Name = child.Name,
+            Entity = new(child)
+        });
+    }
+
+    public void RemoveAllChildren()
+    {
+        foreach (var child in Children)
+        {
+            RemoveChild(child);
+        }
+    }
+
+    public Entity NewChildEntity(string name)
+    {
+        return ECS.NewEntity(name, this);
     }
     #endregion
 
@@ -121,14 +168,28 @@ public sealed class Entity : IIdentifiable
             {
                 throw new InvalidOperationException($"Component of type {componentType.Name} already exists");
             }
+            bool d = _treeType == TreeType.Active && Name == "Input" && componentType.Name == "Renderer";
 
             // Find type in the same assembly as componentType, but with Proxy at the end
             var creationType = componentType.Assembly.GetType($"{componentType.Namespace}.{componentType.Name}Creation");
-            IComponentCreation? creation = (IComponentCreation)Activator.CreateInstance(creationType);
-            creation.Entity = new(this);
+
+            if (creationType == null)
+            {
+                throw new InvalidOperationException($"Could not find creation type for component {componentType.Name}");
+            }
+
+            IComponentCreation? creation = (IComponentCreation?)Activator.CreateInstance(creationType, new object[] { new EntityIndex(this) });
+            //creation.Entity = new(this);
+
+            if (creation == null)
+            {
+                throw new InvalidOperationException($"Could not instanciate creation type for component {componentType.Name}");
+            }
+
             creation.Component = new(ECS.NewId);
 
             ECS.RegisterEvent(creation);
+            ECS.Apply(creation);
             ECS.RegisterNewComponent(creation);
 
             return creation.CreatedComponent;
@@ -137,6 +198,11 @@ public sealed class Entity : IIdentifiable
 
     public Component InternalAddComponent(Type proxyType, ComponentIndex componentIndex, TreeType treeType)
     {
+        if (treeType != _treeType)
+        {
+            throw new InvalidOperationException("Cannot add a component to a different tree type");
+        }
+
         // Otherwise just create a new instance
         Component component = (Component)(Activator.CreateInstance(proxyType) ?? throw new InvalidOperationException($"Activator.CreateInstance({proxyType.Name})"));
         IComponentProxy proxy = (IComponentProxy)component;
@@ -149,7 +215,7 @@ public sealed class Entity : IIdentifiable
 
         var registerDifferentialProp = component.GetType().GetProperty(nameof(proxy.RegisterDifferential)) ?? throw new NullReferenceException(nameof(proxy.RegisterDifferential));
         registerDifferentialProp.SetValue(component, (object)ECS.RegisterEvent);
-        
+
         if (treeType == TreeType.Shadow)
         {
             // Désactivation des differentiels dans le shadow tree
@@ -161,10 +227,13 @@ public sealed class Entity : IIdentifiable
 
         _components.Add(component);
 
-        InjectDependencies(proxyType, component);
-        SetupStateListeners(proxyType);
-
-        component.OnInit();
+        // We don't want a fully fonctionnal shadow tree, it's just there to carry values and structure
+        if (treeType == TreeType.Active)
+        {
+            InjectDependencies(proxyType, component);
+            SetupStateListeners(proxyType);
+            component.OnInit();
+        }
 
         return component;
     }
@@ -272,5 +341,6 @@ public sealed class Entity : IIdentifiable
     {
         // Record the value set to the property here
     }
+
     #endregion
 }

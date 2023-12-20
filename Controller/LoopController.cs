@@ -1,6 +1,12 @@
 ﻿using EntityComponentSystem;
+using InteractionLogic;
 using Rendering;
 using Rendering.Components;
+using Rendering.Spaces;
+using System;
+using System.Drawing;
+using System.Numerics;
+using static EntityComponentSystem.ECS;
 
 namespace Controller;
 public class LoopController
@@ -10,16 +16,40 @@ public class LoopController
 
     private readonly ECS _ecs;
     private readonly RenderLoop _renderLoop;
+    private readonly ICanvasEventEmitter _canvasEventEmitter;
 
-    public LoopController(ECS ecs, RenderLoop renderLoop)
+    private readonly ConceptualUISpace _uiSpace;
+    private readonly PhysicalScreenSpace _screenSpace;
+
+    public UICamera[] ShadowCameras { get; private set; } = new UICamera[0];
+    public UICamera[] ActiveCameras { get; private set; } = new UICamera[0];
+
+    public LoopController(ECS ecs, RenderLoop renderLoop, ICanvasEventEmitter canvasEventEmitter, PhysicalScreenSpace screenSpace, ConceptualUISpace uiSpace)
     {
         _ecs = ecs;
         _renderLoop = renderLoop;
+        _canvasEventEmitter = canvasEventEmitter;
+        _screenSpace = screenSpace;
+        _uiSpace = uiSpace;
+
+        _canvasEventEmitter.RegisterSizeUpdateHandler(SetCanvasSize);
     }
 
     public void Start()
     {
         RequestLoop();
+    }
+
+    public void RequestLoop()
+    {
+        lock (_requestLock)
+        {
+            if (EnqueuedRefreshTask is not null)
+                return;
+
+            // Enqueue si pas déjà demandé
+            EnqueuedRefreshTask = Task.Delay(15).ContinueWith(_ => MainLoop());
+        }
     }
 
     // Need to shift the responsibility of the main loop to here
@@ -34,7 +64,9 @@ public class LoopController
 
             UpdateLayoutsInActiveTree(); // Should produce a number of UITransformDifferentials
 
-            ECS.ShadowECS shadowECS = _ecs.TriggerMerge();
+            ShadowECS shadowECS = _ecs.TriggerMerge();
+
+            UpdateCameraLists(shadowECS);
 
             _renderLoop.Update(shadowECS);
 
@@ -44,7 +76,7 @@ public class LoopController
 
     private void UpdateLayoutsInActiveTree()
     {
-        List<UILayoutComponent> layouts = ComponentTreeSearchLowestFirst<UILayoutComponent>(_ecs.Entities).ToList();
+        List<UILayoutComponent> layouts = _ecs.ComponentTreeSearchLowestFirst<UILayoutComponent>();
 
         // Première passe pour savoir quels élements devraient y être et où il faut les placer
         foreach (var layout in layouts)
@@ -53,41 +85,63 @@ public class LoopController
         }
     }
 
-    private IEnumerable<T> ComponentTreeSearchLowestFirst<T>(IEnumerable<Entity> entites) where T : Component
+    public void UpdateCameraLists(ShadowECS shadowECS)
     {
-        // Search for all uilayoutcomponents and recursively return them from the lowest layer first
-        foreach (var entity in entites)
-        {
-            var children = entity.Children.ToArray();
-            foreach (var layout in ComponentTreeSearchLowestFirst<T>(children))
-            {
-                yield return layout;
-            }
+        int s = ShadowCameras.Length;
+        int a = ActiveCameras.Length;
 
-            if (entity.TryGetComponent(out T? match))
-            {
-                yield return match;
-            }
+        ShadowCameras = shadowECS.Components.OfType<UICamera>().ToArray();
+        ActiveCameras = _ecs.FlatComponentList.OfType<UICamera>().ToArray(); // Pb de concurrence 
+
+        // Update the camera components if the number of cameras changed
+        // A bit too much, but it's a simple way to make sure that all of the camera components are up to date
+        if (s != ShadowCameras.Length || a != ActiveCameras.Length)
+        {
+            UpdateCameraComponents(_cameraWidth, _cameraHeight, _letterSize);
         }
     }
 
-    public void RequestLoop()
+    private int _cameraWidth = 0;
+    private int _cameraHeight = 0;
+    private SizeF _letterSize;
+
+    public void SetCanvasSize(int width, int height)
     {
-        lock (_requestLock)
+        _cameraWidth = width;
+        _cameraHeight = height;
+
+        _screenSpace.SetSize(_cameraWidth, _cameraHeight);
+        _renderLoop.SetCanvasSize(_cameraWidth, _cameraHeight);
+
+        _letterSize = _renderLoop.GetLetterSize();
+
+        UpdateCameraComponents(_cameraWidth, _cameraHeight, _letterSize);
+    }
+
+    private void UpdateCameraComponents(int width, int height, SizeF letterSize)
+    {
+        foreach (var camera in ShadowCameras)
         {
-            //if (!_isActive)
-            //{
-            //    return;
-            //}
-
-            if (EnqueuedRefreshTask is not null)
-            {
-                return;
-            }
-
-            // Enqueue si pas déjà demandé
-            EnqueuedRefreshTask = Task.Delay(15).ContinueWith(_ => MainLoop());
+            RecalulateShadowCameraInfo(camera, letterSize, width, height);
         }
+
+        foreach (var camera in ActiveCameras)
+        {
+
+            RecalulateActiveCameraInfo(camera, letterSize, width, height);
+        }
+    }
+
+    private void RecalulateShadowCameraInfo(UICamera shadowCamera, SizeF letterSize, float canvasWidth, float canvasHeight)
+    {
+        shadowCamera.RenderSpaceSize = new Vector2(canvasWidth, canvasHeight);
+        shadowCamera.LetterSize = letterSize;
+    }
+
+    private void RecalulateActiveCameraInfo(UICamera activeCamera, SizeF letterSize, float canvasWidth, float canvasHeight)
+    {
+        // TODO Calculate letterSize for UI Space
+        activeCamera.LetterSize = new SizeF(letterSize.Width / canvasWidth, letterSize.Height / canvasHeight);
     }
 
 }

@@ -20,8 +20,8 @@ public class IdentifiableListTests
         ecs.NewEntity("2");
         ecs.NewEntity("3");
 
-        int entityCount1 = ecs.Entities.Count();
-        int componentCount1 = ecs.Components.Count();
+        int entityCount1 = ecs.FlatEntityList.Count();
+        int componentCount1 = ecs.FlatComponentList.Count();
 
         Entity e = ecs.NewEntity("4");
 
@@ -31,13 +31,13 @@ public class IdentifiableListTests
         // TODO 2 components
         ecs.NewEntity("5");
 
-        int entityCount2 = ecs.Entities.Count();
-        int componentCount2 = ecs.Components.Count();
+        int entityCount2 = ecs.FlatEntityList.Count();
+        int componentCount2 = ecs.FlatComponentList.Count();
 
         e.AddComponent<PathInformation>();
 
-        int entityCount3 = ecs.Entities.Count();
-        int componentCount3 = ecs.Components.Count();
+        int entityCount3 = ecs.FlatEntityList.Count();
+        int componentCount3 = ecs.FlatComponentList.Count();
 
 
         // Assert

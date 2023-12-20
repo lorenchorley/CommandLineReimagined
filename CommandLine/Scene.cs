@@ -7,7 +7,7 @@ using UIComponents.Components;
 
 namespace Terminal
 {
-    public class Scene : IECSSystem
+    public class Scene : IECSSubsystem
     {
         private readonly ECS _ecs;
         private readonly LoopController _loopController;
@@ -32,12 +32,13 @@ namespace Terminal
         {
             Camera = _ecs.NewEntity("MainCamera").AddComponent<UICamera>();
 
-            OutputPanel = _ecs.NewEntity("Output").AddComponent<ConsolePanel>();
-            InputPanel = _ecs.NewEntity("Input").AddComponent<ConsolePanel>();
-
             Layout = _ecs.NewEntity("Layout").AddComponent<ConsoleLayout>();
-            OutputPanel.Entity.Parent = Layout.Entity;
-            InputPanel.Entity.Parent = Layout.Entity;
+
+            OutputPanel = Layout.Entity.NewChildEntity("Output").AddComponent<ConsolePanel>();
+            InputPanel = Layout.Entity.NewChildEntity("Input").AddComponent<ConsolePanel>();
+
+            //OutputPanel.Entity.Parent = Layout.Entity;
+            //InputPanel.Entity.Parent = Layout.Entity;
 
             MouseInputHandler = _ecs.NewEntity("MouseInputHandler").AddComponent<MouseInputHandler>();
             KeyInputHandler = _ecs.NewEntity("KeyInputHandler").AddComponent<KeyInputHandler>();

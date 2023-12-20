@@ -42,150 +42,154 @@ public class ConsoleLayout : UILayoutComponent, IRenderableComponent
     // One of the only things that should be part of a layout behaviour
     public override void RecalculateChildTransforms()
     {
+        // Fill the screen with the transform of this component
         Transform.Position = ConceptualUISpace.BottomLeft;
-        Transform.Size = ConceptualUISpace.TopRight;
+        Transform.Size = new SizeF(1, 1);
 
-        if (Input.Height < 0 || Input.Height > 1)
+        float height = InputTransform.Size.Height;
+
+        // Verify that the input panel's height is set correctly and does not go beyond [0,1]
+        if (height < 0 || height > 1)
         {
-            throw new Exception($"Input height is not set correctly ({Input.Height})");
+            throw new Exception($"Input height is not set correctly ({height})");
         }
 
         // Fit the input panel horizontally, respecting the given height, to the bottom of the ui space
         InputTransform.Position = ConceptualUISpace.BottomLeft;
-        InputTransform.Size = new Vector2(1, Input.Height);
+        InputTransform.Size = new SizeF(1, height);
 
         // Fit horizontally and vertically the output panel to the remaining space
-        OutputTransform.Position = new Vector2(0, Input.Height);
-        OutputTransform.Size = new Vector2(1, 1 - Input.Height);
+        OutputTransform.Position = new PointF(0, height);
+        OutputTransform.Size = new SizeF(1, 1 - height);
 
 
-        return;
+        //return;
 
-        List<LineComponent> lines =
-            Input.Entity // NullRef : parce qu'on est sur un objet shadow qui n'a pas des valeurs de propriétés ! Comment faire pour les UILayout dans ce cas ?
-                 .Children
-                 .ToArray()
-                 .Select(c => c.GetComponent<LineComponent>())
-                 .ToList();
+        //List<LineComponent> lines =
+        //    Input.Entity // NullRef : parce qu'on est sur un objet shadow qui n'a pas des valeurs de propriétés ! Comment faire pour les UILayout dans ce cas ?
+        //         .Children
+        //         .ToArray()
+        //         .Select(c => c.GetComponent<LineComponent>())
+        //         .ToList();
 
-        PointF position;
-        float calculatedWidth;
-        SizeF size;
+        //PointF position;
+        //float calculatedWidth;
+        //SizeF size;
 
-        float verticalOffset = Transform.Position.Y;
-        float horizontalOffset = Transform.Position.X; // TODO cette valeur n'est pas exploitée pour faire des retours à la ligne
+        //float verticalOffset = Transform.Position.Y;
+        //float horizontalOffset = Transform.Position.X; // TODO cette valeur n'est pas exploitée pour faire des retours à la ligne
 
-        PointF NewPosition(float x, float y) => new(x, Transform.Size.Y - y);
+        //PointF NewPosition(float x, float y) => new(x, Transform.Size.Y - y);
 
-        for (int i = 0; i < lines.Count; i++)
-        {
-            LineComponent line = lines[i];
+        //for (int i = 0; i < lines.Count; i++)
+        //{
+        //    LineComponent line = lines[i];
 
-            foreach (LineSegmentComponent lineSegment in line.LineSegments)
-            {
-                Renderer renderer = ((Component)lineSegment).Entity.GetComponent<Renderer>();
-                renderer.IsVisible = true; // Marquer comme visible pour le rendu
+        //    foreach (LineSegmentComponent lineSegment in line.LineSegments)
+        //    {
+        //        Renderer renderer = ((Component)lineSegment).Entity.GetComponent<Renderer>();
+        //        renderer.IsVisible = true; // Marquer comme visible pour le rendu
 
-                if (lineSegment is TextComponent textBlock)
-                {
-                    // TODO Gérer les retours à la ligne
-                    var newLineCount = textBlock.Text.Where(c => c == '\n').Count();
-                    verticalOffset += Camera.LetterHeight * newLineCount; // Ajouter de l'hauteur s'il y a des retours à la ligne
+        //        if (lineSegment is TextComponent textBlock)
+        //        {
+        //            // TODO Gérer les retours à la ligne
+        //            var newLineCount = textBlock.Text.Where(c => c == '\n').Count();
+        //            verticalOffset += Camera.LetterHeight * newLineCount; // Ajouter de l'hauteur s'il y a des retours à la ligne
 
-                    position = NewPosition(horizontalOffset, verticalOffset);
-                    calculatedWidth = Camera.LetterWidth * textBlock.Text.Length;
-                    size = new(calculatedWidth, Camera.LetterHeight * (newLineCount + 1));
-                    renderer.CanvasRenderPosition = new(position, size);
-                    horizontalOffset += size.Width;
+        //            position = NewPosition(horizontalOffset, verticalOffset);
+        //            calculatedWidth = Camera.LetterWidth * textBlock.Text.Length;
+        //            size = new(calculatedWidth, Camera.LetterHeight * (newLineCount + 1));
+        //            renderer.CanvasRenderPosition = new(position, size);
+        //            horizontalOffset += size.Width;
 
-                    renderer.RenderingBehaviour = new TextRenderer(textBlock.Text, textBlock.Highlighted);
+        //            renderer.RenderingBehaviour = new TextRenderer(textBlock.Text, textBlock.Highlighted);
 
-                    continue;
-                }
+        //            continue;
+        //        }
 
-                if (lineSegment is HighlightComponent highlight)
-                {
-                    // Positionner le rectangle de highlight afin que ça correspond à Line et Column du texte
-                    var textRenderer = highlight.TextComponent.GetComponent<Renderer>();
+        //        if (lineSegment is HighlightComponent highlight)
+        //        {
+        //            // Positionner le rectangle de highlight afin que ça correspond à Line et Column du texte
+        //            var textRenderer = highlight.TextComponent.GetComponent<Renderer>();
 
-                    var horizontalLetterOffset = highlight.Column * Camera.LetterWidth;
-                    var verticalLetterOffset = highlight.Line * Camera.LetterHeight;
+        //            var horizontalLetterOffset = highlight.Column * Camera.LetterWidth;
+        //            var verticalLetterOffset = highlight.Line * Camera.LetterHeight;
 
-                    var trailingLineLength = GetTrailingLineLength(highlight.TextComponent.Text, highlight.Line, highlight.Column);
+        //            var trailingLineLength = GetTrailingLineLength(highlight.TextComponent.Text, highlight.Line, highlight.Column);
 
-                    //position = new PointF(textRenderer.CanvasRenderPosition.Left + horizontalLetterOffset, textRenderer.CanvasRenderPosition.Top + verticalLetterOffset);
-                    position = new PointF(horizontalLetterOffset, verticalLetterOffset);
-                    size = new(Camera.LetterWidth, Camera.LetterHeight);
-                    renderer.CanvasRenderPosition = new(position, size);
-                    renderer.ZIndex = -1;
+        //            //position = new PointF(textRenderer.CanvasRenderPosition.Left + horizontalLetterOffset, textRenderer.CanvasRenderPosition.Top + verticalLetterOffset);
+        //            position = new PointF(horizontalLetterOffset, verticalLetterOffset);
+        //            size = new(Camera.LetterWidth, Camera.LetterHeight);
+        //            renderer.CanvasRenderPosition = new(position, size);
+        //            renderer.ZIndex = -1;
 
-                    renderer.RenderingBehaviour = new HighlightRenderer(textRenderer, trailingLineLength, Camera.LetterWidth, Camera.LetterHeight);
+        //            renderer.RenderingBehaviour = new HighlightRenderer(textRenderer, trailingLineLength, Camera.LetterWidth, Camera.LetterHeight);
 
-                    continue;
-                }
+        //            continue;
+        //        }
 
-                if (lineSegment is ButtonComponent button)
-                {
-                    // TODO Gérer les retours à la ligne
-                    horizontalOffset += Camera.LetterWidth;
+        //        if (lineSegment is ButtonComponent button)
+        //        {
+        //            // TODO Gérer les retours à la ligne
+        //            horizontalOffset += Camera.LetterWidth;
 
-                    position = NewPosition(horizontalOffset, verticalOffset);
-                    calculatedWidth = Camera.LetterWidth * button.Text.Length;
-                    size = new(calculatedWidth, Camera.LetterHeight);
-                    renderer.CanvasRenderPosition = new(position, size);
+        //            position = NewPosition(horizontalOffset, verticalOffset);
+        //            calculatedWidth = Camera.LetterWidth * button.Text.Length;
+        //            size = new(calculatedWidth, Camera.LetterHeight);
+        //            renderer.CanvasRenderPosition = new(position, size);
 
-                    horizontalOffset += Camera.LetterWidth;
-                    horizontalOffset += size.Width;
+        //            horizontalOffset += Camera.LetterWidth;
+        //            horizontalOffset += size.Width;
 
-                    renderer.RenderingBehaviour = new ButtonRenderer(button.Text);
+        //            renderer.RenderingBehaviour = new ButtonRenderer(button.Text);
 
-                    continue;
-                }
+        //            continue;
+        //        }
 
-                if (lineSegment is CursorComponent cursor)
-                {
-                    if (cursor.TextComponentReference == null)
-                        continue;
+        //        if (lineSegment is CursorComponent cursor)
+        //        {
+        //            if (cursor.TextComponentReference == null)
+        //                continue;
 
-                    // Positionner le rectangle de highlight afin que ça correspond à Line et Column du texte
-                    var textRenderer = cursor.TextComponentReference.GetComponent<Renderer>();
-                    var (lineNumber, columnNumber) = GetLineAndColumnNumberFromString(cursor, cursor.Text);
+        //            // Positionner le rectangle de highlight afin que ça correspond à Line et Column du texte
+        //            var textRenderer = cursor.TextComponentReference.GetComponent<Renderer>();
+        //            var (lineNumber, columnNumber) = GetLineAndColumnNumberFromString(cursor, cursor.Text);
 
-                    var horizontalLetterOffset = columnNumber * Camera.LetterWidth;
-                    var verticalLetterOffset = lineNumber * Camera.LetterHeight;
+        //            var horizontalLetterOffset = columnNumber * Camera.LetterWidth;
+        //            var verticalLetterOffset = lineNumber * Camera.LetterHeight;
 
-                    //position = new PointF(textRenderer.CanvasRenderPosition.Left + horizontalLetterOffset, textRenderer.CanvasRenderPosition.Top + verticalLetterOffset);
-                    position = new PointF(horizontalLetterOffset, verticalLetterOffset);
-                    size = new(2, Camera.LetterHeight);
-                    renderer.CanvasRenderPosition = new(position, size);
-                    renderer.ZIndex = 1;
+        //            //position = new PointF(textRenderer.CanvasRenderPosition.Left + horizontalLetterOffset, textRenderer.CanvasRenderPosition.Top + verticalLetterOffset);
+        //            position = new PointF(horizontalLetterOffset, verticalLetterOffset);
+        //            size = new(2, Camera.LetterHeight);
+        //            renderer.CanvasRenderPosition = new(position, size);
+        //            renderer.ZIndex = 1;
 
-                    //renderer.RenderingBehaviour = new CursorRenderer(textRenderer, Input.IsCommandExecutable);
+        //            //renderer.RenderingBehaviour = new CursorRenderer(textRenderer, Input.IsCommandExecutable);
 
-                    continue;
-                }
+        //            continue;
+        //        }
 
-            }
+        //    }
 
-            // Si on a dépassé la largeur du canvas, on fait un retour à la ligne
-            // Ce n'est pas une bonne façon de faire, car on dépasse déjà la largeur 
-            // TODO
-            //if (horizontalOffset > transform.Size.X)
-            //{
-            //    horizontalOffset += letterHeight;
-            //    verticalOffset = 0;
-            //}
+        //    // Si on a dépassé la largeur du canvas, on fait un retour à la ligne
+        //    // Ce n'est pas une bonne façon de faire, car on dépasse déjà la largeur 
+        //    // TODO
+        //    //if (horizontalOffset > transform.Size.X)
+        //    //{
+        //    //    horizontalOffset += letterHeight;
+        //    //    verticalOffset = 0;
+        //    //}
 
-            horizontalOffset = Transform.Position.X;
-            verticalOffset += Camera.LetterHeight;
+        //    horizontalOffset = Transform.Position.X;
+        //    verticalOffset += Camera.LetterHeight;
 
-            // On a dépassé le canvas, on arrête
-            if (verticalOffset > Transform.Size.Y)
-            {
-                break;
-            }
+        //    // On a dépassé le canvas, on arrête
+        //    if (verticalOffset > Transform.Size.Y)
+        //    {
+        //        break;
+        //    }
 
-        }
+        //}
     }
 
     public void DrawBackgroundAroundLine(Graphics gfx/*, float canvasWidth, float canvasHeight*/)
@@ -237,4 +241,5 @@ public class ConsoleLayout : UILayoutComponent, IRenderableComponent
         // Draw the background around the input panel
         DrawBackgroundAroundLine(gfx);
     }
+
 }

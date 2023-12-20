@@ -10,7 +10,7 @@ using System.Windows.Input;
 
 namespace Application.EventHandlers;
 
-public class CanvasInteractionEventHandler : IECSSystem
+public class CanvasInteractionEventHandler : IECSSubsystem
 {
     private readonly CanvasAccessor _canvasAccessor;
     private readonly TextInputUpdateHandler _textInputUpdateHandler;

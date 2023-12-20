@@ -9,6 +9,7 @@ namespace UIComponents.Components
 
         public override void OnInit()
         {
+            base.OnInit();
             EnsureDependency<InteractiveComponent>();
         }
     }

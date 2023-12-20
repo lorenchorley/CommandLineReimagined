@@ -18,6 +18,11 @@ internal class BitmapBuffer : IDisposable
     public int Width { get; }
     public int Height { get; }
 
+    public SizeF GetLetterSize(Font font)
+    {
+        return _gfx.MeasureString("w", font);
+    }
+
     public Graphics Gfx
     {
         get

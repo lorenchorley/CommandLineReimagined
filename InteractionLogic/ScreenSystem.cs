@@ -2,7 +2,7 @@
 using System.Numerics;
 
 namespace InteractionLogic;
-public class ScreenSystem : IECSSystem, ICanvasEventEmitter
+public class ScreenSystem : IECSSubsystem, ICanvasEventEmitter
 {
     private bool isInitialised = false;
     private int _actualWidth = -1;

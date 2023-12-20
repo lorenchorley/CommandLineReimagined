@@ -46,7 +46,7 @@ public class CommandFailedTypeChecking
 
 }
 
-public class Shell : IECSSystem
+public class Shell : IECSSubsystem
 {
     private readonly List<CommandDefinition> _commandProfiles;
     private readonly CommandLineInterpreter _interpreter;
@@ -82,7 +82,7 @@ public class Shell : IECSSystem
         _prompt = prompt;
         _renderLoop = renderLoop;
         _commandSearch = commandSearch;
-        _textUpdateSystem = textUpdateSystem;
+        _textUpdateSystem = textUpdateSystem; 
         _scene = sceneSetup;
         _interpreter = new CommandLineInterpreter();
     }
@@ -95,7 +95,7 @@ public class Shell : IECSSystem
     public void OnStart()
     {
     }
-
+     
     public void RegisterCommand(CommandDefinition commandProfile)
     {
         _commandProfiles.Add(commandProfile);

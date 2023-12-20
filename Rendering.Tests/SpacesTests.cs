@@ -17,45 +17,47 @@ public class SpacesTests
     {
         // Arrange
         // =======
-        var screenSpace = new PhysicalScreenSpace(_width, _height);
+        var screenSpace = new PhysicalScreenSpace();
 
-        var uiZero = new Vector2(0, 0);
-        var uiOne = new Vector2(1, 1);
+        screenSpace.SetSize(_width, _height);
+
+        var uiZero = new PointF(0, 0);
+        var uiOne = new PointF(1, 1);
 
 
         // Act
         // ===
-        var uiZeroOnScreen = screenSpace.TransformFromUISpace(uiZero);
-        var uiOneOnScreen = screenSpace.TransformFromUISpace(uiOne);
+        var uiZeroOnScreen = screenSpace.TransformPointFromUISpace(uiZero);
+        var uiOneOnScreen = screenSpace.TransformPointFromUISpace(uiOne);
 
-        var uiTopLeftOnScreen = screenSpace.TransformFromUISpace(ConceptualUISpace.TopLeft);
-        var uiTopRightOnScreen = screenSpace.TransformFromUISpace(ConceptualUISpace.TopRight);
-        var uiBottomLeftOnScreen = screenSpace.TransformFromUISpace(ConceptualUISpace.BottomLeft);
-        var uiBottomRightOnScreen = screenSpace.TransformFromUISpace(ConceptualUISpace.BottomRight);
+        var uiTopLeftOnScreen = screenSpace.TransformPointFromUISpace(ConceptualUISpace.TopLeft);
+        var uiTopRightOnScreen = screenSpace.TransformPointFromUISpace(ConceptualUISpace.TopRight);
+        var uiBottomLeftOnScreen = screenSpace.TransformPointFromUISpace(ConceptualUISpace.BottomLeft);
+        var uiBottomRightOnScreen = screenSpace.TransformPointFromUISpace(ConceptualUISpace.BottomRight);
 
         var middleUITopPoint = MathFEx.Lerp(ConceptualUISpace.TopLeft, ConceptualUISpace.TopRight, 0.5f);
-        var middleUITopOnScreen = screenSpace.TransformFromUISpace(middleUITopPoint);
+        var middleUITopOnScreen = screenSpace.TransformPointFromUISpace(middleUITopPoint);
 
         var middleUIBottom = MathFEx.Lerp(ConceptualUISpace.BottomLeft, ConceptualUISpace.BottomRight, 0.5f);
-        var middleUIBottomOnScreen = screenSpace.TransformFromUISpace(middleUIBottom);
+        var middleUIBottomOnScreen = screenSpace.TransformPointFromUISpace(middleUIBottom);
 
         var middleUILeft = MathFEx.Lerp(ConceptualUISpace.TopLeft, ConceptualUISpace.BottomLeft, 0.5f);
-        var middleUILeftOnScreen = screenSpace.TransformFromUISpace(middleUILeft);
+        var middleUILeftOnScreen = screenSpace.TransformPointFromUISpace(middleUILeft);
 
         var middleUIRight = MathFEx.Lerp(ConceptualUISpace.TopRight, ConceptualUISpace.BottomRight, 0.5f);
-        var middleUIRightOnScreen = screenSpace.TransformFromUISpace(middleUIRight);
+        var middleUIRightOnScreen = screenSpace.TransformPointFromUISpace(middleUIRight);
 
-        var middleUiOnScreen = screenSpace.TransformFromUISpace(new Vector2(0.5f, 0.5f));
+        var middleUiOnScreen = screenSpace.TransformPointFromUISpace(new PointF(0.5f, 0.5f));
 
 
         // Assert
         // ======
 
         // The zero point of the UI space should correspond to the bottom left of the screen space 
-        Assert.AreEqual(new Vector2(0, _height), uiZeroOnScreen);
+        Assert.AreEqual(new PointF(0, _height), uiZeroOnScreen);
 
         // The one point of the UI space should correspond to the top right of the screen space
-        Assert.AreEqual(new Vector2(_width, 0), uiOneOnScreen);
+        Assert.AreEqual(new PointF(_width, 0), uiOneOnScreen);
 
         Assert.AreEqual(uiZero, ConceptualUISpace.BottomLeft);
         Assert.AreEqual(uiOne, ConceptualUISpace.TopRight);
@@ -65,12 +67,12 @@ public class SpacesTests
         Assert.AreEqual(screenSpace.BottomLeft, uiBottomLeftOnScreen);
         Assert.AreEqual(screenSpace.BottomRight, uiBottomRightOnScreen);
 
-        Assert.AreEqual(new Vector2(_width / 2, 0), middleUITopOnScreen);
-        Assert.AreEqual(new Vector2(_width / 2, _height), middleUIBottomOnScreen);
-        Assert.AreEqual(new Vector2(0, _height / 2), middleUILeftOnScreen);
-        Assert.AreEqual(new Vector2(_width, _height / 2), middleUIRightOnScreen);
+        Assert.AreEqual(new PointF(_width / 2, 0), middleUITopOnScreen);
+        Assert.AreEqual(new PointF(_width / 2, _height), middleUIBottomOnScreen);
+        Assert.AreEqual(new PointF(0, _height / 2), middleUILeftOnScreen);
+        Assert.AreEqual(new PointF(_width, _height / 2), middleUIRightOnScreen);
 
-        Assert.AreEqual(new Vector2(_width / 2, _height / 2), middleUiOnScreen);
+        Assert.AreEqual(new PointF(_width / 2, _height / 2), middleUiOnScreen);
     }
 
     [TestMethod]
@@ -79,11 +81,13 @@ public class SpacesTests
     {
         // Arrange
         // =======
-        var screenSpace = new PhysicalScreenSpace(_width, _height);
+        var screenSpace = new PhysicalScreenSpace();
         var uiSpace = new ConceptualUISpace(screenSpace);
 
-        var screenZero = new Vector2(0, 0);
-        var screenOppositeZero = new Vector2(_width, _height);
+        screenSpace.SetSize(_width, _height);
+
+        var screenZero = new PointF(0, 0);
+        var screenOppositeZero = new PointF(_width, _height);
 
 
         // Act
@@ -108,17 +112,17 @@ public class SpacesTests
         var middleScreenRightPoint = MathFEx.Lerp(screenSpace.TopRight, screenSpace.BottomRight, 0.5f);
         var middleScreenRightOnUI = uiSpace.TransformFromScreenSpace(middleScreenRightPoint);
 
-        var screenMiddleOnUI = uiSpace.TransformFromScreenSpace(new Vector2(0.5f * _width, 0.5f * _height));
+        var screenMiddleOnUI = uiSpace.TransformFromScreenSpace(new PointF(0.5f * _width, 0.5f * _height));
 
 
         // Assert
         // ======
 
         // The zero point of the UI space should correspond to the bottom left of the screen space 
-        Assert.AreEqual(new Vector2(0, 1), screenZeroOnUI);
+        Assert.AreEqual(new PointF(0, 1), screenZeroOnUI);
 
         // The one point of the UI space should correspond to the top right of the screen space
-        Assert.AreEqual(new Vector2(1, 0), screenOppositeZeroOnUI);
+        Assert.AreEqual(new PointF(1, 0), screenOppositeZeroOnUI);
 
         Assert.AreEqual(screenZero, screenSpace.TopLeft);
         Assert.AreEqual(screenOppositeZero, screenSpace.BottomRight);
@@ -128,11 +132,11 @@ public class SpacesTests
         Assert.AreEqual(ConceptualUISpace.BottomLeft, screenBottomLeftOnUI);
         Assert.AreEqual(ConceptualUISpace.BottomRight, screenBottomRightOnUI);
 
-        Assert.AreEqual(new Vector2(0.5f, 1), middleScreenTopOnUI);
-        Assert.AreEqual(new Vector2(0.5f, 0), middleScreenBottomOnUI);
-        Assert.AreEqual(new Vector2(0, 0.5f), middleScreenLeftOnUI);
-        Assert.AreEqual(new Vector2(1, 0.5f), middleScreenRightOnUI);
+        Assert.AreEqual(new PointF(0.5f, 1), middleScreenTopOnUI);
+        Assert.AreEqual(new PointF(0.5f, 0), middleScreenBottomOnUI);
+        Assert.AreEqual(new PointF(0, 0.5f), middleScreenLeftOnUI);
+        Assert.AreEqual(new PointF(1, 0.5f), middleScreenRightOnUI);
 
-        Assert.AreEqual(new Vector2(0.5f, 0.5f), screenMiddleOnUI);
+        Assert.AreEqual(new PointF(0.5f, 0.5f), screenMiddleOnUI);
     }
 }

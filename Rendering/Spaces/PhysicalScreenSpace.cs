@@ -10,21 +10,21 @@ namespace Rendering.Spaces;
 /// </summary>
 public class PhysicalScreenSpace
 {
-    public Vector2 TopLeft { get; private set; }
-    public Vector2 TopRight { get; private set; }
-    public Vector2 BottomLeft { get; private set; }
-    public Vector2 BottomRight { get; private set; }
+    public PointF TopLeft { get; private set; }
+    public PointF TopRight { get; private set; }
+    public PointF BottomLeft { get; private set; }
+    public PointF BottomRight { get; private set; }
 
     private float _width;
     private float _height;
 
-    public void AssertWithinUIBounds(Vector2 screenPoint)
-    {
-        if (screenPoint.X > _width || screenPoint.Y > _height || screenPoint.X < 0 || screenPoint.Y < 0)
-        {
-            throw new ArgumentException("Point not coming from screen space");
-        }
-    }
+    //public void AssertWithinUIBounds(PointF screenPoint)
+    //{
+    //    if (screenPoint.X > _width || screenPoint.Y > _height || screenPoint.X < 0 || screenPoint.Y < 0)
+    //    {
+    //        throw new ArgumentException("Point not coming from screen space");
+    //    }
+    //}
 
     public void SetSize(float width, float height)
     {
@@ -37,20 +37,30 @@ public class PhysicalScreenSpace
         BottomRight = new(_width, _height);
     }
 
-    public Vector2 TransformFromUISpace(Vector2 uiPoint)
+    public PointF TransformPointFromUISpace(PointF uiPoint)
     {
         // Verify that the incoming point is correct
         ConceptualUISpace.AssertWithinUIBounds(uiPoint);
 
         return new(uiPoint.X * _width, (1 - uiPoint.Y) * _height);
     }
+    
+    public SizeF TransformSizeFromUISpace(SizeF screenSize)
+    {
+        return new(screenSize.Width * _width, screenSize.Height * _height);
+    }
 
-    public Vector2 TransformToUISpace(Vector2 screenPoint)
+    public PointF TransformToUISpace(PointF screenPoint)
     {
         // Verify that the incoming point is correct
-        AssertWithinUIBounds(screenPoint);
+        //AssertWithinUIBounds(screenPoint);
 
         //return new(screenPoint.X * _width, (1 - screenPoint.Y) * _height); // TODO
         return new(screenPoint.X / _width, 1 - screenPoint.Y / _height);
+    }
+
+    public SizeF TransformSizeToUISpace(SizeF screenSize)
+    {
+        return new(screenSize.Width / _width, screenSize.Height / _height);
     }
 }

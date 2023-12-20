@@ -1,4 +1,5 @@
 ﻿using System.Text;
+using System.Xml.Linq;
 using static EntityComponentSystem.ECS;
 
 namespace EntityComponentSystem.EventSourcing;
@@ -6,6 +7,8 @@ namespace EntityComponentSystem.EventSourcing;
 public class EntitySuppression : IEvent
 {
     public EntityIndex Entity { get; set; } 
+    public string Name { get; init; }
+
     public void ApplyTo(IdentifiableList list, TreeType treeType)
     {
         Entity e = list.Get(Entity);
@@ -16,10 +19,14 @@ public class EntitySuppression : IEvent
         }
 
         list.Unset(Entity);
+        e.Parent?.InternalRemoveChild(e);
     }
 
     public void Serialise(StringBuilder sb, IdentifiableList list)
     {
-        throw new NotImplementedException();
+        sb.Append(nameof(EntitySuppression));
+        sb.Append(" : ");
+        sb.Append(Name);
+        sb.Append('\n');
     }
 }

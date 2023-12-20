@@ -1,4 +1,5 @@
 ﻿using EntityComponentSystem.EventSourcing;
+using EntityComponentSystem.Serialisation;
 using System.Text;
 
 namespace EntityComponentSystem;
@@ -57,7 +58,7 @@ public class IdentifiableList
 
         if (identifiable == null)
         {
-            throw new Exception("the entity has not yet been created");
+            throw new Exception("the entity has not yet been created or has been deleted");
         }
 
         if (identifiable is not Entity entity)
@@ -75,7 +76,7 @@ public class IdentifiableList
             throw new Exception("the item has already been deleted");
         }
 
-        if (accessor.Id <= _list.Count)
+        if (accessor.Id >= _list.Count)
         {
             throw new Exception("Invalid id, id has not yet been used");
         }
@@ -127,9 +128,14 @@ public class IdentifiableList
         => _list.OfType<T>()
                 .Count();
 
-    public string SerialiseIdentifiableList()
+    public string SerialiseObjectList()
     {
         StringBuilder sb = new();
+
+        sb.Append("Index");
+        sb.Append('\t');
+        sb.Append("Type");
+        sb.AppendLine("");
 
         for (int i = 0; i < _list.Count; i++)
         {
@@ -137,12 +143,23 @@ public class IdentifiableList
 
             // Add the index in the format 001, 002, 003, etc.
 
-            sb.Append(i.ToString("000"));
+            sb.Append(i.ToString(EventSourceSerialiser.IndexFormat));
 
-            sb.Append(" : ");
-            sb.AppendLine(item == null ? "null" : item.GetType().Name);
+            sb.Append('\t');
+            sb.AppendLine(item == null ? "null" : RemoveProxyFromNameEnd(item.GetType().Name));
         }
 
         return sb.ToString();
     }
+
+    private static string RemoveProxyFromNameEnd(string name)
+    {
+        if (name.EndsWith("Proxy"))
+        {
+            return name.Substring(0, name.Length - "Proxy".Length);
+        }
+
+        return name;
+    }
+
 }
