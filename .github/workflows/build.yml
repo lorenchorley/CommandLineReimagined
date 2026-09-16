@@ -1,0 +1,71 @@
+name: Build
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+env:
+  DOTNET_CLI_TELEMETRY_OPTOUT: 1
+  DOTNET_NOLOGO: 1
+  # Every project targets net7.0, which is out of support. We build and run on the
+  # .NET 8 SDK instead: it compiles net7.0 fine (the reference packs come from
+  # nuget.org), but the default roll-forward policy will not cross a major runtime
+  # version, so `dotnet test` aborts with "You must install or update .NET to run
+  # this application ... version '7.0.0'" unless this is set.
+  DOTNET_ROLL_FORWARD: Major
+
+jobs:
+  windows:
+    name: Full solution (Windows)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Build solution
+        shell: bash
+        run: dotnet build CommandLineReimagined.sln -c Release
+
+      - name: Test
+        shell: bash
+        run: |
+          for proj in $(find . -name '*.Tests.csproj' | sort); do
+            echo "::group::$proj"
+            dotnet test "$proj" -c Release --no-build
+            echo "::endgroup::"
+          done
+
+  linux:
+    name: Libraries and tests (Linux)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      # Application.csproj is the WPF host (net7.0-windows). It needs
+      # Microsoft.NET.Sdk.WindowsDesktop, which does not exist off Windows, so the
+      # project cannot even be evaluated here -- the Windows job covers it.
+      # Everything else builds and the test suites run headlessly: the Windows-only
+      # System.Drawing surface (Graphics/Bitmap/Font) is compiled but never executed.
+      - name: Build libraries
+        run: |
+          for proj in $(find . -name '*.csproj' -not -name 'Application.csproj' | sort); do
+            echo "::group::$proj"
+            dotnet build "$proj" -c Release
+            echo "::endgroup::"
+          done
+
+      - name: Test
+        run: |
+          for proj in $(find . -name '*.Tests.csproj' | sort); do
+            echo "::group::$proj"
+            dotnet test "$proj" -c Release --no-build
+            echo "::endgroup::"
+          done
