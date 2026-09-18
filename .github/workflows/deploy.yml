@@ -1,0 +1,125 @@
+name: Deploy
+
+# Provisions (idempotently) and deploys the Web host to Azure App Service.
+#
+# Bootstrap, once, by the repository owner:
+#
+#   az ad sp create-for-rbac --name clr-deploy --role contributor \
+#     --scopes /subscriptions/<SUBSCRIPTION_ID>/resourceGroups/commandlinereimagined-rg \
+#     --json-auth
+#
+# Put the emitted JSON into the repository secret AZURE_CREDENTIALS. Until that
+# secret exists this workflow runs and reports "not configured" rather than failing,
+# so it is safe to merge before the credential is in place.
+#
+# Optional repository variables override the defaults below:
+#   AZURE_WEBAPP_NAME, AZURE_RESOURCE_GROUP, AZURE_LOCATION, AZURE_SKU
+
+on:
+  push:
+    branches: [main, 'claude/**']
+  workflow_dispatch:
+
+env:
+  DOTNET_CLI_TELEMETRY_OPTOUT: 1
+  DOTNET_NOLOGO: 1
+  AZURE_WEBAPP_NAME: ${{ vars.AZURE_WEBAPP_NAME || 'clr-web-lorenchorley' }}
+  AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP || 'commandlinereimagined-rg' }}
+  AZURE_LOCATION: ${{ vars.AZURE_LOCATION || 'westeurope' }}
+  # B1 is the cheapest tier that supports WebSockets. Free (F1) and Shared (D1)
+  # do not, and the whole point of this host is a persistent socket.
+  AZURE_SKU: ${{ vars.AZURE_SKU || 'B1' }}
+
+jobs:
+  deploy:
+    name: Provision and deploy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check for credentials
+        id: check
+        env:
+          CREDS: ${{ secrets.AZURE_CREDENTIALS }}
+        run: |
+          if [ -z "$CREDS" ]; then
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "::notice title=Deploy skipped::AZURE_CREDENTIALS is not set. See the header of .github/workflows/deploy.yml for the one-time bootstrap command."
+          else
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/setup-dotnet@v4
+        if: steps.check.outputs.configured == 'true'
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Publish
+        if: steps.check.outputs.configured == 'true'
+        run: dotnet publish Web/Web.csproj -c Release -o publish
+
+      - uses: azure/login@v2
+        if: steps.check.outputs.configured == 'true'
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Provision (idempotent)
+        if: steps.check.outputs.configured == 'true'
+        run: |
+          set -euo pipefail
+
+          if ! az group show -n "$AZURE_RESOURCE_GROUP" --only-show-errors >/dev/null 2>&1; then
+            az group create -n "$AZURE_RESOURCE_GROUP" -l "$AZURE_LOCATION" --only-show-errors
+          fi
+
+          PLAN="${AZURE_WEBAPP_NAME}-plan"
+          if ! az appservice plan show -g "$AZURE_RESOURCE_GROUP" -n "$PLAN" --only-show-errors >/dev/null 2>&1; then
+            az appservice plan create -g "$AZURE_RESOURCE_GROUP" -n "$PLAN" \
+              --is-linux --sku "$AZURE_SKU" -l "$AZURE_LOCATION" --only-show-errors
+          fi
+
+          if ! az webapp show -g "$AZURE_RESOURCE_GROUP" -n "$AZURE_WEBAPP_NAME" --only-show-errors >/dev/null 2>&1; then
+            az webapp create -g "$AZURE_RESOURCE_GROUP" -p "$PLAN" -n "$AZURE_WEBAPP_NAME" \
+              --runtime "DOTNETCORE:8.0" --only-show-errors
+          fi
+
+          # WebSockets are off by default on App Service; without this the /ws
+          # upgrade fails in production while working perfectly on localhost.
+          az webapp config set -g "$AZURE_RESOURCE_GROUP" -n "$AZURE_WEBAPP_NAME" \
+            --web-sockets-enabled true --http20-enabled true --only-show-errors
+
+          # ARR affinity keeps a client pinned to one instance. The terminal keeps
+          # per-connection server state, so this matters as soon as we scale past one.
+          az webapp update -g "$AZURE_RESOURCE_GROUP" -n "$AZURE_WEBAPP_NAME" \
+            --client-affinity-enabled true --only-show-errors
+
+      - uses: azure/webapps-deploy@v3
+        if: steps.check.outputs.configured == 'true'
+        with:
+          app-name: ${{ env.AZURE_WEBAPP_NAME }}
+          package: publish
+
+      - name: Smoke test
+        if: steps.check.outputs.configured == 'true'
+        run: |
+          set -euo pipefail
+          URL="https://${AZURE_WEBAPP_NAME}.azurewebsites.net"
+
+          # App Service can take a moment to swap in the new worker.
+          for i in $(seq 1 30); do
+            code=$(curl -sS -o /dev/null -w '%{http_code}' "$URL/healthz" || echo 000)
+            [ "$code" = "200" ] && break
+            sleep 5
+          done
+          [ "$code" = "200" ] || { echo "healthz returned $code"; exit 1; }
+
+          # Prove the WebSocket upgrade survives App Service, not just Kestrel.
+          ws=$(curl -sS -o /dev/null -w '%{http_code}' \
+                 -H "Connection: Upgrade" -H "Upgrade: websocket" \
+                 -H "Sec-WebSocket-Version: 13" \
+                 -H "Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==" \
+                 "$URL/ws" || echo 000)
+          [ "$ws" = "101" ] || { echo "websocket upgrade returned $ws (expected 101)"; exit 1; }
+
+          echo "::notice title=Deployed::$URL"
+          echo "### Deployed to [$URL]($URL)" >> "$GITHUB_STEP_SUMMARY"

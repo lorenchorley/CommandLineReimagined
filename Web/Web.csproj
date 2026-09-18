@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>CommandLineReimagined.Web</RootNamespace>
+  </PropertyGroup>
+
+  <!--
+    Deliberately references nothing from the solution yet. The terminal libraries
+    are net7.0 and still carry blockers that prevent server hosting (the ECS.Instance
+    static singleton, and the per-frame disk writes in ECS.TriggerMerge). This project
+    exists first to prove the build -> CI -> Azure deploy chain end to end with a
+    trivial payload; the ECS delta streaming lands on top once those are cleared.
+  -->
+
+</Project>

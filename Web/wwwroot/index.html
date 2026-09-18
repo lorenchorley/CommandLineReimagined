@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>CommandLineReimagined — Web Host</title>
+<style>
+  :root {
+    --bg: #12131a; --fg: #e6e6ef; --dim: #8a8ba3;
+    --ok: #4ade80; --bad: #f87171; --accent: #6b8afd;
+    --panel: #1b1d27; --line: #2a2d3a;
+  }
+  @media (prefers-color-scheme: light) {
+    :root {
+      --bg: #f7f7fb; --fg: #1a1b23; --dim: #63657a;
+      --panel: #ffffff; --line: #e2e3ec;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 16px; background: var(--bg); color: var(--fg);
+    font: 14px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    -webkit-text-size-adjust: 100%;
+  }
+  h1 { font-size: 16px; margin: 0 0 4px; }
+  .sub { color: var(--dim); margin: 0 0 20px; font-size: 13px; }
+  section {
+    background: var(--panel); border: 1px solid var(--line);
+    border-radius: 10px; padding: 14px; margin-bottom: 14px;
+  }
+  h2 { font-size: 13px; margin: 0 0 10px; color: var(--dim); text-transform: uppercase; letter-spacing: .06em; }
+  .row { display: flex; justify-content: space-between; gap: 12px; padding: 3px 0; }
+  .row span:last-child { text-align: right; word-break: break-all; }
+  .ok { color: var(--ok); } .bad { color: var(--bad); }
+  input, button {
+    font: inherit; padding: 10px 12px; border-radius: 8px;
+    border: 1px solid var(--line); background: var(--bg); color: var(--fg);
+  }
+  button { background: var(--accent); color: #fff; border-color: transparent; font-weight: 600; }
+  .controls { display: flex; gap: 8px; margin-top: 10px; }
+  .controls input { flex: 1; min-width: 0; }
+  pre {
+    margin: 10px 0 0; padding: 10px; background: var(--bg); border: 1px solid var(--line);
+    border-radius: 8px; max-height: 180px; overflow: auto; font-size: 13px; white-space: pre-wrap;
+  }
+</style>
+</head>
+<body>
+  <h1>CommandLineReimagined</h1>
+  <p class="sub">Web host bring-up. This page exists to prove the deploy chain and the WebSocket transport before the terminal renderer lands.</p>
+
+  <section>
+    <h2>Server</h2>
+    <div class="row"><span>/healthz</span><span id="health">checking…</span></div>
+    <div class="row"><span>runtime</span><span id="runtime">—</span></div>
+  </section>
+
+  <section>
+    <h2>WebSocket</h2>
+    <div class="row"><span>/ws</span><span id="wsstate">connecting…</span></div>
+    <div class="controls">
+      <input id="msg" value="ls -la" autocapitalize="off" autocorrect="off" spellcheck="false">
+      <button id="send">Send</button>
+    </div>
+    <pre id="log"></pre>
+  </section>
+
+  <section>
+    <h2>This device</h2>
+    <div class="row"><span>viewport</span><span id="vp">—</span></div>
+    <div class="row"><span>devicePixelRatio</span><span id="dpr">—</span></div>
+    <div class="row"><span>monospace cell</span><span id="cell">—</span></div>
+    <p class="sub" style="margin:10px 0 0">Cell metrics are what the renderer will need instead of the GDI+ <code>MeasureString</code> fudge factors.</p>
+  </section>
+
+<script>
+const $ = id => document.getElementById(id);
+const log = (m) => { $('log').textContent += m + '\n'; $('log').scrollTop = 1e6; };
+
+fetch('/healthz').then(r => r.json()).then(d => {
+  $('health').innerHTML = '<span class="ok">' + d.status + '</span>';
+  $('runtime').textContent = d.runtime;
+}).catch(e => { $('health').innerHTML = '<span class="bad">unreachable</span>'; });
+
+let sock;
+function connect() {
+  sock = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws');
+  sock.onopen  = () => $('wsstate').innerHTML = '<span class="ok">open</span>';
+  sock.onclose = () => $('wsstate').innerHTML = '<span class="bad">closed</span>';
+  sock.onerror = () => $('wsstate').innerHTML = '<span class="bad">error</span>';
+  sock.onmessage = e => log('< ' + e.data);
+}
+connect();
+
+$('send').onclick = () => {
+  const v = $('msg').value;
+  if (sock && sock.readyState === 1) { sock.send(v); log('> ' + v); }
+  else { log('! socket not open'); }
+};
+
+// Measure the monospace cell the way the real renderer will have to.
+const c = document.createElement('canvas').getContext('2d');
+c.font = '14px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace';
+const m = c.measureText('M');
+const w = m.width;
+const h = (m.fontBoundingBoxAscent + m.fontBoundingBoxDescent) || 14;
+$('cell').textContent = w.toFixed(3) + ' x ' + h.toFixed(3) + ' px';
+$('dpr').textContent = window.devicePixelRatio;
+const setVp = () => $('vp').textContent = window.innerWidth + ' x ' + window.innerHeight;
+setVp(); window.addEventListener('resize', setVp);
+</script>
+</body>
+</html>
