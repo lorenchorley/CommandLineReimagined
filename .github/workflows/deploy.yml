@@ -121,5 +121,15 @@ jobs:
                  "$URL/ws" || echo 000)
           [ "$ws" = "101" ] || { echo "websocket upgrade returned $ws (expected 101)"; exit 1; }
 
+          # The grammar is loaded from embedded .egt tables, so a packaging mistake
+          # shows up as an empty token stream rather than a build failure.
+          kinds=$(curl -sS --get --data-urlencode 'q=command -with optionalParameter' "$URL/api/parse" \
+                  | python3 -c 'import json,sys; print(" ".join(t["kind"] for t in json.load(sys.stdin)["tokens"]))')
+          echo "tokens: $kinds"
+          case "$kinds" in
+            *command*flag*identifier*) ;;
+            *) echo "unexpected token kinds from the live parser"; exit 1 ;;
+          esac
+
           echo "::notice title=Deployed::$URL"
           echo "### Deployed to [$URL]($URL)" >> "$GITHUB_STEP_SUMMARY"

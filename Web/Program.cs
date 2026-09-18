@@ -1,6 +1,7 @@
 using System.Net.WebSockets;
 using System.Text;
 using System.Text.Json;
+using CommandLineReimagined.Web.Parsing;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -13,7 +14,11 @@ if (!string.IsNullOrWhiteSpace(port))
     builder.WebHost.UseUrls($"http://*:{port}");
 }
 
+builder.Services.AddSingleton<CommandParseService>();
+
 var app = builder.Build();
+
+var json = new JsonSerializerOptions(JsonSerializerDefaults.Web);
 
 app.UseDefaultFiles();
 app.UseStaticFiles();
@@ -26,10 +31,11 @@ app.MapGet("/healthz", () => Results.Ok(new
     runtime = Environment.Version.ToString(),
 }));
 
-// Echo endpoint. This is a placeholder for the ECS delta stream, but it earns its
-// keep now: App Service requires WebSockets to be switched on explicitly at the
-// site level, and this is what proves the provisioning step actually did that.
-app.Map("/ws", async context =>
+// Convenience for curl and for the CI smoke test; the live client uses the socket.
+app.MapGet("/api/parse", (string? q, CommandParseService parser) =>
+    Results.Json(parser.Parse(q ?? string.Empty), json));
+
+app.Map("/ws", async (HttpContext context, CommandParseService parser) =>
 {
     if (!context.WebSockets.IsWebSocketRequest)
     {
@@ -39,10 +45,16 @@ app.Map("/ws", async context =>
     }
 
     using WebSocket socket = await context.WebSockets.AcceptWebSocketAsync();
-    var buffer = new byte[4 * 1024];
+    var buffer = new byte[16 * 1024];
 
-    var hello = JsonSerializer.Serialize(new { type = "hello", utc = DateTime.UtcNow });
-    await socket.SendAsync(Encoding.UTF8.GetBytes(hello), WebSocketMessageType.Text, true, context.RequestAborted);
+    async Task SendAsync(object payload) =>
+        await socket.SendAsync(
+            JsonSerializer.SerializeToUtf8Bytes(payload, json),
+            WebSocketMessageType.Text,
+            endOfMessage: true,
+            context.RequestAborted);
+
+    await SendAsync(new { type = "hello", utc = DateTime.UtcNow });
 
     while (socket.State == WebSocketState.Open)
     {
@@ -55,6 +67,10 @@ app.Map("/ws", async context =>
         {
             break;
         }
+        catch (WebSocketException)
+        {
+            break;
+        }
 
         if (result.MessageType == WebSocketMessageType.Close)
         {
@@ -62,10 +78,23 @@ app.Map("/ws", async context =>
             break;
         }
 
-        var text = Encoding.UTF8.GetString(buffer, 0, result.Count);
-        var reply = JsonSerializer.Serialize(new { type = "echo", text });
-        await socket.SendAsync(Encoding.UTF8.GetBytes(reply), WebSocketMessageType.Text, true, context.RequestAborted);
+        var raw = Encoding.UTF8.GetString(buffer, 0, result.Count);
+
+        try
+        {
+            var request = JsonSerializer.Deserialize<ParseRequest>(raw, json);
+            await SendAsync(parser.Parse(request?.Text ?? string.Empty));
+        }
+        catch (JsonException)
+        {
+            await SendAsync(new { type = "error", message = "Malformed request." });
+        }
     }
 });
 
 app.Run();
+
+internal sealed record ParseRequest(string? Type, string? Text);
+
+// Exposed so a future test project can drive the host with WebApplicationFactory.
+public partial class Program;

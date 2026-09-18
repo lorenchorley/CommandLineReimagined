@@ -3,111 +3,228 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>CommandLineReimagined — Web Host</title>
+<title>CommandLineReimagined</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ctext y='13' font-size='13'%3E%E2%96%B8%3C/text%3E%3C/svg%3E">
 <style>
   :root {
-    --bg: #12131a; --fg: #e6e6ef; --dim: #8a8ba3;
-    --ok: #4ade80; --bad: #f87171; --accent: #6b8afd;
-    --panel: #1b1d27; --line: #2a2d3a;
+    --bg:#12131a; --panel:#1b1d27; --line:#2a2d3a; --fg:#e6e6ef; --dim:#8a8ba3;
+    --ok:#4ade80; --bad:#f87171; --accent:#6b8afd;
   }
   @media (prefers-color-scheme: light) {
-    :root {
-      --bg: #f7f7fb; --fg: #1a1b23; --dim: #63657a;
-      --panel: #ffffff; --line: #e2e3ec;
-    }
+    :root { --bg:#f7f7fb; --panel:#fff; --line:#e2e3ec; --fg:#1a1b23; --dim:#63657a; }
   }
-  * { box-sizing: border-box; }
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html,body { height:100%; }
   body {
-    margin: 0; padding: 16px; background: var(--bg); color: var(--fg);
-    font: 14px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-    -webkit-text-size-adjust: 100%;
+    margin:0; background:var(--bg); color:var(--fg);
+    font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    display:flex; flex-direction:column;
+    padding:max(12px,env(safe-area-inset-top)) 12px max(12px,env(safe-area-inset-bottom));
+    -webkit-text-size-adjust:100%;
   }
-  h1 { font-size: 16px; margin: 0 0 4px; }
-  .sub { color: var(--dim); margin: 0 0 20px; font-size: 13px; }
-  section {
-    background: var(--panel); border: 1px solid var(--line);
-    border-radius: 10px; padding: 14px; margin-bottom: 14px;
+  header { flex:none; margin-bottom:10px; }
+  h1 { font-size:15px; margin:0; }
+  .sub { color:var(--dim); font-size:12px; margin:2px 0 0; }
+  .status { float:right; font-size:12px; }
+  /* 16px minimum stops iOS zooming the page when the field takes focus. */
+  #cmd {
+    width:100%; font:16px/1.4 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    padding:12px; border-radius:10px; border:1px solid var(--line);
+    background:var(--panel); color:var(--fg);
   }
-  h2 { font-size: 13px; margin: 0 0 10px; color: var(--dim); text-transform: uppercase; letter-spacing: .06em; }
-  .row { display: flex; justify-content: space-between; gap: 12px; padding: 3px 0; }
-  .row span:last-child { text-align: right; word-break: break-all; }
-  .ok { color: var(--ok); } .bad { color: var(--bad); }
-  input, button {
-    font: inherit; padding: 10px 12px; border-radius: 8px;
-    border: 1px solid var(--line); background: var(--bg); color: var(--fg);
+  .chips { display:flex; gap:6px; overflow-x:auto; padding:8px 0; flex:none; scrollbar-width:none; }
+  .chips::-webkit-scrollbar { display:none; }
+  .chip {
+    flex:none; font:12px ui-monospace,monospace; padding:6px 10px; border-radius:999px;
+    border:1px solid var(--line); background:var(--panel); color:var(--dim); white-space:nowrap;
   }
-  button { background: var(--accent); color: #fff; border-color: transparent; font-weight: 600; }
-  .controls { display: flex; gap: 8px; margin-top: 10px; }
-  .controls input { flex: 1; min-width: 0; }
-  pre {
-    margin: 10px 0 0; padding: 10px; background: var(--bg); border: 1px solid var(--line);
-    border-radius: 8px; max-height: 180px; overflow: auto; font-size: 13px; white-space: pre-wrap;
+  #stage { flex:1; min-height:120px; position:relative; }
+  canvas { width:100%; height:100%; display:block; border-radius:10px; background:var(--panel); border:1px solid var(--line); }
+  #detail {
+    flex:none; margin-top:10px; padding:10px 12px; border-radius:10px;
+    background:var(--panel); border:1px solid var(--line); font-size:12px; min-height:56px;
   }
+  #detail b { color:var(--fg); }
+  .muted { color:var(--dim); }
+  .err { color:var(--bad); }
 </style>
 </head>
 <body>
-  <h1>CommandLineReimagined</h1>
-  <p class="sub">Web host bring-up. This page exists to prove the deploy chain and the WebSocket transport before the terminal renderer lands.</p>
+  <header>
+    <span class="status" id="status">connecting…</span>
+    <h1>CommandLineReimagined</h1>
+    <p class="sub">Parsed live by the GOLD grammar. Tap any token.</p>
+  </header>
 
-  <section>
-    <h2>Server</h2>
-    <div class="row"><span>/healthz</span><span id="health">checking…</span></div>
-    <div class="row"><span>runtime</span><span id="runtime">—</span></div>
-  </section>
+  <input id="cmd" value="command -with optionalParameter"
+         autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false">
 
-  <section>
-    <h2>WebSocket</h2>
-    <div class="row"><span>/ws</span><span id="wsstate">connecting…</span></div>
-    <div class="controls">
-      <input id="msg" value="ls -la" autocapitalize="off" autocorrect="off" spellcheck="false">
-      <button id="send">Send</button>
-    </div>
-    <pre id="log"></pre>
-  </section>
-
-  <section>
-    <h2>This device</h2>
-    <div class="row"><span>viewport</span><span id="vp">—</span></div>
-    <div class="row"><span>devicePixelRatio</span><span id="dpr">—</span></div>
-    <div class="row"><span>monospace cell</span><span id="cell">—</span></div>
-    <p class="sub" style="margin:10px 0 0">Cell metrics are what the renderer will need instead of the GDI+ <code>MeasureString</code> fudge factors.</p>
-  </section>
+  <div class="chips" id="chips"></div>
+  <div id="stage"><canvas id="cv"></canvas></div>
+  <div id="detail"><span class="muted">Tap a token to inspect the semantic role the grammar assigned it.</span></div>
 
 <script>
 const $ = id => document.getElementById(id);
-const log = (m) => { $('log').textContent += m + '\n'; $('log').scrollTop = 1e6; };
+const cv = $('cv'), ctx = cv.getContext('2d');
 
-fetch('/healthz').then(r => r.json()).then(d => {
-  $('health').innerHTML = '<span class="ok">' + d.status + '</span>';
-  $('runtime').textContent = d.runtime;
-}).catch(e => { $('health').innerHTML = '<span class="bad">unreachable</span>'; });
+const EXAMPLES = [
+  'command -with optionalParameter',
+  'command(with: optionalParameter)',
+  'command() | anotherCommand()',
+  '<objInstance attr=value/>',
+  '<variableName|objInstance></>',
+  'command | <objInstance><child val=$v/></objInstance>',
+  'echo "hello world"',
+  'cd /tmp',
+];
 
-let sock;
-function connect() {
-  sock = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws');
-  sock.onopen  = () => $('wsstate').innerHTML = '<span class="ok">open</span>';
-  sock.onclose = () => $('wsstate').innerHTML = '<span class="bad">closed</span>';
-  sock.onerror = () => $('wsstate').innerHTML = '<span class="bad">error</span>';
-  sock.onmessage = e => log('< ' + e.data);
-}
-connect();
-
-$('send').onclick = () => {
-  const v = $('msg').value;
-  if (sock && sock.readyState === 1) { sock.send(v); log('> ' + v); }
-  else { log('! socket not open'); }
+const PALETTES = {
+  dark:  { command:'#7aa2f7', flag:'#e0af68', string:'#9ece6a', variable:'#bb9af7',
+           identifier:'#c0caf5', type:'#2ac3de', attribute:'#ff9e64',
+           punctuation:'#565f89', whitespace:'transparent', newline:'transparent' },
+  light: { command:'#2f5fd0', flag:'#a35a00', string:'#2d7a2d', variable:'#7132b8',
+           identifier:'#1a1b23', type:'#0b6e86', attribute:'#a34a00',
+           punctuation:'#8b8fa3', whitespace:'transparent', newline:'transparent' },
 };
+const isDark = () => matchMedia('(prefers-color-scheme: dark)').matches;
+let palette = isDark() ? PALETTES.dark : PALETTES.light;
 
-// Measure the monospace cell the way the real renderer will have to.
-const c = document.createElement('canvas').getContext('2d');
-c.font = '14px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace';
-const m = c.measureText('M');
-const w = m.width;
-const h = (m.fontBoundingBoxAscent + m.fontBoundingBoxDescent) || 14;
-$('cell').textContent = w.toFixed(3) + ' x ' + h.toFixed(3) + ' px';
-$('dpr').textContent = window.devicePixelRatio;
-const setVp = () => $('vp').textContent = window.innerWidth + ' x ' + window.innerHeight;
-setVp(); window.addEventListener('resize', setVp);
+let tokens = [], parseError = null, boxes = [], selected = -1;
+
+// ---- rendering -------------------------------------------------------------
+// Draws the token stream at devicePixelRatio so glyphs stay crisp on a phone, and
+// records a rect per token. Those rects are the browser-side equivalent of
+// Renderer.CanvasRenderPosition, which is what RayCaster hit-tests against in the
+// desktop app -- the same idea, without a round trip to the server.
+const FONT_PX = 16, LINE_H = 26, PAD = 14;
+
+function draw() {
+  const dpr = window.devicePixelRatio || 1;
+  const w = cv.clientWidth, h = cv.clientHeight;
+  cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr);
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, w, h);
+  ctx.font = FONT_PX + 'px ui-monospace,SFMono-Regular,Menlo,Consolas,monospace';
+  ctx.textBaseline = 'middle';
+
+  boxes = [];
+
+  if (parseError) {
+    ctx.fillStyle = getComputedStyle(document.body).getPropertyValue('--bad');
+    ctx.fillText('parse error at column ' + parseError.column, PAD, PAD + LINE_H / 2);
+    ctx.fillStyle = getComputedStyle(document.body).getPropertyValue('--dim');
+    wrapText('expected: ' + parseError.expected.join(' '), PAD, PAD + LINE_H * 1.6, w - PAD * 2);
+    return;
+  }
+
+  let x = PAD, y = PAD + LINE_H / 2;
+  tokens.forEach((t, i) => {
+    if (t.kind === 'newline') { x = PAD; y += LINE_H; return; }
+    const tw = ctx.measureText(t.text).width;
+    if (x + tw > w - PAD && x > PAD) { x = PAD; y += LINE_H; }
+
+    boxes.push({ i, x, y: y - LINE_H / 2, w: tw, h: LINE_H });
+
+    if (i === selected) {
+      ctx.fillStyle = isDark() ? 'rgba(107,138,253,.25)' : 'rgba(107,138,253,.18)';
+      ctx.fillRect(x - 2, y - LINE_H / 2, tw + 4, LINE_H);
+    }
+    ctx.fillStyle = palette[t.kind] || palette.identifier;
+    ctx.fillText(t.text, x, y);
+    x += tw;
+  });
+
+  if (!tokens.length) {
+    ctx.fillStyle = getComputedStyle(document.body).getPropertyValue('--dim');
+    ctx.fillText('(empty command)', PAD, y);
+  }
+}
+
+function wrapText(text, x, y, maxW) {
+  let line = '';
+  for (const word of text.split(' ')) {
+    const test = line ? line + ' ' + word : word;
+    if (ctx.measureText(test).width > maxW && line) { ctx.fillText(line, x, y); y += LINE_H * 0.8; line = word; }
+    else line = test;
+  }
+  if (line) ctx.fillText(line, x, y);
+}
+
+cv.addEventListener('pointerdown', e => {
+  const r = cv.getBoundingClientRect();
+  const px = e.clientX - r.left, py = e.clientY - r.top;
+  const hit = boxes.find(b => px >= b.x && px <= b.x + b.w && py >= b.y && py <= b.y + b.h);
+  selected = hit ? hit.i : -1;
+  showDetail();
+  draw();
+});
+
+function showDetail() {
+  if (parseError) {
+    $('detail').innerHTML = '<span class="err">' + parseError.kind + ' error</span> at column <b>' +
+      parseError.column + '</b><br><span class="muted">expected: ' + parseError.expected.join(', ') + '</span>';
+    return;
+  }
+  if (selected < 0) {
+    const kinds = [...new Set(tokens.filter(t => t.kind !== 'whitespace').map(t => t.kind))];
+    $('detail').innerHTML = '<span class="muted">' + tokens.length + ' tokens · ' +
+      kinds.map(k => '<span style="color:' + (palette[k] || '') + '">' + k + '</span>').join(' ') + '</span>';
+    return;
+  }
+  const t = tokens[selected];
+  $('detail').innerHTML = '<b style="color:' + (palette[t.kind] || '') + '">' + t.kind + '</b> — <b>' +
+    t.text.replace(/</g, '&lt;') + '</b><br><span class="muted">assigned by the grammar, not by pattern matching</span>';
+}
+
+// ---- transport -------------------------------------------------------------
+// Prefers the socket, falls back to the REST endpoint. The fallback is diagnostic:
+// if it engages in production, App Service has WebSockets switched off.
+let sock = null, useSocket = false;
+
+function connect() {
+  try {
+    sock = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws');
+  } catch { setStatus('http fallback', false); return; }
+  sock.onopen = () => { useSocket = true; setStatus('socket', true); send(); };
+  sock.onclose = () => { useSocket = false; setStatus('http fallback', false); };
+  sock.onerror = () => { useSocket = false; setStatus('http fallback', false); };
+  sock.onmessage = e => {
+    const d = JSON.parse(e.data);
+    if (d.type === 'tokens') apply(d);
+  };
+}
+
+function setStatus(text, ok) {
+  $('status').innerHTML = '<span style="color:var(--' + (ok ? 'ok' : 'dim') + ')">' + text + '</span>';
+}
+
+function apply(d) { tokens = d.tokens || []; parseError = d.error; selected = -1; showDetail(); draw(); }
+
+let timer = null;
+function send() {
+  const text = $('cmd').value;
+  if (useSocket && sock && sock.readyState === 1) {
+    sock.send(JSON.stringify({ type: 'parse', text }));
+  } else {
+    fetch('/api/parse?q=' + encodeURIComponent(text)).then(r => r.json()).then(apply).catch(() => {});
+  }
+}
+$('cmd').addEventListener('input', () => { clearTimeout(timer); timer = setTimeout(send, 90); });
+
+EXAMPLES.forEach(ex => {
+  const b = document.createElement('button');
+  b.className = 'chip'; b.textContent = ex;
+  b.onclick = () => { $('cmd').value = ex; send(); };
+  $('chips').appendChild(b);
+});
+
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+  palette = isDark() ? PALETTES.dark : PALETTES.light; showDetail(); draw();
+});
+addEventListener('resize', draw);
+connect();
+send();
+draw();
 </script>
 </body>
 </html>

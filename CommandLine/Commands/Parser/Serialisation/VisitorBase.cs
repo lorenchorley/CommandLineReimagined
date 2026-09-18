@@ -56,12 +56,12 @@ public abstract class VisitorBase : ISemanticTreeVisitor
         AppendNewLine();
     }
 
-    public void VisitAttributeName(TagAttributeName attributeName)
+    public virtual void VisitAttributeName(TagAttributeName attributeName)
     {
         Append(attributeName.Name);
     }
 
-    public void VisitCommandArguments(CommandArguments commandArguments)
+    public virtual void VisitCommandArguments(CommandArguments commandArguments)
     {
         for (int i = 0; i < commandArguments.Arguments.Count; i++)
         {
@@ -81,7 +81,7 @@ public abstract class VisitorBase : ISemanticTreeVisitor
         Append(' ');
     }
 
-    public void VisitCommandExpression(CommandExpression commandExpression)
+    public virtual void VisitCommandExpression(CommandExpression commandExpression)
     {
         commandExpression.Expression.Switch(
             function => function.Accept(this),
@@ -90,7 +90,7 @@ public abstract class VisitorBase : ISemanticTreeVisitor
         );
     }
 
-    public void VisitCommandExpressionCli(CommandExpressionCli commandExpressionCli)
+    public virtual void VisitCommandExpressionCli(CommandExpressionCli commandExpressionCli)
     {
         commandExpressionCli.Name.Accept(this);
 
@@ -101,23 +101,23 @@ public abstract class VisitorBase : ISemanticTreeVisitor
         }
     }
 
-    public void VisitCommandName(CommandName commandName)
+    public virtual void VisitCommandName(CommandName commandName)
     {
         Append(commandName.Name);
     }
 
-    public void VisitEmptyCommand(EmptyCommand emptyCommand)
+    public virtual void VisitEmptyCommand(EmptyCommand emptyCommand)
     {
         Append("");
     }
 
-    public void VisitCommandArgumentFlag(CommandArgumentFlag flag)
+    public virtual void VisitCommandArgumentFlag(CommandArgumentFlag flag)
     {
         Append('-');
         Append(flag.Name);
     }
 
-    public void VisitFunctionExpression(FunctionExpression functionExpression)
+    public virtual void VisitFunctionExpression(FunctionExpression functionExpression)
     {
         functionExpression.Id.Accept(this);
         Append('(');
@@ -125,12 +125,12 @@ public abstract class VisitorBase : ISemanticTreeVisitor
         Append(')');
     }
 
-    public void VisitIdentifier(Identifier identifier)
+    public virtual void VisitIdentifier(Identifier identifier)
     {
         Append(identifier.Name);
     }
 
-    public void VisitObjectInstance(ObjectInstance objectInstance)
+    public virtual void VisitObjectInstance(ObjectInstance objectInstance)
     {
         AddIndentation();
         Append('<');
@@ -172,17 +172,20 @@ public abstract class VisitorBase : ISemanticTreeVisitor
             AddIndentation();
 
             Append("</");
-            Append(objectInstance.ObjectType.Value);
+            // Dispatch rather than appending the raw value, so a visitor that tags
+            // tokens by role sees the closing tag name as an ObjectType too. The
+            // serialised output is identical either way.
+            objectInstance.ObjectType.Accept(this);
             Append('>');
         }
     }
 
-    public void VisitObjectType(ObjectType objectType)
+    public virtual void VisitObjectType(ObjectType objectType)
     {
         Append(objectType.Value);
     }
 
-    public void VisitOptionalCommandArgument(OptionalCommandArgument optionalCommandArgument)
+    public virtual void VisitOptionalCommandArgument(OptionalCommandArgument optionalCommandArgument)
     {
         optionalCommandArgument.Name.Switch(
             flag => flag.Accept(this),
@@ -193,7 +196,7 @@ public abstract class VisitorBase : ISemanticTreeVisitor
         optionalCommandArgument.Value.Accept(this);
     }
 
-    public void VisitPipedCommandList(PipedCommandList pipedCommandList)
+    public virtual void VisitPipedCommandList(PipedCommandList pipedCommandList)
     {
         for (int i = 0; i < pipedCommandList.OrderedCommands.Count; i++)
         {
@@ -216,44 +219,44 @@ public abstract class VisitorBase : ISemanticTreeVisitor
         initialIndentationString = "";
     }
 
-    public void VisitRequiredCommandArgument(RequiredCommandArgument requiredCommandArgument)
+    public virtual void VisitRequiredCommandArgument(RequiredCommandArgument requiredCommandArgument)
     {
         requiredCommandArgument.Value.Accept(this);
     }
 
-    public void VisitTagAttribute(TagAttribute tagAttribute)
+    public virtual void VisitTagAttribute(TagAttribute tagAttribute)
     {
         tagAttribute.Name.Accept(this);
         Append('=');
         tagAttribute.Value.Accept(this);
     }
 
-    public void VisitTagAttributes(TagAttributeList tagAttributes)
+    public virtual void VisitTagAttributes(TagAttributeList tagAttributes)
     {
         tagAttributes.Attributes.ForEach(a => a.Accept(this));
     }
 
-    public void VisitTagList(TagList tagList)
+    public virtual void VisitTagList(TagList tagList)
     {
         throw new NotImplementedException();
     }
 
-    public void VisitVariableName(VariableName variableName)
+    public virtual void VisitVariableName(VariableName variableName)
     {
         Append(variableName.Name);
     }
 
-    public void VisitCommandArgumentValue(CommandArgumentValue commandArgumentValue)
+    public virtual void VisitCommandArgumentValue(CommandArgumentValue commandArgumentValue)
     {
         commandArgumentValue.Value.Accept(this);
     }
 
-    public void VisitProperyName(ProperyName properyName)
+    public virtual void VisitProperyName(ProperyName properyName)
     {
         Append(properyName.Name);
     }
 
-    public void VisitPropertyAssignment(PropertyAssignment propertyAssignment)
+    public virtual void VisitPropertyAssignment(PropertyAssignment propertyAssignment)
     {
         Append('[');
         propertyAssignment.Name.Accept(this);
@@ -262,20 +265,20 @@ public abstract class VisitorBase : ISemanticTreeVisitor
         Append(']');
     }
 
-    public void VisitStringConstant(StringConstant stringConstant)
+    public virtual void VisitStringConstant(StringConstant stringConstant)
     {
         Append(stringConstant.QuoteString);
         Append(stringConstant.Value);
         Append(stringConstant.QuoteString);
     }
 
-    public void VisitVariableReference(VariableReference variableReference)
+    public virtual void VisitVariableReference(VariableReference variableReference)
     {
         Append('$');
         variableReference.Name.Accept(this);
     }
 
-    public void VisitVariableTag(VariableTag variableTag)
+    public virtual void VisitVariableTag(VariableTag variableTag)
     {
         throw new NotImplementedException();
     }

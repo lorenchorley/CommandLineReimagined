@@ -8,11 +8,16 @@
   </PropertyGroup>
 
   <!--
-    Deliberately references nothing from the solution yet. The terminal libraries
-    are net7.0 and still carry blockers that prevent server hosting (the ECS.Instance
-    static singleton, and the per-frame disk writes in ECS.TriggerMerge). This project
-    exists first to prove the build -> CI -> Azure deploy chain end to end with a
-    trivial payload; the ECS delta streaming lands on top once those are cleared.
+    References the Terminal project for the GOLD grammar, the semantic tree and the
+    visitors. That path is provably headless: Terminal.Tests runs 32 parser tests on
+    Linux. What is NOT touched here is the render pipeline: RenderLoop and
+    ComponentRenderPipeline construct Font/Pen/Bitmap in field initialisers, which
+    throw PlatformNotSupportedException off Windows. The ECS scene graph also stays
+    out until the ECS.Instance static singleton and the per-frame disk writes in
+    ECS.TriggerMerge are dealt with.
   -->
+  <ItemGroup>
+    <ProjectReference Include="..\CommandLine\Terminal.csproj" />
+  </ItemGroup>
 
 </Project>
