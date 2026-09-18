@@ -56,7 +56,7 @@ jobs:
       # System.Drawing surface (Graphics/Bitmap/Font) is compiled but never executed.
       - name: Build libraries
         run: |
-          for proj in $(find . -name '*.csproj' -not -name 'Application.csproj' | sort); do
+          for proj in $(find . -name '*.csproj' -not -name 'Application.csproj' -not -name 'WebClient.csproj' | sort); do
             echo "::group::$proj"
             dotnet build "$proj" -c Release
             echo "::endgroup::"
@@ -69,3 +69,34 @@ jobs:
             dotnet test "$proj" -c Release --no-build
             echo "::endgroup::"
           done
+
+  wasm:
+    name: WebAssembly client (Linux)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      # Built separately from the loop above because it needs the wasm-tools
+      # workload, and because publish (not build) is what actually exercises
+      # trimming -- which is where a reflection-dependent parser would break.
+      - name: Install wasm-tools
+        run: dotnet workload install wasm-tools
+
+      - name: Publish
+        run: dotnet publish WebClient/WebClient.csproj -c Release -o wasm-publish
+
+      - name: Check payload
+        run: |
+          set -euo pipefail
+          cd wasm-publish/wwwroot
+          find . \( -name '*.gz' -o -name '*.br' \) -delete
+          bytes=$(du -sb . | cut -f1)
+          files=$(find . -type f | wc -l)
+          echo "payload: $((bytes / 1048576)) MB across $files files"
+          # Terminal.dll carries 20.4 MB of CommandSearch synonym data unless
+          # ExcludeSearchData is set. If that regresses, the download balloons.
+          [ "$bytes" -lt 20971520 ] || { echo "payload over 20 MB; is ExcludeSearchData still set?"; exit 1; }

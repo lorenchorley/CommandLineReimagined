@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>CommandLineReimagined.Web</RootNamespace>
+    <AssemblyName>Web.Core</AssemblyName>
+  </PropertyGroup>
+
+  <!--
+    Parsing and tokenisation shared by the two front ends: the ASP.NET host (Web) and
+    the WebAssembly client (WebClient). Both must produce an identical token stream,
+    so the logic lives here once rather than being written twice.
+  -->
+  <ItemGroup>
+    <ProjectReference Include="..\CommandLine\Terminal.csproj" />
+  </ItemGroup>
+
+</Project>

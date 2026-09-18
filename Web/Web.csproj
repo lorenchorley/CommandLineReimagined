@@ -7,17 +7,8 @@
     <RootNamespace>CommandLineReimagined.Web</RootNamespace>
   </PropertyGroup>
 
-  <!--
-    References the Terminal project for the GOLD grammar, the semantic tree and the
-    visitors. That path is provably headless: Terminal.Tests runs 32 parser tests on
-    Linux. What is NOT touched here is the render pipeline: RenderLoop and
-    ComponentRenderPipeline construct Font/Pen/Bitmap in field initialisers, which
-    throw PlatformNotSupportedException off Windows. The ECS scene graph also stays
-    out until the ECS.Instance static singleton and the per-frame disk writes in
-    ECS.TriggerMerge are dealt with.
-  -->
   <ItemGroup>
-    <ProjectReference Include="..\CommandLine\Terminal.csproj" />
+    <ProjectReference Include="..\Web.Core\Web.Core.csproj" />
   </ItemGroup>
 
 </Project>
