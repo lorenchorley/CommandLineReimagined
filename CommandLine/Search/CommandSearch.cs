@@ -68,17 +68,34 @@ public class CommandSearch
                    .ToArray();
     }
 
+    /// <summary>
+    /// Where the synonym and dictionary data sits, next to the assembly.
+    /// </summary>
+    /// <remarks>
+    /// These two files are 20.4 MB together. Embedding them made Terminal.dll 20.5 MB,
+    /// which every consumer paid for, including a WebAssembly client that downloads the
+    /// assembly over a phone connection. They are copied beside the binary instead, so
+    /// the assembly stays small and a host that does not want them simply does not ship
+    /// them.
+    /// </remarks>
+    private static string DataPath(string fileName) =>
+        Path.Combine(AppContext.BaseDirectory, "Search", fileName);
+
+    /// <summary>True when the optional search data was deployed alongside the assembly.</summary>
+    public static bool SearchDataAvailable =>
+        File.Exists(DataPath("en_thesaurus.jsonl")) && File.Exists(DataPath("dictionary-en.csv"));
+
     private async Task LoadJsonDataAsync()
     {
-        // Assuming your JSONL file is an embedded resource named "yourresource.jsonl"
-        var assembly = Assembly.GetExecutingAssembly();
-        using var thesaurusResource = assembly.GetManifestResourceStream("Terminal.Search.en_thesaurus.jsonl");
-        if (thesaurusResource == null)
+        // Absence is not an error: synonym search is an enhancement, and hosts that do
+        // not deploy the data (the WebAssembly client) still need the rest to work.
+        if (!SearchDataAvailable)
         {
-            throw new Exception("Resource not found : Terminal.Search.en_thesaurus.jsonl");
+            Debug.WriteLine("Search data not deployed; synonym and autocomplete search disabled.");
+            return;
         }
 
-        using var thesaurusReader = new StreamReader(thesaurusResource);
+        using var thesaurusReader = new StreamReader(DataPath("en_thesaurus.jsonl"));
         string line;
 
         int percent = -1;
@@ -118,13 +135,7 @@ public class CommandSearch
             }
         }
 
-        using var dictionaryResource = assembly.GetManifestResourceStream("Terminal.Search.dictionary-en.csv");
-        if (dictionaryResource == null)
-        {
-            throw new Exception("Resource not found : Terminal.Search.dictionary-en.csv");
-        }
-
-        using var dictionaryReader = new StreamReader(dictionaryResource);
+        using var dictionaryReader = new StreamReader(DataPath("dictionary-en.csv"));
 
         _dictionaryEnglish = ReadLines(dictionaryReader).ToArray();
 

@@ -18,14 +18,14 @@
     <EmbeddedResource Include="Commands\Parser\Grammar\IsValidIdentifier.egt" />
 
     <!--
-      CommandSearch's synonym data. These two files are 20.4 MB together, which is
-      essentially all of Terminal.dll's 20.5 MB. Builds that only need the grammar
-      (the WebAssembly client, where it would be a 20 MB download) set
-      ExcludeSearchData=true. Default builds are unaffected, so the desktop app and
-      CommandSearch keep working exactly as before.
+      CommandSearch's synonym data, 20.4 MB across the two files. Embedding them made
+      Terminal.dll 20.5 MB, which every consumer paid for. They are copied next to the
+      assembly instead and loaded from disk, so the assembly stays around 130 KB and a
+      host that does not want them (the WebAssembly client) simply does not ship them.
+      CommandSearch treats their absence as "synonym search unavailable", not an error.
     -->
-    <EmbeddedResource Include="Search\dictionary-en.csv" Condition="'$(ExcludeSearchData)' != 'true'" />
-    <EmbeddedResource Include="Search\en_thesaurus.jsonl" Condition="'$(ExcludeSearchData)' != 'true'" />
+    <Content Include="Search\dictionary-en.csv" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="Search\en_thesaurus.jsonl" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>

@@ -17,19 +17,6 @@
     <DebugSymbols>false</DebugSymbols>
 
     <!--
-      Terminal.dll embeds 20.4 MB of CommandSearch synonym data. Only the grammar is
-      needed here, and 20 MB over a phone connection is not a demo.
-
-      CAUTION: building this project writes a search-data-free Terminal.dll into the
-      shared CommandLine/bin, and MSBuild's up-to-date check does not notice that the
-      property changed. A later incremental build of the desktop app in the same tree
-      can therefore silently pick up a Terminal.dll whose CommandSearch resources are
-      missing. Run `dotnet build CommandLine/Terminal.csproj -t:Rebuild` after working
-      on this project. CI is unaffected: the wasm job uses a clean checkout.
-    -->
-    <ExcludeSearchData>true</ExcludeSearchData>
-
-    <!--
       The static host reserves paths beginning with "_", so the framework directory is
       relocated from _framework to framework after publish. Rewriting the loader's
       paths invalidates the integrity hashes, so they are turned off here.

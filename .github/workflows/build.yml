@@ -97,6 +97,7 @@ jobs:
           bytes=$(du -sb . | cut -f1)
           files=$(find . -type f | wc -l)
           echo "payload: $((bytes / 1048576)) MB across $files files"
-          # Terminal.dll carries 20.4 MB of CommandSearch synonym data unless
-          # ExcludeSearchData is set. If that regresses, the download balloons.
-          [ "$bytes" -lt 20971520 ] || { echo "payload over 20 MB; is ExcludeSearchData still set?"; exit 1; }
+          # CommandSearch's 20.4 MB of synonym data is deployed next to the assembly
+          # rather than embedded in it. If it ever goes back to being an
+          # EmbeddedResource, the browser download balloons and this catches it.
+          [ "$bytes" -lt 20971520 ] || { echo "payload over 20 MB; is the search data embedded in Terminal.dll again?"; exit 1; }
