@@ -20,7 +20,7 @@ public class Prompt : IECSSubsystem
     private readonly Scene _scene;
     private string _text = "";
     private RootNode? _parsedCommand = null;
-    private CommandLineInterpreter _commandLineInterpreter = new();
+    private CommandLineReimagined.Parsing.CommandLineParser _commandLineInterpreter = new();
 
     private Entity _inputPromptEntity;
 
@@ -265,10 +265,11 @@ public class Prompt : IECSSubsystem
 
     private static IEnumerable<string> ListSymbols(SyntaxError syntaxError)
     {
-        for (int i = 0; i < syntaxError.ExpectedSymbols.Count(); i++)
+        for (int i = 0; i < syntaxError.ExpectedSymbols.Count; i++)
         {
-            Symbol s = syntaxError.ExpectedSymbols[i];
-            string text = s.Text();
+            // ExpectedSymbols is a list of names now rather than GOLD Symbol objects,
+            // so the prompt no longer depends on the parser engine to describe an error.
+            string text = syntaxError.ExpectedSymbols[i];
 
             if (_symbolTranslations.TryGetValue(text, out string[]? translations))
             {

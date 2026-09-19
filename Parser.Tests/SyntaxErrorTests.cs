@@ -58,12 +58,9 @@ public class SyntaxErrorTests
     }
 
     [TestMethod]
-    public void TripleQuotedStringIsRejected()
+    public void UnbalancedQuoteCountIsRejected()
     {
-        // StringLiteral4 ('"""' ... '"""') is defined in the grammar but <Constant> lists
-        // StringLiteral3 twice and never refers to StringLiteral4, so the three-quote
-        // form cannot be used. StringConstant's own trimming handles any quote count,
-        // so this is a defect in the grammar rather than an intended restriction.
-        ParserHarness.ParseError("echo \"\"\"triple\"\"\"");
+        // The delimiters have to match: three to open and two to close is not a literal.
+        ParserHarness.ParseError("echo \"\"\"mismatched\"\"");
     }
 }

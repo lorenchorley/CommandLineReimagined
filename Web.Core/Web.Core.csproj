@@ -15,6 +15,7 @@
   -->
   <ItemGroup>
     <ProjectReference Include="..\CommandLine\Terminal.csproj" />
+    <ProjectReference Include="..\Parser.FParsec\Parser.FParsec.fsproj" />
   </ItemGroup>
 
 </Project>

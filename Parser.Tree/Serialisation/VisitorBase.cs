@@ -121,7 +121,23 @@ public abstract class VisitorBase : ISemanticTreeVisitor
     {
         functionExpression.Id.Accept(this);
         Append('(');
-        functionExpression.Arguments.Accept(this);
+
+        // Function arguments are comma separated, unlike CLI arguments which are
+        // separated by spaces, so this cannot delegate to VisitCommandArguments. While
+        // the comma production was unimplemented no call had more than one argument and
+        // the difference never showed.
+        var arguments = functionExpression.Arguments.Arguments;
+        for (int i = 0; i < arguments.Count; i++)
+        {
+            if (i > 0)
+            {
+                Append(',');
+                Space();
+            }
+
+            arguments[i].Accept(this);
+        }
+
         Append(')');
     }
 
@@ -233,12 +249,26 @@ public abstract class VisitorBase : ISemanticTreeVisitor
 
     public virtual void VisitTagAttributes(TagAttributeList tagAttributes)
     {
-        tagAttributes.Attributes.ForEach(a => a.Accept(this));
+        for (int i = 0; i < tagAttributes.Attributes.Count; i++)
+        {
+            // Without this separator `<t a=1 b=2/>` came back as `<t a=1b=2/>`, which is
+            // not valid input, so a round trip was not idempotent.
+            if (i > 0)
+            {
+                Space();
+            }
+
+            tagAttributes.Attributes[i].Accept(this);
+        }
     }
 
     public virtual void VisitTagList(TagList tagList)
     {
-        throw new NotImplementedException();
+        // Threw before, so any tree reached through a tag list could not be written out.
+        foreach (var tag in tagList.Tags)
+        {
+            tag.Accept(this);
+        }
     }
 
     public virtual void VisitVariableName(VariableName variableName)
@@ -258,10 +288,24 @@ public abstract class VisitorBase : ISemanticTreeVisitor
 
     public virtual void VisitPropertyAssignment(PropertyAssignment propertyAssignment)
     {
+        if (propertyAssignment.HasChildren)
+        {
+            Append('[');
+            propertyAssignment.Name.Accept(this);
+            Append(']');
+
+            propertyAssignment.Children!.Accept(this);
+
+            Append("[/");
+            propertyAssignment.Name.Accept(this);
+            Append(']');
+            return;
+        }
+
         Append('[');
         propertyAssignment.Name.Accept(this);
         Append('=');
-        propertyAssignment.Value.Accept(this);
+        propertyAssignment.Value!.Accept(this);
         Append(']');
     }
 
@@ -280,6 +324,61 @@ public abstract class VisitorBase : ISemanticTreeVisitor
 
     public virtual void VisitVariableTag(VariableTag variableTag)
     {
-        throw new NotImplementedException();
+        Append("<$");
+        variableTag.Name.Accept(this);
+        Append('>');
+    }
+
+    public virtual void VisitComponentType(ComponentType componentType)
+    {
+        Append(componentType.Value);
+    }
+
+    public virtual void VisitTagValue(TagValue tagValue)
+    {
+        tagValue.Tag.Accept(this);
+    }
+
+    public virtual void VisitComponentInstance(ComponentInstance componentInstance)
+    {
+        AddIndentation();
+        Append('{');
+
+        if (componentInstance.VariableName != null)
+        {
+            componentInstance.VariableName.Accept(this);
+            Append('|');
+        }
+
+        componentInstance.ComponentType.Accept(this);
+
+        if (componentInstance.Attributes.Attributes.Count > 0)
+        {
+            Space();
+            componentInstance.Attributes.Accept(this);
+        }
+
+        if (!componentInstance.HasChildren)
+        {
+            Append("/}");
+            return;
+        }
+
+        Append('}');
+
+        Indent();
+        foreach (var child in componentInstance.Children!.Tags)
+        {
+            NewLine();
+            child.Accept(this);
+        }
+        Unindent();
+
+        NewLine();
+        AddIndentation();
+
+        Append("{/");
+        componentInstance.ComponentType.Accept(this);
+        Append('}');
     }
 }

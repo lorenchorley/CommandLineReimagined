@@ -37,6 +37,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\Parser.Tree\Parser.Tree.csproj" />
     <ProjectReference Include="..\Controller\Controller.csproj" />
     <ProjectReference Include="..\EntityComponentSystem\EntityComponentSystem.csproj" />
     <ProjectReference Include="..\InteractionLogic\Interaction.csproj" />
@@ -47,6 +48,7 @@
 
   <ItemGroup>
     <Folder Include="Prompt\" />
+    <ProjectReference Include="..\Parser.FParsec\Parser.FParsec.fsproj" />
   </ItemGroup>
 
 </Project>

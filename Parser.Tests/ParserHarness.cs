@@ -15,8 +15,9 @@ namespace Parser.Tests;
 /// </remarks>
 public static class ParserHarness
 {
-    // Built once: the constructor loads two LALR table sets from embedded resources.
-    private static readonly CommandLineInterpreter Interpreter = new();
+    // The suite runs against the FParsec parser. The GOLD interpreter is still built
+    // and is exercised by ParserEquivalenceTests, which runs both over the same corpus.
+    private static readonly CommandLineReimagined.Parsing.CommandLineParser Interpreter = new();
     private static readonly object Gate = new();
 
     public static RootNode Parse(string source)

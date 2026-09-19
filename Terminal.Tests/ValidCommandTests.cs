@@ -13,7 +13,7 @@ public class ValidCommandTests
     public void ParseCommand(string command, string? _)
     {
         // Arrange
-        CommandLineInterpreter lineInterpreter = new();
+        CommandLineReimagined.Parsing.CommandLineParser lineInterpreter = new();
         var visitor = new SerialisationVisitor();
 
 
@@ -38,7 +38,7 @@ public class ValidCommandTests
     public void ReserialiseCommand(string command, string? expectedReserialisation)
     {
         // Arrange
-        CommandLineInterpreter lineInterpreter = new();
+        CommandLineReimagined.Parsing.CommandLineParser lineInterpreter = new();
         var visitor = new SerialisationVisitor();
         var visitorWithIndentation = new SerialisationVisitor()
         {

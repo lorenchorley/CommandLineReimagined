@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net7.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AssemblyName>Parser.Tree</AssemblyName>
+  </PropertyGroup>
+
+  <!--
+    The semantic tree and the result types, with no parser in them.
+
+    Extracted from Terminal so a parser can be written in another project (and another
+    language) and still produce this tree, without Terminal depending on the parser and
+    the parser depending on Terminal. Namespaces are unchanged, so nothing that consumes
+    the tree needed editing.
+  -->
+  <ItemGroup>
+    <PackageReference Include="OneOf" Version="3.0.263" />
+    <PackageReference Include="OneOf.SourceGenerator" Version="3.0.263" />
+  </ItemGroup>
+
+</Project>

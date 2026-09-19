@@ -41,6 +41,14 @@ public class SerialisationTests
     [DataRow("<thing from=$source/>")]
     [DataRow("<thing/> | command")]
     [DataRow("command | <thing/>")]
+    [DataRow("<thing a=1 b=two/>")]
+    [DataRow("<$handle>")]
+    [DataRow("command(a, b)")]
+    [DataRow("command(a, name: value)")]
+    [DataRow("{renderer/}")]
+    [DataRow("{renderer colour=red/}")]
+    [DataRow("{handle|renderer/}")]
+    [DataRow("command <thing/>")]
     public void RoundTrips(string source) => ParserHarness.AssertRoundTrips(source);
 
     // Where the grammar allows two spellings, the serialiser emits one of them. These
@@ -63,24 +71,21 @@ public class SerialisationTests
         Assert.AreEqual("echo \"\"doubled\"\"", ParserHarness.RoundTrip("echo \"\"doubled\"\""));
 
     [TestMethod]
-    public void SeveralAttributesLoseTheirSeparatingSpace()
+    public void SeveralAttributesKeepTheirSeparatingSpace()
     {
-        // VisitTagAttributes writes the attributes with nothing between them, so
-        // `<thing a=1 b=2/>` comes back as `<thing a=1b=2/>`, which no longer reparses
-        // to the same tree. A single attribute is unaffected, which is why the round
-        // trip cases above pass.
-        Assert.AreEqual("<thing a=1b=two/>", ParserHarness.RoundTrip("<thing a=1 b=two/>"));
+        // VisitTagAttributes used to write attributes with nothing between them, so
+        // `<thing a=1 b=two/>` came back as `<thing a=1b=two/>` and no longer parsed.
+        Assert.AreEqual("<thing a=1 b=two/>", ParserHarness.RoundTrip("<thing a=1 b=two/>"));
     }
 
     [TestMethod]
-    public void ReserialisedMultipleAttributesNoLongerParse()
+    public void RoundTrippingIsIdempotent()
     {
-        // The consequence is worse than a changed tree: `a=1b=two` is not valid input at
-        // all, so serialising a tag with more than one attribute produces text the
-        // parser rejects. Round tripping is not idempotent for these.
-        string once = ParserHarness.RoundTrip("<thing a=1 b=two/>");
+        // Serialising then reparsing then serialising again returns the same text, which
+        // it did not while attributes were run together.
+        string once = ParserHarness.RoundTrip("<thing a=1 b=two c=3/>");
+        string twice = ParserHarness.RoundTrip(once);
 
-        Assert.AreEqual("<thing a=1b=two/>", once);
-        ParserHarness.ParseError(once);
+        Assert.AreEqual(once, twice);
     }
 }

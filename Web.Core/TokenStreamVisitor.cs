@@ -109,6 +109,18 @@ public sealed class TokenStreamVisitor : VisitorBase
         using (Using(Kinds.Type)) base.VisitObjectType(objectType);
     }
 
+    public override void VisitComponentType(ComponentType componentType)
+    {
+        // A component's type reads the same way an object's does; without this it fell
+        // through to punctuation and lost its colour.
+        using (Using(Kinds.Type)) base.VisitComponentType(componentType);
+    }
+
+    public override void VisitVariableTag(VariableTag variableTag)
+    {
+        using (Using(Kinds.Variable)) base.VisitVariableTag(variableTag);
+    }
+
     public override void VisitAttributeName(TagAttributeName attributeName)
     {
         using (Using(Kinds.Attribute)) base.VisitAttributeName(attributeName);

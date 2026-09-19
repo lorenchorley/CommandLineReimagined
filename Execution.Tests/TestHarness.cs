@@ -18,7 +18,7 @@ namespace Execution.Tests;
 /// </remarks>
 public sealed class TestHarness
 {
-    private readonly CommandLineInterpreter _interpreter = new();
+    private readonly CommandLineReimagined.Parsing.CommandLineParser _interpreter = new();
     private readonly ServiceProvider _services;
 
     public TestHarness(string workingDirectory)

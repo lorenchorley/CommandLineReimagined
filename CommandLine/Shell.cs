@@ -50,7 +50,7 @@ public class CommandFailedTypeChecking
 public class Shell : IECSSubsystem
 {
     private readonly List<CommandDefinition> _commandProfiles;
-    private readonly CommandLineInterpreter _interpreter;
+    private readonly CommandLineReimagined.Parsing.CommandLineParser _interpreter;
     private readonly ConsoleOutModule _consoleOutModule;
     private readonly Prompt _prompt;
     private readonly CommandSearch _commandSearch;
@@ -82,7 +82,7 @@ public class Shell : IECSSubsystem
         _evaluator = evaluator;
         _renderer = renderer;
         _scopeRegistry = scopeRegistry;
-        _interpreter = new CommandLineInterpreter();
+        _interpreter = new CommandLineReimagined.Parsing.CommandLineParser();
     }
 
     public void OnInit()

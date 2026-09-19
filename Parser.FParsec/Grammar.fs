@@ -1,0 +1,324 @@
+/// The command line grammar, as parser combinators.
+///
+/// This is a direct translation of CommandLineGrammar.grm. The rules appear in the same
+/// order and under the same names as the BNF, so the two can be read side by side.
+///
+/// Two differences from the GOLD version are deliberate:
+///   - Every production builds a tree. The table-driven parser left roughly a third of
+///     the grammar throwing NotImplementedException, so component tags, multi-argument
+///     function calls, tags as values and property tag lists parsed but could not be
+///     used.
+///   - The three-quote string form works. <Constant> in the .grm lists StringLiteral3
+///     twice and never StringLiteral4, so the documented form was unreachable.
+module CommandLineReimagined.Parsing.Grammar
+
+open System
+open FParsec
+open Commands.Parser.SemanticTree
+
+type private P<'a> = Parser<'a, unit>
+
+// ----------------------------------------------------------------- Whitespace
+
+// The grammar is line oriented: a command line is one line, and newlines inside a
+// string are part of the string rather than separators.
+let private isInlineSpace c = c = ' ' || c = '\t'
+let private ws: P<unit> = skipManySatisfy isInlineSpace
+let private ws1: P<unit> = skipMany1Satisfy isInlineSpace
+
+let private tok (p: P<'a>) : P<'a> = p .>> ws
+let private sym (c: char) : P<unit> = skipChar c .>> ws
+let private symStr (s: string) : P<unit> = skipString s .>> ws
+
+// ----------------------------------------------------------------- Sets
+// {IdentifierCharacter} = {AlphaNumeric} + [_ and a list of accented letters]
+
+let private accented =
+    "éèàäëïöüùçâêîôûÇÄÅÉæÆÖÜøØƒáíóúñÑÁÂÀãÃðÐÊËÈiÍÎÏÌÓßÔÒõÕµþÞÚÛÙýÝ"
+
+let private isIdentifierChar (c: char) =
+    (c >= 'a' && c <= 'z')
+    || (c >= 'A' && c <= 'Z')
+    || (c >= '0' && c <= '9')
+    || c = '_'
+    || accented.IndexOf c >= 0
+
+/// Identifier = {IdentifierCharacter}+
+let private identifierText: P<string> = many1SatisfyL isIdentifierChar "identifier"
+
+/// FlagIdentifier = '-'{IdentifierCharacter}+
+let private flagText: P<string> =
+    // A single dash only: '--flag' is not a flag, which the tests pin down.
+    attempt (pchar '-' >>. many1Satisfy isIdentifierChar)
+
+// ----------------------------------------------------------------- String literals
+// StringCharacter = {All Printable} - ["] + {HT} + {CR} + {LF}, so a literal's body
+// never contains a quote and the forms are told apart by their delimiters alone.
+
+let private delimited (delim: string) : P<string> =
+    attempt (
+        pstring delim >>. manyChars (noneOf "\"") .>>. pstring delim
+        |>> fun (body, _) -> delim + body + delim)
+
+/// Longest delimiter first, matching the lexer's maximal munch: `""""` is a doubled
+/// empty string, not two single ones.
+let private stringLiteralText: P<string> =
+    choice [ delimited "\"\"\""      // StringLiteral4, unreachable in the .grm
+             delimited "\"\""        // StringLiteral3
+             delimited "\"" ]        // StringLiteral2
+
+// StringConstant's own setter counts and strips the quotes, so it is given the
+// literal exactly as written.
+let private constant: P<Constant> =
+    stringLiteralText |>> fun raw -> StringConstant(Value = raw) :> Constant
+
+// ----------------------------------------------------------------- Names
+
+let private variableName: P<VariableName> = identifierText |>> fun n -> VariableName(Name = n)
+let private objectType: P<ObjectType> = identifierText |>> fun n -> ObjectType(Value = n)
+let private componentType: P<ComponentType> = identifierText |>> fun n -> ComponentType(Value = n)
+let private propertyName: P<ProperyName> = identifierText |>> fun n -> ProperyName(Name = n)
+let private attributeName: P<TagAttributeName> = identifierText |>> fun n -> TagAttributeName(Name = n)
+
+/// <VariableReference> ::= '$' <VariableName>
+let private variableReference: P<VariableReference> =
+    pchar '$' >>. variableName |>> fun n -> VariableReference(Name = n)
+
+// ----------------------------------------------------------------- Forward references
+// Tags nest, and a value may be a tag, so these are tied back below.
+
+let private instanceTag, instanceTagRef = createParserForwardedToRef<InstanceTag, unit> ()
+let private tag, tagRef = createParserForwardedToRef<Tag, unit> ()
+let private value, valueRef = createParserForwardedToRef<Value, unit> ()
+
+/// <SimpleValue> ::= <Constant> | <VariableReference> | <ID>
+let private simpleValue: P<SimpleValue> =
+    choice [ constant |>> fun c -> c :> SimpleValue
+             variableReference |>> fun v -> v :> SimpleValue
+             identifierText |>> fun n -> Identifier(Name = n) :> SimpleValue ]
+
+// ----------------------------------------------------------------- Tag attributes
+// <TagAttribute> ::= <TagAttributeName> '=' <SimpleValue>
+
+let private tagAttribute: P<TagAttribute> =
+    // The name and '=' are attempted together so a bare identifier that is not an
+    // attribute leaves the input untouched for whatever follows.
+    attempt (attributeName .>> ws .>> pchar '=' .>> ws) .>>. (simpleValue .>> ws)
+    |>> fun (name, v) -> TagAttribute(Name = name, Value = v)
+
+let private tagAttributeList: P<TagAttributeList> =
+    many tagAttribute
+    |>> fun attributes ->
+            let list = TagAttributeList()
+            attributes |> List.iter list.Attributes.Add
+            list
+
+// ----------------------------------------------------------------- Object instances
+
+/// The part shared by the closed and open forms: '<' [name '|'] type attributes
+let private objectHeader: P<VariableName option * ObjectType * TagAttributeList> =
+    pchar '<' >>. ws
+    >>. pipe3
+            (opt (attempt (variableName .>> ws .>> pchar '|' .>> ws)))
+            (objectType .>> ws)
+            tagAttributeList
+            (fun name typ attributes -> (name, typ, attributes))
+
+/// <ClosingObjectTag> ::= '<' '/' <ObjectType> '>' | '<' '/' '>'
+let private closingObjectTag: P<ObjectType option> =
+    symStr "</"
+    >>. ((pchar '>' >>% None) <|> (objectType .>> ws .>> pchar '>' |>> Some))
+
+let private objectInstance: P<ObjectInstance> =
+    attempt objectHeader
+    >>= fun (name, typ, attributes) ->
+        // Closed form ends at '/>'; anything else is an opening tag with a body.
+        (attempt (symStr "/>")
+         >>% ObjectInstance(VariableName = Option.toObj name, ObjectType = typ, Attributes = attributes, Children = null))
+        <|> (sym '>' >>. many tag .>>. closingObjectTag
+             |>> fun (children, closing) ->
+                    match closing with
+                    | Some closingType when closingType.Value <> typ.Value ->
+                        // The .grm allows any name here; a mismatch is a mistake, and
+                        // the old interpreter only recorded it as a message.
+                        failwithf "Closing tag '%s' does not match opening tag '%s'" closingType.Value typ.Value
+                    | _ ->
+                        let list = TagList()
+                        children |> List.iter list.Tags.Add
+                        ObjectInstance(
+                            VariableName = Option.toObj name,
+                            ObjectType = typ,
+                            Attributes = attributes,
+                            Children = (if list.Tags.Count = 0 then null else list)))
+
+// ----------------------------------------------------------------- Component instances
+// The brace equivalent of an object tag. Every production for these threw before.
+
+let private componentHeader: P<VariableName option * ComponentType * TagAttributeList> =
+    pchar '{' >>. ws
+    >>. pipe3
+            (opt (attempt (variableName .>> ws .>> pchar '|' .>> ws)))
+            (componentType .>> ws)
+            tagAttributeList
+            (fun name typ attributes -> (name, typ, attributes))
+
+let private closingComponentTag: P<ComponentType option> =
+    symStr "{/"
+    >>. ((pchar '}' >>% None) <|> (componentType .>> ws .>> pchar '}' |>> Some))
+
+let private componentInstance: P<ComponentInstance> =
+    attempt componentHeader
+    >>= fun (name, typ, attributes) ->
+        (attempt (symStr "/}")
+         >>% ComponentInstance(VariableName = Option.toObj name, ComponentType = typ, Attributes = attributes, Children = null))
+        <|> (sym '}' >>. many tag .>>. closingComponentTag
+             |>> fun (children, closing) ->
+                    match closing with
+                    | Some closingType when closingType.Value <> typ.Value ->
+                        failwithf "Closing tag '%s' does not match opening tag '%s'" closingType.Value typ.Value
+                    | _ ->
+                        let list = TagList()
+                        children |> List.iter list.Tags.Add
+                        ComponentInstance(
+                            VariableName = Option.toObj name,
+                            ComponentType = typ,
+                            Attributes = attributes,
+                            Children = (if list.Tags.Count = 0 then null else list)))
+
+/// <VariableTag> ::= '<' '$' <VariableName> '>'
+let private variableTag: P<VariableTag> =
+    attempt (symStr "<$") >>. variableName .>> ws .>> pchar '>'
+    |>> fun n -> VariableTag(Name = n)
+
+// ----------------------------------------------------------------- Property assignment
+// All four forms, where only '[name=value]' used to build.
+
+let private propertyAssignment: P<PropertyAssignment> =
+    attempt (pchar '[' >>. ws >>. propertyName .>> ws)
+    >>= fun name ->
+        choice
+            [ // [name=value]
+              attempt (pchar '=' >>. ws >>. simpleValue .>> ws .>> pchar ']')
+              |>> fun v -> PropertyAssignment(Name = name, Value = v)
+
+              // [name]=<tag>
+              attempt (pchar ']' >>. ws >>. pchar '=' >>. ws >>. instanceTag)
+              |>> fun t ->
+                    let list = TagList()
+                    list.Tags.Add t
+                    PropertyAssignment(Name = name, Children = list)
+
+              // [name] tags [/name] or [name] tags [/]
+              pchar ']' >>. ws >>. many tag
+              .>> symStr "[/"
+              .>> (attempt (pchar ']' >>% ()) <|> (propertyName .>> ws .>> pchar ']' >>% ()))
+              |>> fun tags ->
+                    let list = TagList()
+                    tags |> List.iter list.Tags.Add
+                    PropertyAssignment(Name = name, Children = list) ]
+
+// ----------------------------------------------------------------- Tags and values
+
+instanceTagRef.Value <-
+    choice [ variableTag |>> fun t -> t :> InstanceTag
+             objectInstance |>> fun t -> t :> InstanceTag
+             componentInstance |>> fun t -> t :> InstanceTag ]
+    .>> ws
+
+tagRef.Value <-
+    choice [ attempt (propertyAssignment |>> fun t -> t :> Tag)
+             attempt (variableTag |>> fun t -> t :> Tag)
+             attempt (objectInstance |>> fun t -> t :> Tag)
+             attempt (componentInstance |>> fun t -> t :> Tag) ]
+    .>> ws
+
+/// <Value> ::= <SimpleValue> | <InstanceTag>
+///
+/// A tag is carried across into the value hierarchy by TagValue, because InstanceTag
+/// already descends from Tag and a record cannot descend from Value as well.
+valueRef.Value <-
+    choice [ instanceTag |>> fun t -> TagValue(Tag = t) :> Value
+             simpleValue |>> fun v -> v :> Value ]
+
+// ----------------------------------------------------------------- Commands
+
+/// <FunctionArgument> ::= <RequiredArgument> | <OptionalArgument>
+let private functionArgument: P<CommandArgument> =
+    choice
+        [ // <OptionalArgument> ::= <ID> ':' <Value>
+          attempt (identifierText .>> ws .>> pchar ':' .>> ws) .>>. value
+          |>> fun (name, v) ->
+                OptionalCommandArgument(Name = OneOf.OneOf<CommandArgumentFlag, Identifier>.op_Implicit (Identifier(Name = name)), Value = v)
+                :> CommandArgument
+
+          // <RequiredArgument> ::= <Value>
+          value |>> fun v -> RequiredCommandArgument(Value = v) :> CommandArgument ]
+    .>> ws
+
+/// <FunctionArgumentList> ::= <FunctionArgumentList> ',' <FunctionArgument>
+///
+/// The comma production was the one GOLD never implemented, so every function call was
+/// limited to a single argument.
+let private functionArgumentList: P<CommandArguments> =
+    sepBy functionArgument (sym ',')
+    |>> fun arguments ->
+            let list = CommandArguments()
+            arguments |> List.iter list.Arguments.Add
+            list
+
+let private functionExpression: P<FunctionExpression> =
+    attempt (identifierText .>> ws .>> pchar '(' .>> ws)
+    .>>. (functionArgumentList .>> ws .>> pchar ')' .>> ws)
+    |>> fun (name, arguments) -> FunctionExpression(Id = Identifier(Name = name), Arguments = arguments)
+
+/// <CommandArgument> ::= <Flag> | <Value>
+let private commandArgument: P<CommandArgument> =
+    choice [ flagText |>> fun f -> CommandArgumentFlag(Name = f) :> CommandArgument
+             value |>> fun v -> CommandArgumentValue(Value = v) :> CommandArgument ]
+    .>> ws
+
+let private commandArgumentList: P<CommandArguments> =
+    many commandArgument
+    |>> fun arguments ->
+            let list = CommandArguments()
+            arguments |> List.iter list.Arguments.Add
+            list
+
+/// <CommandExpression_CLINotation> ::= <ID> <CommandArgumentList>
+let private cliExpression: P<CommandExpressionCli> =
+    identifierText .>> ws .>>. commandArgumentList
+    |>> fun (name, arguments) -> CommandExpressionCli(Name = CommandName(Name = name), Arguments = arguments)
+
+/// <CommandExpression> ::= <FunctionExpression> | <CommandExpression_CLINotation> | <IndividualCLIValue>
+let private commandExpression: P<CommandExpression> =
+    choice
+        [ functionExpression |>> fun f -> CommandExpression(Expression = OneOf.OneOf<FunctionExpression, CommandExpressionCli, InstanceTag>.op_Implicit f)
+          cliExpression |>> fun c -> CommandExpression(Expression = OneOf.OneOf<FunctionExpression, CommandExpressionCli, InstanceTag>.op_Implicit c)
+          // <IndividualCLIValue> ::= <InstanceTag>, which includes a variable tag. The
+          // old interpreter tested for ObjectInstance specifically, so `<$name>` fell
+          // through every branch and threw.
+          instanceTag |>> fun t -> CommandExpression(Expression = OneOf.OneOf<FunctionExpression, CommandExpressionCli, InstanceTag>.op_Implicit t) ]
+    .>> ws
+
+/// <PipedCommandList> ::= <PipedCommandList> '|' <CommandExpression> | <CommandExpression>
+let private pipedCommandList: P<PipedCommandList> =
+    sepBy1 commandExpression (sym '|')
+    |>> fun commands ->
+            let list = PipedCommandList()
+            commands |> List.iter list.OrderedCommands.Add
+            list
+
+/// <Program> ::= <PipedCommandList> | ! Empty
+///
+/// The empty alternative is decided by looking for end of input rather than by trying
+/// the command list and backtracking. Wrapping the command list in `attempt` would undo
+/// its position on any failure, and every syntax error would then be reported at
+/// column 0 instead of where the input actually went wrong.
+let program: P<RootNode> =
+    ws
+    >>. ((eof >>% (EmptyCommand() :> RootNode))
+         <|> (pipedCommandList .>> ws .>> eof |>> fun p -> p :> RootNode))
+
+/// The identifier grammar, used to validate a name on its own.
+let identifierOnly: P<Identifier> =
+    ws >>. identifierText .>> ws .>> eof |>> fun n -> Identifier(Name = n)

@@ -8,22 +8,6 @@ using ValueOf;
 
 namespace Commands.Parser;
 
-[GenerateOneOf]
-public partial class ParserError : OneOfBase<List<string>, SyntaxError, LexicalError>
-{
-}
-public class SyntaxError
-{
-    public int Line { get; init; }
-    public int Column { get; init; }
-    public SymbolList ExpectedSymbols { get; init; }
-}
-
-public class LexicalError
-{
-    public SyntaxError SyntaxError { get; init; }
-}
-
 public class CommandLineInterpreter
 {
     private const string NameSpace = "Terminal";
@@ -98,7 +82,7 @@ public class CommandLineInterpreter
                     {
                         Line = parser.CurrentPosition().Line,
                         Column = parser.CurrentPosition().Column,
-                        ExpectedSymbols = parser.ExpectedSymbols()
+                        ExpectedSymbols = NamesOf(parser.ExpectedSymbols())
                     };
 
                     // TODO Si lexicalerror, enleve un charactère et réessaye ?
@@ -114,7 +98,7 @@ public class CommandLineInterpreter
                         {
                             Line = parser.CurrentPosition().Line,
                             Column = parser.CurrentPosition().Column,
-                            ExpectedSymbols = parser.ExpectedSymbols()
+                            ExpectedSymbols = NamesOf(parser.ExpectedSymbols())
                         }
                     };
 
@@ -138,6 +122,27 @@ public class CommandLineInterpreter
         }
 
         return new ParserResult<TRoot>(treeRoot);
+    }
+
+    /// <summary>
+    /// Converts GOLD's symbol list to plain names, so the error types stay independent
+    /// of the engine that produced them.
+    /// </summary>
+    private static IReadOnlyList<string> NamesOf(SymbolList symbols)
+    {
+        if (symbols is null)
+        {
+            return Array.Empty<string>();
+        }
+
+        int count = symbols.Count();
+        var names = new List<string>(count);
+        for (int i = 0; i < count; i++)
+        {
+            names.Add(symbols[i].Text());
+        }
+
+        return names;
     }
 
     private object CreateNewObject(List<string> errors, Reduction r)

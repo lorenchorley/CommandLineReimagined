@@ -7,12 +7,15 @@
     <RootNamespace>CommandLineReimagined.WebClient</RootNamespace>
 
     <!--
-      The whole point of this project is to run the real GOLD parser in the browser
-      with no server behind it, so payload size is the binding constraint.
+      The whole point of this project is to run the real parser in the browser with no
+      server behind it, so payload size is the binding constraint.
       InvariantGlobalization drops the ~1.1 MB ICU table, and the debug symbols are
       dead weight in a static deployment.
     -->
     <InvariantGlobalization>true</InvariantGlobalization>
+    <!-- FSharp.Core ships translated resources for a dozen languages; the browser
+         never shows them and they are a download either way. -->
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
     <DebugType>none</DebugType>
     <DebugSymbols>false</DebugSymbols>
 

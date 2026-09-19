@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net7.0</TargetFramework>
+    <AssemblyName>Parser.FParsec</AssemblyName>
+    <RootNamespace>CommandLineReimagined.Parsing</RootNamespace>
+    <!-- The generated equality and comparison on the F# types here is never used. -->
+    <NoWarn>$(NoWarn);FS0064</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="Grammar.fs" />
+    <Compile Include="CommandLineParser.fs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="FParsec" Version="1.1.1" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Parser.Tree\Parser.Tree.csproj" />
+  </ItemGroup>
+
+</Project>

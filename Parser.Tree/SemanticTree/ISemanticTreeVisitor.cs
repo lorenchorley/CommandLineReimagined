@@ -29,5 +29,8 @@ namespace Isagri.Reporting.Quid.RequestFilters.SemanticTree
         void VisitStringConstant(StringConstant stringConstant);
         void VisitVariableReference(VariableReference variableReference);
         void VisitVariableTag(VariableTag variableTag);
+        void VisitComponentInstance(ComponentInstance componentInstance);
+        void VisitComponentType(ComponentType componentType);
+        void VisitTagValue(TagValue tagValue);
     }
 }

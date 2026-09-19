@@ -18,14 +18,14 @@ public sealed record ParseErrorInfo(string Kind, int Line, int Column, IReadOnly
 /// Wraps the GOLD-engine interpreter for the web host.
 /// </summary>
 /// <remarks>
-/// <see cref="CommandLineInterpreter"/> builds two LALR parsers from embedded .egt
-/// tables in its constructor, which is not cheap, so it is held per process. The
-/// GOLD parser carries mutable position state across a parse, so calls are serialised
-/// behind a lock rather than allowing concurrent connections to interleave.
+/// The FParsec parser is immutable once built and its combinators carry no shared
+/// state, so concurrent connections could parse in parallel. The lock is kept because
+/// it costs nothing here and keeps this class safe if a stateful parser is ever
+/// swapped back in.
 /// </remarks>
 public sealed class CommandParseService
 {
-    private readonly CommandLineInterpreter _interpreter = new();
+    private readonly CommandLineReimagined.Parsing.CommandLineParser _interpreter = new();
     private readonly object _lock = new();
 
     public ParseResponse Parse(string source)
@@ -65,14 +65,6 @@ public sealed class CommandParseService
             return Array.Empty<string>();
         }
 
-        // GOLD's SymbolList exposes Count() as a method, not a property.
-        int count = symbols.Count();
-        var expected = new List<string>(count);
-        for (int i = 0; i < count; i++)
-        {
-            expected.Add(symbols[i].ToString());
-        }
-
-        return expected;
+        return symbols;
     }
 }
