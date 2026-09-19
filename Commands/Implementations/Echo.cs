@@ -1,7 +1,4 @@
-﻿using System.IO;
-using System.Xml.Linq;
-using CommandLine.Modules;
-using UIComponents.Components;
+using Terminal.Execution;
 
 namespace Commands.Implementations
 {
@@ -10,23 +7,24 @@ namespace Commands.Implementations
         public override CommandDefinition Profile { get; } =
             new CommandDefinition(
                 Name: "echo",
-                Description: "",
-                KeyWords: "",
+                Description: "Writes its argument, or whatever was piped into it",
+                KeyWords: "print write output",
                 Parameters: new CommandParameter[]
                 {
-                    new CommandParameter() { Name = "text", Description = "" }
+                    // Accepting piped input is what makes `ls | echo` work.
+                    new CommandParameter { Name = "text", Description = "", AcceptsPipedInput = true },
                 },
                 CommandActionType: typeof(Echo)
             );
 
-        public override void Invoke(CommandParameterValue[] args, CliBlock scope)
+        public override RuntimeValue Invoke(CommandInvocation invocation)
         {
-            LineComponent line = scope.NewLine();
+            var value = invocation.ValueOrInput("text");
 
-            line.LinkNewTextBlock("echo", args[0].Value);
+            return value;
         }
 
-        public override void InvokeUndo(CommandParameterValue[] args, CliBlock scope)
+        public override void InvokeUndo(CommandInvocation invocation)
         {
         }
     }

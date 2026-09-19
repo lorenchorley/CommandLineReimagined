@@ -1,21 +1,14 @@
-﻿using CommandLine.Modules;
+using CommandLine.Modules;
 using Commands;
 using Commands.Parser;
 using Commands.Parser.SemanticTree;
-using UIComponents;
 using UIComponents.Components;
 using EntityComponentSystem;
-using Microsoft.Extensions.DependencyInjection;
-using OneOf;
-using Rendering.Components;
-using System.Data.Common;
-using System.Runtime.CompilerServices;
-using System.Text.RegularExpressions;
-using Terminal.Naming;
-using Terminal.Search;
-using UIComponents.Compoents.Console;
-using Rendering;
 using InteractionLogic;
+using OneOf;
+using Terminal.Execution;
+using Terminal.Scoping;
+using Terminal.Search;
 
 namespace Terminal;
 
@@ -35,7 +28,7 @@ public enum ParsingErrorType
 public class CommandPassedChecks
 {
     // TODO Break up the tree into a series of tokens that can be easily converted into line segments
-    // Include mouse hover info, types, etc. enough that the text can bei= interacted with and coloured appropriately
+    // Include mouse hover info, types, etc. enough that the text can be interacted with and coloured appropriately
     public CommandPassedChecks(RootNode tree)
     {
     }
@@ -46,44 +39,49 @@ public class CommandFailedTypeChecking
 
 }
 
+/// <summary>
+/// Turns what is typed at the prompt into an execution.
+/// </summary>
+/// <remarks>
+/// The shell now only parses, delegates to <see cref="CommandEvaluator"/>, and renders
+/// what comes back. Argument conversion, pipes and command dispatch moved into the
+/// execution layer, where they can be tested without a scene.
+/// </remarks>
 public class Shell : IECSSubsystem
 {
     private readonly List<CommandDefinition> _commandProfiles;
     private readonly CommandLineInterpreter _interpreter;
-    private readonly IServiceProvider _serviceProvider;
-    private readonly ECS _ecs;
-    private readonly CommandHistoryModule _commandHistoryModule;
     private readonly ConsoleOutModule _consoleOutModule;
-    private readonly NameResolver _nameResolver;
     private readonly Prompt _prompt;
-    private readonly RenderLoop _renderLoop;
     private readonly CommandSearch _commandSearch;
     private readonly ITextUpdateSystem _textUpdateSystem;
     private readonly Scene _scene;
+    private readonly ECS _ecs;
+    private readonly CommandEvaluator _evaluator;
+    private readonly ResultRenderer _renderer;
+    private readonly ScopeRegistry _scopeRegistry;
 
-    public Shell(IServiceProvider serviceProvider,
-                 ECS ecs,
+    public Shell(ECS ecs,
                  IEnumerable<ICommandAction> commandActions,
-                 CommandHistoryModule commandHistoryModule,
                  ConsoleOutModule consoleOutModule,
-                 NameResolver nameResolver,
                  Prompt prompt,
-                 RenderLoop renderLoop,
                  CommandSearch commandSearch,
                  ITextUpdateSystem textUpdateSystem,
-                 Scene sceneSetup)
+                 Scene sceneSetup,
+                 CommandEvaluator evaluator,
+                 ResultRenderer renderer,
+                 ScopeRegistry scopeRegistry)
     {
         _commandProfiles = commandActions.Select(c => c.Profile).ToList();
-        _serviceProvider = serviceProvider;
         _ecs = ecs;
-        _commandHistoryModule = commandHistoryModule;
         _consoleOutModule = consoleOutModule;
-        _nameResolver = nameResolver;
         _prompt = prompt;
-        _renderLoop = renderLoop;
         _commandSearch = commandSearch;
-        _textUpdateSystem = textUpdateSystem; 
+        _textUpdateSystem = textUpdateSystem;
         _scene = sceneSetup;
+        _evaluator = evaluator;
+        _renderer = renderer;
+        _scopeRegistry = scopeRegistry;
         _interpreter = new CommandLineInterpreter();
     }
 
@@ -91,11 +89,11 @@ public class Shell : IECSSubsystem
     {
         _commandSearch.AsynchronouslyLoadIndexes();
     }
-    
+
     public void OnStart()
     {
     }
-     
+
     public void RegisterCommand(CommandDefinition commandProfile)
     {
         _commandProfiles.Add(commandProfile);
@@ -115,227 +113,60 @@ public class Shell : IECSSubsystem
     {
         if (!_prompt.TryGetValidCommand(out RootNode? parsedCommand, out string? commandText))
         {
-            // Parser ou type validation errors
-            //ShowPropmptErrors(_prompt.GetErrorDetails());
-
             return;
         }
 
-        if (ExecuteValidCommand(parsedCommand, commandText))
-        {
-            // Si la commande a été exécutée, on supprime le texte de l'input
-            _textUpdateSystem.ClearText();
-        }
+        var block = _consoleOutModule.StartBlock(commandText);
+
+        EchoPrompt(block);
+
+        // Fire and forget so a long-running command does not block the input thread,
+        // but errors are reported rather than discarded, which is what the previous
+        // catch-everything-and-return-false did.
+        _ = ExecuteAsync(parsedCommand, block);
+
+        _textUpdateSystem.ClearText();
     }
 
-    private bool ExecuteValidCommand(RootNode parsedCommand, string commandText)
+    private async Task ExecuteAsync(RootNode parsedCommand, CliBlock block)
     {
-        var consoleBlock = _consoleOutModule.StartBlock(commandText);
         try
         {
-            ExecuteNominal(parsedCommand, consoleBlock);
-        }
-        catch (Exception e)
-        {
-            return false; // Command runtime exception
-        }
-        finally
-        {
-            //consoleBlock.Finalise();
-        }
+            var result = await _evaluator.ExecuteAsync(
+                parsedCommand, block, _scopeRegistry.Global, CancellationToken.None);
 
-        return true;
+            _renderer.Render(result, block);
+        }
+        catch (ConsoleError error)
+        {
+            _renderer.RenderError(error.Message, block);
+        }
+        catch (OperationCanceledException)
+        {
+            _renderer.RenderError("Cancelled.", block);
+        }
+        catch (Exception exception)
+        {
+            // Still caught, so one bad command cannot take the shell down, but the
+            // message now reaches the user instead of vanishing.
+            _renderer.RenderError($"{exception.GetType().Name} : {exception.Message}", block);
+        }
     }
 
-    private void ExecuteNominal(RootNode result, CliBlock scope)
+    private void EchoPrompt(CliBlock block)
     {
-        if (result is EmptyCommand)
-        {
-            // Fait rien
-            return;
-        }
+        var promptLine = block.NewLineComponent();
+        var promptText = _ecs.NewEntity("Prompt").AddComponent<TextComponent>();
 
-        if (result is not PipedCommandList commands)
-        {
-            // Erreur terminale
-            throw new Exception("Unknown command tree type : " + result.GetType().Name);
-        }
+        promptText.Text =
+            _scene.InputPanel
+                  .Lines
+                  .SelectMany(line => line.LineSegments)
+                  .OfType<TextComponent>()
+                  .FirstOrDefault()
+                  ?.ToText()
+                  ?? "";
 
-        if (commands.OrderedCommands.Count == 0)
-        {
-            // Erreur terminale
-            throw new Exception("Empty command list, mais pas un Empty Command");
-        }
-
-        try
-        {
-            var firstCommand =
-                commands.OrderedCommands
-                        .First();
-
-            if (!firstCommand.Expression.IsT1)
-            {
-                throw new NotImplementedException("Unknown command tree type : " + firstCommand.Expression.GetType().Name);
-            }
-
-            var firstCliCommand = firstCommand.Expression.AsT1;
-
-            var profile =
-            _commandProfiles.Where(c => string.Equals(c.Name, firstCliCommand.Name.Name, StringComparison.CurrentCultureIgnoreCase))
-                            .FirstOrDefault();
-
-            CommandParameterValue[] args;
-
-            if (profile == null)
-            {
-                // Commande inconnue
-                profile = _commandProfiles.Where(c => string.Equals(c.Name, "UnknownCommand", StringComparison.CurrentCultureIgnoreCase)).First();
-                args = new CommandParameterValue[] { new CommandParameterValue() { Value = firstCliCommand.Name.Name } };
-            }
-            else
-            {
-                args = ConvertArguments(firstCliCommand, profile);
-            }
-
-            ValidateArguments(args, profile);
-
-            ICommandAction commandAction = (ICommandAction)_serviceProvider.GetRequiredService(profile.CommandActionType);
-
-
-            // Ajouter le texte du prompt comme ligne
-            var promptLine = scope.NewLine();
-
-            var promptText = _ecs.NewEntity("Prompt").AddComponent<TextComponent>();
-
-            // TODO
-            promptText.Text =
-                _scene.InputPanel
-                      .Lines
-                      .SelectMany(line => line.LineSegments)
-                      .OfType<TextComponent>()
-                      .FirstOrDefault()
-                      ?.ToText()
-                      ?? "";
-
-            promptLine.AddLineSegment(promptText);
-
-            if (commandAction is CommandActionSync syncCommand)
-            {
-                _commandHistoryModule.RegisterCommandAsStarted(commandAction, args, scope);
-                syncCommand.Invoke(args, scope);
-                _commandHistoryModule.RegisterCommandAsFinished(commandAction, args, scope);
-            }
-
-            else if (commandAction is CommandActionAsync asyncCommand)
-            {
-                _commandHistoryModule.RegisterCommandAsStarted(commandAction, args, scope);
-
-                asyncCommand.CancellationTokenSource = new(); // TODO store in more appropriate place
-                asyncCommand.CurrentTask = Task.Run(async () => await asyncCommand.BeginInvoke(args, scope, asyncCommand.CancellationTokenSource.Token), asyncCommand.CancellationTokenSource.Token);
-                asyncCommand.CurrentTask.ContinueWith(async task => 
-                {
-                    if (task.IsCompletedSuccessfully)
-                    {
-                        await asyncCommand.EndInvoke(args, scope);
-                    }
-                    else // Could call undo here
-                    {
-                        await asyncCommand.FailedInvoke(args, scope, task);
-                    }
-
-                    // TODO Needs to be synchronous for the undo to be flawless
-                    asyncCommand.CancellationTokenSource = null;
-                    asyncCommand.CurrentTask = null;
-                });
-            }
-            else
-            {
-                throw new InvalidOperationException("Unknown command type : " + commandAction.GetType().Name);
-            }
-
-        }
-        catch (ConsoleError e)
-        {
-            WriteError(scope, e.Message);
-        }
+        promptLine.AddLineSegment(promptText);
     }
-
-    private void WriteError(CliBlock scope, string message)
-    {
-        var line = scope.NewLine();
-
-        var promptText = _ecs.NewEntity("Error").AddComponent<TextComponent>();
-        promptText.Text = message;
-        line.AddLineSegment(promptText);
-    }
-
-    // TODO 
-    private CommandParameterValue[] ConvertArguments(CommandExpressionCli firstCommand, CommandDefinition? profile)
-    {
-        List<CommandParameterValue> args = new();
-        int j = 0;
-        for (int i = 0; i < profile.Parameters.Length; i++)
-        {
-            var param = profile.Parameters[i];
-
-            if (firstCommand.Arguments.Arguments.Count <= j)
-            {
-                throw new ConsoleError("Insufficent arguments");
-            }
-
-            var arg = firstCommand.Arguments.Arguments[j++];
-
-            CommandArgument ConsumeOneAhead()
-            {
-                //return firstCommand.Arguments.Arguments[j++];
-                throw new NotImplementedException("ConsumeOneAhead");
-            }
-
-            var value = ConvertArgumentToParameter(param, arg, ConsumeOneAhead);
-
-            args.Add(value);
-        }
-
-        return args.ToArray();
-    }
-
-    private CommandParameterValue ConvertArgumentToParameter(CommandParameter parameterDefinition, CommandArgument arg, Func<CommandArgument> consumeOneAhead)
-    {
-        Value value = GetArgumentValue(arg);
-
-        if (value is StringConstant str)
-        {
-            return new CommandParameterValue()
-            {
-                Parameter = parameterDefinition,
-                Value = str.Value
-            };
-        }
-
-        throw new NotImplementedException("Unknown argument type : " + arg.GetType().Name);
-    }
-
-    private static Value GetArgumentValue(CommandArgument arg)
-    {
-        if (arg is OptionalCommandArgument oa)
-        {
-            return oa.Value;
-        }
-        else if (arg is RequiredCommandArgument ra)
-        {
-            return ra.Value;
-        }
-        else if (arg is CommandArgumentValue av)
-        {
-            return av.Value;
-        }
-
-        throw new NotImplementedException("Unknown argument type : " + arg.GetType().Name);
-    }
-
-    private void ValidateArguments(CommandParameterValue[] args, CommandDefinition? profile)
-    {
-        // TODO 
-    }
-
 }

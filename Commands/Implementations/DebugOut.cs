@@ -1,6 +1,7 @@
-﻿using CommandLine.Modules;
 using EntityComponentSystem;
+using EntityComponentSystem.Serialisation;
 using System.Diagnostics;
+using Terminal.Execution;
 
 namespace Commands.Implementations
 {
@@ -11,10 +12,11 @@ namespace Commands.Implementations
         public override CommandDefinition Profile { get; } =
             new CommandDefinition(
                 Name: "debug",
-                Description: "",
-                KeyWords: "diagnostic",
+                Description: "Write the entity/component tree to a file",
+                KeyWords: "diagnostic dump inspect",
                 Parameters: new CommandParameter[]
                 {
+                    CommandParameter.Optional("open", "Open the file in the default editor"),
                 },
                 CommandActionType: typeof(DebugOut)
             );
@@ -24,64 +26,33 @@ namespace Commands.Implementations
             _ecs = ecs;
         }
 
-        public override void Invoke(CommandParameterValue[] args, CliBlock scope)
+        public override RuntimeValue Invoke(CommandInvocation invocation)
         {
-            // Convertir toutes les entites en chaine
-            //string text = SerialiseIntoXML();
-            //string text = SerialiseIntoJSON();
-            string text = SerialiseCustom();
+            // Was `throw new NotImplementedException()` behind a commented-out serialiser.
+            // The ECS already has one, so use it rather than leaving the command dead.
+            string text = new EventSourceSerialiser().SerialiseEntityComponentTree(_ecs.RootEntity);
 
-            // Ecrire le JSON dans un fichier
             string fileName = Path.GetFullPath("debug.out");
             File.WriteAllText(fileName, text);
 
-            // Ouvrir l'editeur de texte par défaut avec ce fichier
-            OpenWithDefaultProgram(fileName);
+            if (invocation.TryValue("open", out var open) && open is BooleanValue { Boolean: true })
+            {
+                OpenWithDefaultProgram(fileName);
+            }
+
+            return new PathValue(fileName, PathKind.File);
         }
 
-        private string SerialiseCustom()
+        public override void InvokeUndo(CommandInvocation invocation)
         {
-            throw new NotImplementedException();
-            //EntitySerializer s = new();
-            //return s.SerializeEntities(_ecs.Entities.ToList());
         }
-
-        //private string SerialiseIntoXML()
-        //{
-        //    XmlSerializer serializer = new XmlSerializer(typeof(Entity), new Type[] { typeof(Component) });
-        //    using StringWriter writer = new StringWriter();
-        //    serializer.Serialize(writer, _ecs.RegisteredEntities);
-
-        //    // Get the XML string
-        //    return writer.ToString();
-        //}
-
-        //private string SerialiseIntoJSON()
-        //{
-        //    JsonSerializerSettings settings = new JsonSerializerSettings()
-        //    {
-        //        TypeNameHandling = TypeNameHandling.All,
-        //        Converters = new List<JsonConverter>()
-        //        {
-        //            new RectangleFConverter()
-        //        }
-        //    };
-        //    var text = JsonConvert.SerializeObject(_ecs.RegisteredEntities, Formatting.Indented, settings);
-        //    return text;
-        //}
 
         public static void OpenWithDefaultProgram(string path)
         {
             using Process fileopener = new Process();
-
             fileopener.StartInfo.FileName = "explorer";
             fileopener.StartInfo.Arguments = "\"" + path + "\"";
             fileopener.Start();
-        }
-
-        public override void InvokeUndo(CommandParameterValue[] args, CliBlock scope)
-        {
-
         }
     }
 }

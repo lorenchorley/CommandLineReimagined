@@ -1,3 +1,4 @@
+using Terminal.Execution;
 ﻿using CommandLine.Modules;
 using Controller;
 using EntityComponentSystem;
@@ -13,7 +14,7 @@ public class KeyInputHandler : InputComponent
     [Inject] public RayCaster RayCaster { get; set; }
     [Inject] public LoopController LoopController { get; set; }
     [Inject] public Prompt Prompt { get; set; }
-    [Inject] public CommandHistoryModule CommandHistoryModule { get; set; }
+    [Inject] public CommandHistory CommandHistory { get; set; }
     [Inject] public ITextUpdateSystem TextSystem { get; set; }
     [Inject] public Shell Shell { get; set; }
 
@@ -67,7 +68,7 @@ public class KeyInputHandler : InputComponent
             eventInfo.IsModifierPressed(ModifierKeys.Control) &&
             eventInfo.IsModifierPressed(ModifierKeys.Shift))
         {
-            CommandHistoryModule.UndoLastCommand();
+            CommandHistory.UndoLast();
             eventInfo.Handled = true;
             LoopController.RequestLoop();
             return;

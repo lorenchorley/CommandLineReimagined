@@ -1,16 +1,25 @@
-﻿using UIComponents;
+using UIComponents;
 using UIComponents.Components;
 using EntityComponentSystem;
+using Terminal.Execution;
 
 namespace CommandLine.Modules
 {
-    public class CliBlock
+    /// <summary>
+    /// One command's block of console output, as entities in the scene.
+    /// </summary>
+    /// <remarks>
+    /// Implements <see cref="ICommandOutput"/> so commands can write progress without
+    /// depending on the ECS. That indirection is what lets the execution layer be tested
+    /// headlessly, since a test can substitute a recorder for this.
+    /// </remarks>
+    public class CliBlock : ICommandOutput, IClearableOutput
     {
         private readonly IServiceProvider _serviceProvider;
         private readonly ConsoleLayout _consoleRenderer;
         private readonly ECS _ecs;
 
-        public string Description { get; set; }
+        public string Description { get; set; } = string.Empty;
         public List<LineComponent> Lines { get; set; } = new();
 
         public CliBlock(IServiceProvider serviceProvider, ConsoleLayout consoleRenderer, ECS ecs)
@@ -26,38 +35,60 @@ namespace CommandLine.Modules
             return this;
         }
 
-        public LineComponent NewLine()
+        public LineComponent NewLineComponent()
         {
             LineComponent line = _ecs.NewEntity("Scoped : " + Description).AddComponent<LineComponent>();
-            //_consoleRenderer.Output.Lines.Add(line); // TODO Make this operation async safe
             Lines.Add(line);
             return line;
         }
 
-        //public void Finalise()
-        //{
-        //    for (int i = 0; i < Lines.Count; i++)
-        //    {
-        //        _consoleRenderer.Output.Lines.Add(Lines[i]);
-        //    }
-        //}
+        IOutputLine ICommandOutput.NewLine() => new BlockLine(NewLineComponent());
+
+        void ICommandOutput.AbandonLine(IOutputLine line)
+        {
+            if (line is BlockLine blockLine)
+            {
+                AbondonLine(blockLine.Line);
+            }
+        }
 
         public void AbondonLine(LineComponent line)
         {
-            //_consoleRenderer.Output.Lines.Remove(line);
             Lines.Remove(line);
             line.Entity.Destroy();
         }
 
-        internal void Clear()
+        public void Clear()
         {
             foreach (var line in Lines)
             {
-                //_consoleRenderer.Output.Lines.Remove(line);
                 line.Entity.Destroy();
             }
 
             Lines.Clear();
+        }
+
+        private sealed class BlockLine : IOutputLine
+        {
+            public BlockLine(LineComponent line) => Line = line;
+
+            public LineComponent Line { get; }
+
+            public IOutputText Write(string description, string text) =>
+                new BlockText(Line.LinkNewTextBlock(description, text));
+        }
+
+        private sealed class BlockText : IOutputText
+        {
+            private readonly TextComponent _component;
+
+            public BlockText(TextComponent component) => _component = component;
+
+            public string Text
+            {
+                get => _component.Text;
+                set => _component.Text = value;
+            }
         }
     }
 }

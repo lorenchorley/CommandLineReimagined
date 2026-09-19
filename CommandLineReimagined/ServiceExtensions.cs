@@ -26,6 +26,11 @@ public static class ServiceExtensions
         services.AddRayCastingServices();
         services.AddControllerServices();
 
+        // AddModules registers a no-op lifetime with TryAddSingleton. This comes after
+        // it, and the last registration wins when resolving a single service, so the
+        // desktop shell gets a real shutdown.
+        services.AddSingleton<Terminal.Execution.IApplicationLifetime, WpfApplicationLifetime>();
+
         services.AddSingleton<CanvasAccessor>();
         services.AddSingleton<InputAccessor>();
         services.AddSingleton<ContextMenuAccessor>();

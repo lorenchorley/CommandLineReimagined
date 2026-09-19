@@ -1,7 +1,5 @@
-﻿using System.IO;
-using System.Xml.Linq;
 using CommandLine.Modules;
-using UIComponents.Components;
+using Terminal.Execution;
 
 namespace Commands.Implementations
 {
@@ -9,19 +7,17 @@ namespace Commands.Implementations
     {
         private readonly PathModule _pathModule;
 
-        private string _originalFilename;
-        private string _targetPath;
-        private string _targetFilename;
+        private string? _targetFilename;
 
         public override CommandDefinition Profile { get; } =
             new CommandDefinition(
                 Name: "cp",
-                Description: "",
-                KeyWords: "",
+                Description: "Copy a file into a directory",
+                KeyWords: "copy duplicate file",
                 Parameters: new CommandParameter[]
                 {
-                    new CommandParameter() { Name = "sourcePathAndFile", Description = "" },
-                    new CommandParameter() { Name = "targetPath", Description = "" }
+                    new CommandParameter { Name = "sourcePathAndFile", Description = "" },
+                    new CommandParameter { Name = "targetPath", Description = "" },
                 },
                 CommandActionType: typeof(CopyFile)
             );
@@ -31,43 +27,45 @@ namespace Commands.Implementations
             _pathModule = pathModule;
         }
 
-        public override void Invoke(CommandParameterValue[] args, CliBlock scope)
+        public override RuntimeValue Invoke(CommandInvocation invocation)
         {
-            TextComponent segment;
-            var line = scope.NewLine();
+            string source = Resolve(invocation.Text("sourcePathAndFile"));
 
-            _originalFilename = args[0].Value;
-
-            if (!File.Exists(_originalFilename))
+            // Reports the offending path rather than the current folder, which is what
+            // the old messages printed regardless of what actually failed.
+            if (!File.Exists(source))
             {
-                line.LinkNewTextBlock("cp error", $"File does not exist : {_pathModule.CurrentFolder}");
-                return;
+                throw new ConsoleError($"File does not exist : {source}");
             }
 
-            _targetPath = args[1].Value;
+            string targetPath = Resolve(invocation.Text("targetPath"));
 
-            if (!Directory.Exists(_targetPath))
+            if (!Directory.Exists(targetPath))
             {
-                line.LinkNewTextBlock("cp error", $"Target directory does not exist : {_pathModule.CurrentFolder}");
-                return;
+                throw new ConsoleError($"Target directory does not exist : {targetPath}");
             }
 
-            _targetFilename = Path.Combine(_targetPath, Path.GetFileName(_originalFilename));
+            _targetFilename = Path.Combine(targetPath, Path.GetFileName(source));
 
             if (File.Exists(_targetFilename))
             {
-                line.LinkNewTextBlock("cp error", $"Target file already exists : {_pathModule.CurrentFolder}");
-                return;
+                throw new ConsoleError($"Target file already exists : {_targetFilename}");
             }
 
-            File.Copy(_originalFilename, _targetFilename);
+            File.Copy(source, _targetFilename);
 
-            line.LinkNewTextBlock("cp", $"Moved file to : {_pathModule.CurrentFolder}");
+            return new PathValue(_targetFilename, PathKind.File);
         }
 
-        public override void InvokeUndo(CommandParameterValue[] args, CliBlock scope)
+        public override void InvokeUndo(CommandInvocation invocation)
         {
-            File.Delete(_targetFilename);
+            if (_targetFilename is not null && File.Exists(_targetFilename))
+            {
+                File.Delete(_targetFilename);
+            }
         }
+
+        private string Resolve(string path) =>
+            Path.IsPathRooted(path) ? path : Path.Combine(_pathModule.CurrentPath, path);
     }
 }

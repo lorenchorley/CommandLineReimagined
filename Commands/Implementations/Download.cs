@@ -1,33 +1,29 @@
-﻿using CommandLine.Modules;
-using UIComponents.Components;
-using Rendering;
-using System;
-using System.Diagnostics;
-using System.IO;
-using System.Net.Http;
-using System.Threading;
 using Controller;
+using System.Diagnostics;
+using System.Net.Http;
+using Terminal.Execution;
 
 namespace Commands.Implementations
 {
     public class Download : CommandActionAsync
     {
-        private readonly RenderLoop _renderLoop;
         private readonly LoopController _loopController;
         private readonly IHttpClientFactory _httpClientFactory;
-        private readonly Random _random = new();
-        //private string _url = @"http://research.nhm.org/pdfs/10840/10840-002.pdf";
-        private string _url = @"https://releases.ubuntu.com/22.04.3/ubuntu-22.04.3-desktop-amd64.iso";
-        private const string _fileLocation = @"c:\Test\";
-        private string _fullPath;
+
+        private const string DefaultUrl = @"https://releases.ubuntu.com/22.04.3/ubuntu-22.04.3-desktop-amd64.iso";
+
+        private string? _fullPath;
 
         public override CommandDefinition Profile { get; } =
             new CommandDefinition(
                 Name: "download",
-                Description: "",
+                Description: "Download a file, with progress",
                 KeyWords: "download file transfer api stream http ftp",
                 Parameters: new CommandParameter[]
                 {
+                    // Was hard-coded to one URL and one output directory with a TODO.
+                    CommandParameter.Optional("url", "What to download"),
+                    CommandParameter.Optional("into", "Directory to download into"),
                 },
                 CommandActionType: typeof(Download)
             );
@@ -38,54 +34,64 @@ namespace Commands.Implementations
             _httpClientFactory = httpClientFactory;
         }
 
-        private TextComponent? progressCounter;
-        private TextComponent? progressBar;
-        private TextComponent? speedCounter;
-
-        public override async Task BeginInvoke(CommandParameterValue[] args, CliBlock scope, CancellationToken cancellationToken)
+        public override async Task<RuntimeValue> BeginInvoke(CommandInvocation invocation)
         {
-            progressCounter = scope.NewLine().LinkNewTextBlock("Download", "0%");
-            progressBar = scope.NewLine().LinkNewTextBlock("Download", "");
-            speedCounter = scope.NewLine().LinkNewTextBlock("Download", "");
+            string url = Text(invocation, "url", DefaultUrl);
+            string directory = Text(invocation, "into", Directory.GetCurrentDirectory());
 
-            _loopController.RequestLoop();
+            if (!Uri.TryCreate(url, UriKind.Absolute, out var uri))
+            {
+                throw new ConsoleError($"Not a valid URL : {url}");
+            }
 
-            // TODO Get from args
-            var filename = Path.GetFileName(_url);
-            _fullPath = Path.Combine(_fileLocation, filename);
+            if (!Directory.Exists(directory))
+            {
+                throw new ConsoleError($"Target directory does not exist : {directory}");
+            }
 
-            // TODO Copy to a temporay location so that undo can put it back if needed
+            _fullPath = Path.Combine(directory, Path.GetFileName(uri.LocalPath));
+
             if (File.Exists(_fullPath))
             {
                 File.Delete(_fullPath);
             }
 
-            // TODO Get from args
-            var uri = new Uri(_url);
+            var progressCounter = invocation.Output.NewLine().Write("Download", "0%");
+            var progressBar = invocation.Output.NewLine().Write("Download", "");
+            var speedCounter = invocation.Output.NewLine().Write("Download", "");
 
-            await DownloadStreamToFile(uri, scope, cancellationToken);
+            _loopController.RequestLoop();
+
+            await DownloadStreamToFile(uri, progressCounter, progressBar, speedCounter, invocation.Cancellation);
+
+            return new PathValue(_fullPath, PathKind.File);
         }
 
-        private async Task DownloadStreamToFile(Uri uri, CliBlock scope, CancellationToken cancellationToken)
+        private async Task DownloadStreamToFile(
+            Uri uri,
+            IOutputText progressCounter,
+            IOutputText progressBar,
+            IOutputText speedCounter,
+            CancellationToken cancellationToken)
         {
             using HttpClient httpClient = _httpClientFactory.CreateClient();
-            using HttpResponseMessage transfer = await httpClient.GetAsync(uri, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+            using HttpResponseMessage transfer =
+                await httpClient.GetAsync(uri, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
 
             if (transfer.Content.Headers.ContentLength == null)
             {
-                throw new Exception("No content length given"); // TODO Custom exception so that it can be displayed correctly
+                throw new ConsoleError("The server did not report a content length.");
             }
 
             long totalSizeBytes = (long)transfer.Content.Headers.ContentLength;
 
-            var stream = await transfer.Content.ReadAsStreamAsync();
+            var stream = await transfer.Content.ReadAsStreamAsync(cancellationToken);
             long bytesRemaining = totalSizeBytes;
             byte[] buffer = new byte[4096];
 
-            using FileStream fileStream = new(_fullPath, FileMode.Append, FileAccess.Write, FileShare.None, 4096, true);
+            using FileStream fileStream = new(_fullPath!, FileMode.Append, FileAccess.Write, FileShare.None, 4096, true);
 
-            var stopwatch = new Stopwatch();
-            stopwatch.Start();
+            var stopwatch = Stopwatch.StartNew();
             int bytesDownloadedInLastSecond = 0;
 
             double[] speeds = new double[10];
@@ -93,13 +99,20 @@ namespace Commands.Implementations
 
             while (bytesRemaining > 0)
             {
-                // Download chunk
+                cancellationToken.ThrowIfCancellationRequested();
+
                 int bytesRead = await ReadChunk(bytesRemaining, stream, fileStream, buffer, cancellationToken);
+
+                // A zero-length read means the server closed early; without this the loop
+                // spins forever on a truncated transfer.
+                if (bytesRead == 0)
+                {
+                    throw new ConsoleError("The transfer ended before all bytes arrived.");
+                }
+
                 bytesRemaining -= bytesRead;
 
-
-                // Update display
-                var progress = (int)(((double)(totalSizeBytes - bytesRemaining) / (double)totalSizeBytes) * 100);
+                var progress = (int)(((double)(totalSizeBytes - bytesRemaining) / totalSizeBytes) * 100);
                 progressCounter.Text = $"{progress}%";
                 progressBar.Text = new string('=', progress) + ">";
 
@@ -107,10 +120,9 @@ namespace Commands.Implementations
                 if (stopwatch.Elapsed.TotalSeconds > 0.25)
                 {
                     stopwatch.Stop();
-                    double speed = (double)bytesDownloadedInLastSecond / stopwatch.Elapsed.TotalSeconds;
+                    double speed = bytesDownloadedInLastSecond / stopwatch.Elapsed.TotalSeconds;
                     speeds[speedIndex++ % speeds.Length] = speed;
-                    var averageSpeed = speeds.Average();
-                    speedCounter.Text = $"{(averageSpeed / 1024 / 1024):F2} MB/s";
+                    speedCounter.Text = $"{(speeds.Average() / 1024 / 1024):F2} MB/s";
                     stopwatch.Restart();
                     bytesDownloadedInLastSecond = 0;
                 }
@@ -121,45 +133,48 @@ namespace Commands.Implementations
             await fileStream.FlushAsync(cancellationToken);
         }
 
-        private async Task<int> ReadChunk(long bytesRemaining, Stream inStream, Stream outStream, byte[] buffer, CancellationToken cancellationToken)
+        private static async Task<int> ReadChunk(
+            long bytesRemaining, Stream inStream, Stream outStream, byte[] buffer, CancellationToken cancellationToken)
         {
-            int chunkSize = Math.Min((int)bytesRemaining, 1024);
-            int bytesRead = await inStream.ReadAsync(buffer, 0, chunkSize, cancellationToken);
-            await outStream.WriteAsync(buffer, 0, bytesRead, cancellationToken);
+            int chunkSize = (int)Math.Min(bytesRemaining, buffer.Length);
+            int bytesRead = await inStream.ReadAsync(buffer.AsMemory(0, chunkSize), cancellationToken);
+            await outStream.WriteAsync(buffer.AsMemory(0, bytesRead), cancellationToken);
             return bytesRead;
         }
 
-        public override async Task EndInvoke(CommandParameterValue[] args, CliBlock scope)
+        public override Task EndInvoke(CommandInvocation invocation)
         {
-            var status = CancellationTokenSource.Token.IsCancellationRequested ? "unsuccessfully" : "successfully";
-            scope.NewLine().LinkNewTextBlock("Download", $"Progress test ended {status}");
+            invocation.Output.NewLine().Write("Download", $"Downloaded to {_fullPath}");
             _loopController.RequestLoop();
+            return Task.CompletedTask;
         }
 
-        public override async Task FailedInvoke(CommandParameterValue[] args, CliBlock scope, Task task)
+        public override Task FailedInvoke(CommandInvocation invocation, Task task)
         {
-            if (task.Status == TaskStatus.Canceled)
-            {
-                scope.NewLine().LinkNewTextBlock("Failed", $"Cancelled");
-            }
-            else
-            {
-                scope.NewLine().LinkNewTextBlock("Failed", $"Progress test task failed with status {task.Status} : {task.Exception?.Message}");
-            }
+            string message = task.IsCanceled
+                ? "Cancelled"
+                : $"Download failed : {task.Exception?.InnerException?.Message ?? task.Exception?.Message}";
 
+            invocation.Output.NewLine().Write("Download", message);
             _loopController.RequestLoop();
+            return Task.CompletedTask;
         }
 
-        public override async Task BeginInvokeUndo(CommandParameterValue[] args, CliBlock scope)
+        public override Task BeginInvokeUndo(CommandInvocation invocation)
         {
-            if (File.Exists(_fullPath))
+            if (_fullPath is not null && File.Exists(_fullPath))
             {
                 File.Delete(_fullPath);
-                scope.NewLine().LinkNewTextBlock("Undo", "Download deleted");
+                invocation.Output.NewLine().Write("Undo", "Download deleted");
             }
 
             _loopController.RequestLoop();
+            return Task.CompletedTask;
         }
 
+        private static string Text(CommandInvocation invocation, string name, string fallback) =>
+            invocation.TryValue(name, out var value) && value is not EmptyValue
+                ? value.ToArgumentString()
+                : fallback;
     }
 }

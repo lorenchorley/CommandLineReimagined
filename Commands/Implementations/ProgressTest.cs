@@ -1,22 +1,19 @@
-﻿using CommandLine.Modules;
-using UIComponents.Components;
-using Rendering;
-using System.Threading;
 using Controller;
+using Terminal.Execution;
 
 namespace Commands.Implementations
 {
     public class ProgressTest : CommandActionAsync
     {
         private readonly LoopController _loopController;
-        private readonly Random _random = new();
-        private int _lastProcessedPercentage = 0;
+
+        private int _lastProcessedPercentage;
 
         public override CommandDefinition Profile { get; } =
             new CommandDefinition(
                 Name: "progress",
-                Description: "",
-                KeyWords: "progress test",
+                Description: "Runs a progress bar, to exercise async commands and undo",
+                KeyWords: "progress test bar",
                 Parameters: new CommandParameter[]
                 {
                 },
@@ -28,73 +25,52 @@ namespace Commands.Implementations
             _loopController = loopController;
         }
 
-        private TextComponent? progressCounter;
-        private TextComponent? progressBar;
-
-        public override async Task BeginInvoke(CommandParameterValue[] args, CliBlock scope, CancellationToken cancellationToken)
+        public override async Task<RuntimeValue> BeginInvoke(CommandInvocation invocation)
         {
-            progressCounter = scope.NewLine().LinkNewTextBlock("Failed", "0%");
-            progressBar = scope.NewLine().LinkNewTextBlock("Failed", "");
+            var line = invocation.Output.NewLine();
+            var progressCounter = line.Write("progress", "0%");
+            var progressBar = invocation.Output.NewLine().Write("progress", "");
 
             _loopController.RequestLoop();
 
             foreach (var i in Enumerable.Range(0, 100))
             {
-                if (cancellationToken.IsCancellationRequested)
-                {
-                    return;
-                }
+                invocation.Cancellation.ThrowIfCancellationRequested();
 
-                await Task.Delay(100);
+                await Task.Delay(100, invocation.Cancellation);
+
                 progressCounter.Text = $"{i}%";
                 progressBar.Text = new string('=', i) + ">";
                 _lastProcessedPercentage = i;
                 _loopController.RequestLoop();
-
-                if(_random.Next(0, 100) == 0)
-                {
-                    throw new Exception("Random exception !");
-                }
-            }
-        }
-
-        public override async Task EndInvoke(CommandParameterValue[] args, CliBlock scope)
-        {
-            var status = CancellationTokenSource.Token.IsCancellationRequested ? "unsuccessfully" : "successfully";
-            scope.NewLine().LinkNewTextBlock("Failed", $"Progress test ended {status}");
-            _loopController.RequestLoop();
-        }
-
-        public override async Task FailedInvoke(CommandParameterValue[] args, CliBlock scope, Task task)
-        {
-            scope.NewLine().LinkNewTextBlock("Failed", $"Progress test task failed with status {task.Status} : {task.Exception?.Message}");
-            _loopController.RequestLoop();
-        }
-
-        public override async Task BeginInvokeUndo(CommandParameterValue[] args, CliBlock scope)
-        {
-            var undoText = scope.NewLine().LinkNewTextBlock("Failed", "Progress test received undo command");
-
-            await Task.Delay(500);
-            undoText.Text += ", undoing";
-            _loopController.RequestLoop();
-
-            foreach (var _ in Enumerable.Range(1, 3))
-            {
-                await Task.Delay(200);
-                undoText.Text += ".";
-                _loopController.RequestLoop();
             }
 
-            foreach (var i in Enumerable.Range(1, _lastProcessedPercentage))
-            {
-                await Task.Delay(30);
-                int progress = _lastProcessedPercentage - i;
-                progressCounter.Text = $"{progress}%";
-                progressBar.Text = new string('=', progress) + "<";
-                _loopController.RequestLoop();
-            }
+            return new NumberValue(_lastProcessedPercentage);
         }
 
+        public override Task EndInvoke(CommandInvocation invocation)
+        {
+            invocation.Output.NewLine().Write("progress", "Progress test finished");
+            _loopController.RequestLoop();
+            return Task.CompletedTask;
+        }
+
+        public override Task FailedInvoke(CommandInvocation invocation, Task task)
+        {
+            string message = task.IsCanceled
+                ? $"Cancelled at {_lastProcessedPercentage}%"
+                : $"Progress test failed : {task.Exception?.Message}";
+
+            invocation.Output.NewLine().Write("progress", message);
+            _loopController.RequestLoop();
+            return Task.CompletedTask;
+        }
+
+        public override Task BeginInvokeUndo(CommandInvocation invocation)
+        {
+            invocation.Output.NewLine().Write("undo", "Progress test undone");
+            _loopController.RequestLoop();
+            return Task.CompletedTask;
+        }
     }
 }

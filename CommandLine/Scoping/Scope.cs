@@ -23,6 +23,11 @@ namespace Terminal.Scoping
             return Parent?.GetVariable(name);
         }
 
+        /// <summary>
+        /// Binds a variable in this scope, shadowing any of the same name in a parent.
+        /// </summary>
+        public void SetVariable(Variable variable) => Variables[variable.Name] = variable;
+
         public CommandDefinition? GetCommand(string name)
         {
             if (Commands.TryGetValue(name, out CommandDefinition? command))

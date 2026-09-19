@@ -1,7 +1,10 @@
-﻿using CommandLine.Modules;
+using Terminal.Execution;
 
 namespace Commands
 {
+    /// <summary>
+    /// A command that runs over time and can be cancelled.
+    /// </summary>
     public abstract class CommandActionAsync : ICommandAction
     {
         // TODO Place more appropriately
@@ -11,10 +14,12 @@ namespace Commands
 
         public abstract CommandDefinition Profile { get; }
 
-        public abstract Task BeginInvoke(CommandParameterValue[] args, CliBlock scope, CancellationToken cancellationToken);
-        public abstract Task EndInvoke(CommandParameterValue[] args, CliBlock scope);
-        public abstract Task FailedInvoke(CommandParameterValue[] args, CliBlock scope, Task task);
+        public abstract Task<RuntimeValue> BeginInvoke(CommandInvocation invocation);
 
-        public abstract Task BeginInvokeUndo(CommandParameterValue[] args, CliBlock scope);
+        public abstract Task EndInvoke(CommandInvocation invocation);
+
+        public abstract Task FailedInvoke(CommandInvocation invocation, Task task);
+
+        public abstract Task BeginInvokeUndo(CommandInvocation invocation);
     }
 }

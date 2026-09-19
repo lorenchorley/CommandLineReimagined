@@ -1,6 +1,5 @@
-﻿using System.IO;
-using System.Xml.Linq;
 using CommandLine.Modules;
+using Terminal.Execution;
 
 namespace Commands.Implementations
 {
@@ -8,16 +7,16 @@ namespace Commands.Implementations
     {
         private readonly PathModule _pathModule;
 
-        private string _targetFolder;
+        private string? _targetFolder;
 
         public override CommandDefinition Profile { get; } =
             new CommandDefinition(
                 Name: "mkdir",
-                Description: "",
-                KeyWords: "",
+                Description: "Create a directory",
+                KeyWords: "create make directory folder",
                 Parameters: new CommandParameter[]
                 {
-                    new CommandParameter() { Name = "FolderName", Description = "" }
+                    new CommandParameter { Name = "FolderName", Description = "" },
                 },
                 CommandActionType: typeof(MakeDirectory)
             );
@@ -27,27 +26,26 @@ namespace Commands.Implementations
             _pathModule = pathModule;
         }
 
-        public override void Invoke(CommandParameterValue[] args, CliBlock scope)
+        public override RuntimeValue Invoke(CommandInvocation invocation)
         {
-            var line = scope.NewLine();
-
-            _targetFolder = Path.Combine(_pathModule.CurrentPath, args[0].Value);
+            _targetFolder = Path.Combine(_pathModule.CurrentPath, invocation.Text("FolderName"));
 
             if (Directory.Exists(_targetFolder))
             {
-                line.LinkNewTextBlock("cp error", $"Target directory already exists : {_targetFolder}");
-
-                return;
+                throw new ConsoleError($"Target directory already exists : {_targetFolder}");
             }
 
             Directory.CreateDirectory(_targetFolder);
 
-            line.LinkNewTextBlock("mkdir", $"Created directory : {_targetFolder}");
+            return new PathValue(_targetFolder, PathKind.Directory);
         }
 
-        public override void InvokeUndo(CommandParameterValue[] args, CliBlock scope)
+        public override void InvokeUndo(CommandInvocation invocation)
         {
-            Directory.Delete(_targetFolder);
+            if (_targetFolder is not null && Directory.Exists(_targetFolder))
+            {
+                Directory.Delete(_targetFolder);
+            }
         }
     }
 }

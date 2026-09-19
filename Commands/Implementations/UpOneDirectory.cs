@@ -1,4 +1,5 @@
-﻿using CommandLine.Modules;
+using CommandLine.Modules;
+using Terminal.Execution;
 
 namespace Commands.Implementations
 {
@@ -6,13 +7,13 @@ namespace Commands.Implementations
     {
         private readonly PathModule _pathModule;
 
-        private string _previousFolder;
+        private string? _previousFolder;
 
         public override CommandDefinition Profile { get; } =
             new CommandDefinition(
                 Name: "up",
-                Description: "",
-                KeyWords: "move",
+                Description: "Move up one directory",
+                KeyWords: "move parent back navigate",
                 Parameters: new CommandParameter[]
                 {
                 },
@@ -24,19 +25,20 @@ namespace Commands.Implementations
             _pathModule = pathModule;
         }
 
-        public override void Invoke(CommandParameterValue[] args, CliBlock scope)
+        public override RuntimeValue Invoke(CommandInvocation invocation)
         {
-            //var line = scope.NewLine();
-
-            _previousFolder = _pathModule.CurrentFolder;
+            _previousFolder = _pathModule.CurrentPath;
             _pathModule.Up();
 
-            //line.AddTextBlock("up", $"Moved up one to : {_pathModule.CurrentFolder}");
+            return new PathValue(_pathModule.CurrentPath, PathKind.Directory);
         }
 
-        public override void InvokeUndo(CommandParameterValue[] args, CliBlock scope)
+        public override void InvokeUndo(CommandInvocation invocation)
         {
-            _pathModule.Enter(_previousFolder);
+            if (_previousFolder is not null)
+            {
+                _pathModule.MoveTo(_previousFolder);
+            }
         }
     }
 }

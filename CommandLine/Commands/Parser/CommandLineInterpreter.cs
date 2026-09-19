@@ -497,7 +497,15 @@ public class CommandLineInterpreter
 
             case ProductionIndex.Closedformobjectinstance_Lt_Pipe_Div_Gt:
                 // <ClosedFormObjectInstance> ::= '<' <VariableName> '|' <ObjectType> <TagAttributeList> '/' '>'
-                throw new NotImplementedException();
+                // The open form of this (OpeningObjectTag below) was implemented but the
+                // closed form was not, so binding a variable in one tag crashed the parser.
+                return new ObjectInstance()
+                {
+                    VariableName = (VariableName)reduction[1].Data,
+                    ObjectType = (ObjectType)reduction[3].Data,
+                    Attributes = (TagAttributeList)reduction[4].Data,
+                    Children = null
+                };
 
             case ProductionIndex.Openformobjectinstance:
                 // <OpenFormObjectInstance> ::= <OpeningObjectTag> <TagList> <ClosingObjectTag>

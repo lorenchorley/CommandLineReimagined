@@ -1,5 +1,5 @@
-﻿using CommandLine.Modules;
-using UIComponents.Components;
+using CommandLine.Modules;
+using Terminal.Execution;
 
 namespace Commands.Implementations
 {
@@ -7,16 +7,17 @@ namespace Commands.Implementations
     {
         private readonly PathModule _pathModule;
 
-        private string _previousFolder;
+        private string? _previousFolder;
 
         public override CommandDefinition Profile { get; } =
             new CommandDefinition(
                 Name: "cd",
-                Description: "",
-                KeyWords: "",
+                Description: "Enter a directory",
+                KeyWords: "move navigate directory folder",
                 Parameters: new CommandParameter[]
                 {
-                    new CommandParameter() { Name = "TargetPath", Description = "" }
+                    // Piped input means `ls | cd` can follow a directory result.
+                    new CommandParameter { Name = "TargetPath", Description = "", AcceptsPipedInput = true },
                 },
                 CommandActionType: typeof(ChangeDirectory)
             );
@@ -26,27 +27,26 @@ namespace Commands.Implementations
             _pathModule = pathModule;
         }
 
-        public override void Invoke(CommandParameterValue[] args, CliBlock scope)
+        public override RuntimeValue Invoke(CommandInvocation invocation)
         {
-            TextComponent segment;
-            var line = scope.NewLine();
-
             _previousFolder = _pathModule.CurrentPath;
 
-            string target = args[0].Value;
+            string target = invocation.ValueOrInput("TargetPath").ToArgumentString();
 
             if (!_pathModule.Enter(target))
             {
-                line.LinkNewTextBlock("cd error", $"Directory does not exist : {target}");
-                return;
+                throw new ConsoleError($"Directory does not exist : {target}");
             }
 
-            scope.AbondonLine(line);
+            return new PathValue(_pathModule.CurrentPath, PathKind.Directory);
         }
 
-        public override void InvokeUndo(CommandParameterValue[] args, CliBlock scope)
+        public override void InvokeUndo(CommandInvocation invocation)
         {
-            _pathModule.MoveTo(_previousFolder);
+            if (_previousFolder is not null)
+            {
+                _pathModule.MoveTo(_previousFolder);
+            }
         }
     }
 }
