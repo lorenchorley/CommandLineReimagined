@@ -72,7 +72,9 @@ public class ExecutionTests
     {
         string message = _harness.RunExpectingError("cd documents extra");
 
-        StringAssert.Contains(message, "more were given");
+        // Counts what was supplied rather than what was left over: the old wording read
+        // "takes 1 argument(s), but 1 more were given" for a two-argument call.
+        StringAssert.Contains(message, "takes 1 argument, but 2 were given");
     }
 
     [TestMethod]
@@ -229,6 +231,51 @@ public class ExecutionTests
 
         Assert.AreSame(RuntimeValue.Empty, result);
     }
+
+    // ---- component tags ----------------------------------------------------------
+    // The parser builds these now, so the evaluator has to produce a value for them.
+
+    [TestMethod]
+    public void ComponentTagEvaluates()
+    {
+        var component = (ComponentValue)_harness.Run("{renderer colour=red/}");
+
+        Assert.AreEqual("renderer", component.TypeName);
+        Assert.AreEqual("red", component.Attributes["colour"].ToDisplayString());
+    }
+
+    [TestMethod]
+    public void ComponentTagBindsAVariable()
+    {
+        _harness.Run("{handle|renderer/}");
+
+        Assert.IsInstanceOfType(_harness.Scope.GetVariable("handle")!.Value, typeof(ComponentValue));
+    }
+
+    [TestMethod]
+    public void ComponentReadsBackTheWayItWasWritten() =>
+        Assert.AreEqual("{renderer colour=red/}", _harness.Run("{renderer colour=red/}").ToDisplayString());
+
+    [TestMethod]
+    public void EntityMayContainAComponent()
+    {
+        var entity = (ObjectValue)_harness.Run("<player>{renderer/}</player>");
+
+        Assert.AreEqual("player", entity.TypeName);
+    }
+
+    [TestMethod]
+    public void VariableTagReadsTheVariableBack()
+    {
+        _harness.Run("<size|measurement unit=metres/>");
+        var value = (ObjectValue)_harness.Run("<$size>");
+
+        Assert.AreEqual("measurement", value.TypeName);
+    }
+
+    [TestMethod]
+    public void VariableTagForAnUnknownNameIsReported() =>
+        StringAssert.Contains(_harness.RunExpectingError("<$missing>"), "Unknown variable");
 
     // ---- undo -------------------------------------------------------------------
 

@@ -71,6 +71,31 @@ public sealed record ListValue(IReadOnlyList<RuntimeValue> Items) : RuntimeValue
 }
 
 /// <summary>
+/// The result of a component instance tag, e.g. <c>{renderer colour=red/}</c>.
+/// </summary>
+/// <remarks>
+/// Separate from <see cref="ObjectValue"/> so the two read back the way they were
+/// written. In the ECS they mean different things: angle brackets make entities, braces
+/// put components on them.
+/// </remarks>
+public sealed record ComponentValue(
+    string TypeName,
+    IReadOnlyDictionary<string, RuntimeValue> Attributes,
+    IReadOnlyList<RuntimeValue> Children) : RuntimeValue
+{
+    public override string ToDisplayString()
+    {
+        var attributes = Attributes.Count == 0
+            ? string.Empty
+            : " " + string.Join(" ", Attributes.Select(a => $"{a.Key}={a.Value.ToDisplayString()}"));
+
+        return Children.Count == 0
+            ? $"{{{TypeName}{attributes}/}}"
+            : $"{{{TypeName}{attributes}}}{string.Concat(Children.Select(c => c.ToDisplayString()))}{{/{TypeName}}}";
+    }
+}
+
+/// <summary>
 /// The result of an object instance tag, e.g. <c>&lt;thing size=3/&gt;</c>.
 /// </summary>
 public sealed record ObjectValue(

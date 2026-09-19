@@ -10,221 +10,357 @@
   :root {
     --bg:#12131a; --panel:#1b1d27; --line:#2a2d3a; --fg:#e6e6ef; --dim:#8a8ba3;
     --ok:#4ade80; --bad:#f87171; --accent:#6b8afd;
+    --command:#7aa2f7; --flag:#e0af68; --string:#9ece6a; --variable:#bb9af7;
+    --identifier:#c0caf5; --type:#2ac3de; --attribute:#ff9e64; --punctuation:#565f89;
   }
   @media (prefers-color-scheme: light) {
-    :root { --bg:#f7f7fb; --panel:#fff; --line:#e2e3ec; --fg:#1a1b23; --dim:#63657a; }
+    :root {
+      --bg:#f7f7fb; --panel:#fff; --line:#e2e3ec; --fg:#1a1b23; --dim:#63657a;
+      --command:#2f5fd0; --flag:#a35a00; --string:#2d7a2d; --variable:#7132b8;
+      --identifier:#1a1b23; --type:#0b6e86; --attribute:#a34a00; --punctuation:#8b8fa3;
+    }
   }
   * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
   html,body { height:100%; }
   body {
     margin:0; background:var(--bg); color:var(--fg);
-    font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    font:13px/1.55 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
     display:flex; flex-direction:column;
-    padding:max(12px,env(safe-area-inset-top)) 12px max(12px,env(safe-area-inset-bottom));
-    -webkit-text-size-adjust:100%;
+    padding:max(10px,env(safe-area-inset-top)) 10px max(10px,env(safe-area-inset-bottom));
+    -webkit-text-size-adjust:100%; overflow:hidden;
   }
-  header { flex:none; margin-bottom:10px; }
-  h1 { font-size:15px; margin:0; }
-  .sub { color:var(--dim); font-size:12px; margin:2px 0 0; }
-  .status { float:right; font-size:12px; }
+
+  header { flex:none; display:flex; align-items:baseline; gap:8px; margin-bottom:8px; }
+  h1 { font-size:14px; margin:0; flex:1; }
+  .status { font-size:11px; color:var(--dim); }
+
+  /* Scrollback ------------------------------------------------------------ */
+  #scroll {
+    flex:1; overflow-y:auto; overflow-x:hidden; -webkit-overflow-scrolling:touch;
+    background:var(--panel); border:1px solid var(--line); border-radius:10px;
+    padding:10px; min-height:0;
+  }
+  .entry { margin-bottom:10px; }
+  .entry:last-child { margin-bottom:0; }
+  .echo { white-space:pre-wrap; word-break:break-word; }
+  .echo .sigil { color:var(--dim); }
+  .out { white-space:pre-wrap; word-break:break-word; color:var(--fg); opacity:.85; }
+  .err { color:var(--bad); white-space:pre-wrap; word-break:break-word; }
+  .hint { color:var(--dim); }
+
+  /* Result chips ---------------------------------------------------------- */
+  .items { display:flex; flex-wrap:wrap; gap:5px; margin-top:4px; }
+  .item {
+    font:12px ui-monospace,monospace; padding:4px 8px; border-radius:6px;
+    border:1px solid var(--line); background:var(--bg); color:var(--fg); cursor:pointer;
+  }
+  .item.directory { color:var(--type); }
+  .item.parent { color:var(--dim); }
+  .item.file { color:var(--identifier); }
+  .item.object { color:var(--variable); }
+
+  /* Tokens ---------------------------------------------------------------- */
+  .t { cursor:pointer; border-radius:3px; }
+  .t.command{color:var(--command)} .t.flag{color:var(--flag)} .t.string{color:var(--string)}
+  .t.variable{color:var(--variable)} .t.identifier{color:var(--identifier)}
+  .t.type{color:var(--type)} .t.attribute{color:var(--attribute)} .t.punctuation{color:var(--punctuation)}
+  .t.sel { background:rgba(107,138,253,.25); }
+
+  /* Input ----------------------------------------------------------------- */
+  #bar { flex:none; margin-top:8px; }
+  #detail { font-size:11px; color:var(--dim); min-height:16px; margin-bottom:4px; }
+  #prompt { font-size:11px; color:var(--dim); margin-bottom:4px; word-break:break-all; }
+  .inputrow { display:flex; gap:6px; align-items:stretch; }
+  /* A transparent input sits on a coloured mirror, so the text is tokenised while
+     staying a real input the phone keyboard understands. */
+  .field { position:relative; flex:1; min-width:0; }
+  #mirror, #cmd {
+    font:16px/1.4 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    padding:11px 12px; border:1px solid var(--line); border-radius:9px;
+    white-space:pre; overflow:hidden;
+  }
+  #mirror { position:absolute; inset:0; background:var(--panel); pointer-events:none; color:var(--fg); }
   #cmd {
-    width:100%; font:16px/1.4 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
-    padding:12px; border-radius:10px; border:1px solid var(--line);
-    background:var(--panel); color:var(--fg);
+    position:relative; width:100%; background:transparent; color:transparent;
+    caret-color:var(--fg); border-color:transparent;
   }
-  #cmd:disabled { opacity:.5; }
-  .chips { display:flex; gap:6px; overflow-x:auto; padding:8px 0; flex:none; scrollbar-width:none; }
-  .chips::-webkit-scrollbar { display:none; }
-  .chip {
-    flex:none; font:12px ui-monospace,monospace; padding:6px 10px; border-radius:999px;
-    border:1px solid var(--line); background:var(--panel); color:var(--dim); white-space:nowrap;
+  #cmd:focus { outline:2px solid var(--accent); outline-offset:-2px; border-radius:9px; }
+  button {
+    font:13px ui-monospace,monospace; font-weight:600; padding:0 14px; border-radius:9px;
+    border:1px solid transparent; background:var(--accent); color:#fff; cursor:pointer;
   }
-  #stage { flex:1; min-height:120px; position:relative; }
-  canvas { width:100%; height:100%; display:block; border-radius:10px; background:var(--panel); border:1px solid var(--line); }
-  #detail {
-    flex:none; margin-top:10px; padding:10px 12px; border-radius:10px;
-    background:var(--panel); border:1px solid var(--line); font-size:12px; min-height:56px;
+  button.ghost { background:var(--panel); color:var(--dim); border-color:var(--line); padding:0 10px; }
+  .keys { display:flex; gap:5px; overflow-x:auto; padding-top:6px; scrollbar-width:none; }
+  .keys::-webkit-scrollbar { display:none; }
+  .key {
+    flex:none; font:12px ui-monospace,monospace; padding:5px 9px; border-radius:6px;
+    border:1px solid var(--line); background:var(--panel); color:var(--dim); cursor:pointer; white-space:nowrap;
   }
-  .muted { color:var(--dim); } .err { color:var(--bad); }
 </style>
 </head>
 <body>
   <header>
-    <span class="status" id="status">booting .NET…</span>
     <h1>CommandLineReimagined</h1>
-    <p class="sub">The GOLD grammar, compiled to WebAssembly. Tap any token.</p>
+    <span class="status" id="status">starting…</span>
   </header>
 
-  <input id="cmd" value="command -with optionalParameter" disabled
-         autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false">
+  <div id="scroll"><div class="hint" id="banner">Loading the terminal…</div></div>
 
-  <div class="chips" id="chips"></div>
-  <div id="stage"><canvas id="cv"></canvas></div>
-  <div id="detail"><span class="muted">Loading the parser…</span></div>
+  <div id="bar">
+    <div id="detail"></div>
+    <div id="prompt"></div>
+    <div class="inputrow">
+      <div class="field">
+        <div id="mirror"></div>
+        <input id="cmd" disabled autocapitalize="off" autocorrect="off"
+               autocomplete="off" spellcheck="false" enterkeyhint="go">
+      </div>
+      <button id="run" disabled>Run</button>
+    </div>
+    <div class="keys" id="keys"></div>
+  </div>
 
-<script src="_framework/blazor.webassembly.js" autostart="true"></script>
+<script src="framework/blazor.webassembly.js" autostart="true"></script>
 <script>
 const $ = id => document.getElementById(id);
-const cv = $('cv'), ctx = cv.getContext('2d');
+const scroll = $('scroll'), cmd = $('cmd'), mirror = $('mirror');
 
-const EXAMPLES = [
-  'command -with optionalParameter',
-  'command(with: optionalParameter)',
-  'command() | anotherCommand()',
-  '<objInstance attr=value/>',
-  '<variableName|objInstance></>',
-  'command | <objInstance><child val=$v/></objInstance>',
-  'echo "hello world"',
-  'cd /tmp',
-];
+let ready = false;
+let history = [];        // previously executed lines
+let historyIndex = -1;   // where Up/Down currently sits
+let draft = '';          // what was typed before walking into history
+let commands = [];       // command metadata, for help and completion
 
-const PALETTES = {
-  dark:  { command:'#7aa2f7', flag:'#e0af68', string:'#9ece6a', variable:'#bb9af7',
-           identifier:'#c0caf5', type:'#2ac3de', attribute:'#ff9e64',
-           punctuation:'#565f89', whitespace:'transparent', newline:'transparent' },
-  light: { command:'#2f5fd0', flag:'#a35a00', string:'#2d7a2d', variable:'#7132b8',
-           identifier:'#1a1b23', type:'#0b6e86', attribute:'#a34a00',
-           punctuation:'#8b8fa3', whitespace:'transparent', newline:'transparent' },
-};
-const isDark = () => matchMedia('(prefers-color-scheme: dark)').matches;
-let palette = isDark() ? PALETTES.dark : PALETTES.light;
+// ---- rendering ------------------------------------------------------------
 
-let tokens = [], parseError = null, boxes = [], selected = -1, ready = false;
+const escape = s => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 
-const FONT_PX = 16, LINE_H = 26, PAD = 14;
+/// Renders a token stream as spans. Each token carries the role the grammar gave it,
+/// which is what makes them individually inspectable.
+function tokenHtml(tokens) {
+  return (tokens || []).map((t, i) =>
+    t.kind === 'whitespace' || t.kind === 'newline'
+      ? escape(t.text)
+      : `<span class="t ${t.kind}" data-kind="${t.kind}" data-text="${escape(t.text)}">${escape(t.text)}</span>`
+  ).join('');
+}
 
-// Records a rect per token while drawing. These are the browser-side equivalent of
-// Renderer.CanvasRenderPosition, which is what RayCaster hit-tests in the desktop app.
-function draw() {
-  const dpr = window.devicePixelRatio || 1;
-  const w = cv.clientWidth, h = cv.clientHeight;
-  cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr);
-  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  ctx.clearRect(0, 0, w, h);
-  ctx.font = FONT_PX + 'px ui-monospace,SFMono-Regular,Menlo,Consolas,monospace';
-  ctx.textBaseline = 'middle';
-  boxes = [];
+function addEntry(html) {
+  const div = document.createElement('div');
+  div.className = 'entry';
+  div.innerHTML = html;
+  scroll.appendChild(div);
+  scroll.scrollTop = scroll.scrollHeight;
+  return div;
+}
 
-  const css = getComputedStyle(document.body);
+function renderResult(r) {
+  // Responses that did not come from a parse (undo) carry no tokens, so fall back to
+  // the source text rather than echoing a bare prompt.
+  const echoed = (r.tokens && r.tokens.length) ? tokenHtml(r.tokens) : escape(r.source || '');
+  let html = `<div class="echo"><span class="sigil">$ </span>${echoed}</div>`;
 
-  if (!ready) {
-    ctx.fillStyle = css.getPropertyValue('--dim');
-    ctx.fillText('starting the .NET runtime…', PAD, PAD + LINE_H / 2);
+  for (const line of r.output || []) {
+    html += `<div class="out">${escape(line)}</div>`;
+  }
+
+  if (r.error) {
+    html += `<div class="err">${escape(r.error)}</div>`;
+  } else if (r.result && r.result.length) {
+    html += '<div class="items">' + r.result.map(item =>
+      `<button class="item ${item.kind}" data-insert="${escape(item.text)}">${escape(item.text)}</button>`
+    ).join('') + '</div>';
+  }
+
+  addEntry(html);
+}
+
+// ---- the live input mirror ------------------------------------------------
+
+function refreshMirror() {
+  const text = cmd.value;
+
+  if (!ready || text.length === 0) {
+    mirror.innerHTML = text.length ? escape(text) : '<span class="hint">type a command…</span>';
     return;
   }
 
-  if (parseError) {
-    ctx.fillStyle = css.getPropertyValue('--bad');
-    ctx.fillText('parse error at column ' + parseError.column, PAD, PAD + LINE_H / 2);
-    ctx.fillStyle = css.getPropertyValue('--dim');
-    wrapText('expected: ' + parseError.expected.join(' '), PAD, PAD + LINE_H * 1.6, w - PAD * 2);
+  try {
+    const parsed = JSON.parse(DotNet.invokeMethod('WebClient', 'Parse', text));
+    // While a command is half-typed it is usually not valid yet, so an error is
+    // expected and shown by leaving the text plain rather than by complaining.
+    mirror.innerHTML = parsed.error ? escape(text) : tokenHtml(parsed.tokens);
+  } catch {
+    mirror.innerHTML = escape(text);
+  }
+
+  mirror.scrollLeft = cmd.scrollLeft;
+}
+
+// ---- executing ------------------------------------------------------------
+
+async function run() {
+  const text = cmd.value.trim();
+  if (!ready || !text) return;
+
+  // Handled by the page rather than the evaluator: help and clear are about the
+  // screen, and undo drives the command history through its own bridge call.
+  if (text === 'help') { showHelp(); afterRun(text); return; }
+  if (text === 'clear') { scroll.innerHTML = ''; afterRun(text); return; }
+  if (text === 'undo') { await undo(); afterRun(text); return; }
+
+  cmd.disabled = true; $('run').disabled = true;
+
+  try {
+    const response = await DotNet.invokeMethodAsync('WebClient', 'Execute', text);
+    renderResult(JSON.parse(response));
+  } catch (e) {
+    addEntry(`<div class="err">${escape(String(e))}</div>`);
+  } finally {
+    cmd.disabled = false; $('run').disabled = false;
+    afterRun(text);
+    await refreshPrompt();
+    cmd.focus();
+  }
+}
+
+function afterRun(text) {
+  if (history[history.length - 1] !== text) history.push(text);
+  historyIndex = -1; draft = '';
+  cmd.value = '';
+  refreshMirror();
+}
+
+async function undo() {
+  if (!ready) return;
+  renderResult(JSON.parse(DotNet.invokeMethod('WebClient', 'Undo')));
+  await refreshPrompt();
+}
+
+async function refreshPrompt() {
+  if (!ready) return;
+  $('prompt').textContent = DotNet.invokeMethod('WebClient', 'WorkingDirectory');
+}
+
+function showHelp() {
+  const rows = commands.map(c => {
+    const args = c.parameters.map(p => p.optional ? `[${p.name}]` : `<${p.name}>`).join(' ');
+    return `<div class="out"><span class="t command">${escape(c.name)}</span> ${escape(args)}` +
+           (c.description ? `<span class="hint"> — ${escape(c.description)}</span>` : '') + '</div>';
+  }).join('');
+
+  addEntry('<div class="echo"><span class="sigil">$ </span>help</div>' + rows +
+    '<div class="out hint">Also: pipes (ls | echo), function form (echo(a, b)), ' +
+    'tags (&lt;thing a=1/&gt;), components ({renderer/}), variables (&lt;v|thing/&gt; then $v). ' +
+    'clear empties the screen, undo reverses the last command.</div>');
+}
+
+// ---- input handling -------------------------------------------------------
+
+cmd.addEventListener('input', () => { refreshMirror(); });
+cmd.addEventListener('scroll', () => { mirror.scrollLeft = cmd.scrollLeft; });
+
+cmd.addEventListener('keydown', e => {
+  if (e.key === 'Enter') { e.preventDefault(); run(); return; }
+
+  // Walk back through what has already been run.
+  if (e.key === 'ArrowUp') {
+    e.preventDefault();
+    if (!history.length) return;
+    if (historyIndex === -1) { draft = cmd.value; historyIndex = history.length; }
+    historyIndex = Math.max(0, historyIndex - 1);
+    cmd.value = history[historyIndex];
+    refreshMirror();
     return;
   }
 
-  let x = PAD, y = PAD + LINE_H / 2;
-  tokens.forEach((t, i) => {
-    if (t.kind === 'newline') { x = PAD; y += LINE_H; return; }
-    const tw = ctx.measureText(t.text).width;
-    if (x + tw > w - PAD && x > PAD) { x = PAD; y += LINE_H; }
-    boxes.push({ i, x, y: y - LINE_H / 2, w: tw, h: LINE_H });
-    if (i === selected) {
-      ctx.fillStyle = isDark() ? 'rgba(107,138,253,.25)' : 'rgba(107,138,253,.18)';
-      ctx.fillRect(x - 2, y - LINE_H / 2, tw + 4, LINE_H);
-    }
-    ctx.fillStyle = palette[t.kind] || palette.identifier;
-    ctx.fillText(t.text, x, y);
-    x += tw;
+  if (e.key === 'ArrowDown') {
+    e.preventDefault();
+    if (historyIndex === -1) return;
+    historyIndex++;
+    if (historyIndex >= history.length) { historyIndex = -1; cmd.value = draft; }
+    else cmd.value = history[historyIndex];
+    refreshMirror();
+    return;
+  }
+
+  // Complete a command name from what has been typed so far.
+  if (e.key === 'Tab') {
+    e.preventDefault();
+    const prefix = cmd.value;
+    if (!prefix || prefix.includes(' ')) return;
+    const matches = commands.map(c => c.name).filter(n => n.startsWith(prefix));
+    if (matches.length === 1) { cmd.value = matches[0] + ' '; refreshMirror(); }
+    else if (matches.length > 1) addEntry(`<div class="out hint">${matches.join('  ')}</div>`);
+  }
+});
+
+// Tapping a token says what the grammar decided it was; tapping a result inserts it.
+document.addEventListener('click', e => {
+  const token = e.target.closest('.t');
+  if (token) {
+    document.querySelectorAll('.t.sel').forEach(el => el.classList.remove('sel'));
+    token.classList.add('sel');
+    $('detail').innerHTML =
+      `<b class="t ${token.dataset.kind}">${token.dataset.kind}</b> — ${escape(token.dataset.text)}`;
+    return;
+  }
+
+  const item = e.target.closest('.item');
+  if (item) {
+    cmd.value = (cmd.value ? cmd.value.replace(/\s*$/, ' ') : '') + item.dataset.insert;
+    refreshMirror();
+    cmd.focus();
+  }
+});
+
+$('run').onclick = run;
+
+[['help','help'],['ls','ls'],['cd documents','cd documents'],['mkdir scratch','mkdir scratch'],
+ ['ls | echo','ls | echo'],['echo(a, b)','echo(a, b)'],['&lt;v|thing a=1/&gt;','<v|thing a=1/>'],
+ ['echo $v','echo $v'],['{renderer/}','{renderer/}'],['undo','__undo'],['clear','clear']]
+  .forEach(([label, value]) => {
+    const b = document.createElement('button');
+    b.className = 'key'; b.innerHTML = label;
+    b.onclick = () => {
+      if (value === '__undo') { undo(); return; }
+      cmd.value = value; refreshMirror(); cmd.focus();
+    };
+    $('keys').appendChild(b);
   });
 
-  if (!tokens.length) {
-    ctx.fillStyle = css.getPropertyValue('--dim');
-    ctx.fillText('(empty command)', PAD, y);
-  }
-}
+// ---- boot -----------------------------------------------------------------
 
-function wrapText(text, x, y, maxW) {
-  let line = '';
-  for (const word of text.split(' ')) {
-    const test = line ? line + ' ' + word : word;
-    if (ctx.measureText(test).width > maxW && line) { ctx.fillText(line, x, y); y += LINE_H * 0.8; line = word; }
-    else line = test;
-  }
-  if (line) ctx.fillText(line, x, y);
-}
-
-cv.addEventListener('pointerdown', e => {
-  const r = cv.getBoundingClientRect();
-  const px = e.clientX - r.left, py = e.clientY - r.top;
-  const hit = boxes.find(b => px >= b.x && px <= b.x + b.w && py >= b.y && py <= b.y + b.h);
-  selected = hit ? hit.i : -1;
-  showDetail(); draw();
-});
-
-function showDetail() {
-  if (parseError) {
-    $('detail').innerHTML = '<span class="err">' + parseError.kind + ' error</span> at column <b>' +
-      parseError.column + '</b><br><span class="muted">expected: ' + parseError.expected.join(', ') + '</span>';
-    return;
-  }
-  if (selected < 0) {
-    const kinds = [...new Set(tokens.filter(t => t.kind !== 'whitespace').map(t => t.kind))];
-    $('detail').innerHTML = '<span class="muted">' + tokens.length + ' tokens · ' +
-      kinds.map(k => '<span style="color:' + (palette[k] || '') + '">' + k + '</span>').join(' ') + '</span>';
-    return;
-  }
-  const t = tokens[selected];
-  $('detail').innerHTML = '<b style="color:' + (palette[t.kind] || '') + '">' + t.kind + '</b> — <b>' +
-    t.text.replace(/</g, '&lt;') + '</b><br><span class="muted">assigned by the grammar, not by pattern matching</span>';
-}
-
-function parse() {
-  if (!ready) return;
-  let d;
-  try {
-    d = JSON.parse(DotNet.invokeMethod('WebClient', 'Parse', $('cmd').value));
-  } catch (e) {
-    $('detail').innerHTML = '<span class="err">parser call failed</span> <span class="muted">' + e + '</span>';
-    return;
-  }
-  tokens = d.tokens || []; parseError = d.error; selected = -1;
-  showDetail(); draw();
-}
-
-let timer = null;
-$('cmd').addEventListener('input', () => { clearTimeout(timer); timer = setTimeout(parse, 60); });
-
-EXAMPLES.forEach(ex => {
-  const b = document.createElement('button');
-  b.className = 'chip'; b.textContent = ex;
-  b.onclick = () => { $('cmd').value = ex; parse(); };
-  $('chips').appendChild(b);
-});
-
-matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
-  palette = isDark() ? PALETTES.dark : PALETTES.light; showDetail(); draw();
-});
-addEventListener('resize', draw);
-
-// blazor.webassembly.js boots asynchronously; DotNet.invokeMethod only exists once the
-// runtime is up, so poll rather than racing it.
 (function waitForRuntime(attempt) {
   if (window.DotNet && typeof DotNet.invokeMethod === 'function') {
     try {
       DotNet.invokeMethod('WebClient', 'Parse', '');
     } catch {
-      if (attempt < 300) return setTimeout(() => waitForRuntime(attempt + 1), 100);
+      if (attempt < 400) return setTimeout(() => waitForRuntime(attempt + 1), 100);
     }
+
     ready = true;
-    $('cmd').disabled = false;
+    cmd.disabled = false; $('run').disabled = false;
     $('status').innerHTML = '<span style="color:var(--ok)">wasm</span>';
-    parse();
+
+    try { commands = JSON.parse(DotNet.invokeMethod('WebClient', 'Commands')); } catch {}
+
+    $('banner').innerHTML =
+      'A terminal running in this tab. The parser, the commands and the filesystem are ' +
+      'all .NET compiled to WebAssembly — nothing is sent anywhere. Type <b>help</b> to ' +
+      'see the commands, or tap a suggestion below.';
+
+    refreshPrompt();
+    refreshMirror();
+    cmd.focus();
     return;
   }
-  if (attempt < 300) setTimeout(() => waitForRuntime(attempt + 1), 100);
-  else { $('status').innerHTML = '<span style="color:var(--bad)">failed to load</span>'; draw(); }
+
+  if (attempt < 400) setTimeout(() => waitForRuntime(attempt + 1), 100);
+  else $('status').innerHTML = '<span style="color:var(--bad)">failed to load</span>';
 })(0);
 
-draw();
+refreshMirror();
 </script>
 </body>
 </html>

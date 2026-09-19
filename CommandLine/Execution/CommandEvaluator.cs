@@ -169,19 +169,63 @@ public sealed class CommandEvaluator
     /// </summary>
     private RuntimeValue EvaluateInstance(InstanceTag tag, Scope scope)
     {
-        if (tag is not ObjectInstance instance)
+        switch (tag)
         {
-            throw new ConsoleError($"Cannot evaluate a {tag.GetType().Name}.");
+            case ObjectInstance instance:
+            {
+                var value = BuildObject(instance, scope);
+                Bind(instance.VariableName, value, scope);
+                return value;
+            }
+
+            case ComponentInstance component:
+            {
+                var value = BuildComponent(component, scope);
+                Bind(component.VariableName, value, scope);
+                return value;
+            }
+
+            // <$name> reads a variable back.
+            case VariableTag reference:
+            {
+                var variable = scope.GetVariable(reference.Name.Name)
+                    ?? throw new ConsoleError($"Unknown variable : ${reference.Name.Name}");
+
+                return variable.Value;
+            }
+
+            default:
+                throw new ConsoleError($"Cannot evaluate a {tag.GetType().Name}.");
+        }
+    }
+
+    private static void Bind(VariableName? name, RuntimeValue value, Scope scope)
+    {
+        if (name is not null)
+        {
+            scope.SetVariable(new Variable(name.Name, value));
+        }
+    }
+
+    private ComponentValue BuildComponent(ComponentInstance instance, Scope scope)
+    {
+        var attributes = new Dictionary<string, RuntimeValue>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var attribute in instance.Attributes?.Attributes ?? new List<TagAttribute>())
+        {
+            attributes[attribute.Name.Name] = _binder.Evaluate(attribute.Value, scope);
         }
 
-        var value = BuildObject(instance, scope);
+        var children = new List<RuntimeValue>();
 
-        if (instance.VariableName is not null)
+        foreach (var child in instance.Children?.Tags ?? new List<Tag>())
         {
-            scope.SetVariable(new Variable(instance.VariableName.Name, value));
+            children.Add(child is InstanceTag nested
+                ? EvaluateInstance(nested, scope)
+                : throw new ConsoleError($"Cannot evaluate a child {child.GetType().Name}."));
         }
 
-        return value;
+        return new ComponentValue(instance.ComponentType.Value, attributes, children);
     }
 
     private ObjectValue BuildObject(ObjectInstance instance, Scope scope)
@@ -200,6 +244,11 @@ public sealed class CommandEvaluator
             if (child is ObjectInstance childInstance)
             {
                 children.Add(BuildObject(childInstance, scope));
+            }
+            else if (child is ComponentInstance componentChild)
+            {
+                // An entity's children can be components as well as other entities.
+                BuildComponent(componentChild, scope);
             }
             else
             {

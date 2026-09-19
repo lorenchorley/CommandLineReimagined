@@ -166,9 +166,14 @@ public sealed class ArgumentBinder
 
         if (positional.Count > 0)
         {
+            // Counts what was supplied rather than what is left over, which read as
+            // "takes 1 argument(s), but 1 more were given" for a two-argument call.
+            int declared = definition.Parameters.Count(p => !p.IsOptional);
+            int given = declared + positional.Count;
+
             throw new ConsoleError(
-                $"'{definition.Name}' takes {definition.Parameters.Count(p => !p.IsOptional)} " +
-                $"argument(s), but {positional.Count} more were given.");
+                $"'{definition.Name}' takes {declared} argument{(declared == 1 ? "" : "s")}, " +
+                $"but {given} were given.");
         }
 
         // Declaration order, so a command can still index Arguments[0] meaningfully.
