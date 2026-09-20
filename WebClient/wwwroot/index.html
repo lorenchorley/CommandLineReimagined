@@ -57,7 +57,15 @@
   .item.directory { color:var(--type); }
   .item.parent { color:var(--dim); }
   .item.file { color:var(--identifier); }
-  .item.object { color:var(--variable); }
+  .item.object, .item.component, .item.variable { color:var(--variable); }
+  .item.number, .item.boolean { color:var(--flag); }
+  /* Text results (cat, echo) read as a block, not as a chip to insert. */
+  .text { white-space:pre-wrap; word-break:break-word; margin-top:4px; padding:6px 8px;
+          border-left:2px solid var(--line); color:var(--fg); }
+  .running .out:last-child::after { content:''; display:inline-block; width:6px; height:11px;
+          margin-left:3px; background:var(--accent); vertical-align:-1px; animation:blink 1s steps(2) infinite; }
+  @keyframes blink { to { visibility:hidden; } }
+  .stopped { color:var(--flag); }
 
   /* Tokens ---------------------------------------------------------------- */
   .t { cursor:pointer; border-radius:3px; }
@@ -90,6 +98,15 @@
     border:1px solid transparent; background:var(--accent); color:#fff; cursor:pointer;
   }
   button.ghost { background:var(--panel); color:var(--dim); border-color:var(--line); padding:0 10px; }
+  button.stop { background:var(--bad); }
+  button:disabled { opacity:.5; cursor:default; }
+  /* Completions appear above the suggestions while typing; phones have no Tab key. */
+  #complete:empty { display:none; }
+  #complete .key { color:var(--fg); border-color:var(--accent); }
+  #complete .key.directory { color:var(--type); }
+  #complete .key.file { color:var(--identifier); }
+  #complete .key.variable { color:var(--variable); }
+  #complete .key.command { color:var(--command); }
   .keys { display:flex; gap:5px; overflow-x:auto; padding-top:6px; scrollbar-width:none; }
   .keys::-webkit-scrollbar { display:none; }
   .key {
@@ -117,19 +134,23 @@
       </div>
       <button id="run" disabled>Run</button>
     </div>
+    <div class="keys" id="complete"></div>
     <div class="keys" id="keys"></div>
   </div>
 
 <script src="framework/blazor.webassembly.js" autostart="true"></script>
 <script>
 const $ = id => document.getElementById(id);
-const scroll = $('scroll'), cmd = $('cmd'), mirror = $('mirror');
+const scroll = $('scroll'), cmd = $('cmd'), mirror = $('mirror'), runButton = $('run');
 
 let ready = false;
 let history = [];        // previously executed lines
 let historyIndex = -1;   // where Up/Down currently sits
 let draft = '';          // what was typed before walking into history
 let commands = [];       // command metadata, for help and completion
+let running = null;      // { id, entry } while a command executes
+let nextId = 1;
+let completions = [];    // what the last word could become
 
 // ---- rendering ------------------------------------------------------------
 
@@ -154,26 +175,78 @@ function addEntry(html) {
   return div;
 }
 
+const linesHtml = lines => (lines || []).map(line => `<div class="out">${escape(line)}</div>`).join('');
+
+/// Results render two ways: text-like values as a block you can read, everything with
+/// an identity (paths, objects, variables) as a chip you can tap to insert.
+function itemsHtml(items) {
+  let html = '';
+  let chips = [];
+  const flush = () => {
+    if (chips.length) html += '<div class="items">' + chips.join('') + '</div>';
+    chips = [];
+  };
+
+  for (const item of items || []) {
+    if (item.kind === 'text') {
+      flush();
+      html += `<div class="text">${escape(item.text)}</div>`;
+    } else {
+      chips.push(`<button class="item ${item.kind}" data-insert="${escape(item.text)}">${escape(item.text)}</button>`);
+    }
+  }
+
+  flush();
+  return html;
+}
+
+/// Starts an entry the moment a command is submitted, so live output has somewhere to
+/// go before the result arrives.
+function startEntry(id, text) {
+  let echoed = escape(text);
+  try {
+    const parsed = JSON.parse(DotNet.invokeMethod('WebClient', 'Parse', text));
+    if (!parsed.error) echoed = tokenHtml(parsed.tokens);
+  } catch {}
+
+  const entry = addEntry(`<div class="echo"><span class="sigil">$ </span>${echoed}</div><div class="live"></div><div class="tail"></div>`);
+  entry.classList.add('running');
+  return entry;
+}
+
+function finishEntry(entry, r) {
+  entry.classList.remove('running');
+  entry.querySelector('.live').innerHTML = linesHtml(r.output);
+
+  let tail = '';
+  if (r.error === 'Stopped.') tail = `<div class="stopped">${escape(r.error)}</div>`;
+  else if (r.error) tail = `<div class="err">${escape(r.error)}</div>`;
+  else tail = itemsHtml(r.result);
+
+  entry.querySelector('.tail').innerHTML = tail;
+  scroll.scrollTop = scroll.scrollHeight;
+}
+
 function renderResult(r) {
   // Responses that did not come from a parse (undo) carry no tokens, so fall back to
   // the source text rather than echoing a bare prompt.
   const echoed = (r.tokens && r.tokens.length) ? tokenHtml(r.tokens) : escape(r.source || '');
-  let html = `<div class="echo"><span class="sigil">$ </span>${echoed}</div>`;
+  let html = `<div class="echo"><span class="sigil">$ </span>${echoed}</div>` + linesHtml(r.output);
 
-  for (const line of r.output || []) {
-    html += `<div class="out">${escape(line)}</div>`;
-  }
-
-  if (r.error) {
-    html += `<div class="err">${escape(r.error)}</div>`;
-  } else if (r.result && r.result.length) {
-    html += '<div class="items">' + r.result.map(item =>
-      `<button class="item ${item.kind}" data-insert="${escape(item.text)}">${escape(item.text)}</button>`
-    ).join('') + '</div>';
-  }
+  if (r.error) html += `<div class="err">${escape(r.error)}</div>`;
+  else html += itemsHtml(r.result);
 
   addEntry(html);
 }
+
+// Called from .NET while a command runs, with the complete current output lines.
+window.terminal = {
+  output(id, lines) {
+    if (!running || running.id !== id) return;
+    running.entry.querySelector('.live').innerHTML = linesHtml(lines);
+    scroll.scrollTop = scroll.scrollHeight;
+  }
+};
 
 // ---- the live input mirror ------------------------------------------------
 
@@ -197,9 +270,40 @@ function refreshMirror() {
   mirror.scrollLeft = cmd.scrollLeft;
 }
 
+// ---- completion -----------------------------------------------------------
+
+function refreshCompletions() {
+  const row = $('complete');
+  completions = [];
+  row.innerHTML = '';
+  if (!ready || !cmd.value.length) return;
+
+  try { completions = JSON.parse(DotNet.invokeMethod('WebClient', 'Complete', cmd.value)); } catch { return; }
+
+  // Nothing to offer when the word is already exactly the only completion.
+  if (completions.length === 1 && cmd.value.slice(completions[0].start) === completions[0].text) {
+    completions = []; return;
+  }
+
+  for (const c of completions.slice(0, 12)) {
+    const b = document.createElement('button');
+    b.className = `key ${c.kind}`; b.textContent = c.text;
+    b.onclick = () => applyCompletion(c);
+    row.appendChild(b);
+  }
+}
+
+function applyCompletion(c) {
+  const trailing = c.kind === 'directory' ? '' : ' ';
+  cmd.value = cmd.value.slice(0, c.start) + c.text + trailing;
+  refreshMirror(); refreshCompletions(); cmd.focus();
+}
+
 // ---- executing ------------------------------------------------------------
 
 async function run() {
+  if (running) { stop(); return; }
+
   const text = cmd.value.trim();
   if (!ready || !text) return;
 
@@ -209,26 +313,35 @@ async function run() {
   if (text === 'clear') { scroll.innerHTML = ''; afterRun(text); return; }
   if (text === 'undo') { await undo(); afterRun(text); return; }
 
-  cmd.disabled = true; $('run').disabled = true;
+  const id = nextId++;
+  running = { id, entry: startEntry(id, text) };
+  runButton.textContent = 'Stop'; runButton.classList.add('stop');
+  afterRun(text);
 
   try {
-    const response = await DotNet.invokeMethodAsync('WebClient', 'Execute', text);
-    renderResult(JSON.parse(response));
+    const response = await DotNet.invokeMethodAsync('WebClient', 'Execute', text, id);
+    finishEntry(running.entry, JSON.parse(response));
   } catch (e) {
-    addEntry(`<div class="err">${escape(String(e))}</div>`);
+    running.entry.classList.remove('running');
+    running.entry.querySelector('.tail').innerHTML = `<div class="err">${escape(String(e))}</div>`;
   } finally {
-    cmd.disabled = false; $('run').disabled = false;
-    afterRun(text);
+    running = null;
+    runButton.textContent = 'Run'; runButton.classList.remove('stop');
     await refreshPrompt();
     cmd.focus();
   }
+}
+
+function stop() {
+  if (!running) return;
+  try { DotNet.invokeMethod('WebClient', 'Cancel'); } catch {}
 }
 
 function afterRun(text) {
   if (history[history.length - 1] !== text) history.push(text);
   historyIndex = -1; draft = '';
   cmd.value = '';
-  refreshMirror();
+  refreshMirror(); refreshCompletions();
 }
 
 async function undo() {
@@ -251,17 +364,19 @@ function showHelp() {
 
   addEntry('<div class="echo"><span class="sigil">$ </span>help</div>' + rows +
     '<div class="out hint">Also: pipes (ls | echo), function form (echo(a, b)), ' +
-    'tags (&lt;thing a=1/&gt;), components ({renderer/}), variables (&lt;v|thing/&gt; then $v). ' +
-    'clear empties the screen, undo reverses the last command.</div>');
+    'tags (&lt;thing a=1/&gt;), components ({renderer/}), variables (set v 5 or &lt;v|thing/&gt;, then $v). ' +
+    'Completions appear above the keys as you type. The Run button becomes Stop while a ' +
+    'command runs. clear empties the screen, undo reverses the last command.</div>');
 }
 
 // ---- input handling -------------------------------------------------------
 
-cmd.addEventListener('input', () => { refreshMirror(); });
+cmd.addEventListener('input', () => { refreshMirror(); refreshCompletions(); });
 cmd.addEventListener('scroll', () => { mirror.scrollLeft = cmd.scrollLeft; });
 
 cmd.addEventListener('keydown', e => {
   if (e.key === 'Enter') { e.preventDefault(); run(); return; }
+  if (e.key === 'Escape' && running) { e.preventDefault(); stop(); return; }
 
   // Walk back through what has already been run.
   if (e.key === 'ArrowUp') {
@@ -270,7 +385,7 @@ cmd.addEventListener('keydown', e => {
     if (historyIndex === -1) { draft = cmd.value; historyIndex = history.length; }
     historyIndex = Math.max(0, historyIndex - 1);
     cmd.value = history[historyIndex];
-    refreshMirror();
+    refreshMirror(); refreshCompletions();
     return;
   }
 
@@ -280,18 +395,21 @@ cmd.addEventListener('keydown', e => {
     historyIndex++;
     if (historyIndex >= history.length) { historyIndex = -1; cmd.value = draft; }
     else cmd.value = history[historyIndex];
-    refreshMirror();
+    refreshMirror(); refreshCompletions();
     return;
   }
 
-  // Complete a command name from what has been typed so far.
+  // Tab takes the only completion, or the common prefix of several.
   if (e.key === 'Tab') {
     e.preventDefault();
-    const prefix = cmd.value;
-    if (!prefix || prefix.includes(' ')) return;
-    const matches = commands.map(c => c.name).filter(n => n.startsWith(prefix));
-    if (matches.length === 1) { cmd.value = matches[0] + ' '; refreshMirror(); }
-    else if (matches.length > 1) addEntry(`<div class="out hint">${matches.join('  ')}</div>`);
+    if (!completions.length) return;
+    if (completions.length === 1) { applyCompletion(completions[0]); return; }
+    let prefix = completions[0].text;
+    for (const c of completions) while (!c.text.toLowerCase().startsWith(prefix.toLowerCase())) prefix = prefix.slice(0, -1);
+    if (prefix.length > cmd.value.length - completions[0].start) {
+      cmd.value = cmd.value.slice(0, completions[0].start) + prefix;
+      refreshMirror(); refreshCompletions();
+    }
   }
 });
 
@@ -309,22 +427,25 @@ document.addEventListener('click', e => {
   const item = e.target.closest('.item');
   if (item) {
     cmd.value = (cmd.value ? cmd.value.replace(/\s*$/, ' ') : '') + item.dataset.insert;
-    refreshMirror();
+    refreshMirror(); refreshCompletions();
     cmd.focus();
   }
 });
 
-$('run').onclick = run;
+runButton.onclick = run;
 
-[['help','help'],['ls','ls'],['cd documents','cd documents'],['mkdir scratch','mkdir scratch'],
- ['ls | echo','ls | echo'],['echo(a, b)','echo(a, b)'],['&lt;v|thing a=1/&gt;','<v|thing a=1/>'],
- ['echo $v','echo $v'],['{renderer/}','{renderer/}'],['undo','__undo'],['clear','clear']]
+[['help','help'],['ls','ls'],['cat readme.txt','cat readme.txt'],['cd documents','cd documents'],
+ ['mkdir scratch','mkdir scratch'],['echo hi | write note.txt','echo hi | write note.txt'],
+ ['rm note.txt','rm note.txt'],['progress 20 100','progress 20 100'],['progress','progress'],
+ ['set v 5','set v 5'],['ls | set files','ls | set files'],['vars','vars'],['echo $v','echo $v'],
+ ['&lt;v|thing a=1/&gt;','<v|thing a=1/>'],['{renderer/}','{renderer/}'],['pwd','pwd'],
+ ['download','download'],['undo','__undo'],['clear','clear']]
   .forEach(([label, value]) => {
     const b = document.createElement('button');
     b.className = 'key'; b.innerHTML = label;
     b.onclick = () => {
       if (value === '__undo') { undo(); return; }
-      cmd.value = value; refreshMirror(); cmd.focus();
+      cmd.value = value; refreshMirror(); refreshCompletions(); cmd.focus();
     };
     $('keys').appendChild(b);
   });
@@ -340,7 +461,7 @@ $('run').onclick = run;
     }
 
     ready = true;
-    cmd.disabled = false; $('run').disabled = false;
+    cmd.disabled = false; runButton.disabled = false;
     $('status').innerHTML = '<span style="color:var(--ok)">wasm</span>';
 
     try { commands = JSON.parse(DotNet.invokeMethod('WebClient', 'Commands')); } catch {}
@@ -348,7 +469,7 @@ $('run').onclick = run;
     $('banner').innerHTML =
       'A terminal running in this tab. The parser, the commands and the filesystem are ' +
       'all .NET compiled to WebAssembly — nothing is sent anywhere. Type <b>help</b> to ' +
-      'see the commands, or tap a suggestion below.';
+      'see the commands, or tap a suggestion below. Try <b>progress</b> and press Stop.';
 
     refreshPrompt();
     refreshMirror();

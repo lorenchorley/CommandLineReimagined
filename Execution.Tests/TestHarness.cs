@@ -13,8 +13,8 @@ namespace Execution.Tests;
 /// </summary>
 /// <remarks>
 /// The execution layer depends on <see cref="ICommandOutput"/> rather than on CliBlock,
-/// so these tests need no ECS, no window and no GDI+. Commands that do need the render
-/// loop (download, progress) are deliberately not registered here.
+/// so these tests need no ECS, no window and no GDI+. Every command is registered,
+/// including the async ones, now that none of them needs a render loop to construct.
 /// </remarks>
 public sealed class TestHarness
 {
@@ -28,13 +28,22 @@ public sealed class TestHarness
         collection.AddSingleton<ScopeRegistry>();
         collection.AddSingleton(new TestPathModule(workingDirectory).Module);
         collection.AddSingleton<IApplicationLifetime, NoOpApplicationLifetime>();
+        collection.AddHttpClient();
 
         Register<ListDirectoryContents>(collection);
         Register<ChangeDirectory>(collection);
+        Register<UpOneDirectory>(collection);
+        Register<PrintWorkingDirectory>(collection);
         Register<MakeDirectory>(collection);
         Register<CopyFile>(collection);
-        Register<UpOneDirectory>(collection);
+        Register<ReadFile>(collection);
+        Register<WriteFile>(collection);
+        Register<Remove>(collection);
         Register<Echo>(collection);
+        Register<SetVariable>(collection);
+        Register<ListVariables>(collection);
+        Register<ProgressTest>(collection);
+        Register<Download>(collection);
         Register<Exit>(collection);
         Register<UnknownCommand>(collection);
 
@@ -61,10 +70,12 @@ public sealed class TestHarness
         _services.GetRequiredService<CommandLine.Modules.PathModule>();
 
     /// <summary>Parses and runs a line, returning the pipeline's value.</summary>
-    public RuntimeValue Run(string commandLine)
+    public RuntimeValue Run(string commandLine) => RunAsync(commandLine).GetAwaiter().GetResult();
+
+    public Task<RuntimeValue> RunAsync(string commandLine, CancellationToken cancellation = default)
     {
         var tree = Parse(commandLine);
-        return Evaluator.ExecuteAsync(tree, Output, Scope).GetAwaiter().GetResult();
+        return Evaluator.ExecuteAsync(tree, Output, Scope, cancellation);
     }
 
     /// <summary>Runs a line expected to fail, returning the error message.</summary>

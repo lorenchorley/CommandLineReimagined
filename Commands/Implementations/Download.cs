@@ -1,4 +1,4 @@
-using Controller;
+using CommandLine.Modules;
 using System.Diagnostics;
 using System.Net.Http;
 using Terminal.Execution;
@@ -7,10 +7,13 @@ namespace Commands.Implementations
 {
     public class Download : CommandActionAsync
     {
-        private readonly LoopController _loopController;
         private readonly IHttpClientFactory _httpClientFactory;
+        private readonly PathModule _pathModule;
 
-        private const string DefaultUrl = @"https://releases.ubuntu.com/22.04.3/ubuntu-22.04.3-desktop-amd64.iso";
+        // Small and served with permissive CORS headers, so the browser build can fetch
+        // it too. The old default was a 4 GB Ubuntu ISO.
+        private const string DefaultUrl =
+            @"https://raw.githubusercontent.com/lorenchorley/CommandLineReimagined/main/README.md";
 
         private string? _fullPath;
 
@@ -28,16 +31,16 @@ namespace Commands.Implementations
                 CommandActionType: typeof(Download)
             );
 
-        public Download(LoopController loopController, IHttpClientFactory httpClientFactory)
+        public Download(IHttpClientFactory httpClientFactory, PathModule pathModule)
         {
-            _loopController = loopController;
             _httpClientFactory = httpClientFactory;
+            _pathModule = pathModule;
         }
 
         public override async Task<RuntimeValue> BeginInvoke(CommandInvocation invocation)
         {
             string url = Text(invocation, "url", DefaultUrl);
-            string directory = Text(invocation, "into", Directory.GetCurrentDirectory());
+            string directory = _pathModule.Resolve(Text(invocation, "into", _pathModule.CurrentPath));
 
             if (!Uri.TryCreate(url, UriKind.Absolute, out var uri))
             {
@@ -59,8 +62,6 @@ namespace Commands.Implementations
             var progressCounter = invocation.Output.NewLine().Write("Download", "0%");
             var progressBar = invocation.Output.NewLine().Write("Download", "");
             var speedCounter = invocation.Output.NewLine().Write("Download", "");
-
-            _loopController.RequestLoop();
 
             await DownloadStreamToFile(uri, progressCounter, progressBar, speedCounter, invocation.Cancellation);
 
@@ -126,8 +127,6 @@ namespace Commands.Implementations
                     stopwatch.Restart();
                     bytesDownloadedInLastSecond = 0;
                 }
-
-                _loopController.RequestLoop();
             }
 
             await fileStream.FlushAsync(cancellationToken);
@@ -145,7 +144,6 @@ namespace Commands.Implementations
         public override Task EndInvoke(CommandInvocation invocation)
         {
             invocation.Output.NewLine().Write("Download", $"Downloaded to {_fullPath}");
-            _loopController.RequestLoop();
             return Task.CompletedTask;
         }
 
@@ -156,7 +154,6 @@ namespace Commands.Implementations
                 : $"Download failed : {task.Exception?.InnerException?.Message ?? task.Exception?.Message}";
 
             invocation.Output.NewLine().Write("Download", message);
-            _loopController.RequestLoop();
             return Task.CompletedTask;
         }
 
@@ -168,7 +165,6 @@ namespace Commands.Implementations
                 invocation.Output.NewLine().Write("Undo", "Download deleted");
             }
 
-            _loopController.RequestLoop();
             return Task.CompletedTask;
         }
 

@@ -44,6 +44,16 @@ namespace CommandLine.Modules
             _scopeRegistry = scopeRegistry;
         }
 
+        /// <summary>
+        /// A path as the user wrote it, made absolute against the current directory.
+        /// </summary>
+        /// <remarks>
+        /// Every file command did this inline, each slightly differently. One place means
+        /// they all agree on what a relative path is relative to.
+        /// </remarks>
+        public string Resolve(string path) =>
+            Path.IsPathRooted(path) ? path : Path.GetFullPath(Path.Combine(CurrentPath, path));
+
         public void Up()
         {
             CurrentPath = CurrentPath.GetFullPathOfOneDirectoryUp();
@@ -51,7 +61,9 @@ namespace CommandLine.Modules
 
         public bool Enter(string subdirectory)
         {
-            string newPath = Path.Combine(CurrentPath, subdirectory);
+            // Normalised, so `cd ..` lands on the parent's real name rather than on a
+            // path that ends in `..`.
+            string newPath = Resolve(subdirectory);
 
             if (!Directory.Exists(newPath))
             {

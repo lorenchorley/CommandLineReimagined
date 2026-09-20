@@ -28,6 +28,25 @@ namespace Terminal.Scoping
         /// </summary>
         public void SetVariable(Variable variable) => Variables[variable.Name] = variable;
 
+        /// <summary>Unbinds a variable from this scope. Returns whether it was bound here.</summary>
+        public bool RemoveVariable(string name) => Variables.Remove(name);
+
+        /// <summary>Every variable visible from this scope, innermost binding winning.</summary>
+        public IReadOnlyList<Variable> AllVariables()
+        {
+            var seen = new Dictionary<string, Variable>();
+
+            for (Scope? scope = this; scope is not null; scope = scope.Parent)
+            {
+                foreach (var variable in scope.Variables.Values)
+                {
+                    seen.TryAdd(variable.Name, variable);
+                }
+            }
+
+            return seen.Values.OrderBy(v => v.Name, StringComparer.Ordinal).ToList();
+        }
+
         public CommandDefinition? GetCommand(string name)
         {
             if (Commands.TryGetValue(name, out CommandDefinition? command))

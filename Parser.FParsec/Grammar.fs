@@ -46,6 +46,19 @@ let private isIdentifierChar (c: char) =
 /// Identifier = {IdentifierCharacter}+
 let private identifierText: P<string> = many1SatisfyL isIdentifierChar "identifier"
 
+// A bare word: an unquoted command argument that is not a plain identifier, such as
+// `notes.txt`, `../docs`, `C:\\Users` or `https://host/path`. The .grm sketched this as
+// the commented-out {BareStringCharacter} set and never finished it, so every file name
+// with a dot needed quotes. Words are only recognised in command-argument positions:
+// inside a tag, `/` closes the tag and must not be swallowed.
+let private isWordChar (c: char) =
+    isIdentifierChar c || ".\\/:~+@%-".IndexOf c >= 0
+
+let private isWordStart (c: char) =
+    isIdentifierChar c || ".\\/~".IndexOf c >= 0
+
+let private bareWordText: P<string> = many1Satisfy2L isWordStart isWordChar "argument"
+
 /// FlagIdentifier = '-'{IdentifierCharacter}+
 let private flagText: P<string> =
     // A single dash only: '--flag' is not a flag, which the tests pin down.
@@ -96,6 +109,14 @@ let private simpleValue: P<SimpleValue> =
     choice [ constant |>> fun c -> c :> SimpleValue
              variableReference |>> fun v -> v :> SimpleValue
              identifierText |>> fun n -> Identifier(Name = n) :> SimpleValue ]
+
+/// A value where a bare word is allowed: the same as <SimpleValue>, with the identifier
+/// widened to a word. Reads back as an Identifier so the tree and the tokeniser are
+/// unchanged; the evaluator already treats an identifier as "text the command decides".
+let private argumentSimpleValue: P<SimpleValue> =
+    choice [ constant |>> fun c -> c :> SimpleValue
+             variableReference |>> fun v -> v :> SimpleValue
+             bareWordText |>> fun n -> Identifier(Name = n) :> SimpleValue ]
 
 // ----------------------------------------------------------------- Tag attributes
 // <TagAttribute> ::= <TagAttributeName> '=' <SimpleValue>
@@ -240,19 +261,24 @@ valueRef.Value <-
     choice [ instanceTag |>> fun t -> TagValue(Tag = t) :> Value
              simpleValue |>> fun v -> v :> Value ]
 
+/// <Value> in a command-argument position, where bare words are allowed.
+let private argumentValue: P<Value> =
+    choice [ instanceTag |>> fun t -> TagValue(Tag = t) :> Value
+             argumentSimpleValue |>> fun v -> v :> Value ]
+
 // ----------------------------------------------------------------- Commands
 
 /// <FunctionArgument> ::= <RequiredArgument> | <OptionalArgument>
 let private functionArgument: P<CommandArgument> =
     choice
         [ // <OptionalArgument> ::= <ID> ':' <Value>
-          attempt (identifierText .>> ws .>> pchar ':' .>> ws) .>>. value
+          attempt (identifierText .>> ws .>> pchar ':' .>> ws) .>>. argumentValue
           |>> fun (name, v) ->
                 OptionalCommandArgument(Name = OneOf.OneOf<CommandArgumentFlag, Identifier>.op_Implicit (Identifier(Name = name)), Value = v)
                 :> CommandArgument
 
           // <RequiredArgument> ::= <Value>
-          value |>> fun v -> RequiredCommandArgument(Value = v) :> CommandArgument ]
+          argumentValue |>> fun v -> RequiredCommandArgument(Value = v) :> CommandArgument ]
     .>> ws
 
 /// <FunctionArgumentList> ::= <FunctionArgumentList> ',' <FunctionArgument>
@@ -274,7 +300,7 @@ let private functionExpression: P<FunctionExpression> =
 /// <CommandArgument> ::= <Flag> | <Value>
 let private commandArgument: P<CommandArgument> =
     choice [ flagText |>> fun f -> CommandArgumentFlag(Name = f) :> CommandArgument
-             value |>> fun v -> CommandArgumentValue(Value = v) :> CommandArgument ]
+             argumentValue |>> fun v -> CommandArgumentValue(Value = v) :> CommandArgument ]
     .>> ws
 
 let private commandArgumentList: P<CommandArguments> =

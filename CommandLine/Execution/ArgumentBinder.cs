@@ -59,7 +59,7 @@ public sealed class ArgumentBinder
     /// Binds parsed arguments to declared parameters.
     /// </summary>
     /// <remarks>
-    /// Positional arguments fill required parameters in order. Named arguments
+    /// Positional arguments fill parameters in declaration order. Named arguments
     /// (<c>-flag value</c> or <c>name: value</c>) match by parameter name or flag
     /// wherever they appear. A bare flag with no value binds <c>true</c>, so
     /// <c>cmd -verbose</c> works.
@@ -136,7 +136,11 @@ public sealed class ArgumentBinder
                 continue;
             }
 
-            if (positional.Count > 0 && !parameter.IsOptional)
+            // Positional arguments fill parameters in declaration order, optional ones
+            // included: `ls documents` and `progress 20 50` read the way a shell user
+            // expects. Optional parameters only skip to their default when the
+            // positional arguments have run out.
+            if (positional.Count > 0)
             {
                 var argument = positional.Dequeue();
                 bound[parameter] = new CommandParameterValue
@@ -168,7 +172,7 @@ public sealed class ArgumentBinder
         {
             // Counts what was supplied rather than what is left over, which read as
             // "takes 1 argument(s), but 1 more were given" for a two-argument call.
-            int declared = definition.Parameters.Count(p => !p.IsOptional);
+            int declared = definition.Parameters.Length;
             int given = declared + positional.Count;
 
             throw new ConsoleError(

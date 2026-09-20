@@ -66,6 +66,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Parser.Tree", "Parser.Tree\
 EndProject
 Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "Parser.FParsec", "Parser.FParsec\Parser.FParsec.fsproj", "{220833C3-A568-4CCE-80D8-158DAEFE0B3B}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Web.Core.Tests", "Web.Core.Tests\Web.Core.Tests.csproj", "{BA04EDE3-3C1D-44CD-AC03-CBFC729C02D4}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -164,6 +166,10 @@ Global
 		{220833C3-A568-4CCE-80D8-158DAEFE0B3B}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{220833C3-A568-4CCE-80D8-158DAEFE0B3B}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{220833C3-A568-4CCE-80D8-158DAEFE0B3B}.Release|Any CPU.Build.0 = Release|Any CPU
+		{BA04EDE3-3C1D-44CD-AC03-CBFC729C02D4}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{BA04EDE3-3C1D-44CD-AC03-CBFC729C02D4}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{BA04EDE3-3C1D-44CD-AC03-CBFC729C02D4}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{BA04EDE3-3C1D-44CD-AC03-CBFC729C02D4}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

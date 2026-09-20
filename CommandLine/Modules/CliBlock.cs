@@ -1,5 +1,6 @@
 using UIComponents;
 using UIComponents.Components;
+using Controller;
 using EntityComponentSystem;
 using Terminal.Execution;
 
@@ -12,21 +13,29 @@ namespace CommandLine.Modules
     /// Implements <see cref="ICommandOutput"/> so commands can write progress without
     /// depending on the ECS. That indirection is what lets the execution layer be tested
     /// headlessly, since a test can substitute a recorder for this.
+    ///
+    /// Asking the render loop for a frame is done here, on every write, rather than in
+    /// each command. The commands used to inject <see cref="LoopController"/> just to call
+    /// <c>RequestLoop</c> after each progress update, which made them impossible to
+    /// construct anywhere without a render loop, such as the browser. The output sink is
+    /// the one thing that knows whether a redraw is even a concept.
     /// </remarks>
     public class CliBlock : ICommandOutput, IClearableOutput
     {
         private readonly IServiceProvider _serviceProvider;
         private readonly ConsoleLayout _consoleRenderer;
         private readonly ECS _ecs;
+        private readonly LoopController _loopController;
 
         public string Description { get; set; } = string.Empty;
         public List<LineComponent> Lines { get; set; } = new();
 
-        public CliBlock(IServiceProvider serviceProvider, ConsoleLayout consoleRenderer, ECS ecs)
+        public CliBlock(IServiceProvider serviceProvider, ConsoleLayout consoleRenderer, ECS ecs, LoopController loopController)
         {
             _serviceProvider = serviceProvider;
             _consoleRenderer = consoleRenderer;
             _ecs = ecs;
+            _loopController = loopController;
         }
 
         public CliBlock SetDesciption(string description)
@@ -42,7 +51,12 @@ namespace CommandLine.Modules
             return line;
         }
 
-        IOutputLine ICommandOutput.NewLine() => new BlockLine(NewLineComponent());
+        IOutputLine ICommandOutput.NewLine()
+        {
+            var line = new BlockLine(NewLineComponent(), _loopController);
+            _loopController.RequestLoop();
+            return line;
+        }
 
         void ICommandOutput.AbandonLine(IOutputLine line)
         {
@@ -56,6 +70,7 @@ namespace CommandLine.Modules
         {
             Lines.Remove(line);
             line.Entity.Destroy();
+            _loopController.RequestLoop();
         }
 
         public void Clear()
@@ -66,28 +81,48 @@ namespace CommandLine.Modules
             }
 
             Lines.Clear();
+            _loopController.RequestLoop();
         }
 
         private sealed class BlockLine : IOutputLine
         {
-            public BlockLine(LineComponent line) => Line = line;
+            private readonly LoopController _loopController;
+
+            public BlockLine(LineComponent line, LoopController loopController)
+            {
+                Line = line;
+                _loopController = loopController;
+            }
 
             public LineComponent Line { get; }
 
-            public IOutputText Write(string description, string text) =>
-                new BlockText(Line.LinkNewTextBlock(description, text));
+            public IOutputText Write(string description, string text)
+            {
+                var written = new BlockText(Line.LinkNewTextBlock(description, text), _loopController);
+                _loopController.RequestLoop();
+                return written;
+            }
         }
 
         private sealed class BlockText : IOutputText
         {
             private readonly TextComponent _component;
+            private readonly LoopController _loopController;
 
-            public BlockText(TextComponent component) => _component = component;
+            public BlockText(TextComponent component, LoopController loopController)
+            {
+                _component = component;
+                _loopController = loopController;
+            }
 
             public string Text
             {
                 get => _component.Text;
-                set => _component.Text = value;
+                set
+                {
+                    _component.Text = value;
+                    _loopController.RequestLoop();
+                }
             }
         }
     }

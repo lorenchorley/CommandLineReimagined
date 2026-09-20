@@ -5,6 +5,10 @@
 
 {IdentifierCharacter} = {AlphaNumeric} + [_éèàäëïöüùçâêîôûÇÄÅÉæÆÖÜøØƒáíóúñÑÁÂÀãÃðÐÊËÈiÍÎÏÌÓßÔÒõÕµþÞÚÛÙýÝ]
 !{BareStringCharacter} = {AlphaNumeric}
+! The FParsec grammar (Parser.FParsec/Grammar.fs) finishes this idea: in a command
+! argument position an unquoted word may also contain . \ / : ~ + @ % and -, so file
+! names and paths need no quotes. This GOLD grammar is kept only for the equivalence
+! tests and does not accept them.
 {StringCharacter}     = {All Printable} - ["] + {HT} + {CR} + {LF}
 
 Identifier = {IdentifierCharacter}+
