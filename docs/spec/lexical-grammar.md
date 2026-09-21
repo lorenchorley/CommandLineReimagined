@@ -11,7 +11,13 @@ Productions use `::=`, alternation `|`, grouping `( )`, optional `?`, zero or mo
 and one or more `+`. Terminals are in double quotes.
 
 Alternatives are **ordered**: a parser **must** try them left to right and take the
-first that succeeds. This matters in two places, both noted below.
+first that succeeds. This matters in three places, all noted below.
+
+Two lookahead operators appear in the productions below, and neither consumes input:
+`&X` requires that `X` follows, and `!X` requires that it does not. They carry the
+delimiter rules from [decision 0007](../decisions/0007-notation-conflicts.md), which
+resolves the collisions between paths and `/>`, and between flags and negative
+numbers, by looking ahead rather than by making a position mean something.
 
 ## Character classes
 
@@ -27,8 +33,15 @@ An implementation **must** treat the accented set as exactly the characters list
 is the set the original grammar declared, reproduced verbatim; it is idiosyncratic, and
 widening it is a language change.
 
-`-` is a `WordChar` but not a `WordStart`, which is what keeps `-flag` a flag and makes
-`--flag` a syntax error.
+`-` is a `WordChar` but not a `WordStart`, with one exception: a `-` **must** start a
+word when a digit follows it, so `echo -5` writes minus five. `-flag` is still a flag
+and `--flag` is still a syntax error, because neither has a digit after the dash.
+
+`/` is a `WordChar`, but it joins the word it is in only when the next character is
+neither `>` nor `}`. A `/` immediately before one of those two brackets ends the word
+instead, which is what makes `/>` and `/}` reachable from inside a word and lets
+`<file path=documents/notes.txt/>` parse. This rule is stated once here and applies
+everywhere a `Word` is recognised.
 
 ## Whitespace and lines
 
@@ -36,14 +49,18 @@ Only space and horizontal tab are whitespace. A newline is **not** whitespace: a
 program is one line, and a newline reaches the end-of-input rule and fails the parse.
 
 Whitespace is insignificant between tokens and **must not** appear inside an
-identifier, a word, a flag or a multi-character delimiter such as `/>`.
+identifier, a word, a flag or a multi-character delimiter such as `/>`. It **must not**
+appear inside an `Assignment` either, on either side of the `=`, and it **must not**
+appear between `<` and what follows it.
 
 ## Tokens
 
 ```
 Identifier        ::= IdentifierChar+
-Word              ::= WordStart WordChar*
-Flag              ::= "-" IdentifierChar+
+Word              ::= ( WordStart | "-" &Digit ) ( WordChar | "/" !( ">" | "}" ) )*
+                      -- a leading WordStart of "/" is subject to the same lookahead
+Flag              ::= "-" !Digit IdentifierChar+
+Digit             ::= "0".."9"
 VariableReference ::= "$" Identifier
 StringLiteral     ::= '"""' StringBody '"""'
                     | '""'  StringBody '""'
@@ -83,19 +100,22 @@ FunctionArgument     ::= Identifier Space* ":" Space* ArgumentValue
 
 CliExpression        ::= Identifier Space* CommandArgument*
 CommandArgument      ::= Flag
+                       | Assignment
                        | ArgumentValue
 
+Assignment           ::= Identifier "=" ArgumentValue
+
 ArgumentValue        ::= InstanceTag
-                       | StringLiteral
-                       | VariableReference
-                       | Word
+                       | ArgumentSimpleValue
+ArgumentSimpleValue  ::= StringLiteral | VariableReference | Word
 Value                ::= InstanceTag | SimpleValue
 SimpleValue          ::= StringLiteral | VariableReference | Identifier
 
 InstanceTag          ::= VariableTag | ObjectInstance | ComponentInstance
 
-ObjectInstance       ::= "<" Space* ( Identifier Space* "|" Space* )? Identifier Space* TagAttribute*
+ObjectInstance       ::= "<" &TagOpener ( Identifier Space* "|" Space* )? Identifier Space* TagAttribute*
                          ( "/>" | ">" Space* Tag* ClosingObjectTag )
+TagOpener            ::= IdentifierChar | "$" | "/"
 ClosingObjectTag     ::= "</" Space* ( ">" | Identifier Space* ">" )
 
 ComponentInstance    ::= "{" Space* ( Identifier Space* "|" Space* )? Identifier Space* TagAttribute*
@@ -104,7 +124,7 @@ ClosingComponentTag  ::= "{/" Space* ( "}" | Identifier Space* "}" )
 
 VariableTag          ::= "<$" Identifier Space* ">"
 
-TagAttribute         ::= Identifier Space* "=" Space* SimpleValue Space*
+TagAttribute         ::= Identifier Space* "=" Space* ArgumentSimpleValue Space*
 
 Tag                  ::= PropertyAssignment
                        | VariableTag
@@ -123,15 +143,31 @@ it is a property name. The tree distinguishes them; the grammar does not.
 
 ### Where words are allowed
 
-`ArgumentValue` admits a `Word`; `Value` and `SimpleValue` do not. Therefore:
+`ArgumentSimpleValue` admits a `Word`; `SimpleValue` does not. Therefore:
 
 - A command argument **may** be a bare word: `cat notes.txt`, `cd ../docs`,
   `download https://host/f.txt`.
-- A tag attribute's value **must not** be a bare word, because `/` closes a tag. Use a
-  string: `<file path="documents/notes.txt"/>`.
+- A tag attribute's value **may** be a bare word too, including a path:
+  `<file path=documents/notes.txt/>`. The lookahead on `/` is what keeps the final
+  slash the tag's rather than the path's.
+- A `PropertyAssignment`'s value still takes a `SimpleValue` only, so `[name=a/b]`
+  is not a word. Nothing has asked for it to be one.
 
-An implementation **must** preserve this distinction. Widening `SimpleValue` to admit
-words makes `<thing path=a/b/>` ambiguous with the closing delimiter.
+An earlier version of this specification required a tag attribute's value to be quoted
+and said that widening it made `<thing path=a/b/>` ambiguous. It is not ambiguous once
+`/>` is recognised by lookahead: the only `/` that can end a word is one with `>` or
+`}` after it, and a path's interior slashes never are.
+
+### Assignments
+
+`Assignment` is `name=value` with no spaces, and it is **data**: a name paired with a
+value, carried through to the command. It **must not** bind a declared parameter;
+`name: value` is the only notation that does. See
+[decision 0017](../decisions/0017-assignment-arguments.md).
+
+An implementation **must** try `Assignment` before `ArgumentValue`, because an
+`ArgumentValue` would otherwise take the name as a `Word` and leave `=value` behind.
+This is the third ordered choice that matters.
 
 ### The empty program
 

@@ -7,6 +7,7 @@ namespace Isagri.Reporting.Quid.RequestFilters.SemanticTree
         void VisitAttributeName(TagAttributeName attributeName);
         void VisitCommandArguments(CommandArguments commandArguments);
         void VisitCommandArgumentValue(CommandArgumentValue commandArgumentValue);
+        void VisitAssignmentArgument(AssignmentArgument assignmentArgument);
         void VisitCommandExpression(CommandExpression commandExpression);
         void VisitCommandExpressionCli(CommandExpressionCli commandExpressionCli);
         void VisitCommandName(CommandName commandName);

@@ -49,20 +49,42 @@ let private identifierText: P<string> = many1SatisfyL isIdentifierChar "identifi
 // A bare word: an unquoted command argument that is not a plain identifier, such as
 // `notes.txt`, `../docs`, `C:\\Users` or `https://host/path`. The .grm sketched this as
 // the commented-out {BareStringCharacter} set and never finished it, so every file name
-// with a dot needed quotes. Words are only recognised in command-argument positions:
-// inside a tag, `/` closes the tag and must not be swallowed.
+// with a dot needed quotes.
 let private isWordChar (c: char) =
     isIdentifierChar c || ".\\/:~+@%-".IndexOf c >= 0
 
 let private isWordStart (c: char) =
     isIdentifierChar c || ".\\/~".IndexOf c >= 0
 
-let private bareWordText: P<string> = many1Satisfy2L isWordStart isWordChar "argument"
+// Decision 0007: `/>` and `/}` are delimiters, so a `/` belongs to the word it is in
+// only when what follows is not one of those two brackets. That is what lets
+// `<file path=documents/notes.txt/>` parse: the slashes inside the path join the word
+// and the final one closes the tag. Deciding it by lookahead rather than by position
+// means the same word parser serves both inside a tag and outside one, instead of the
+// two dialects the previous rule needed.
+let private wordSlash: P<char> = attempt (pchar '/' .>> notFollowedBy (anyOf ">}"))
+
+// Decision 0007 again: a `-` in front of a digit starts a number rather than a flag,
+// so `echo -5` writes minus five. Only in front of a digit, so `-x` is still a flag.
+let private wordMinus: P<char> = attempt (pchar '-' .>> followedBy digit)
+
+let private wordStartChar: P<char> =
+    choice [ satisfy (fun c -> isWordStart c && c <> '/')
+             wordSlash
+             wordMinus ]
+
+let private wordChar: P<char> =
+    choice [ satisfy (fun c -> isWordChar c && c <> '/')
+             wordSlash ]
+
+let private bareWordText: P<string> = many1Chars2 wordStartChar wordChar <?> "argument"
 
 /// FlagIdentifier = '-'{IdentifierCharacter}+
 let private flagText: P<string> =
-    // A single dash only: '--flag' is not a flag, which the tests pin down.
-    attempt (pchar '-' >>. many1Satisfy isIdentifierChar)
+    // A single dash only: '--flag' is not a flag, which the tests pin down. A dash in
+    // front of a digit is not one either; that is a negative number, and without this
+    // `echo -5` bound a flag named `5`.
+    attempt (pchar '-' >>. notFollowedBy digit >>. many1Satisfy isIdentifierChar)
 
 // ----------------------------------------------------------------- String literals
 // StringCharacter = {All Printable} - ["] + {HT} + {CR} + {LF}, so a literal's body
@@ -119,12 +141,16 @@ let private argumentSimpleValue: P<SimpleValue> =
              bareWordText |>> fun n -> Identifier(Name = n) :> SimpleValue ]
 
 // ----------------------------------------------------------------- Tag attributes
-// <TagAttribute> ::= <TagAttributeName> '=' <SimpleValue>
+// <TagAttribute> ::= <TagAttributeName> '=' <ArgumentSimpleValue>
+//
+// Decision 0007: the value is a bare word rather than a plain identifier, so a tag can
+// carry a path without quotes. The word parser stops before `/>`, so the closing
+// bracket is still the tag's and not the path's.
 
 let private tagAttribute: P<TagAttribute> =
     // The name and '=' are attempted together so a bare identifier that is not an
     // attribute leaves the input untouched for whatever follows.
-    attempt (attributeName .>> ws .>> pchar '=' .>> ws) .>>. (simpleValue .>> ws)
+    attempt (attributeName .>> ws .>> pchar '=' .>> ws) .>>. (argumentSimpleValue .>> ws)
     |>> fun (name, v) -> TagAttribute(Name = name, Value = v)
 
 let private tagAttributeList: P<TagAttributeList> =
@@ -136,9 +162,17 @@ let private tagAttributeList: P<TagAttributeList> =
 
 // ----------------------------------------------------------------- Object instances
 
+/// Decision 0007: `<` is a tag opener only when the very next character could start a
+/// tag — a name, a `$` or the `/` of a closing tag. With a space after it, or anything
+/// else, it is not a tag, which is what leaves `<` free to become less-than in Phase 3.
+/// The lookahead also has to be the reason the `ws` after `<` is gone: allowing space
+/// there is precisely what would make `a < b` a tag.
+let private tagOpen: P<unit> =
+    attempt (pchar '<' >>. followedBy (satisfy (fun c -> isIdentifierChar c || c = '$' || c = '/')))
+
 /// The part shared by the closed and open forms: '<' [name '|'] type attributes
 let private objectHeader: P<VariableName option * ObjectType * TagAttributeList> =
-    pchar '<' >>. ws
+    tagOpen
     >>. pipe3
             (opt (attempt (variableName .>> ws .>> pchar '|' .>> ws)))
             (objectType .>> ws)
@@ -297,9 +331,23 @@ let private functionExpression: P<FunctionExpression> =
     .>>. (functionArgumentList .>> ws .>> pchar ')' .>> ws)
     |>> fun (name, arguments) -> FunctionExpression(Id = Identifier(Name = name), Arguments = arguments)
 
-/// <CommandArgument> ::= <Flag> | <Value>
+/// <Assignment> ::= <Identifier> '=' <ArgumentValue>, with no spaces around the '='
+///
+/// Decision 0017: this is data rather than parameter binding, which is what lets
+/// `attr notes.txt tag=work` carry an attribute name the command has never heard of.
+/// The no-space rule is what keeps `echo a = b` three ordinary words, so neither side
+/// may be padded and `ws` is deliberately absent between the three parts.
+let private assignmentArgument: P<CommandArgument> =
+    attempt (identifierText .>> pchar '=') .>>. argumentValue
+    |>> fun (name, v) ->
+            AssignmentArgument(Name = Identifier(Name = name), Value = v) :> CommandArgument
+
+/// <CommandArgument> ::= <Flag> | <Assignment> | <Value>
 let private commandArgument: P<CommandArgument> =
     choice [ flagText |>> fun f -> CommandArgumentFlag(Name = f) :> CommandArgument
+             // Before the plain value, because a value would otherwise swallow the name
+             // as a word and leave `=work` behind.
+             assignmentArgument
              argumentValue |>> fun v -> CommandArgumentValue(Value = v) :> CommandArgument ]
     .>> ws
 

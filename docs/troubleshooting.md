@@ -56,10 +56,16 @@ You gave it a small `steps` or `delay`. `progress 4 5` takes four steps of five
 milliseconds. Plain `progress` is a hundred steps of a hundred milliseconds, about ten
 seconds.
 
-## A tag attribute will not take my path
+## `echo -5` says there is no argument named `5`
 
-Attribute values are identifiers, strings or variables, not bare words, because inside
-a tag a `/` closes the tag. Quote it: `<file path="documents/notes.txt"/>`.
+You are on a build from before the negative-number rule. A `-` in front of a digit now
+starts a word, so `echo -5` writes minus five; a `-` in front of anything else is still
+a flag.
+
+## `< thing` is a syntax error
+
+A `<` opens a tag only when a name, a `$` or a `/` comes straight after it, with no
+space. That is what leaves the bracket free to mean less-than later. Write `<thing/>`.
 
 ## The desktop application will not build on Linux
 

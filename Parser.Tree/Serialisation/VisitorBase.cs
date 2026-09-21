@@ -281,6 +281,18 @@ public abstract class VisitorBase : ISemanticTreeVisitor
         commandArgumentValue.Value.Accept(this);
     }
 
+    /// <summary>
+    /// <c>name=value</c>, with no spaces: the spacing is what distinguishes an
+    /// assignment from the three separate words <c>a</c>, <c>=</c>, <c>b</c>, so a
+    /// round trip has to write it back tight.
+    /// </summary>
+    public virtual void VisitAssignmentArgument(AssignmentArgument assignmentArgument)
+    {
+        assignmentArgument.Name.Accept(this);
+        Append('=');
+        assignmentArgument.Value.Accept(this);
+    }
+
     public virtual void VisitProperyName(ProperyName properyName)
     {
         Append(properyName.Name);

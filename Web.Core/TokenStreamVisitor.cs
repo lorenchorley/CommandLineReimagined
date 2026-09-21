@@ -149,4 +149,16 @@ public sealed class TokenStreamVisitor : VisitorBase
     {
         using (Using(Kinds.Attribute)) base.VisitProperyName(properyName);
     }
+
+    /// <summary>
+    /// An assignment's name is an attribute name, not an ordinary identifier: it names
+    /// a piece of data rather than being one. The <c>=</c> and the value keep the kinds
+    /// the base traversal gives them.
+    /// </summary>
+    public override void VisitAssignmentArgument(AssignmentArgument assignmentArgument)
+    {
+        using (Using(Kinds.Attribute)) assignmentArgument.Name.Accept(this);
+        Append('=');
+        assignmentArgument.Value.Accept(this);
+    }
 }

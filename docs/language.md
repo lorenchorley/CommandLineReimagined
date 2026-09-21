@@ -60,7 +60,8 @@ $ <measurement unit=metres value=3/>
 
 An unquoted word may contain letters, digits and underscore, plus `. \ / : ~ + @ % -`
 after the first character. The first character must be a letter, digit, underscore, or
-one of `. \ / ~`. That covers the things a shell needs to write without ceremony:
+one of `. \ / ~`, or a `-` with a digit after it. That covers the things a shell needs
+to write without ceremony:
 
 ```
 $ echo notes.txt
@@ -78,9 +79,41 @@ user@host
 Accented letters are ordinary identifier characters, so `café` and `größe` need no
 quotes.
 
-Bare words are only recognised where a command argument is expected. Inside a tag, `/`
-closes the tag, so a tag attribute takes an identifier, a string or a variable and not
-a path.
+A leading `-` is a flag, except in front of a digit, where it is a negative number:
+
+```
+$ echo -5
+-5
+$ echo -x
+'echo' has no argument named 'x'.
+```
+
+Bare words are recognised where a command argument is expected, and inside a tag.
+A `/` inside a word joins it unless a `>` or a `}` comes next, so a path keeps its
+separators and the tag still closes:
+
+```
+$ <file path=documents/notes.txt/>
+<file path=documents/notes.txt/>
+```
+
+### Assignments
+
+An argument written `name=value`, with no spaces around the `=`, is an assignment: a
+name carrying a piece of data. Commands that take arbitrary named data, such as `attr`
+and `save`, collect them:
+
+```
+$ attr notes.txt tag=work due=2026-10-01
+notes.txt
+```
+
+This is not the same as `name: value`, which binds a value to a parameter the command
+has declared. An assignment's name is data, so a command may be given names it has
+never heard of; that is what lets `attr` write any attribute. A command that takes no
+assignments says so rather than ignoring them.
+
+The `=` has to be tight against both sides. `a = b` and `a =b` are not assignments.
 
 ### Numbers
 
@@ -261,7 +294,8 @@ $ <outer><inner depth=2/></outer>
 <outer><inner depth=2/></outer>
 ```
 
-An attribute's value is a string, a variable reference or an identifier. A closing tag
+An attribute's value is a string, a variable reference or a bare word, including a
+path such as `documents/notes.txt`. A closing tag
 may repeat the type or be empty: `</thing>` and `</>` are both accepted. A closing tag
 that names a different type is an error:
 
