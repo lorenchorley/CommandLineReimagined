@@ -3,6 +3,9 @@
 Complete sessions you can type line by line. Output is what the terminal shows; result
 chips are written as plain words.
 
+Each example starts from a fresh tab, except that examples 1, 2 and 8 run in sequence:
+the second uses the directory the first made, and the last clears up after both.
+
 ## 1. Edit a file and take it back
 
 ```
