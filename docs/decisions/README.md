@@ -24,6 +24,9 @@ a later record, **Rejected**.
 | [0012](0012-browser-first.md) | The desktop shell stays out of scope | Accepted |
 | [0013](0013-attribute-filesystem.md) | An attribute-and-query filesystem in the style of BeOS and Haiku | Accepted |
 | [0014](0014-recovery-operator.md) | Error recovery is spelled `else`, not `or` | Accepted |
+| [0015](0015-atomic-lines.md) | A command line is one atomic transaction | Accepted |
+| [0016](0016-folders-as-records.md) | Folders are records with a `kind` of `folder`, and the root is implicit | Accepted |
+| [0017](0017-assignment-arguments.md) | `name=value` in argument position is data; `name: value` binds a parameter | Accepted |
 
 Retrospective records document decisions taken before the log existed, so that the
 log is the one place to look. Their alternatives are the ones weighed at the time, as
