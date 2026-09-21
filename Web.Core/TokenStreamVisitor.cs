@@ -18,6 +18,7 @@ public sealed class TokenStreamVisitor : VisitorBase
 {
     private readonly List<SemanticToken> _tokens = new();
     private string _kind = Kinds.Punctuation;
+    private bool _nextIdentifierIsCommandName;
 
     public IReadOnlyList<SemanticToken> Tokens => _tokens;
 
@@ -99,9 +100,27 @@ public sealed class TokenStreamVisitor : VisitorBase
         using (Using(Kinds.Variable)) base.VisitVariableName(variableName);
     }
 
+    /// <summary>
+    /// The name in <c>write(a, b)</c> names a command, exactly as <c>write a b</c> does.
+    /// </summary>
+    /// <remarks>
+    /// It is an <see cref="Identifier"/> in the tree rather than a
+    /// <see cref="CommandName"/>, so without this the function form coloured its
+    /// command as an ordinary argument. The base visits the name first, so a one-shot
+    /// flag is enough and the traversal does not have to be duplicated here.
+    /// </remarks>
+    public override void VisitFunctionExpression(FunctionExpression functionExpression)
+    {
+        _nextIdentifierIsCommandName = true;
+        base.VisitFunctionExpression(functionExpression);
+    }
+
     public override void VisitIdentifier(Identifier identifier)
     {
-        using (Using(Kinds.Identifier)) base.VisitIdentifier(identifier);
+        string kind = _nextIdentifierIsCommandName ? Kinds.Command : Kinds.Identifier;
+        _nextIdentifierIsCommandName = false;
+
+        using (Using(kind)) base.VisitIdentifier(identifier);
     }
 
     public override void VisitObjectType(ObjectType objectType)

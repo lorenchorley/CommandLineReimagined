@@ -120,7 +120,7 @@ public sealed class TerminalSession
         {
             return new ExecutionResponse(
                 "result", source, parse.Tokens, Array.Empty<string>(),
-                null, null, $"{parse.Error.Kind} error at column {parse.Error.Column}", WorkingDirectory);
+                null, null, Describe(parse.Error), WorkingDirectory);
         }
 
         if (IsRunning)
@@ -315,20 +315,50 @@ public sealed class TerminalSession
     }
 
     /// <summary>Undoes the last command, the way the desktop shell's undo key does.</summary>
+    /// <remarks>
+    /// Every executed command is on the history, including ones that changed nothing,
+    /// so the response names what was undone. Otherwise undoing an `ls` is
+    /// indistinguishable from undo being broken.
+    /// </remarks>
     public ExecutionResponse Undo()
     {
-        if (History.Count == 0)
+        string? undone = History.UndoLast();
+
+        if (undone is null)
         {
             return new ExecutionResponse(
                 "result", "undo", Array.Empty<SemanticToken>(), Array.Empty<string>(),
                 null, null, "Nothing to undo.", WorkingDirectory);
         }
 
-        History.UndoLast();
-
         return new ExecutionResponse(
-            "result", "undo", Array.Empty<SemanticToken>(), new[] { "Undone." },
+            "result", "undo", Array.Empty<SemanticToken>(), new[] { $"Undone: {undone}" },
             null, null, null, WorkingDirectory);
+    }
+
+    /// <summary>
+    /// Turns a parse failure into a sentence.
+    /// </summary>
+    /// <remarks>
+    /// A mismatched closing tag arrives as a message rather than a position, and the
+    /// old formatting rendered it as "error error at column 0", dropping the one part
+    /// that said what was wrong.
+    /// </remarks>
+    private static string Describe(ParseErrorInfo error)
+    {
+        if (error.Kind is not ("syntax" or "lexical"))
+        {
+            return error.Expected.Count > 0
+                ? string.Join(" ", error.Expected)
+                : "Could not parse the command.";
+        }
+
+        string kind = error.Kind == "lexical" ? "Lexical" : "Syntax";
+        string where = $"{kind} error at column {error.Column}";
+
+        return error.Expected.Count == 0
+            ? where + "."
+            : $"{where}: expected {string.Join(", ", error.Expected)}.";
     }
 
     private static RootNode ParseTree(string source)
@@ -383,11 +413,21 @@ public sealed class TerminalSession
         }
     }
 
+    /// <summary>
+    /// Registers a command so the evaluator can resolve it by type.
+    /// </summary>
+    /// <remarks>
+    /// Transient, not singleton. A command keeps what it needs to undo itself in its
+    /// own fields, so a shared instance makes the second undo of the same command
+    /// replay the last invocation's saved state: `set v 1`, `set v 2`, undo, undo left
+    /// `$v` at 1 instead of unbinding it. The history holds the instance that ran, so
+    /// a fresh instance per execution is what makes undo per-invocation.
+    /// </remarks>
     private static void Register<TCommand>(IServiceCollection collection)
         where TCommand : class, ICommandAction
     {
-        collection.AddSingleton<TCommand>();
-        collection.AddSingleton<ICommandAction>(sp => sp.GetRequiredService<TCommand>());
+        collection.AddTransient<TCommand>();
+        collection.AddTransient<ICommandAction>(sp => sp.GetRequiredService<TCommand>());
     }
 
     /// <summary>

@@ -2,7 +2,6 @@ using Commands;
 using Commands.Parser.SemanticTree;
 using Microsoft.Extensions.DependencyInjection;
 using Terminal.Scoping;
-using Terminal.Variables;
 
 namespace Terminal.Execution;
 
@@ -84,7 +83,7 @@ public sealed class CommandEvaluator
                 cli.Name.Name, cli.Arguments, input, output, scope, cancellation),
 
             // <thing a=1/>
-            instance => Task.FromResult(EvaluateInstance(instance, scope)));
+            instance => Task.FromResult(_binder.EvaluateInstance(instance, scope)));
 
     private async Task<RuntimeValue> ExecuteCommandAsync(
         string name,
@@ -161,102 +160,6 @@ public sealed class CommandEvaluator
             default:
                 throw new ConsoleError($"Unknown command type : {action.GetType().Name}");
         }
-    }
-
-    /// <summary>
-    /// Builds an object value from an instance tag, binding it to a variable when the tag
-    /// names one: <c>&lt;size|dimension value=3/&gt;</c> leaves <c>$size</c> in scope.
-    /// </summary>
-    private RuntimeValue EvaluateInstance(InstanceTag tag, Scope scope)
-    {
-        switch (tag)
-        {
-            case ObjectInstance instance:
-            {
-                var value = BuildObject(instance, scope);
-                Bind(instance.VariableName, value, scope);
-                return value;
-            }
-
-            case ComponentInstance component:
-            {
-                var value = BuildComponent(component, scope);
-                Bind(component.VariableName, value, scope);
-                return value;
-            }
-
-            // <$name> reads a variable back.
-            case VariableTag reference:
-            {
-                var variable = scope.GetVariable(reference.Name.Name)
-                    ?? throw new ConsoleError($"Unknown variable : ${reference.Name.Name}");
-
-                return variable.Value;
-            }
-
-            default:
-                throw new ConsoleError($"Cannot evaluate a {tag.GetType().Name}.");
-        }
-    }
-
-    private static void Bind(VariableName? name, RuntimeValue value, Scope scope)
-    {
-        if (name is not null)
-        {
-            scope.SetVariable(new Variable(name.Name, value));
-        }
-    }
-
-    private ComponentValue BuildComponent(ComponentInstance instance, Scope scope)
-    {
-        var attributes = new Dictionary<string, RuntimeValue>(StringComparer.OrdinalIgnoreCase);
-
-        foreach (var attribute in instance.Attributes?.Attributes ?? new List<TagAttribute>())
-        {
-            attributes[attribute.Name.Name] = _binder.Evaluate(attribute.Value, scope);
-        }
-
-        var children = new List<RuntimeValue>();
-
-        foreach (var child in instance.Children?.Tags ?? new List<Tag>())
-        {
-            children.Add(child is InstanceTag nested
-                ? EvaluateInstance(nested, scope)
-                : throw new ConsoleError($"Cannot evaluate a child {child.GetType().Name}."));
-        }
-
-        return new ComponentValue(instance.ComponentType.Value, attributes, children);
-    }
-
-    private ObjectValue BuildObject(ObjectInstance instance, Scope scope)
-    {
-        var attributes = new Dictionary<string, RuntimeValue>(StringComparer.OrdinalIgnoreCase);
-
-        foreach (var attribute in instance.Attributes?.Attributes ?? new List<TagAttribute>())
-        {
-            attributes[attribute.Name.Name] = _binder.Evaluate(attribute.Value, scope);
-        }
-
-        var children = new List<ObjectValue>();
-
-        foreach (var child in instance.Children?.Tags ?? new List<Tag>())
-        {
-            if (child is ObjectInstance childInstance)
-            {
-                children.Add(BuildObject(childInstance, scope));
-            }
-            else if (child is ComponentInstance componentChild)
-            {
-                // An entity's children can be components as well as other entities.
-                BuildComponent(componentChild, scope);
-            }
-            else
-            {
-                throw new ConsoleError($"Cannot evaluate a child {child.GetType().Name}.");
-            }
-        }
-
-        return new ObjectValue(instance.ObjectType.Value, attributes, children);
     }
 
     private CommandDefinition? Find(string name) =>

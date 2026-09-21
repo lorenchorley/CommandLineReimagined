@@ -198,6 +198,16 @@ public class FileAndVariableCommandTests
     }
 
     [TestMethod]
+    public void SetBindsATagWrittenAsAnArgument()
+    {
+        _harness.Run("set shape <square side=2/>");
+
+        var value = (ObjectValue)_harness.Scope.GetVariable("shape")!.Value;
+        Assert.AreEqual("square", value.TypeName);
+        Assert.AreEqual(2d, ((NumberValue)value.Attributes["side"]).Number);
+    }
+
+    [TestMethod]
     public void SetWithoutAValueIsReported() =>
         StringAssert.Contains(_harness.RunExpectingError("set lonely"), "needs an argument for 'value'");
 

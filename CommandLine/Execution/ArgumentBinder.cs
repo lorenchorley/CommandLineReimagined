@@ -1,6 +1,7 @@
 using Commands;
 using Commands.Parser.SemanticTree;
 using Terminal.Scoping;
+using Terminal.Variables;
 
 namespace Terminal.Execution;
 
@@ -40,6 +41,12 @@ public sealed class ArgumentBinder
 
                 return variable.Value;
             }
+
+            // A tag used as an argument: `set size <dimension value=3/>`. The grammar
+            // has always admitted this; only a tag standing alone as a pipeline stage
+            // used to evaluate, so everything else reported it as unsupported.
+            case TagValue tag:
+                return EvaluateInstance(tag.Tag, scope);
 
             case Constant constant:
                 return new TextValue(constant.ToString() ?? string.Empty);
@@ -185,6 +192,107 @@ public sealed class ArgumentBinder
                          .Where(bound.ContainsKey)
                          .Select(p => bound[p])
                          .ToArray();
+    }
+
+    /// <summary>
+    /// Builds a value from an instance tag, binding it to a variable when the tag names
+    /// one: <c>&lt;size|dimension value=3/&gt;</c> leaves <c>$size</c> in scope.
+    /// </summary>
+    /// <remarks>
+    /// It lives here rather than on the evaluator because a tag is a value: the grammar
+    /// admits one wherever an argument is expected, so <c>set size &lt;dimension/&gt;</c>
+    /// has to evaluate it too, not only a tag standing alone as a pipeline stage.
+    /// </remarks>
+    public RuntimeValue EvaluateInstance(InstanceTag tag, Scope scope)
+    {
+        switch (tag)
+        {
+            case ObjectInstance instance:
+            {
+                var value = BuildObject(instance, scope);
+                Bind(instance.VariableName, value, scope);
+                return value;
+            }
+
+            case ComponentInstance component:
+            {
+                var value = BuildComponent(component, scope);
+                Bind(component.VariableName, value, scope);
+                return value;
+            }
+
+            // <$name> reads a variable back.
+            case VariableTag reference:
+            {
+                var variable = scope.GetVariable(reference.Name.Name)
+                    ?? throw new ConsoleError($"Unknown variable : ${reference.Name.Name}");
+
+                return variable.Value;
+            }
+
+            default:
+                throw new ConsoleError($"Cannot evaluate a {tag.GetType().Name}.");
+        }
+    }
+
+    private static void Bind(VariableName? name, RuntimeValue value, Scope scope)
+    {
+        if (name is not null)
+        {
+            scope.SetVariable(new Variable(name.Name, value));
+        }
+    }
+
+    private ComponentValue BuildComponent(ComponentInstance instance, Scope scope)
+    {
+        var attributes = new Dictionary<string, RuntimeValue>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var attribute in instance.Attributes?.Attributes ?? new List<TagAttribute>())
+        {
+            attributes[attribute.Name.Name] = Evaluate(attribute.Value, scope);
+        }
+
+        var children = new List<RuntimeValue>();
+
+        foreach (var child in instance.Children?.Tags ?? new List<Tag>())
+        {
+            children.Add(child is InstanceTag nested
+                ? EvaluateInstance(nested, scope)
+                : throw new ConsoleError($"Cannot evaluate a child {child.GetType().Name}."));
+        }
+
+        return new ComponentValue(instance.ComponentType.Value, attributes, children);
+    }
+
+    private ObjectValue BuildObject(ObjectInstance instance, Scope scope)
+    {
+        var attributes = new Dictionary<string, RuntimeValue>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var attribute in instance.Attributes?.Attributes ?? new List<TagAttribute>())
+        {
+            attributes[attribute.Name.Name] = Evaluate(attribute.Value, scope);
+        }
+
+        var children = new List<ObjectValue>();
+
+        foreach (var child in instance.Children?.Tags ?? new List<Tag>())
+        {
+            if (child is ObjectInstance childInstance)
+            {
+                children.Add(BuildObject(childInstance, scope));
+            }
+            else if (child is ComponentInstance componentChild)
+            {
+                // An entity's children can be components as well as other entities.
+                BuildComponent(componentChild, scope);
+            }
+            else
+            {
+                throw new ConsoleError($"Cannot evaluate a child {child.GetType().Name}.");
+            }
+        }
+
+        return new ObjectValue(instance.ObjectType.Value, attributes, children);
     }
 
     /// <summary>An argument that carries a value, rather than naming one.</summary>

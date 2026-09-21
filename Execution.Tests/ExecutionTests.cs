@@ -194,6 +194,44 @@ public class ExecutionTests
         StringAssert.Contains(message, "Unknown variable");
     }
 
+    // ---- tags as arguments --------------------------------------------------------
+    // The grammar admits a tag wherever an argument is expected. Only a tag standing
+    // alone as a pipeline stage used to evaluate; everywhere else reported
+    // "Unsupported argument value : TagValue".
+
+    [TestMethod]
+    public void TagIsAcceptedAsAnArgument()
+    {
+        var result = (ObjectValue)_harness.Run("echo <measurement unit=metres/>");
+
+        Assert.AreEqual("measurement", result.TypeName);
+        Assert.AreEqual("metres", result.Attributes["unit"].ToDisplayString());
+    }
+
+    [TestMethod]
+    public void ComponentTagIsAcceptedAsAnArgument() =>
+        Assert.IsInstanceOfType(_harness.Run("echo {renderer/}"), typeof(ComponentValue));
+
+    [TestMethod]
+    public void TagAsAnArgumentStillBindsItsVariable()
+    {
+        _harness.Run("echo <size|measurement unit=metres/>");
+
+        Assert.IsInstanceOfType(_harness.Scope.GetVariable("size")!.Value, typeof(ObjectValue));
+    }
+
+    [TestMethod]
+    public void TagIsAcceptedAsAFunctionArgument() =>
+        Assert.IsInstanceOfType(_harness.Run("echo(<thing/>)"), typeof(ObjectValue));
+
+    [TestMethod]
+    public void VariableTagIsAcceptedAsAnArgument()
+    {
+        _harness.Run("<size|measurement unit=metres/>");
+
+        Assert.AreEqual("measurement", ((ObjectValue)_harness.Run("echo <$size>")).TypeName);
+    }
+
     // ---- errors -----------------------------------------------------------------
 
     [TestMethod]

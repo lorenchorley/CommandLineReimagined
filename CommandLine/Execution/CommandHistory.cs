@@ -19,14 +19,24 @@ public sealed class CommandHistory
     public void Register(ICommandAction action, CommandInvocation invocation) =>
         _executed.Push((action, invocation));
 
-    public void UndoLast()
+    /// <summary>
+    /// Undoes the most recent command and returns its name, or null when there was
+    /// nothing left to undo.
+    /// </summary>
+    /// <remarks>
+    /// The name is returned so a host can say what it just undid. Every executed
+    /// command is on the stack, including ones that changed nothing, so without it
+    /// undoing an `ls` looks like undo did nothing at all.
+    /// </remarks>
+    public string? UndoLast()
     {
         if (_executed.Count == 0)
         {
-            return;
+            return null;
         }
 
         var (action, invocation) = _executed.Pop();
+        string name = invocation.Definition.Name;
 
         switch (action)
         {
@@ -42,7 +52,7 @@ public sealed class CommandHistory
                 if (async.AlreadyCancelled)
                 {
                     Clear(invocation);
-                    return;
+                    return name;
                 }
 
                 async.AlreadyCancelled = true;
@@ -61,6 +71,8 @@ public sealed class CommandHistory
                 break;
             }
         }
+
+        return name;
     }
 
     private static void Clear(CommandInvocation invocation)

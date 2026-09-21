@@ -59,11 +59,22 @@ public class TerminalSessionTests
     }
 
     [TestMethod]
-    public async Task ASyntaxErrorNamesTheColumn()
+    public async Task ASyntaxErrorNamesTheColumnAndWhatWasExpected()
     {
         var response = await _session.ExecuteAsync("<thing");
 
-        StringAssert.Contains(response.Error, "error at column");
+        StringAssert.Contains(response.Error, "Syntax error at column 6");
+        StringAssert.Contains(response.Error, "expected");
+    }
+
+    // A mismatched closing tag arrives as a message, not a position. It used to render
+    // as "error error at column 0", which threw away the only useful part.
+    [TestMethod]
+    public async Task AMismatchedClosingTagIsExplained()
+    {
+        var response = await _session.ExecuteAsync("<a></b>");
+
+        StringAssert.Contains(response.Error, "does not match opening tag");
     }
 
     [TestMethod]
@@ -84,6 +95,60 @@ public class TerminalSessionTests
 
         Assert.IsNull(undo.Error);
         Assert.IsFalse(File.Exists(Path.Combine(_root, "note.txt")));
+    }
+
+    [TestMethod]
+    public async Task UndoNamesTheCommandItReversed()
+    {
+        await _session.ExecuteAsync("mkdir alpha");
+
+        CollectionAssert.Contains(_session.Undo().Output.ToList(), "Undone: mkdir");
+    }
+
+    [TestMethod]
+    public void UndoWithAnEmptyHistorySaysSo() =>
+        Assert.AreEqual("Nothing to undo.", _session.Undo().Error);
+
+    // Commands keep their undo state in their own fields, so a shared instance made the
+    // second undo replay the first one's saved state and leave $v bound to 1.
+    [TestMethod]
+    public async Task UndoingTwoInvocationsOfOneCommandUnwindsBoth()
+    {
+        await _session.ExecuteAsync("set v 1");
+        await _session.ExecuteAsync("set v 2");
+
+        _session.Undo();
+        Assert.AreEqual("1", _session.Variables().Single().Text);
+
+        _session.Undo();
+        Assert.AreEqual(0, _session.Variables().Count);
+    }
+
+    [TestMethod]
+    public async Task UndoingTwoDirectoriesRemovesBoth()
+    {
+        await _session.ExecuteAsync("mkdir one");
+        await _session.ExecuteAsync("mkdir two");
+
+        _session.Undo();
+        _session.Undo();
+
+        Assert.IsFalse(Directory.Exists(Path.Combine(_root, "one")));
+        Assert.IsFalse(Directory.Exists(Path.Combine(_root, "two")));
+    }
+
+    // Read-only commands are on the history too, so undo steps over them one at a time.
+    [TestMethod]
+    public async Task UndoStepsBackOverACommandThatChangedNothing()
+    {
+        await _session.ExecuteAsync("mkdir alpha");
+        await _session.ExecuteAsync("ls");
+
+        CollectionAssert.Contains(_session.Undo().Output.ToList(), "Undone: ls");
+        Assert.IsTrue(Directory.Exists(Path.Combine(_root, "alpha")));
+
+        CollectionAssert.Contains(_session.Undo().Output.ToList(), "Undone: mkdir");
+        Assert.IsFalse(Directory.Exists(Path.Combine(_root, "alpha")));
     }
 
     // ---- streaming and cancellation --------------------------------------------
@@ -134,6 +199,26 @@ public class TerminalSessionTests
 
         _session.Cancel();
         await run;
+    }
+
+    // ---- tokens -----------------------------------------------------------------
+
+    [TestMethod]
+    public void TheFunctionFormsNameIsTokenisedAsACommand()
+    {
+        var parse = new CommandLineReimagined.Web.Parsing.CommandParseService().Parse("write(note.txt, hi)");
+
+        Assert.IsNull(parse.Error);
+        Assert.AreEqual(("write", "command"), (parse.Tokens[0].Text, parse.Tokens[0].Kind));
+        Assert.AreEqual("note.txt", parse.Tokens.First(t => t.Kind == "identifier").Text);
+    }
+
+    [TestMethod]
+    public void ParsingRoundTripsTheSourceText()
+    {
+        var parse = new CommandLineReimagined.Web.Parsing.CommandParseService().Parse("ls | set files");
+
+        Assert.AreEqual("ls | set files", parse.Reserialised);
     }
 
     // ---- completion -------------------------------------------------------------
