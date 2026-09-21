@@ -1,0 +1,70 @@
+<Project>
+
+  <!--
+    Central package management: every version lives here, and project files reference
+    packages by name alone.
+
+    Before this, five test projects carried four different MSTest versions and three
+    different test SDK versions, one of them a preview. Upgrading meant editing the
+    same version in a dozen files and missing some. Now a dependency is upgraded once.
+  -->
+  <PropertyGroup>
+    <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+    <CentralPackageTransitivePinningEnabled>true</CentralPackageTransitivePinningEnabled>
+  </PropertyGroup>
+
+  <ItemGroup Label="Runtime libraries, versioned with the framework">
+    <PackageVersion Include="Microsoft.Extensions.Configuration" Version="10.0.12" />
+    <PackageVersion Include="Microsoft.Extensions.Configuration.Abstractions" Version="10.0.12" />
+    <PackageVersion Include="Microsoft.Extensions.DependencyInjection" Version="10.0.12" />
+    <PackageVersion Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.12" />
+    <PackageVersion Include="Microsoft.Extensions.Hosting" Version="10.0.12" />
+    <PackageVersion Include="Microsoft.Extensions.Hosting.Abstractions" Version="10.0.12" />
+    <PackageVersion Include="Microsoft.Extensions.Http" Version="10.0.12" />
+    <PackageVersion Include="Microsoft.Extensions.Options" Version="10.0.12" />
+    <PackageVersion Include="System.Drawing.Common" Version="10.0.12" />
+  </ItemGroup>
+
+  <ItemGroup Label="Blazor WebAssembly">
+    <PackageVersion Include="Microsoft.AspNetCore.Components.WebAssembly" Version="10.0.12" />
+    <PackageVersion Include="Microsoft.AspNetCore.Components.WebAssembly.DevServer" Version="10.0.12" />
+  </ItemGroup>
+
+  <ItemGroup Label="Language and parsing">
+    <!--
+      FParsec 2.0.0-beta exists. The parser is the project's foundation and its tests
+      pin exact error columns, so it stays on the released line until someone has time
+      to read that release's notes properly.
+    -->
+    <PackageVersion Include="FParsec" Version="1.1.1" />
+    <!-- The GOLD engine has had one release; it is kept only for the equivalence tests. -->
+    <PackageVersion Include="GoldEngine" Version="1.0.0" />
+    <PackageVersion Include="OneOf" Version="3.0.271" />
+    <PackageVersion Include="OneOf.SourceGenerator" Version="3.0.271" />
+    <PackageVersion Include="ValueOf" Version="2.0.31" />
+  </ItemGroup>
+
+  <ItemGroup Label="Source generators">
+    <!--
+      Matches the compiler the SDK ships: .NET 10's Roslyn is 5.0. A generator built
+      against a newer Roslyn than the running compiler does not load at all, so this
+      tracks the SDK rather than the newest package.
+    -->
+    <PackageVersion Include="Microsoft.CodeAnalysis.CSharp" Version="5.0.0" />
+    <PackageVersion Include="Microsoft.CodeAnalysis.Analyzers" Version="4.14.0" />
+    <PackageVersion Include="AutoConstructor" Version="5.6.0" />
+  </ItemGroup>
+
+  <ItemGroup Label="Serialisation">
+    <PackageVersion Include="Newtonsoft.Json" Version="13.0.4" />
+  </ItemGroup>
+
+  <ItemGroup Label="Testing">
+    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.10.1" />
+    <PackageVersion Include="MSTest.TestAdapter" Version="4.4.1" />
+    <PackageVersion Include="MSTest.TestFramework" Version="4.4.1" />
+    <PackageVersion Include="coverlet.collector" Version="10.0.1" />
+    <PackageVersion Include="Moq" Version="4.20.72" />
+  </ItemGroup>
+
+</Project>

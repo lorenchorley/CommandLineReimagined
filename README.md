@@ -32,8 +32,7 @@ Undone: write
 
 ## Building
 
-Needs the .NET 8 SDK, plus the `wasm-tools` workload for the browser client. Most
-projects target .NET 7, so set `DOTNET_ROLL_FORWARD=Major` before running tests. The
+Needs the .NET 10 SDK, plus the `wasm-tools` workload for the browser client. The
 desktop shell needs Windows; everything else builds anywhere.
 
 ```bash

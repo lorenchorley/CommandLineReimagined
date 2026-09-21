@@ -6,18 +6,18 @@ What you need, how to run the suites, and how the browser build is produced.
 
 | Target | Needs |
 | --- | --- |
-| Libraries, tests, web | .NET SDK 8 |
-| WebAssembly client | .NET SDK 8 plus the `wasm-tools` workload |
-| Desktop shell | Windows, and .NET 7 or a roll-forward to 8 |
+| Libraries, tests, web | .NET SDK 10 |
+| WebAssembly client | .NET SDK 10 plus the `wasm-tools` workload |
+| Desktop shell | Windows, and .NET SDK 10 |
 
-Most projects target .NET 7. Building them with only the .NET 8 SDK installed works,
-but running the tests needs a roll-forward:
+Every project targets .NET 10, except the source generator, which targets
+netstandard2.0 because that is what a Roslyn component must target. `global.json`
+asks for SDK 10.0.100 or a newer feature band, so a machine with an older SDK is told
+so rather than failing later with a confusing error.
 
-```bash
-export DOTNET_ROLL_FORWARD=Major
-```
-
-Without it, `dotnet test` aborts with a message about installing .NET 7.
+Package versions live in one place, `Directory.Packages.props`. Project files
+reference packages by name and carry no version, so a dependency is upgraded once
+rather than once per project.
 
 ## Build
 
@@ -47,7 +47,6 @@ dotnet workload install wasm-tools
 | `Utils.Tests`, `EntityComponentSystem.Tests`, `SourceGenerators.Tests`, `Rendering.Tests` | The supporting libraries. |
 
 ```bash
-export DOTNET_ROLL_FORWARD=Major
 for p in $(find . -name '*.Tests.csproj' | sort); do dotnet test "$p" -c Release; done
 ```
 
@@ -82,7 +81,12 @@ grep -rl _framework --include=*.js --include=*.json --include=*.html . \
 ```
 
 The client sets `BlazorCacheBootResources=false` so renaming does not break integrity
-checks. The payload after this is about 14 MB across roughly 100 files.
+checks, and turns off .NET 10's asset fingerprinting (`WasmFingerprintAssets`) so that
+the runtime files keep stable names. With fingerprinting on, every publish writes a
+fresh set of hashed names and a host that keeps what it is not told to replace ends up
+storing the runtime several times over.
+
+The payload after this is about 15 MB across 121 files.
 
 ## Continuous integration
 

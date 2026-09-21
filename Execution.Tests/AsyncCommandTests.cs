@@ -60,7 +60,7 @@ public class AsyncCommandTests
         await Task.Delay(120);
         cancellation.Cancel();
 
-        await Assert.ThrowsExceptionAsync<TaskCanceledException>(() => run);
+        await Assert.ThrowsExactlyAsync<TaskCanceledException>(() => run);
         Assert.IsTrue(_harness.Output.Written.Any(line => line.StartsWith("Cancelled at")),
             string.Join(" | ", _harness.Output.Written));
     }

@@ -5,7 +5,7 @@ Symptoms that are not error messages, and what is behind them. For messages, see
 
 ## The page says `starting…` and the input stays disabled
 
-The .NET runtime has not finished loading. A first visit fetches about 14 MB; later
+The .NET runtime has not finished loading. A first visit fetches about 15 MB; later
 visits come from the browser cache. If the status turns red and reads `failed to load`,
 the runtime files are missing or blocked: reload, and if it persists check that your
 host serves `.wasm` files with the `application/wasm` content type.

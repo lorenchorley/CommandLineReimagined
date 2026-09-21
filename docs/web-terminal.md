@@ -115,6 +115,6 @@ fetch over the network and is therefore subject to the remote host's CORS policy
 
 ## Loading
 
-The runtime is about 14 MB across roughly 100 files on a first visit, and is cached by
+The runtime is about 15 MB across 121 files on a first visit, and is cached by
 the browser afterwards. Until it is ready the input stays disabled and the status reads
 `starting…`. If it cannot load, the status turns red and reads `failed to load`.

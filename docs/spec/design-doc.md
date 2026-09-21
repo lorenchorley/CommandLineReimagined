@@ -204,7 +204,7 @@ localisation would require both decisions to be revisited.
 
 ### Performance
 
-The payload is about 14 MB on a first visit and cached afterwards. Parsing runs on
+The payload is about 15 MB on a first visit and cached afterwards. Parsing runs on
 every keystroke for colouring and completion, which is comfortably fast because the
 input is one short line. Live output is coalesced to about one update every 40
 milliseconds so that a fast-updating command does not spend more time crossing the

@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk.BlazorWebAssembly">
 
   <PropertyGroup>
-    <TargetFramework>net8.0</TargetFramework>
+    <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <RootNamespace>CommandLineReimagined.WebClient</RootNamespace>
@@ -25,11 +25,19 @@
       paths invalidates the integrity hashes, so they are turned off here.
     -->
     <BlazorCacheBootResources>false</BlazorCacheBootResources>
+    <!--
+      .NET 10 publishes every runtime asset under a content-hashed name. The static
+      host this is deployed to keeps files it is not told to replace, so a hashed name
+      per publish would accumulate a fresh copy of the whole 14 MB runtime each time.
+      Stable names keep a republish an overwrite.
+    -->
+    <WasmFingerprintAssets>false</WasmFingerprintAssets>
+    <WasmFingerprintDotnetJs>false</WasmFingerprintDotnetJs>
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly" Version="8.0.11" />
-    <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly.DevServer" Version="8.0.11" PrivateAssets="all" />
+    <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly" />
+    <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly.DevServer" PrivateAssets="all" />
   </ItemGroup>
 
   <ItemGroup>

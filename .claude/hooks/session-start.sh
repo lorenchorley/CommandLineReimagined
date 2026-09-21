@@ -1,10 +1,10 @@
 #!/bin/bash
 # SessionStart hook for Claude Code on the web.
 #
-# The solution targets net7.0 (and net7.0-windows for the WPF host), but no .NET
+# The solution targets net10.0 (and net10.0-windows for the WPF host), but no .NET
 # SDK ships in the base image and Microsoft's CDN (builds.dotnet.microsoft.com)
-# is blocked by the network policy. Ubuntu's own archive carries dotnet-sdk-8.0,
-# which builds net7.0 fine -- it pulls the net7.0 reference packs from nuget.org.
+# is blocked by the network policy. Ubuntu's own archive carries dotnet-sdk-10.0,
+# which is what global.json asks for.
 set -euo pipefail
 
 # Local machines are left alone; developers manage their own SDK there.
@@ -17,26 +17,24 @@ if [ "$(id -u)" -ne 0 ]; then
   SUDO="sudo"
 fi
 
-if ! command -v dotnet >/dev/null 2>&1; then
-  echo "Installing .NET SDK 8 from the Ubuntu archive..."
+# `command -v dotnet` is not enough: the image may carry an older SDK than
+# global.json accepts, and then every build fails with a version message instead.
+if ! dotnet --list-sdks 2>/dev/null | grep -q '^10\.'; then
+  echo "Installing .NET SDK 10 from the Ubuntu archive..."
   $SUDO apt-get update -qq || true
-  $SUDO env DEBIAN_FRONTEND=noninteractive apt-get install -y -qq dotnet-sdk-8.0
+  $SUDO env DEBIAN_FRONTEND=noninteractive apt-get install -y -qq dotnet-sdk-10.0
 fi
 
 echo "dotnet $(dotnet --version) ready"
 
-# Only the .NET 8 runtime is available, and the default roll-forward policy will
-# not cross a major version -- without this every `dotnet test` run aborts with
-# "You must install or update .NET to run this application ... version '7.0.0'".
+# The SDK and the target framework match now, so no roll-forward is needed.
 if [ -n "${CLAUDE_ENV_FILE:-}" ]; then
   {
-    echo 'export DOTNET_ROLL_FORWARD=Major'
     echo 'export DOTNET_CLI_TELEMETRY_OPTOUT=1'
     echo 'export DOTNET_NOLOGO=1'
   } >> "$CLAUDE_ENV_FILE"
 fi
 
-export DOTNET_ROLL_FORWARD=Major
 export DOTNET_CLI_TELEMETRY_OPTOUT=1
 export DOTNET_NOLOGO=1
 

@@ -48,7 +48,6 @@ Cases actually run, which is what the suite reports:
 Run them with:
 
 ```bash
-export DOTNET_ROLL_FORWARD=Major
 for p in $(find . -name '*.Tests.csproj' | sort); do dotnet test "$p" -c Release; done
 ```
 

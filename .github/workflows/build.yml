@@ -8,12 +8,6 @@ on:
 env:
   DOTNET_CLI_TELEMETRY_OPTOUT: 1
   DOTNET_NOLOGO: 1
-  # Every project targets net7.0, which is out of support. We build and run on the
-  # .NET 8 SDK instead: it compiles net7.0 fine (the reference packs come from
-  # nuget.org), but the default roll-forward policy will not cross a major runtime
-  # version, so `dotnet test` aborts with "You must install or update .NET to run
-  # this application ... version '7.0.0'" unless this is set.
-  DOTNET_ROLL_FORWARD: Major
 
 jobs:
   windows:
@@ -24,7 +18,8 @@ jobs:
 
       - uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: 8.0.x
+          # global.json asks for 10.0.100 or newer in the same feature band.
+          dotnet-version: 10.0.x
 
       - name: Build solution
         shell: bash
@@ -47,9 +42,10 @@ jobs:
 
       - uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: 8.0.x
+          # global.json asks for 10.0.100 or newer in the same feature band.
+          dotnet-version: 10.0.x
 
-      # Application.csproj is the WPF host (net7.0-windows). It needs
+      # Application.csproj is the WPF host (net10.0-windows). It needs
       # Microsoft.NET.Sdk.WindowsDesktop, which does not exist off Windows, so the
       # project cannot even be evaluated here -- the Windows job covers it.
       # Everything else builds and the test suites run headlessly: the Windows-only
@@ -78,7 +74,8 @@ jobs:
 
       - uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: 8.0.x
+          # global.json asks for 10.0.100 or newer in the same feature band.
+          dotnet-version: 10.0.x
 
       # Built separately from the loop above because it needs the wasm-tools
       # workload, and because publish (not build) is what actually exercises

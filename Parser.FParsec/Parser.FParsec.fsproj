@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net7.0</TargetFramework>
+    <TargetFramework>net10.0</TargetFramework>
     <AssemblyName>Parser.FParsec</AssemblyName>
     <RootNamespace>CommandLineReimagined.Parsing</RootNamespace>
     <!-- The generated equality and comparison on the F# types here is never used. -->
@@ -14,7 +14,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="FParsec" Version="1.1.1" />
+    <PackageReference Include="FParsec" />
   </ItemGroup>
 
   <ItemGroup>
