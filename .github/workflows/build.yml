@@ -28,7 +28,7 @@ jobs:
       - name: Test
         shell: bash
         run: |
-          for proj in $(find . -name '*.Tests.csproj' | sort); do
+          for proj in $(find . \( -name '*.Tests.csproj' -o -name '*.Tests.fsproj' \) | sort); do
             echo "::group::$proj"
             dotnet test "$proj" -c Release --no-build
             echo "::endgroup::"
@@ -45,6 +45,10 @@ jobs:
           # global.json asks for 10.0.100 or newer in the same feature band.
           dotnet-version: 10.0.x
 
+      # Both languages: the core and the parser are F# projects, and leaving the
+      # glob at *.csproj would have built everything that depends on the core
+      # without ever building the core's own tests.
+      #
       # Application.csproj is the WPF host (net10.0-windows). It needs
       # Microsoft.NET.Sdk.WindowsDesktop, which does not exist off Windows, so the
       # project cannot even be evaluated here -- the Windows job covers it.
@@ -52,7 +56,7 @@ jobs:
       # System.Drawing surface (Graphics/Bitmap/Font) is compiled but never executed.
       - name: Build libraries
         run: |
-          for proj in $(find . -name '*.csproj' -not -name 'Application.csproj' -not -name 'WebClient.csproj' | sort); do
+          for proj in $(find . \( -name '*.csproj' -o -name '*.fsproj' \) -not -name 'Application.csproj' -not -name 'WebClient.csproj' | sort); do
             echo "::group::$proj"
             dotnet build "$proj" -c Release
             echo "::endgroup::"
@@ -60,7 +64,7 @@ jobs:
 
       - name: Test
         run: |
-          for proj in $(find . -name '*.Tests.csproj' | sort); do
+          for proj in $(find . \( -name '*.Tests.csproj' -o -name '*.Tests.fsproj' \) | sort); do
             echo "::group::$proj"
             dotnet test "$proj" -c Release --no-build
             echo "::endgroup::"

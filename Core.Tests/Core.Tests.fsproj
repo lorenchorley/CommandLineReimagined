@@ -1,0 +1,36 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Every semantic test. It absorbs Execution.Tests, which tested the C# execution
+    layer against a real directory on disk; these test the projection instead, so they
+    need no filesystem and say what they mean.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <AssemblyName>Core.Tests</AssemblyName>
+    <RootNamespace>CommandLineReimagined.Core.Tests</RootNamespace>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <NoWarn>$(NoWarn);FS0064</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="Harness.fs" />
+    <Compile Include="ValueTests.fs" />
+    <Compile Include="ProjectionTests.fs" />
+    <Compile Include="FilesTests.fs" />
+    <Compile Include="StoreTests.fs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="MSTest.TestAdapter" />
+    <PackageReference Include="MSTest.TestFramework" />
+    <PackageReference Include="coverlet.collector" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Core\Core.fsproj" />
+  </ItemGroup>
+
+</Project>

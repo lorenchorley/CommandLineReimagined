@@ -1,0 +1,38 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    The functional core (decision 0006): values, faults, the store, the commands and
+    the session. It depends on the parser and on nothing else. Nothing in here knows
+    about the ECS, rendering, WPF, Blazor or JavaScript, which is what lets the same
+    semantics run in a browser tab and in a desktop window.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <AssemblyName>CommandLineReimagined.Core</AssemblyName>
+    <RootNamespace>CommandLineReimagined.Core</RootNamespace>
+    <!-- Structural equality and comparison on these types is never used. -->
+    <NoWarn>$(NoWarn);FS0064</NoWarn>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+  </PropertyGroup>
+
+  <!--
+    F# compiles in the order listed, and a file may only use what came before it. The
+    order is the dependency order of the design: values, then failure, then the log,
+    then the fold over it, then the things that read the fold.
+  -->
+  <ItemGroup>
+    <Compile Include="Values.fs" />
+    <Compile Include="Faults.fs" />
+    <Compile Include="Expr.fs" />
+    <Compile Include="Events.fs" />
+    <Compile Include="Projection.fs" />
+    <Compile Include="Store.fs" />
+    <Compile Include="Scope.fs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Parser.Tree\Parser.Tree.csproj" />
+    <ProjectReference Include="..\Parser.FParsec\Parser.FParsec.fsproj" />
+  </ItemGroup>
+
+</Project>
