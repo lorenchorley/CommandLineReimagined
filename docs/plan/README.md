@@ -15,6 +15,7 @@ this plan does not reopen those decisions, it executes them.
 | [phase-5-error-syntax.md](phase-5-error-syntax.md) | `else`, `try`, `??`, nested pipelines in parentheses. |
 | [phase-6-xml.md](phase-6-xml.md) | `from-xml`, `to-xml`, `from-csv`, `to-csv` over real files. |
 | [phase-7-consolidation.md](phase-7-consolidation.md) | Specification rewrite, user documentation, conformance, browser check in CI. |
+| [examples.md](examples.md) | Four one-screen programs, one per pillar, with golden results. The proof that the whole works as imagined. |
 
 ## What is being built, in one paragraph
 
@@ -49,6 +50,10 @@ explicit `$row`, recovery is spelled `else`.
 7. **Every new decision gets a record.** Anything not already in the decision log that
    changes the language or the architecture is written up as a numbered record before
    it is built. The phases below name the records they are expected to add.
+8. **The example programs are the proof.** [Four small programs](examples.md) with
+   golden results are written before the code. Phases 3 to 6 each complete one; a
+   phase is not done while its program's results differ. The programs are never
+   edited to fit the implementation without a decision record.
 
 ## Working conventions
 
@@ -103,7 +108,8 @@ node tools/browser-check.mjs publish/wwwroot
 
 The check script boots the page in Chromium at phone size, runs a scripted session,
 and fails on any console error or any mismatch against expected output. Each phase
-adds its acceptance lines to that script.
+adds its acceptance lines to that script, and from Phase 3 it runs the example
+programs with `run examples/<name>.clr`.
 
 ## Risk register
 

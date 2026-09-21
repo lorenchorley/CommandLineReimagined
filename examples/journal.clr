@@ -1,0 +1,18 @@
+# A journal kept as attribute records, queried as views, protected by the event log.
+# Needs Phase 4.
+mkdir journal
+cd journal
+save <note name=monday mood=good tag=work/>
+save <note name=tuesday mood=tired tag=work/>
+save <note name=saturday mood=great tag=home/>
+echo "Stand-up moved to ten." | write monday
+cat monday
+attr tuesday mood=better
+ls
+find $row.kind eq note and $row.tag eq work | count
+cd $row.mood eq great
+ls
+up
+rm tuesday
+undo
+history | where $row.undone eq true | count

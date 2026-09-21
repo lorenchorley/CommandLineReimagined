@@ -16,12 +16,15 @@ temporary is gone.
    counts regenerated from the suites.
 2. **User documentation.** Every example re-run and re-pasted. `docs/README.md` index
    updated with `tables.md` and `filesystem.md`. `docs/concepts.md` rewritten around
-   parse, bind, evaluate, commit, project.
+   parse, bind, evaluate, commit, project. `docs/examples.md` gains a "Programs"
+   section reproducing the four example programs with their real output, and the
+   getting-started guide points a new user at `run examples/tables.clr` first.
 3. **Decision log.** Every record added during the phases reviewed; statuses correct;
    the log's index complete.
 4. **Browser check in CI.** A fourth job `browser` on `ubuntu-latest`: sets up Node,
    installs Playwright with Chromium, publishes the client, runs
-   `tools/browser-check.mjs`. Fails the workflow on any mismatch or console error.
+   `tools/browser-check.mjs`, which runs all four example programs. Fails the workflow
+   on any mismatch or console error.
 5. **Cleanup.** Remove `workingDirectory` from the wire format; remove any
    compatibility shims marked `Phase 1`; delete `Execution.Tests` and `Commands` if
    still present; confirm the GOLD equivalence tests still pass and their corpus note
@@ -40,5 +43,7 @@ temporary is gone.
 - Every test project passes on Linux; the Windows job passes.
 - The browser check passes in CI and locally.
 - The payload is under 20 MB.
+- All four example programs run to completion in the hosted build and match their
+  golden results.
 - The specification's conformance document names a test for every normative area and
   lists no deviation that is not deliberate.

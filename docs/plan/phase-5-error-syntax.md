@@ -11,13 +11,16 @@ is a command with a parenthesised operand.
 
 ```
 Line      ::= Pipeline ( "else" Pipeline )*
-Pipeline  ::= "try"? CommandExpression ( "|" CommandExpression )*
-Operand   ::= ... | Operand "??" Operand
+Pipeline  ::= Stage ( "|" Stage )*
+Stage     ::= "try"? CommandExpression ( "??" Operand )?
+CommandExpression ::= FunctionExpression | CliExpression | InstanceTag | "(" Pipeline ")"
 FunctionExpression ::= Identifier "(" ...            -- no whitespace before "("
 ```
 
-`else` binds looser than `|`: `a | b else c | d` is `(a | b) else (c | d)`. `try`
-applies to one pipeline. `??` is left-associative and binds tighter than comparison.
+`else` binds looser than `|`: `a | b else c | d` is `(a | b) else (c | d)`. `try` and
+`??` apply to one stage, so `try cat x | set problem` binds the fault and
+`first (ls) ?? "none"` defaults what `first` returned. A parenthesised pipeline may
+stand as a stage or as an operand.
 
 ## Semantics
 
@@ -25,10 +28,11 @@ applies to one pipeline. `??` is left-associative and binds tighter than compari
   side is not evaluated; on `Error f` evaluate the right pipeline with the fault as its
   pipe input, so `cat x else echo` prints the fault and `cat x else set problem` binds
   it. The committed events are those of the branch that produced the value.
-- `try`: `Ok v` yields `v`; `Error f` yields `Value.Fault f` as a successful result.
-  Events of a failed `try` branch are discarded.
-- `??`: if the left operand evaluates to `None` (or to `Empty`), the right operand's
-  value; otherwise the left.
+- `try`: the stage's `Ok v` yields `v`; its `Error f` yields `Value.Fault f` as a
+  successful result, which the next stage receives as input. Events of a failed
+  `try` stage are discarded.
+- `??`: if the stage's result is `None` or `Empty`, the operand's value; otherwise the
+  result.
 - Faults as values: `Value.Fault` displays as its message. `message`, `kind` and
   `path` are readable through member access on a variable: `$r.message`. `is-fault`
   returns `Boolean`.
@@ -42,9 +46,11 @@ applies to one pipeline. `??` is left-associative and binds tighter than compari
 - Core: every semantic rule above, including that a failed left branch of `else`
   commits nothing and the right branch's events commit; `try` discards events;
   `$r.message` after `try`.
-- Browser check: `cat missing.txt else echo "none"` -> `none`; `try (cat missing.txt)
-  | set r` then `echo $r.kind` -> `NotFound`; `first (ls | where $row.kind eq note) ??
-  "no notes"` -> `no notes`.
+- Browser check: `run examples/resilient.clr` completes; `cat missing.txt else echo
+  "none"` -> `none`; `try cat missing.txt | set r` then `echo $r.kind` -> `NotFound`;
+  `first (ls | where $row.kind eq note) ?? "no notes"` -> `no notes`.
+- `ExampleProgramTests`: every golden result of `resilient.clr`, and afterwards no
+  folder named `today` exists.
 
 ## Documentation
 

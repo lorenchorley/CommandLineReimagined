@@ -8,9 +8,13 @@ refreshes a listed view when the store changes. Decision
 ## Semantics
 
 - `Location = { Folder: string; View: Expr option }`. `cd <folder-path>` sets `Folder`
-  and clears `View`. `cd <predicate>` sets `View` and leaves `Folder`. `up` with a view
-  set clears the view; without one, moves to the parent folder. Both emit
-  `LocationChanged`, so undo restores where you were.
+  and clears `View`, returning the folder as a `File`. `cd <predicate>` sets `View` and
+  leaves `Folder`, returning the predicate as a `Query`. `up` with a view set clears
+  the view and returns `Text` of the folder path; without one, moves to the parent
+  folder. Both emit `LocationChanged`, so undo restores where you were.
+- Binding: `cd`'s single parameter has kind `Predicate`. A plain operand arrives as
+  `Operand v` and is treated as a folder path; anything containing an operator is a
+  view. The same rule serves any command that wants "a name or a query".
 - `ls` with a view set returns every record in the store matching the view, with a
   `folder` column so rows from different folders are distinguishable. Without a view it
   lists `Folder` as in Phase 1.
@@ -44,8 +48,11 @@ table inserts `cd <path>`. Completion after `cd ` offers folders and view files.
 - Core: `cd` predicate then `ls` lists across folders; `up` clears the view; undo
   restores the previous location; `find` does not change location; `save-view` then
   `cd name` enters the view; `Refresh` refuses a mutating line.
-- Browser check: `cd $row.kind eq folder` then `ls` shows two rows; `mkdir x` in
-  another entry makes the live listing gain a row; `up` returns to `/`.
+- Browser check: `run examples/journal.clr` completes; `cd $row.kind eq folder` then
+  `ls` shows the folders; `mkdir x` in another entry makes the live listing gain a
+  row; `up` returns to `/`.
+- `ExampleProgramTests`: every golden result of `journal.clr`, and afterwards
+  `tuesday` exists with `mood = better`.
 
 ## Documentation
 

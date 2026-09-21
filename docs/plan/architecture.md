@@ -228,7 +228,16 @@ type Command = { Spec: CommandSpec; Run: Invocation -> Async<Outcome<CommandResu
 A command reads `Projection` and `Location`, never the store. It returns events; it
 does not apply them. Long-running commands write through `Output` and observe
 `Cancel`. Meta commands receive a `StoreAccess` capability through a separate
-constructor argument and are the only ones allowed to call `Undo`, `Redo`, `History`.
+constructor argument and are the only ones allowed to call `Undo`, `Redo`, `History`,
+or, in the case of `run`, to execute further lines.
+
+### Scripts
+
+A script is a file of command lines, kind `script`, extension `.clr`. Blank lines and
+lines beginning with `#` are skipped. `run path` executes each line as its own
+transaction and stops at the first fault; see [examples.md](examples.md#the-run-command).
+The four programs in `examples/` are embedded in the core assembly and seeded into
+`/examples` on a fresh log.
 
 ### Binder and evaluator
 
@@ -246,8 +255,9 @@ type Evaluator(commands: Command list, store: Store, output: IOutput) =
 
 Per line: fold stages left to right threading `Value`; accumulate events in a working
 projection so a later stage sees an earlier stage's effect; on `Ok` commit one
-transaction with `Source = the line`; on `Error` commit nothing. Meta commands run
-outside the transaction.
+transaction with `Source = the line`; on `Error` commit nothing. A line whose events
+are empty commits nothing either, so `undo` never has a read-only line to undo. Meta
+commands run outside the transaction.
 
 ### Session
 
@@ -334,10 +344,17 @@ words; quote them to pass them as text. A command may not be named after one.
 ```
 Program    ::= Space* ( EOF | Line Space* EOF )
 Line       ::= Pipeline ( "else" Pipeline )*
-Pipeline   ::= "try"? CommandExpression ( "|" CommandExpression )*
-Coalesce   ::= Operand "??" Operand             -- an Operand alternative
+Pipeline   ::= Stage ( "|" Stage )*
+Stage      ::= "try"? CommandExpression ( "??" Operand )?
+CommandExpression ::= FunctionExpression | CliExpression | InstanceTag | "(" Pipeline ")"
 FunctionExpression: the "(" must be adjacent to the name; "name (" is a command with a parenthesised operand
 ```
+
+`try` and `??` apply to one stage: `try cat x | set problem` binds the fault, and
+`first (ls) ?? "none"` defaults `first`'s result. `else` applies to whole pipelines.
+
+From Phase 3, `ls` returns a table of records and has no parent row; the page shows
+`up` in the location line.
 
 Each grammar change ships with: parser tests, tokeniser kinds (`operator`, `member`,
 `keyword` added to the token kinds), serialiser round-trip, and an update to
@@ -361,3 +378,4 @@ grow to 44 pixels in Phase 1.
 | 0018 | Reserved words in expression positions | 3 |
 | 0019 | Function form requires an adjacent parenthesis; a spaced parenthesis is a nested pipeline | 5 |
 | 0020 | XML element text content is out of scope for the first XML release | 6 |
+| 0021 | Scripts: one line per statement, `#` comments, `.clr`, `run` commits per line and stops at the first fault | 3 |

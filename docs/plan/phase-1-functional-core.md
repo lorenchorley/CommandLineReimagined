@@ -92,7 +92,7 @@ Files:
 | `Commands/Async.fs` | `progress`, `download` (uses `System.Net.Http.HttpClient` passed in) |
 | `Commands/Meta.fs` | `undo`, `redo`, `history`, `exit`, `unknown` |
 | `Binder.fs` | The binding algorithm from the specification plus `Assignments`; `evaluate: Scope -> Parser value -> Outcome<Value>` including tags |
-| `Evaluator.fs` | Pipeline fold, working projection, atomic commit, meta commands outside the transaction, cancellation between stages |
+| `Evaluator.fs` | Pipeline fold, working projection, atomic commit, no transaction for a line with no events, meta commands outside the transaction, cancellation between stages |
 | `Completion.fs` | Port of `TerminalSession.Complete`, over the projection: commands, `$` variables, names in the current folder |
 | `Session.fs` | `Session`, `Response`, seeding, `OutputChanged`, `StoreChanged` |
 
@@ -113,11 +113,13 @@ states them, re-expressed over records:
   deleted.
 - `cp source folder` emits `FileCreated` with the same content hash.
 - `attr path [name=value ...]` with no assignments returns `List` of `Text`
-  `"name = value"` (a table in Phase 3); with assignments emits `AttributesChanged`.
+  `"name = value"` (a table in Phase 3); with assignments emits `AttributesChanged`
+  and returns the `File`.
   Reserved names (`name`, `kind`, `folder`, `created`, `modified`) are `Invalid`
   except `kind` and `name`, which are allowed and validated.
 - `save <tag/>` creates a file from an object tag: type name is `kind`, the `name`
-  attribute is required, other attributes are copied. `Conflict` on an existing name.
+  attribute is required, other attributes are copied. Returns the `File`. `Conflict`
+  on an existing name.
 - `set`, `vars`, `echo` as today; `set` emits `VariableChanged`.
 - `undo`, `redo` are meta and return `Text "Undone: <source>"` or
   `Text "Nothing to undo."` as a fault of kind `Invalid`? No: `Nothing to undo.` is a
@@ -134,7 +136,8 @@ Tests: port every case in `Execution.Tests/ExecutionTests.cs`,
 `AsyncCommandTests.fs`), asserting on `Outcome` and on the projection rather than on
 the disk. Add: `mkdir a | cd nowhere` leaves no folder (atomic line); `undo` after
 `write` restores the previous content; `history` shows the undone line; `attr` and
-`save` behaviours; `Meta` commands do not appear in `History`.
+`save` behaviours; `Meta` commands do not appear in `History`; `ls` then `undo`
+undoes the command before the `ls`, because a read-only line commits nothing.
 
 Commit: "Core: commands, binder, evaluator, session".
 
@@ -201,9 +204,10 @@ All of these in `Core.Tests` and in `tools/browser-check.mjs`, from a fresh sess
 ls                                  -> up documents projects readme.txt
 mkdir a | cd nowhere                -> Directory does not exist : nowhere    ; ls shows no a
 mkdir alpha                         -> alpha
-undo                                -> Undone: mkdir alpha
+ls                                  -> (a listing)
+undo                                -> Undone: mkdir alpha      ; the ls committed nothing
 redo                                -> Redone: mkdir alpha
-history                             -> two lines, the first marked (undone) is absent after redo
+history                             -> seed, mkdir alpha, the undo, the redo; nothing marked undone
 write note.txt first                -> note.txt
 write note.txt second               -> note.txt
 undo                                -> Undone: write note.txt second

@@ -1,0 +1,13 @@
+# Failure is a value: recover with else, inspect with try, default with ??.
+# Needs Phase 5.
+cat notes-from-yesterday.txt else echo "starting fresh"
+cat notes-from-yesterday.txt else echo "starting fresh" | write today.txt
+cat today.txt
+try cat nowhere.txt | set problem
+echo $problem.kind
+echo $problem.message
+first (ls | where $row.kind eq view) ?? "no views yet"
+first (ls | where $row.kind eq view) ?? "no views yet" | set latest
+echo $latest
+mkdir today | cd nowhere else echo "the whole line was rolled back"
+ls

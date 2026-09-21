@@ -18,10 +18,12 @@ elements and documented as lossy for mixed content.
   written in the name. Comments and processing instructions are dropped.
 - `to-xml value path` writes a `Tag`, a `Table` (via `Table.toTag`, root element
   `table`, rows `row` unless a `-root` and `-row` flag name them) or a `List` of
-  objects. Pretty-printed, UTF-8, no declaration unless `-declaration`.
+  objects. Pretty-printed, UTF-8, no declaration unless `-declaration`. Returns the
+  `File` written; `value` is piped.
 - `from-csv path` reads RFC 4180 with a header row into a `Table`; all columns text
   unless every cell of a column parses as a number. `-delimiter` flag.
-- `to-csv table path` writes with a header row, quoting only when needed.
+- `to-csv table path` writes with a header row, quoting only when needed, every line
+  ending in `\n` including the last. Returns the `File` written; `table` is piped.
 - Kind inference: `.xml` gives `xml`, `.csv` gives `csv`; `to-xml`/`to-csv` set the
   kind on the files they create.
 
@@ -33,8 +35,11 @@ Both writers emit the same events `write` does, so undo and history work unchang
   with text content gains `text`; malformed XML is an `Invalid` fault naming the line;
   CSV round trip including quoted commas and newlines; a table with `None` cells writes
   empty fields and reads back as `None`.
-- Browser check: `ls | to-xml listing.xml` then `from-xml listing.xml | count` equals
-  the row count; `from-csv` on a written sample.
+- Browser check: `run examples/inventory.clr` completes and the last entry shows the
+  bolts row; `ls | to-xml listing.xml` then `from-xml listing.xml | count` equals the
+  row count.
+- `ExampleProgramTests`: every golden result of `inventory.clr`, including the exact
+  CSV text.
 
 ## Documentation
 

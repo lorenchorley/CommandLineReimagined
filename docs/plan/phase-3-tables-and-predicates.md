@@ -7,7 +7,8 @@
 [0008](../decisions/0008-explicit-row-variable.md),
 [0009](../decisions/0009-table-coercion.md).
 
-**Record to add first.** 0018 reserved words in expression positions.
+**Records to add first.** 0018 reserved words in expression positions; 0021 scripts
+and `run`.
 
 ## The Table value
 
@@ -43,8 +44,9 @@ given.
 
 ## Table functions (`Core/Commands/Tables.fs`)
 
-All take a table on the pipe (or a table-shaped tag, coerced), return a table unless
-stated, and are pure.
+All take their table from the pipe or as their first argument (an optional, piped
+`table` parameter, so both `ls | first` and `first (ls)` work), coerce a table-shaped
+tag or a list of same-typed objects, return a table unless stated, and are pure.
 
 | Command | Parameters | Result |
 | --- | --- | --- |
@@ -60,10 +62,19 @@ stated, and are pure.
 | `rows` | none | `List` of `Object` rows |
 | `table` | none | explicit coercion of a tag or a list of same-typed objects |
 
-`ls` returns `Table.ofRecords`; `vars` a table of `name`, `value`; `attr path` a table
-of `name`, `value`; `history` a table of `seq`, `at`, `source`, `undone`; `help` moves
-from the page into the language as a meta command returning `name`, `parameters`,
+`ls` returns `Table.ofRecords` with no parent row (the page offers `up` in the
+location line); `vars` a table of `name`, `value`; `attr path` a table of `name`,
+`value`; `history` a table of `seq`, `at`, `source`, `undone`; `help` moves from the
+page into the language as a meta command returning `name`, `parameters`,
 `description`.
+
+## The `run` command and the example programs
+
+Implement `run` as specified in [examples.md](examples.md#the-run-command), in
+`Core/Commands/Meta.fs`. Embed `examples/*.clr` in `Core.fsproj` as resources and add
+them to the seed transaction as files of kind `script` under `/examples`. Add
+`Core.Tests/ExampleProgramTests.fs` with the line-by-line and whole-file checks for
+`tables.clr`; the other three programs are added to it by their phases.
 
 Binding: a `Predicate` parameter receives the unevaluated `ExprNode`; the command
 evaluates it per row in a child scope with `$row` bound to the row as an `Object`.
@@ -83,8 +94,10 @@ words after an operand and column names after `$row.`.
 - Core: `Table.ofTag` for a well-formed tag, a sparse tag (None gaps), a tag with a
   differently typed child (fault naming the child), a tag with grandchildren (fault);
   every table function; comparison semantics incl. `None`; `ls` column set.
-- Browser check: `ls | where $row.kind eq folder | count` -> `2`; `ls | sort size desc
-  | first` renders a row object; a table renders with the right header.
+- Browser check: `run examples/tables.clr` completes; `ls | where $row.kind eq folder
+  | count` -> `3`; `ls | sort size desc | first` renders a row object; a table renders
+  with the right header.
+- `ExampleProgramTests`: every golden result of `tables.clr`.
 
 ## Documentation
 

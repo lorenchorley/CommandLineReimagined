@@ -1,0 +1,10 @@
+# Tables from the filesystem: every listing is a table, every table can be queried.
+# Needs Phase 3.
+ls
+ls | where $row.kind eq folder | count
+ls | sort name desc | first
+ls | select name kind | take 2
+set greeting hello
+set answer 42
+vars
+help | where $row.name eq set | select name description
