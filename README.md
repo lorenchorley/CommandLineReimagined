@@ -1,4 +1,49 @@
 # CommandLineReimagined
 
+A command line where what you type is parsed into a tree rather than passed around as
+text. Every word knows the role the grammar gave it, commands return values instead of
+printing them, pipelines carry those values with their types intact, and every command
+can be undone.
+
+The terminal runs in a browser tab: the parser, the commands and the filesystem are
+.NET compiled to WebAssembly, so nothing you type leaves the page. The same execution
+layer drives a Windows desktop shell built on an entity component system.
+
+```
+$ ls | set files
+up  documents  projects  readme.txt
+
+$ cat documents/notes.txt | write backup.txt
+backup.txt
+
+$ undo
+Undone: write
+```
+
+## Documentation
+
+- **[Documentation index](docs/README.md)** — start here.
+- [Getting started](docs/getting-started.md) — open a terminal and run something.
+- [Worked examples](docs/examples.md) — complete sessions to copy.
+- [The command language](docs/language.md) — every syntax the parser accepts.
+- [Command reference](docs/commands.md) — one entry per command.
+- [How it works](docs/concepts.md) — parse, bind, evaluate, render, undo.
+- [Specification](docs/spec/README.md) — the normative definition.
+
+## Building
+
+Needs the .NET 8 SDK, plus the `wasm-tools` workload for the browser client. Most
+projects target .NET 7, so set `DOTNET_ROLL_FORWARD=Major` before running tests. The
+desktop shell needs Windows; everything else builds anywhere.
+
+```bash
+dotnet publish WebClient/WebClient.csproj -c Release -o publish
+cd publish/wwwroot && python3 -m http.server 8080
+```
+
+See [Building and testing](docs/building.md) for the test suites, the continuous
+integration jobs and how the browser payload is produced.
+
 ## Package diagram
+
 [PlantUML Link](https://groupeisagri-tools-plantuml-appservice.azurewebsites.net/uml/TL6xRiCm3Dpr5KBs_4A1LkWG84EHD5q23uHC649aqg2K8IZoxv5ViHmxe-v1tedXugW1WLf_WRrKmbSg3NiM7GKe90efgl1KMQuRfeGTuysZ5hGHgFAer4_oGuLwOxYkWSgz8zpeVwNr-HUbTWI-Q1y37Gfrpqn_Bbp13_hJpenhGkSvmCr0Y8wgxhcZY08sEgOzLyxEHncMSV41gKGPROOf2dkFqXdEdqtZdOLsJA6tsuzdjZPwiSP_c-CgtgSlqin5j5wG5tYdcRT-fshRjOlog7cuZi-18Li6gUa6FJhTvvMPPr9vZtL1ziT3y-a4QbgqslY5NLvPQpNtB5QiqQVeV1h_0000)
