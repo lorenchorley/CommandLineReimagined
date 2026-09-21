@@ -42,4 +42,5 @@ normatively; the same words in ordinary prose carry their ordinary meaning.
 | Conformance suite | `Parser.Tests` (199), `Execution.Tests` (63), `Web.Core.Tests` (25), `Terminal.Tests` (32) |
 
 Where the specification and the implementation disagree, one of them is wrong; the
-[conformance](conformance.md) document names the test that decides.
+[conformance](conformance.md) document names the test that decides. Why the design is
+the way it is, and what was rejected, lives in the [decision log](../decisions/README.md).

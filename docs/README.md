@@ -23,6 +23,9 @@ The terminal runs in a browser tab. The parser, the commands and the filesystem 
 
 ## For implementers
 
+The [decision log](decisions/README.md) records every architecture decision, the
+options that were on the table and the one chosen.
+
 The [specification](spec/README.md) defines the language and the runtime normatively:
 grammar, semantic tree, execution model, command contracts and the host interfaces.
 The user documentation describes what the system does; the specification says what any
