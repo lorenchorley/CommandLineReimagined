@@ -22,8 +22,8 @@ a later record, **Rejected**.
 | [0010](0010-undo-by-event-sourcing.md) | Undo and persistence through an event-sourced store | Accepted |
 | [0011](0011-real-xml-files.md) | XML is read and written as real files | Accepted |
 | [0012](0012-browser-first.md) | The desktop shell stays out of scope | Accepted |
-| [0013](0013-attribute-filesystem.md) | An attribute-and-query filesystem in the style of BeOS and Haiku | Proposed |
-| [0014](0014-recovery-operator.md) | Error recovery is spelled `else`, not `or` | Proposed |
+| [0013](0013-attribute-filesystem.md) | An attribute-and-query filesystem in the style of BeOS and Haiku | Accepted |
+| [0014](0014-recovery-operator.md) | Error recovery is spelled `else`, not `or` | Accepted |
 
 Retrospective records document decisions taken before the log existed, so that the
 log is the one place to look. Their alternatives are the ones weighed at the time, as

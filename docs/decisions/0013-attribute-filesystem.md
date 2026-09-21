@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Status | Proposed |
+| Status | Accepted |
 | Date | 2026-09-21 |
 
 ## Context
@@ -28,7 +28,7 @@ already treats structured values as its native material.
 
 ## Decision
 
-Proposed: option 3. It keeps every existing command meaningful, gives the table
+Option 3. It keeps every existing command meaningful, gives the table
 functions a natural target, and unifies the tag notation with the file model: a tag
 with attributes is exactly a file record.
 

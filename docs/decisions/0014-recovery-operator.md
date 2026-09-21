@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Status | Proposed |
+| Status | Accepted |
 | Date | 2026-09-21 |
 
 ## Context
@@ -20,7 +20,7 @@ so it cannot also mean recovery.
 
 ## Decision
 
-Proposed: option 2, with `try` to turn a failure into a value and `??` to unwrap an
+Option 2, with `try` to turn a failure into a value and `??` to unwrap an
 option with a default.
 
 ```
