@@ -191,7 +191,9 @@ The browser terminal is text in the document, so screen readers, text zoom and t
 selection work. Colour is never the only carrier of meaning: errors are also prefixed
 by their message, results are structurally distinct from output, and the token inspector
 names a role in words. The layout targets a 390 pixel wide viewport without horizontal
-scrolling, and controls are at least 40 pixels tall.
+scrolling. The input and the run button are 46 pixels tall; the suggestion and
+completion chips are 26, which is below the usual 44 pixel target and **should** be
+raised.
 
 ### Internationalisation
 

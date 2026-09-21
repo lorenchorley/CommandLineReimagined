@@ -66,7 +66,7 @@ The reference host-side object, shared by both web front ends.
 
 | Member | Contract |
 | --- | --- |
-| `TerminalSession(string? rootDirectory)` | Creates the registry, scope and working directory. Seeds the root when it is empty. |
+| `TerminalSession(string? rootDirectory)` | Creates the registry, scope and working directory, and creates any seeded entry that is missing. |
 | `Commands` | Every registered command as `CommandSummary`, sorted by name, excluding `UnknownCommand`. |
 | `WorkingDirectory` | The current directory. |
 | `IsRunning` | Whether a command is in flight. |
