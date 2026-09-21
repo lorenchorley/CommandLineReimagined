@@ -1,340 +1,150 @@
-using System.Text.Json.Serialization;
-using CommandLine.Modules;
-using Commands;
-using Commands.Implementations;
-using Commands.Parser.SemanticTree;
-using Microsoft.Extensions.DependencyInjection;
-using Terminal.Execution;
-using Terminal.Scoping;
-using CommandLineReimagined.Web.Tokenisation;
+using System.Net.Http;
+using CommandLineReimagined.Core;
 using CommandLineReimagined.Web.Parsing;
+using CommandLineReimagined.Web.Tokenisation;
+using Microsoft.FSharp.Collections;
+using Microsoft.FSharp.Control;
+using Microsoft.FSharp.Core;
 
 namespace CommandLineReimagined.Web;
 
 /// <summary>
-/// One terminal: a command registry, a scope and a working directory, kept across
-/// commands.
+/// One terminal, as JSON.
 /// </summary>
 /// <remarks>
-/// The same <see cref="CommandEvaluator"/> the desktop shell uses. Nothing here is
-/// web-specific except the output sink and the starting directory, which is what
-/// depending on <see cref="ICommandOutput"/> rather than on the ECS bought.
-///
-/// Under WebAssembly the filesystem is Emscripten's in-memory one, so `mkdir` and `ls`
-/// operate on a real directory tree that lives in the browser tab and disappears when it
-/// closes.
-///
-/// Long-running commands report as they go: whatever they write to their output is
-/// raised through <see cref="OutputChanged"/> while they run, and <see cref="Cancel"/>
-/// stops the one in flight. Both exist so the browser can show a progress bar moving
-/// and a Stop button that works, which is how async execution gets tested by hand.
+/// An adapter and nothing more. Every decision about what a command means lives in
+/// <see cref="Session"/>, which is F#; this turns its values into the shapes the page
+/// already knows how to draw, and turns the page's strings into calls. The rule from
+/// the architecture is that C# never sees a <c>Value</c> or an <c>Outcome</c>: they
+/// stop here.
 /// </remarks>
 public sealed class TerminalSession
 {
-    private readonly ServiceProvider _services;
-    private readonly CommandEvaluator _evaluator;
-    private readonly Scope _scope;
-    private readonly PathModule _pathModule;
+    private readonly Session _session;
+    private readonly HttpClient _httpClient = new();
 
-    private CancellationTokenSource? _running;
-
-    public TerminalSession(string? rootDirectory = null)
+    public TerminalSession(ILog? log = null)
     {
-        string root = rootDirectory ?? DefaultRoot();
-        Seed(root);
+        var options = new SessionOptions(
+            clock: FuncConvert.FromFunc<DateTimeOffset>(() => DateTimeOffset.UtcNow),
+            newId: FuncConvert.FromFunc(() => Guid.NewGuid().ToString().ToLowerInvariant()),
+            httpClient: FuncConvert.FromFunc(() => _httpClient),
+            // The browser tab has nothing to close, so `exit` does nothing here. The
+            // desktop host passes its own shutdown.
+            exit: FuncConvert.FromAction(() => { }));
 
-        var collection = new ServiceCollection();
+        _session = new Session(
+            log ?? new InMemoryLog(),
+            options,
+            SeedModule.standard(options.NewId, options.Clock));
 
-        var scopes = new ScopeRegistry();
-        collection.AddSingleton(scopes);
+        _session.OutputChanged.AddHandler(
+            new FSharpHandler<Tuple<int, FSharpList<string>>>((_, args) =>
+                OutputChanged?.Invoke(args.Item1, args.Item2.ToList())));
 
-        var paths = new PathModule(scopes);
-        paths.MoveTo(root);
-        collection.AddSingleton(paths);
-
-        collection.AddSingleton<IApplicationLifetime, NoOpApplicationLifetime>();
-        collection.AddHttpClient();
-
-        Register<ListDirectoryContents>(collection);
-        Register<ChangeDirectory>(collection);
-        Register<UpOneDirectory>(collection);
-        Register<PrintWorkingDirectory>(collection);
-        Register<MakeDirectory>(collection);
-        Register<CopyFile>(collection);
-        Register<ReadFile>(collection);
-        Register<WriteFile>(collection);
-        Register<Remove>(collection);
-        Register<Echo>(collection);
-        Register<SetVariable>(collection);
-        Register<ListVariables>(collection);
-        Register<ProgressTest>(collection);
-        Register<Download>(collection);
-        Register<Exit>(collection);
-        Register<UnknownCommand>(collection);
-
-        _services = collection.BuildServiceProvider();
-        _pathModule = paths;
-        _scope = scopes.Global;
-
-        History = new CommandHistory();
-        _evaluator = new CommandEvaluator(
-            _services,
-            _services.GetServices<ICommandAction>().Select(action => action.Profile),
-            History);
-
-        Commands = _services.GetServices<ICommandAction>()
-                            .Select(action => action.Profile)
-                            .Where(profile => !string.Equals(profile.Name, "UnknownCommand", StringComparison.Ordinal))
-                            .OrderBy(profile => profile.Name, StringComparer.Ordinal)
-                            .Select(profile => new CommandSummary(
-                                profile.Name,
-                                profile.Description,
-                                profile.Parameters.Select(p => new ParameterSummary(p.Name, p.IsOptional)).ToList()))
-                            .ToList();
+        _session.StoreChanged.AddHandler(
+            new FSharpHandler<long>((_, sequence) => StoreChanged?.Invoke(sequence)));
     }
 
-    public CommandHistory History { get; }
+    /// <summary>
+    /// Replays the log before anything can run.
+    /// </summary>
+    /// <remarks>
+    /// Separate from the constructor because replaying is asynchronous: in Phase 2 it
+    /// reads IndexedDB, and WebAssembly has no thread to block. Executing before this
+    /// has completed is a fault rather than an empty filesystem, so a page that forgets
+    /// to await it says so instead of quietly losing the user's files.
+    /// </remarks>
+    public Task InitializeAsync() => FSharpAsync.StartAsTask(
+        _session.Initialize(),
+        FSharpOption<TaskCreationOptions>.None,
+        FSharpOption<CancellationToken>.None);
 
-    public IReadOnlyList<CommandSummary> Commands { get; }
+    public IReadOnlyList<CommandSummary> Commands =>
+        _session.Commands
+                .Select(spec => new CommandSummary(
+                    spec.Name,
+                    spec.Description,
+                    spec.Parameters.Select(p => new ParameterSummary(p.Name, p.Optional)).ToList()))
+                .ToList();
 
-    public string WorkingDirectory => _pathModule.CurrentPath;
-
-    /// <summary>Whether a command is currently executing.</summary>
-    public bool IsRunning => _running is { IsCancellationRequested: false };
+    /// <summary>Where the session is: a folder, and from Phase 4 possibly a view.</summary>
+    public LocationInfo Location => new(_session.Location.Folder, null);
 
     /// <summary>
-    /// Raised whenever a running command changes its output. Carries the execution id
-    /// passed to <see cref="ExecuteAsync"/> and the complete current lines, so a listener
-    /// can redraw without tracking deltas.
+    /// The folder path, under the name the page used before there were views.
+    /// </summary>
+    /// <remarks>
+    /// Kept for one phase so the page and this can be updated separately, then removed.
+    /// </remarks>
+    [Obsolete("Use Location. Removed after Phase 2.")]
+    public string WorkingDirectory => _session.Location.Folder;
+
+    public bool IsRunning => _session.IsRunning;
+
+    /// <summary>
+    /// Raised while a command runs, with the execution id and the complete lines so far.
     /// </summary>
     public event Action<int, IReadOnlyList<string>>? OutputChanged;
 
-    /// <summary>Parses and runs a command line.</summary>
+    /// <summary>Raised after every committed transaction. Phase 4's live views use it.</summary>
+    public event Action<long>? StoreChanged;
+
     public async Task<ExecutionResponse> ExecuteAsync(
         string source, int executionId = 0, CancellationToken cancellation = default)
     {
         source ??= string.Empty;
+
+        // Tokens come from a separate parse: the page colours what was typed even when
+        // it does not run, and the session's own parse failure is a fault, not tokens.
         var parse = new CommandParseService().Parse(source);
 
-        if (parse.Error is not null)
-        {
-            return new ExecutionResponse(
-                "result", source, parse.Tokens, Array.Empty<string>(),
-                null, null, Describe(parse.Error), WorkingDirectory);
-        }
+        var response = await FSharpAsync.StartAsTask(
+            _session.Execute(source, executionId, cancellation),
+            FSharpOption<TaskCreationOptions>.None,
+            FSharpOption<CancellationToken>.None);
 
-        if (IsRunning)
-        {
-            return new ExecutionResponse(
-                "result", source, parse.Tokens, Array.Empty<string>(),
-                null, null, "A command is already running. Stop it first.", WorkingDirectory);
-        }
+        var fault = response.Fault is null ? null : Describe(response.Fault.Value);
 
-        var output = new CapturingOutput(lines => OutputChanged?.Invoke(executionId, lines));
-        var running = CancellationTokenSource.CreateLinkedTokenSource(cancellation);
-        _running = running;
+        // A parse failure carries a column and a list of what would have been accepted,
+        // which the fault does not. Where the session says the line would not parse,
+        // the parser's own sentence is the better one to show.
+        string? error = fault is null
+            ? null
+            : fault.Kind == nameof(FaultKind.Syntax) && parse.Error is not null
+                ? Describe(parse.Error)
+                : fault.Message;
 
-        try
-        {
-            var tree = ParseTree(source);
-            var value = await _evaluator.ExecuteAsync(tree, output, _scope, running.Token);
-
-            return new ExecutionResponse(
-                "result", source, parse.Tokens, output.Lines,
-                Describe(value), value.ToDisplayString(), null, WorkingDirectory);
-        }
-        catch (OperationCanceledException)
-        {
-            return new ExecutionResponse(
-                "result", source, parse.Tokens, output.Lines,
-                null, null, "Stopped.", WorkingDirectory);
-        }
-        catch (ConsoleError error)
-        {
-            return new ExecutionResponse(
-                "result", source, parse.Tokens, output.Lines,
-                null, null, error.Message, WorkingDirectory);
-        }
-        catch (Exception exception)
-        {
-            return new ExecutionResponse(
-                "result", source, parse.Tokens, output.Lines,
-                null, null, $"{exception.GetType().Name} : {exception.Message}", WorkingDirectory);
-        }
-        finally
-        {
-            if (ReferenceEquals(_running, running))
-            {
-                _running = null;
-            }
-
-            running.Dispose();
-        }
-    }
-
-    /// <summary>Stops the command in flight, if there is one.</summary>
-    public bool Cancel()
-    {
-        var running = _running;
-
-        if (running is null || running.IsCancellationRequested)
-        {
-            return false;
-        }
-
-        running.Cancel();
-        return true;
-    }
-
-    /// <summary>
-    /// What the text could continue as: a command name at the start of the line, a
-    /// variable after a <c>$</c>, and otherwise a file or directory relative to the
-    /// current one.
-    /// </summary>
-    /// <remarks>
-    /// Returns whole replacements for the last word rather than suffixes, so the client
-    /// can show them as chips and substitute one on a tap. Phone keyboards have no Tab
-    /// key, so this is the only completion most users will have.
-    /// </remarks>
-    public IReadOnlyList<Completion> Complete(string text)
-    {
-        text ??= string.Empty;
-
-        int wordStart = LastWordStart(text);
-        string word = text[wordStart..];
-        bool firstWord = text[..wordStart].Trim().Length == 0 || text[..wordStart].TrimEnd().EndsWith('|');
-
-        var completions = new List<Completion>();
-
-        // Nothing typed yet: offering every command is noise, and the page shows its
-        // suggestion chips in that state instead.
-        if (firstWord && word.Length == 0)
-        {
-            return completions;
-        }
-
-        if (word.StartsWith('$'))
-        {
-            string prefix = word[1..];
-
-            foreach (var variable in _scope.AllVariables())
-            {
-                if (variable.Name.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
-                {
-                    completions.Add(new Completion("variable", "$" + variable.Name, wordStart));
-                }
-            }
-
-            return completions;
-        }
-
-        if (firstWord)
-        {
-            foreach (var command in Commands)
-            {
-                if (command.Name.StartsWith(word, StringComparison.OrdinalIgnoreCase))
-                {
-                    completions.Add(new Completion("command", command.Name, wordStart));
-                }
-            }
-
-            // Words the page handles itself, kept here so one list drives completion.
-            foreach (var builtin in new[] { "help", "clear", "undo" })
-            {
-                if (builtin.StartsWith(word, StringComparison.OrdinalIgnoreCase))
-                {
-                    completions.Add(new Completion("command", builtin, wordStart));
-                }
-            }
-
-            if (completions.Count > 0)
-            {
-                return completions;
-            }
-        }
-
-        // Paths: the part before the last separator says which directory to look in.
-        int separator = Math.Max(word.LastIndexOf('/'), word.LastIndexOf('\\'));
-        string directoryPart = separator >= 0 ? word[..(separator + 1)] : string.Empty;
-        string namePart = separator >= 0 ? word[(separator + 1)..] : word;
-
-        string directory;
-        try
-        {
-            directory = directoryPart.Length == 0
-                ? _pathModule.CurrentPath
-                : _pathModule.Resolve(directoryPart);
-        }
-        catch (Exception)
-        {
-            return completions;
-        }
-
-        if (!Directory.Exists(directory))
-        {
-            return completions;
-        }
-
-        foreach (var entry in Directory.EnumerateDirectories(directory).OrderBy(e => e, StringComparer.Ordinal))
-        {
-            string name = Path.GetFileName(entry);
-            if (name.StartsWith(namePart, StringComparison.OrdinalIgnoreCase))
-            {
-                completions.Add(new Completion("directory", directoryPart + name + "/", wordStart));
-            }
-        }
-
-        foreach (var entry in Directory.EnumerateFiles(directory).OrderBy(e => e, StringComparer.Ordinal))
-        {
-            string name = Path.GetFileName(entry);
-            if (name.StartsWith(namePart, StringComparison.OrdinalIgnoreCase))
-            {
-                completions.Add(new Completion("file", directoryPart + name, wordStart));
-            }
-        }
-
-        return completions;
-    }
-
-    /// <summary>The variables in scope, for the client to show.</summary>
-    public IReadOnlyList<VariableSummary> Variables() =>
-        _scope.AllVariables()
-              .Select(v => new VariableSummary(v.Name, v.Value.ToDisplayString(), Describe(v.Value)))
-              .ToList();
-
-    private static int LastWordStart(string text)
-    {
-        int i = text.Length;
-
-        while (i > 0 && !char.IsWhiteSpace(text[i - 1]) && text[i - 1] != '|' && text[i - 1] != '(' && text[i - 1] != ',')
-        {
-            i--;
-        }
-
-        return i;
-    }
-
-    /// <summary>Undoes the last command, the way the desktop shell's undo key does.</summary>
-    /// <remarks>
-    /// Every executed command is on the history, including ones that changed nothing,
-    /// so the response names what was undone. Otherwise undoing an `ls` is
-    /// indistinguishable from undo being broken.
-    /// </remarks>
-    public ExecutionResponse Undo()
-    {
-        string? undone = History.UndoLast();
-
-        if (undone is null)
-        {
-            return new ExecutionResponse(
-                "result", "undo", Array.Empty<SemanticToken>(), Array.Empty<string>(),
-                null, null, "Nothing to undo.", WorkingDirectory);
-        }
+        var value = response.Result?.Value;
+        var result = value is null || value.IsEmpty ? null : Describe(value);
 
         return new ExecutionResponse(
-            "result", "undo", Array.Empty<SemanticToken>(), new[] { $"Undone: {undone}" },
-            null, null, null, WorkingDirectory);
+            "result",
+            source,
+            parse.Tokens,
+            response.Output.ToList(),
+            result,
+            value is null ? null : ValueModule.display(value),
+            error,
+            fault,
+            new LocationInfo(response.Location.Folder, null),
+            response.Location.Folder);
     }
+
+    public bool Cancel() => _session.Cancel();
+
+    public IReadOnlyList<Completion> Complete(string text) =>
+        _session.Complete(text ?? string.Empty)
+                .Select(c => new Completion(c.Kind, c.Text, c.Start))
+                .ToList();
+
+    public IReadOnlyList<VariableSummary> Variables() =>
+        _session.Variables()
+                .Select(pair => new VariableSummary(
+                    pair.Item1,
+                    ValueModule.display(pair.Item2),
+                    Describe(pair.Item2)))
+                .ToList();
 
     /// <summary>
     /// Turns a parse failure into a sentence.
@@ -361,160 +171,47 @@ public sealed class TerminalSession
             : $"{where}: expected {string.Join(", ", error.Expected)}.";
     }
 
-    private static RootNode ParseTree(string source)
-    {
-        var parser = new CommandLineReimagined.Parsing.CommandLineParser();
-
-        return parser.Parse<RootNode>(source).Match(
-            tree => tree,
-            error => throw new ConsoleError("Could not parse the command."));
-    }
+    // An F# option is a reference whose None is null, so the null-conditional reads
+    // the two optional fields without a helper.
+    private static FaultInfo Describe(Fault fault) =>
+        new(fault.Kind.ToString(), fault.Message, fault.Stage?.Value, fault.Path?.Value);
 
     /// <summary>
-    /// Flattens a result into something the browser can render: paths keep their kind so
-    /// the client can draw them as the interactive chips the desktop app draws as buttons.
+    /// Flattens a value into items the page can draw.
     /// </summary>
-    private static IReadOnlyList<ResultItem> Describe(RuntimeValue value) =>
-        value switch
+    /// <remarks>
+    /// A file keeps its kind and its path, so the page can draw it as the tappable chip
+    /// the desktop app draws as a button, and so tapping it inserts something that
+    /// resolves. A list flattens: `ls` is a row of chips, not one chip saying "list".
+    /// </remarks>
+    private static IReadOnlyList<ResultItem> Describe(Value value)
+    {
+        if (value.IsEmpty)
         {
-            EmptyValue => Array.Empty<ResultItem>(),
-            ListValue list => list.Items.SelectMany(Describe).ToList(),
-            PathValue path => new[] { new ResultItem(path.Kind.ToString().ToLowerInvariant(), path.Name, path.Path) },
-            ObjectValue instance => new[] { new ResultItem("object", instance.ToDisplayString(), null) },
-            ComponentValue component => new[] { new ResultItem("component", component.ToDisplayString(), null) },
-            NumberValue number => new[] { new ResultItem("number", number.ToDisplayString(), null) },
-            BooleanValue boolean => new[] { new ResultItem("boolean", boolean.ToDisplayString(), null) },
-            _ => new[] { new ResultItem("text", value.ToDisplayString(), null) },
+            return Array.Empty<ResultItem>();
+        }
+
+        if (value is Value.List list)
+        {
+            return list.Item.SelectMany(Describe).ToList();
+        }
+
+        // A file keeps its path, so tapping the chip inserts something that resolves.
+        if (value.IsFile)
+        {
+            return new[]
+            {
+                new ResultItem(ValueModule.kind(value), ValueModule.display(value), ValueModule.argument(value)),
+            };
+        }
+
+        return new[]
+        {
+            new ResultItem(
+                ValueModule.kind(value),
+                ValueModule.display(value),
+                null),
         };
-
-    private static string DefaultRoot() =>
-        OperatingSystem.IsBrowser() ? "/home/terminal" : Path.Combine(Path.GetTempPath(), "clr-web");
-
-    /// <summary>
-    /// Gives a new session something to look at. An empty filesystem makes `ls` look
-    /// broken rather than empty.
-    /// </summary>
-    private static void Seed(string root)
-    {
-        Directory.CreateDirectory(root);
-        Directory.CreateDirectory(Path.Combine(root, "documents"));
-        Directory.CreateDirectory(Path.Combine(root, "projects"));
-
-        string readme = Path.Combine(root, "readme.txt");
-        if (!File.Exists(readme))
-        {
-            File.WriteAllText(readme, "This filesystem lives in the browser tab.");
-        }
-
-        string notes = Path.Combine(root, "documents", "notes.txt");
-        if (!File.Exists(notes))
-        {
-            File.WriteAllText(notes, "Try: ls, cd documents, mkdir scratch, echo \"hello\"");
-        }
-    }
-
-    /// <summary>
-    /// Registers a command so the evaluator can resolve it by type.
-    /// </summary>
-    /// <remarks>
-    /// Transient, not singleton. A command keeps what it needs to undo itself in its
-    /// own fields, so a shared instance makes the second undo of the same command
-    /// replay the last invocation's saved state: `set v 1`, `set v 2`, undo, undo left
-    /// `$v` at 1 instead of unbinding it. The history holds the instance that ran, so
-    /// a fresh instance per execution is what makes undo per-invocation.
-    /// </remarks>
-    private static void Register<TCommand>(IServiceCollection collection)
-        where TCommand : class, ICommandAction
-    {
-        collection.AddTransient<TCommand>();
-        collection.AddTransient<ICommandAction>(sp => sp.GetRequiredService<TCommand>());
-    }
-
-    /// <summary>
-    /// Collects what a command writes while it runs, and says so each time it changes.
-    /// </summary>
-    /// <remarks>
-    /// Each line keeps its written segments separately, so a command that writes a label
-    /// and then keeps updating a progress figure after it changes only the figure.
-    /// </remarks>
-    private sealed class CapturingOutput : ICommandOutput, IClearableOutput
-    {
-        private readonly List<CapturedLine> _lines = new();
-        private readonly Action<IReadOnlyList<string>> _changed;
-
-        public CapturingOutput(Action<IReadOnlyList<string>> changed)
-        {
-            _changed = changed;
-        }
-
-        public IReadOnlyList<string> Lines =>
-            _lines.Select(line => line.Text).Where(text => text.Length > 0).ToList();
-
-        public IOutputLine NewLine()
-        {
-            var line = new CapturedLine(Notify);
-            _lines.Add(line);
-            return line;
-        }
-
-        public void AbandonLine(IOutputLine line)
-        {
-            if (line is CapturedLine captured && _lines.Remove(captured))
-            {
-                Notify();
-            }
-        }
-
-        public void Clear()
-        {
-            _lines.Clear();
-            Notify();
-        }
-
-        private void Notify() => _changed(Lines);
-
-        private sealed class CapturedLine : IOutputLine
-        {
-            private readonly List<CapturedText> _segments = new();
-            private readonly Action _changed;
-
-            public CapturedLine(Action changed) => _changed = changed;
-
-            public string Text => string.Concat(_segments.Select(s => s.Text));
-
-            public IOutputText Write(string description, string text)
-            {
-                var segment = new CapturedText(text, _changed);
-                _segments.Add(segment);
-                _changed();
-                return segment;
-            }
-        }
-
-        private sealed class CapturedText : IOutputText
-        {
-            private readonly Action _changed;
-            private string _text;
-
-            public CapturedText(string text, Action changed)
-            {
-                _text = text;
-                _changed = changed;
-            }
-
-            public string Text
-            {
-                get => _text;
-                set
-                {
-                    if (_text != value)
-                    {
-                        _text = value;
-                        _changed();
-                    }
-                }
-            }
-        }
     }
 }
 
@@ -526,9 +223,21 @@ public sealed record ExecutionResponse(
     IReadOnlyList<ResultItem>? Result,
     string? ResultText,
     string? Error,
+    FaultInfo? Fault,
+    LocationInfo Location,
     string WorkingDirectory);
 
 public sealed record ResultItem(string Kind, string Text, string? Path);
+
+/// <summary>What went wrong, with structure the page can act on.</summary>
+/// <remarks>
+/// `error` stays a sentence for the red line; this is beside it, so the page can show
+/// the kind as a small tag and, later, so a script can match on it.
+/// </remarks>
+public sealed record FaultInfo(string Kind, string Message, int? Stage, string? Path);
+
+/// <summary>Where the session is. `View` is a saved query, and arrives in Phase 4.</summary>
+public sealed record LocationInfo(string Folder, string? View);
 
 public sealed record CommandSummary(string Name, string Description, IReadOnlyList<ParameterSummary> Parameters);
 

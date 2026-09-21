@@ -152,12 +152,16 @@ public sealed class TokenStreamVisitor : VisitorBase
 
     /// <summary>
     /// An assignment's name is an attribute name, not an ordinary identifier: it names
-    /// a piece of data rather than being one. The <c>=</c> and the value keep the kinds
-    /// the base traversal gives them.
+    /// a piece of data rather than being one.
     /// </summary>
+    /// <remarks>
+    /// The name is appended rather than dispatched. Dispatching reaches
+    /// <see cref="VisitIdentifier"/>, which opens a scope of its own and would tag the
+    /// name `identifier` whatever kind was in scope around it.
+    /// </remarks>
     public override void VisitAssignmentArgument(AssignmentArgument assignmentArgument)
     {
-        using (Using(Kinds.Attribute)) assignmentArgument.Name.Accept(this);
+        using (Using(Kinds.Attribute)) Append(assignmentArgument.Name.Name);
         Append('=');
         assignmentArgument.Value.Accept(this);
     }

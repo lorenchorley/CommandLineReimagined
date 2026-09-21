@@ -8,10 +8,10 @@ namespace CommandLineReimagined.WebClient;
 /// The browser's entry point into a running terminal.
 /// </summary>
 /// <remarks>
-/// <see cref="ParserBridge"/> only classifies text. This runs it: the same evaluator,
-/// commands and scope the desktop shell uses, against the browser's in-memory
-/// filesystem. The session is static because a page is one terminal, and the working
-/// directory and command history have to survive between calls.
+/// <see cref="ParserBridge"/> only classifies text. This runs it: the same core the
+/// desktop shell uses, against a store that lives in this tab. The session is static
+/// because a page is one terminal, and the location, the variables and the log have to
+/// survive between calls.
 ///
 /// Live output goes the other way: while a command runs, its output lines are pushed to
 /// <c>window.terminal.output(id, lines)</c>. Pushes are coalesced to one every few tens
@@ -49,9 +49,17 @@ public static class TerminalBridge
     [JSInvokable]
     public static bool Cancel() => Session.Value.Cancel();
 
-    /// <summary>Undoes the last command.</summary>
+    /// <summary>
+    /// Replays the log, and must complete before anything is executed.
+    /// </summary>
+    /// <remarks>
+    /// The page awaits this before enabling the input. It does nothing visible today,
+    /// because an in-memory log replays instantly; in Phase 2 it reads IndexedDB, and
+    /// having the page already wait for it means persistence arrives without the page
+    /// changing again.
+    /// </remarks>
     [JSInvokable]
-    public static string Undo() => JsonSerializer.Serialize(Session.Value.Undo(), Options);
+    public static Task Initialize() => Session.Value.InitializeAsync();
 
     /// <summary>The commands available, for help and for completion.</summary>
     [JSInvokable]
@@ -66,9 +74,9 @@ public static class TerminalBridge
     [JSInvokable]
     public static string Variables() => JsonSerializer.Serialize(Session.Value.Variables(), Options);
 
-    /// <summary>The current working directory, for the prompt.</summary>
+    /// <summary>Where the session is, for the prompt.</summary>
     [JSInvokable]
-    public static string WorkingDirectory() => Session.Value.WorkingDirectory;
+    public static string Location() => JsonSerializer.Serialize(Session.Value.Location, Options);
 
     private static TerminalSession CreateSession()
     {

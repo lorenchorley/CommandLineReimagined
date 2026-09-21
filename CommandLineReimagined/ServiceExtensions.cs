@@ -17,7 +17,8 @@ public static class ServiceExtensions
         services.AddHttpClient();
 
         services.AddCoreECSServices();
-        services.AddCommands();
+        // AddCommands is gone: the commands live in the core now and the session
+        // registers them all at once (see AddModules).
         services.AddModules();
         services.AddRenderingServices();
         services.ExtractConfigurations(hostContext.Configuration);

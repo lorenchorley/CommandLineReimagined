@@ -30,18 +30,19 @@ type Store(log: ILog, clock: unit -> DateTimeOffset) =
 
     let isCompensation (transaction: Transaction) = transaction.Compensates.IsSome
 
-    /// The latest transaction that can be undone: one that did something itself, and
-    /// whose doing has not already been taken back.
+    /// The latest transaction that can be undone: one that did something itself, that
+    /// someone typed, and whose doing has not already been taken back.
     let undoTarget () =
         transactions
-        |> List.filter (fun t -> not (isCompensation t) && not (isCompensated transactions t))
+        |> List.filter (fun t ->
+            t.Undoable && not (isCompensation t) && not (isCompensated transactions t))
         |> List.sortByDescending (fun t -> t.Seq)
         |> List.tryHead
 
     /// The latest undo that has not itself been undone.
     let redoTarget () =
         transactions
-        |> List.filter (fun t -> isCompensation t && not (isCompensated transactions t))
+        |> List.filter (fun t -> t.Undoable && isCompensation t && not (isCompensated transactions t))
         |> List.sortByDescending (fun t -> t.Seq)
         |> List.tryHead
 
@@ -141,7 +142,32 @@ type Store(log: ILog, clock: unit -> DateTimeOffset) =
                           At = clock ()
                           Source = source
                           Events = events
-                          Compensates = Option.None }
+                          Compensates = Option.None
+                          Undoable = true }
+
+                    do! append transaction
+                    return Ok(Some transaction)
+        }
+
+    /// <summary>
+    /// Appends a transaction that is recorded and replayed but is nobody's to undo
+    /// (decision 0018). The seeded filesystem is the only one today.
+    /// </summary>
+    member _.CommitSystem (source: string) (events: Event list) : Async<Outcome<Transaction option>> =
+        async {
+            if List.isEmpty events then
+                return Ok Option.None
+            else
+                match validate projection events with
+                | Error fault -> return Error fault
+                | Ok() ->
+                    let transaction =
+                        { Seq = nextSeq ()
+                          At = clock ()
+                          Source = source
+                          Events = events
+                          Compensates = Option.None
+                          Undoable = false }
 
                     do! append transaction
                     return Ok(Some transaction)
@@ -164,7 +190,8 @@ type Store(log: ILog, clock: unit -> DateTimeOffset) =
                       At = clock ()
                       Source = target.Source
                       Events = Projection.invertAll target.Events
-                      Compensates = Some target.Seq }
+                      Compensates = Some target.Seq
+                      Undoable = true }
 
                 do! append compensation
                 return Ok(Some target)
@@ -186,7 +213,8 @@ type Store(log: ILog, clock: unit -> DateTimeOffset) =
                       At = clock ()
                       Source = target.Source
                       Events = Projection.invertAll target.Events
-                      Compensates = Some target.Seq }
+                      Compensates = Some target.Seq
+                      Undoable = true }
 
                 do! append compensation
                 return Ok(Some(defaultArg original target))

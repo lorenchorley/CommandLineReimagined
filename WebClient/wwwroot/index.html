@@ -46,15 +46,25 @@
   .echo .sigil { color:var(--dim); }
   .out { white-space:pre-wrap; word-break:break-word; color:var(--fg); opacity:.85; }
   .err { color:var(--bad); white-space:pre-wrap; word-break:break-word; }
+  .kind {
+    display:inline-block; font-size:10px; text-transform:lowercase; letter-spacing:.03em;
+    border:1px solid var(--bad); border-radius:4px; padding:0 4px; margin-right:6px;
+    opacity:.8; vertical-align:1px;
+  }
   .hint { color:var(--dim); }
 
   /* Result chips ---------------------------------------------------------- */
   .items { display:flex; flex-wrap:wrap; gap:5px; margin-top:4px; }
+  /*
+    44 pixels tall. A result chip is a tap target on a phone, and 4px of padding made
+    one about 20 pixels, which is half of what a finger can reliably hit.
+  */
   .item {
-    font:12px ui-monospace,monospace; padding:4px 8px; border-radius:6px;
+    font:12px ui-monospace,monospace; padding:12px 12px; border-radius:6px;
     border:1px solid var(--line); background:var(--bg); color:var(--fg); cursor:pointer;
+    min-height:44px;
   }
-  .item.directory { color:var(--type); }
+  .item.folder { color:var(--type); }
   .item.parent { color:var(--dim); }
   .item.file { color:var(--identifier); }
   .item.object, .item.component, .item.variable { color:var(--variable); }
@@ -177,6 +187,16 @@ function addEntry(html) {
 
 const linesHtml = lines => (lines || []).map(line => `<div class="out">${escape(line)}</div>`).join('');
 
+/// A failure, with what sort of failure it was as a tag before the message.
+///
+/// The message is the sentence a person reads and has not changed. The kind is new,
+/// and is what tells a missing file apart from a name that is already taken without
+/// having to read the wording.
+function faultHtml(r) {
+  const kind = r.fault ? `<span class="kind">${escape(r.fault.kind.toLowerCase())}</span>` : '';
+  return `<div class="err">${kind}${escape(r.error)}</div>`;
+}
+
 /// Results render two ways: text-like values as a block you can read, everything with
 /// an identity (paths, objects, variables) as a chip you can tap to insert.
 function itemsHtml(items) {
@@ -220,23 +240,11 @@ function finishEntry(entry, r) {
 
   let tail = '';
   if (r.error === 'Stopped.') tail = `<div class="stopped">${escape(r.error)}</div>`;
-  else if (r.error) tail = `<div class="err">${escape(r.error)}</div>`;
+  else if (r.error) tail = faultHtml(r);
   else tail = itemsHtml(r.result);
 
   entry.querySelector('.tail').innerHTML = tail;
   scroll.scrollTop = scroll.scrollHeight;
-}
-
-function renderResult(r) {
-  // Responses that did not come from a parse (undo) carry no tokens, so fall back to
-  // the source text rather than echoing a bare prompt.
-  const echoed = (r.tokens && r.tokens.length) ? tokenHtml(r.tokens) : escape(r.source || '');
-  let html = `<div class="echo"><span class="sigil">$ </span>${echoed}</div>` + linesHtml(r.output);
-
-  if (r.error) html += `<div class="err">${escape(r.error)}</div>`;
-  else html += itemsHtml(r.result);
-
-  addEntry(html);
 }
 
 // Called from .NET while a command runs, with the complete current output lines.
@@ -307,11 +315,11 @@ async function run() {
   const text = cmd.value.trim();
   if (!ready || !text) return;
 
-  // Handled by the page rather than the evaluator: help and clear are about the
-  // screen, and undo drives the command history through its own bridge call.
+  // Handled by the page rather than the evaluator, because both are about the screen
+  // rather than about the filesystem. `undo` used to be here too; it is a real command
+  // now, so it goes through the evaluator like everything else and can be piped.
   if (text === 'help') { showHelp(); afterRun(text); return; }
   if (text === 'clear') { scroll.innerHTML = ''; afterRun(text); return; }
-  if (text === 'undo') { await undo(); afterRun(text); return; }
 
   const id = nextId++;
   running = { id, entry: startEntry(id, text) };
@@ -344,15 +352,12 @@ function afterRun(text) {
   refreshMirror(); refreshCompletions();
 }
 
-async function undo() {
-  if (!ready) return;
-  renderResult(JSON.parse(DotNet.invokeMethod('WebClient', 'Undo')));
-  await refreshPrompt();
-}
-
 async function refreshPrompt() {
   if (!ready) return;
-  $('prompt').textContent = DotNet.invokeMethod('WebClient', 'WorkingDirectory');
+  const location = JSON.parse(DotNet.invokeMethod('WebClient', 'Location'));
+  // A location is a folder today and may be a saved query later, so the prompt reads
+  // whichever one is set rather than assuming a path.
+  $('prompt').textContent = location.view || location.folder;
 }
 
 function showHelp() {
@@ -366,7 +371,9 @@ function showHelp() {
     '<div class="out hint">Also: pipes (ls | echo), function form (echo(a, b)), ' +
     'tags (&lt;thing a=1/&gt;), components ({renderer/}), variables (set v 5 or &lt;v|thing/&gt;, then $v). ' +
     'Completions appear above the keys as you type. The Run button becomes Stop while a ' +
-    'command runs. clear empties the screen, undo reverses the last command.</div>');
+    'command runs. clear empties the screen. undo, redo and history are commands: ' +
+    'undo reverses the last line that changed something, and a line that changed ' +
+    'nothing leaves nothing to undo.</div>');
 }
 
 // ---- input handling -------------------------------------------------------
@@ -439,12 +446,12 @@ runButton.onclick = run;
  ['rm note.txt','rm note.txt'],['progress 20 100','progress 20 100'],['progress','progress'],
  ['set v 5','set v 5'],['ls | set files','ls | set files'],['vars','vars'],['echo $v','echo $v'],
  ['&lt;v|thing a=1/&gt;','<v|thing a=1/>'],['{renderer/}','{renderer/}'],['pwd','pwd'],
- ['download','download'],['undo','__undo'],['clear','clear']]
+ ['download','download'],['undo','undo'],['redo','redo'],['history','history'],
+ ['attr','attr readme.txt tag=work'],['save','save &lt;note name=todo/&gt;'],['clear','clear']]
   .forEach(([label, value]) => {
     const b = document.createElement('button');
     b.className = 'key'; b.innerHTML = label;
     b.onclick = () => {
-      if (value === '__undo') { undo(); return; }
       cmd.value = value; refreshMirror(); refreshCompletions(); cmd.focus();
     };
     $('keys').appendChild(b);
@@ -460,6 +467,22 @@ runButton.onclick = run;
       if (attempt < 400) return setTimeout(() => waitForRuntime(attempt + 1), 100);
     }
 
+    // Replaying the log is asynchronous, and nothing may run until it has finished:
+    // an empty filesystem looks exactly like a lost one. Today it returns at once;
+    // in Phase 2 it reads IndexedDB, and the wait is already in the right place.
+    $('status').innerHTML = '<span style="color:var(--dim)">restoring…</span>';
+
+    DotNet.invokeMethodAsync('WebClient', 'Initialize').then(finishBoot).catch(() => {
+      $('status').innerHTML = '<span style="color:var(--bad)">failed to restore</span>';
+    });
+    return;
+  }
+
+  if (attempt < 400) setTimeout(() => waitForRuntime(attempt + 1), 100);
+  else $('status').innerHTML = '<span style="color:var(--bad)">failed to load</span>';
+})(0);
+
+function finishBoot() {
     ready = true;
     cmd.disabled = false; runButton.disabled = false;
     $('status').innerHTML = '<span style="color:var(--ok)">wasm</span>';
@@ -474,12 +497,7 @@ runButton.onclick = run;
     refreshPrompt();
     refreshMirror();
     cmd.focus();
-    return;
-  }
-
-  if (attempt < 400) setTimeout(() => waitForRuntime(attempt + 1), 100);
-  else $('status').innerHTML = '<span style="color:var(--bad)">failed to load</span>';
-})(0);
+}
 
 refreshMirror();
 </script>

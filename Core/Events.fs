@@ -55,7 +55,15 @@ type Transaction =
       /// `Undone: ...` names.
       Source: string
       Events: Event list
-      Compensates: int64 option }
+      Compensates: int64 option
+      /// <summary>Whether this is a line someone typed (decision 0018).</summary>
+      /// <remarks>
+      /// The seeded filesystem is recorded and replayed like anything else, so that a
+      /// store stays a pure fold of its log, but it is not the user's to take back:
+      /// `undo` as the first thing in a fresh session used to empty the very files
+      /// that are there to be looked at.
+      /// </remarks>
+      Undoable: bool }
 
 /// <summary>Where transactions and content live.</summary>
 /// <remarks>

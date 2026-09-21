@@ -6,26 +6,29 @@ namespace Web.Core.Tests;
 /// The session the browser talks to: what it answers, what it streams while a command
 /// runs, how it stops one, and what it offers as completions.
 /// </summary>
+/// <remarks>
+/// These test the adapter, not the language: what a command means is settled in
+/// `Core.Tests`, and what is checked here is that a value arrives as the shape the
+/// page draws. They no longer touch a temporary directory, because the filesystem is
+/// a projection now and there is nothing on disk to look at.
+/// </remarks>
 [TestClass]
 public class TerminalSessionTests
 {
-    private string _root = string.Empty;
     private TerminalSession _session = null!;
 
     [TestInitialize]
-    public void Setup()
+    public async Task Setup()
     {
-        _root = Path.Combine(Path.GetTempPath(), "clr-web-" + Guid.NewGuid().ToString("N"));
-        _session = new TerminalSession(_root);
+        _session = new TerminalSession();
+        await _session.InitializeAsync();
     }
 
-    [TestCleanup]
-    public void Cleanup()
+    /// The names a listing shows, which is the cheapest way to ask what exists.
+    private async Task<IReadOnlyList<string>> Listing()
     {
-        if (Directory.Exists(_root))
-        {
-            Directory.Delete(_root, recursive: true);
-        }
+        var response = await _session.ExecuteAsync("ls");
+        return response.Result!.Select(item => item.Text).ToList();
     }
 
     // ---- responses --------------------------------------------------------------
@@ -37,8 +40,19 @@ public class TerminalSessionTests
 
         Assert.IsNull(response.Error);
         var kinds = response.Result!.Select(item => (item.Kind, item.Text)).ToList();
-        CollectionAssert.Contains(kinds, ("directory", "documents"));
+        CollectionAssert.Contains(kinds, ("folder", "documents"));
         CollectionAssert.Contains(kinds, ("file", "readme.txt"));
+    }
+
+    /// A chip carries the path it argues, so tapping one inserts something that
+    /// resolves rather than a bare name that only works from where you are.
+    [TestMethod]
+    public async Task AFileChipCarriesItsPath()
+    {
+        var response = await _session.ExecuteAsync("ls");
+
+        var readme = response.Result!.Single(item => item.Text == "readme.txt");
+        Assert.AreEqual("/readme.txt", readme.Path);
     }
 
     [TestMethod]
@@ -85,31 +99,101 @@ public class TerminalSessionTests
         StringAssert.Contains(response.Error, "Directory does not exist");
     }
 
+    /// <summary>The kind travels beside the sentence.</summary>
+    /// <remarks>
+    /// `error` is still the sentence the page paints red and has not changed. `fault`
+    /// is new, and is what lets the page show what sort of failure it was without
+    /// parsing the wording.
+    /// </remarks>
+    [TestMethod]
+    public async Task AFailureCarriesItsKindBesideTheMessage()
+    {
+        var response = await _session.ExecuteAsync("cd nowhere");
+
+        Assert.AreEqual("NotFound", response.Fault!.Kind);
+        Assert.AreEqual(response.Error, response.Fault.Message);
+        Assert.AreEqual(1, response.Fault.Stage);
+    }
+
+    [TestMethod]
+    public async Task AFailureInALaterStageSaysWhichOne()
+    {
+        var response = await _session.ExecuteAsync("echo nowhere | cd");
+
+        Assert.AreEqual(2, response.Fault!.Stage);
+    }
+
+    [TestMethod]
+    public async Task ASuccessfulLineHasNoFault()
+    {
+        var response = await _session.ExecuteAsync("echo hello");
+
+        Assert.IsNull(response.Fault);
+        Assert.IsNull(response.Error);
+    }
+
+    // ---- location ---------------------------------------------------------------
+
+    [TestMethod]
+    public async Task TheResponseSaysWhereTheSessionIs()
+    {
+        Assert.AreEqual("/", (await _session.ExecuteAsync("ls")).Location.Folder);
+
+        var response = await _session.ExecuteAsync("cd documents");
+
+        Assert.AreEqual("/documents", response.Location.Folder);
+        Assert.IsNull(response.Location.View);
+        Assert.AreEqual("/documents", _session.Location.Folder);
+    }
+
+    // ---- undo, redo and history -------------------------------------------------
+    // Commands now, not bridge methods, so they go through ExecuteAsync like the rest.
+
     [TestMethod]
     public async Task WritingThenUndoingLeavesTheTreeAsItWas()
     {
         await _session.ExecuteAsync("echo hi | write note.txt");
-        Assert.IsTrue(File.Exists(Path.Combine(_root, "note.txt")));
+        CollectionAssert.Contains((await Listing()).ToList(), "note.txt");
 
-        var undo = _session.Undo();
+        var undo = await _session.ExecuteAsync("undo");
 
         Assert.IsNull(undo.Error);
-        Assert.IsFalse(File.Exists(Path.Combine(_root, "note.txt")));
+        CollectionAssert.DoesNotContain((await Listing()).ToList(), "note.txt");
     }
 
     [TestMethod]
-    public async Task UndoNamesTheCommandItReversed()
+    public async Task UndoNamesTheLineItReversed()
     {
         await _session.ExecuteAsync("mkdir alpha");
 
-        CollectionAssert.Contains(_session.Undo().Output.ToList(), "Undone: mkdir");
+        var undo = await _session.ExecuteAsync("undo");
+
+        Assert.AreEqual("Undone: mkdir alpha", undo.ResultText);
+    }
+
+    /// Nothing went wrong, so it is a result rather than a red line.
+    [TestMethod]
+    public async Task UndoWithNothingToUndoIsNotAnError()
+    {
+        var undo = await _session.ExecuteAsync("undo");
+
+        Assert.IsNull(undo.Error);
+        Assert.AreEqual("Nothing to undo.", undo.ResultText);
     }
 
     [TestMethod]
-    public void UndoWithAnEmptyHistorySaysSo() =>
-        Assert.AreEqual("Nothing to undo.", _session.Undo().Error);
+    public async Task RedoPutsBackWhatUndoTookAway()
+    {
+        await _session.ExecuteAsync("mkdir alpha");
+        await _session.ExecuteAsync("undo");
 
-    // Commands keep their undo state in their own fields, so a shared instance made the
+        var redo = await _session.ExecuteAsync("redo");
+
+        Assert.AreEqual("Redone: mkdir alpha", redo.ResultText);
+        CollectionAssert.Contains((await Listing()).ToList(), "alpha");
+    }
+
+    // The defect decision 0010 was written for: a shared command instance made the
     // second undo replay the first one's saved state and leave $v bound to 1.
     [TestMethod]
     public async Task UndoingTwoInvocationsOfOneCommandUnwindsBoth()
@@ -117,10 +201,10 @@ public class TerminalSessionTests
         await _session.ExecuteAsync("set v 1");
         await _session.ExecuteAsync("set v 2");
 
-        _session.Undo();
+        await _session.ExecuteAsync("undo");
         Assert.AreEqual("1", _session.Variables().Single().Text);
 
-        _session.Undo();
+        await _session.ExecuteAsync("undo");
         Assert.AreEqual(0, _session.Variables().Count);
     }
 
@@ -130,25 +214,64 @@ public class TerminalSessionTests
         await _session.ExecuteAsync("mkdir one");
         await _session.ExecuteAsync("mkdir two");
 
-        _session.Undo();
-        _session.Undo();
+        await _session.ExecuteAsync("undo");
+        await _session.ExecuteAsync("undo");
 
-        Assert.IsFalse(Directory.Exists(Path.Combine(_root, "one")));
-        Assert.IsFalse(Directory.Exists(Path.Combine(_root, "two")));
+        var listing = (await Listing()).ToList();
+        CollectionAssert.DoesNotContain(listing, "one");
+        CollectionAssert.DoesNotContain(listing, "two");
     }
 
-    // Read-only commands are on the history too, so undo steps over them one at a time.
+    /// <summary>Undo reaches past a line that changed nothing (decision 0015).</summary>
+    /// <remarks>
+    /// This reverses the old behaviour, which is what makes it worth a test of its own.
+    /// Every executed command used to be on the history, read-only ones included, so
+    /// `mkdir alpha`, `ls`, undo answered "Undone: ls" and left the folder in place --
+    /// indistinguishable, to the person watching, from undo being broken.
+    /// </remarks>
     [TestMethod]
-    public async Task UndoStepsBackOverACommandThatChangedNothing()
+    public async Task UndoReachesPastALineThatChangedNothing()
     {
         await _session.ExecuteAsync("mkdir alpha");
         await _session.ExecuteAsync("ls");
 
-        CollectionAssert.Contains(_session.Undo().Output.ToList(), "Undone: ls");
-        Assert.IsTrue(Directory.Exists(Path.Combine(_root, "alpha")));
+        var undo = await _session.ExecuteAsync("undo");
 
-        CollectionAssert.Contains(_session.Undo().Output.ToList(), "Undone: mkdir");
-        Assert.IsFalse(Directory.Exists(Path.Combine(_root, "alpha")));
+        Assert.AreEqual("Undone: mkdir alpha", undo.ResultText);
+        CollectionAssert.DoesNotContain((await Listing()).ToList(), "alpha");
+    }
+
+    [TestMethod]
+    public async Task HistoryListsTheLinesThatChangedSomething()
+    {
+        await _session.ExecuteAsync("mkdir alpha");
+        await _session.ExecuteAsync("ls");
+
+        var history = await _session.ExecuteAsync("history");
+
+        Assert.IsTrue(history.Result!.Any(item => item.Text.Contains("mkdir alpha")));
+        Assert.IsFalse(history.Result!.Any(item => item.Text.EndsWith(" ls")));
+    }
+
+    // ---- initialisation ---------------------------------------------------------
+
+    /// <summary>
+    /// Executing before the log has been replayed is a fault, not an empty filesystem.
+    /// </summary>
+    /// <remarks>
+    /// An empty filesystem and a lost one look identical from the page, so a host that
+    /// forgets to await initialisation is told rather than quietly shown nothing. It
+    /// matters from Phase 2, when replaying actually takes time.
+    /// </remarks>
+    [TestMethod]
+    public async Task ExecutingBeforeInitialisingIsAFault()
+    {
+        var fresh = new TerminalSession();
+
+        var response = await fresh.ExecuteAsync("ls");
+
+        Assert.AreEqual("Internal", response.Fault!.Kind);
+        StringAssert.Contains(response.Error, "not been initialised");
     }
 
     // ---- streaming and cancellation --------------------------------------------
@@ -168,6 +291,19 @@ public class TerminalSessionTests
         CollectionAssert.Contains(response.Output.ToList(), "Progress test finished");
     }
 
+    /// Phase 4's live views listen to this; committing is what raises it.
+    [TestMethod]
+    public async Task TheStoreAnnouncesEveryCommittedLine()
+    {
+        var seen = new List<long>();
+        _session.StoreChanged += seen.Add;
+
+        await _session.ExecuteAsync("mkdir alpha");
+        await _session.ExecuteAsync("ls");
+
+        Assert.AreEqual(1, seen.Count, "The ls changed nothing and should not have announced anything.");
+    }
+
     [TestMethod]
     public async Task CancelStopsTheRunningCommand()
     {
@@ -180,6 +316,7 @@ public class TerminalSessionTests
         var response = await run;
 
         Assert.AreEqual("Stopped.", response.Error);
+        Assert.AreEqual("Cancelled", response.Fault!.Kind);
         Assert.IsTrue(response.Output.Any(line => line.StartsWith("Cancelled at")), string.Join("|", response.Output));
         Assert.IsFalse(_session.IsRunning);
     }
@@ -221,6 +358,18 @@ public class TerminalSessionTests
         Assert.AreEqual("ls | set files", parse.Reserialised);
     }
 
+    /// An assignment's name is tagged as an attribute: it names data, rather than
+    /// being data itself.
+    [TestMethod]
+    public void AnAssignmentIsTokenisedAsAnAttribute()
+    {
+        var parse = new CommandLineReimagined.Web.Parsing.CommandParseService().Parse("attr notes.txt tag=work");
+
+        Assert.IsNull(parse.Error);
+        Assert.AreEqual("attr notes.txt tag=work", parse.Reserialised);
+        Assert.AreEqual("tag", parse.Tokens.First(t => t.Kind == "attribute").Text);
+    }
+
     // ---- completion -------------------------------------------------------------
 
     [TestMethod]
@@ -251,7 +400,7 @@ public class TerminalSessionTests
     {
         var top = _session.Complete("cd doc").Single();
         Assert.AreEqual("documents/", top.Text);
-        Assert.AreEqual("directory", top.Kind);
+        Assert.AreEqual("folder", top.Kind);
 
         var inside = _session.Complete("cat documents/no").Single();
         Assert.AreEqual("documents/notes.txt", inside.Text);
@@ -290,5 +439,20 @@ public class TerminalSessionTests
         Assert.AreEqual("n", variable.Name);
         Assert.AreEqual("5", variable.Text);
         Assert.AreEqual("number", variable.Items.Single().Kind);
+    }
+
+    // ---- commands ---------------------------------------------------------------
+
+    [TestMethod]
+    public void TheCommandListIsWhatHelpShows()
+    {
+        var names = _session.Commands.Select(c => c.Name).ToList();
+
+        CollectionAssert.Contains(names, "undo");
+        CollectionAssert.Contains(names, "redo");
+        CollectionAssert.Contains(names, "history");
+        CollectionAssert.Contains(names, "attr");
+        CollectionAssert.Contains(names, "save");
+        CollectionAssert.DoesNotContain(names, "UnknownCommand");
     }
 }

@@ -1,4 +1,4 @@
-﻿using Commands;
+﻿using CommandLineReimagined.Core;
 using Newtonsoft.Json;
 using System.Collections.Concurrent;
 using System.Diagnostics;
@@ -9,7 +9,7 @@ namespace Terminal.Search;
 
 public class CommandSearch
 {
-    private readonly IEnumerable<ICommandAction> _commandActions;
+    private readonly IReadOnlyList<CommandSpec> _commands;
 
     private class JSONLine
     {
@@ -24,12 +24,20 @@ public class CommandSearch
     private ConcurrentDictionary<string, string[]> ThesaurusIndex { get; set; } = new();
     private TrieSearch? AutocompleteTrie { get; set; }
 
-    private ConcurrentDictionary<string, ICommandAction[]> CommandActionIndex { get; set; } = new();
+    private ConcurrentDictionary<string, CommandSpec[]> CommandActionIndex { get; set; } = new();
     private TrieSearch? CommandActionMetadataTrie { get; set; }
 
-    public CommandSearch(IEnumerable<ICommandAction> commandActions)
+    /// <summary>
+    /// Takes the specifications rather than the command objects.
+    /// </summary>
+    /// <remarks>
+    /// Search only ever read a command's name, description and keywords, all of which
+    /// are on the specification. Taking the runnable command as well meant this could
+    /// not be constructed without the whole execution layer behind it.
+    /// </remarks>
+    public CommandSearch(IReadOnlyList<CommandSpec> commands)
     {
-        _commandActions = commandActions;
+        _commands = commands;
     }
 
     public void AsynchronouslyLoadIndexes()
@@ -40,21 +48,21 @@ public class CommandSearch
 
     private async Task LoadAndIndexDocumentation()
     {
-        CommandActionMetadataTrie = new(_commandActions.Select(a => a.Profile.Name).ToArray());
+        CommandActionMetadataTrie = new(_commands.Select(spec => spec.Name).ToArray());
 
-        foreach (ICommandAction action in _commandActions)
+        foreach (CommandSpec spec in _commands)
         {
             var associatedWords =
-                GetWords(action.Profile.Name)
-                    .Concat(GetWords(action.Profile.Description))
-                    .Concat(GetWords(action.Profile.KeyWords));
+                GetWords(spec.Name)
+                    .Concat(GetWords(spec.Description))
+                    .Concat(spec.Keywords.SelectMany(GetWords));
 
             foreach (var word in associatedWords)
             {
-                CommandActionIndex.AddOrUpdate(word, new ICommandAction[] { action }, (_, existing) =>
+                CommandActionIndex.AddOrUpdate(word, new[] { spec }, (_, existing) =>
                 {
                     // Merge synonyms for the same key
-                    return existing.Append(action).ToArray();
+                    return existing.Append(spec).ToArray();
                 });
             }
         }
@@ -391,9 +399,9 @@ public class CommandSearch
 
     private IEnumerable<string> WordToAssociatedCommandNames(string word)
     {
-        if (CommandActionIndex.TryGetValue(word, out ICommandAction[]? actions))
+        if (CommandActionIndex.TryGetValue(word, out CommandSpec[]? specs))
         {
-            return actions.Select(a => a.Profile.Name);
+            return specs.Select(spec => spec.Name);
         }
         else
         {

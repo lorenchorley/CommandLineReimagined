@@ -108,6 +108,36 @@ type MetaCommandTests() =
         | Value.List lines -> Assert.AreEqual<int>(4, lines.Length)
         | other -> Assert.Fail(sprintf "Expected a list, got %A" other)
 
+    /// <summary>The seed is recorded but is nobody's to undo (decision 0018).</summary>
+    /// <remarks>
+    /// It is a transaction like any other, so a replay reproduces it and `history`
+    /// lists it. Undoing it is what a curious new user's first keystroke would
+    /// otherwise do, and it would empty the very files that are there to be looked at.
+    /// </remarks>
+    [<TestMethod>]
+    member _.TheSeedCannotBeUndone() =
+        let harness = seeded ()
+
+        Assert.AreEqual<string>("Nothing to undo.", harness.Text "undo")
+        Assert.AreEqual<string>("documents projects readme.txt", harness.Text "ls")
+
+    [<TestMethod>]
+    member _.TheSeedIsStillInHistory() =
+        let harness = seeded ()
+
+        Assert.AreEqual<string list>([ "seed" ], harness.History())
+
+    /// Undo walks back to the last line someone typed and stops there, rather than
+    /// carrying on into what the session started with.
+    [<TestMethod>]
+    member _.UndoStopsAtTheSeed() =
+        let harness = seeded ()
+        harness.Run "mkdir alpha" |> ignore
+
+        Assert.AreEqual<string>("Undone: mkdir alpha", harness.Text "undo")
+        Assert.AreEqual<string>("Nothing to undo.", harness.Text "undo")
+        Assert.AreEqual<string>("documents projects readme.txt", harness.Text "ls")
+
     [<TestMethod>]
     member _.HistoryOnAFreshSessionSaysSo() =
         let harness = bare ()

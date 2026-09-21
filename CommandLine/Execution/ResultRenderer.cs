@@ -1,86 +1,49 @@
 using CommandLine.Modules;
+using CommandLineReimagined.Core;
 using UIComponents.Components;
 
 namespace Terminal.Execution;
 
 /// <summary>
-/// Renders a command's result into the console scene.
+/// Renders a session's response into the console scene.
 /// </summary>
 /// <remarks>
-/// This holds the interactive output that used to live inside <c>ls</c>: directory
-/// entries become buttons carrying PathInformation, a context menu and a double-click
-/// action. Moving it here means commands return data and the shell decides how it looks,
-/// so results can also flow into a pipe or be asserted on in a test.
+/// Text for this phase. It used to turn directory entries into buttons carrying a
+/// path, a context menu and a double-click action; those were built on path values,
+/// and the filesystem is attribute records now. Decision 0012 keeps the desktop shell
+/// out of scope, so the requirement is that it compiles and runs commands, and the
+/// interactive listing comes back in Phase 7 if the owner wants it.
+///
+/// It takes the whole response rather than a value, because a fault is a value here
+/// too: there is no exception to catch and no separate error path to render.
 /// </remarks>
 public sealed class ResultRenderer
 {
-    public void Render(RuntimeValue value, CliBlock block)
+    public void Render(Response response, CliBlock block)
     {
-        switch (value)
+        foreach (var line in response.Output)
         {
-            case EmptyValue:
-                return;
-
-            case ListValue list:
-            {
-                if (list.Items.Count == 0)
-                {
-                    return;
-                }
-
-                var line = block.NewLineComponent();
-                foreach (var item in list.Items)
-                {
-                    RenderInline(item, line);
-                }
-
-                return;
-            }
-
-            default:
-                RenderInline(value, block.NewLineComponent());
-                return;
+            block.NewLineComponent().LinkNewTextBlock("output", line);
         }
-    }
 
-    private void RenderInline(RuntimeValue value, LineComponent line)
-    {
-        switch (value)
+        if (response.Fault is { } fault)
         {
-            case PathValue path when path.Kind == PathKind.Parent:
-                line.LinkNewButton("ls up", " up ")
-                    .AddComponent<ContextMenuSource>(c => c.ContextMenuName = "PathNavigationContextMenu")
-                    .AddComponent<DoubleClickAction>(c => c.ActionName = "Up");
-                return;
+            // The kind before the message, the way the browser page shows it.
+            RenderError($"{fault.Value.Kind.ToString().ToLowerInvariant()}  {fault.Value.Message}", block);
+            return;
+        }
 
-            case PathValue path when path.Kind == PathKind.Directory:
-                line.LinkNewButton("ls folder", $" {path.Name}\\ ")
-                    .AddComponent<PathInformation>(c => c.Path = path.Path)
-                    .AddComponent<ContextMenuSource>(c => c.ContextMenuName = "PathNavigationContextMenu")
-                    .AddComponent<DoubleClickAction>(c => c.ActionName = "Enter");
-                return;
+        if (response.Result is { } result && !result.Value.IsEmpty)
+        {
+            string text = ValueModule.display(result.Value);
 
-            case PathValue path:
-                line.LinkNewButton("ls file", $" {path.Name} ")
-                    .AddComponent<PathInformation>(c => c.Path = path.Path)
-                    .AddComponent<ContextMenuSource>(c => c.ContextMenuName = "FileNavigationContextMenu")
-                    .AddComponent<DoubleClickAction>(c => c.ActionName = "ShowContents");
-                return;
-
-            case ListValue nested:
-                foreach (var item in nested.Items)
-                {
-                    RenderInline(item, line);
-                }
-
-                return;
-
-            default:
-                line.LinkNewTextBlock("result", value.ToDisplayString());
-                return;
+            if (text.Length > 0)
+            {
+                block.NewLineComponent().LinkNewTextBlock("result", text);
+            }
         }
     }
 
     public void RenderError(string message, CliBlock block) =>
-        block.NewLineComponent().LinkNewTextBlock("error", message, highlighted: true);
+        block.NewLineComponent().LinkNewTextBlock("error", message);
 }

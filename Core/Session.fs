@@ -156,7 +156,9 @@ type Session(log: ILog, options: SessionOptions, seed: Seed) =
                 let! events = seed blobs
 
                 if not (List.isEmpty events) then
-                    let! _ = store.Commit "seed" events
+                    // Recorded and replayed like any line, and marked as nobody's to
+                    // undo (decision 0018).
+                    let! _ = store.CommitSystem "seed" events
                     ()
 
             initialised <- true

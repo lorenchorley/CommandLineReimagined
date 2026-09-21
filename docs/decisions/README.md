@@ -27,6 +27,7 @@ a later record, **Rejected**.
 | [0015](0015-atomic-lines.md) | A command line is one atomic transaction | Accepted |
 | [0016](0016-folders-as-records.md) | Folders are records with a `kind` of `folder`, and the root is implicit | Accepted |
 | [0017](0017-assignment-arguments.md) | `name=value` in argument position is data; `name: value` binds a parameter | Accepted |
+| [0018](0018-the-seed-is-not-a-line-anyone-typed.md) | The seeded filesystem is recorded but cannot be undone | Accepted |
 
 Retrospective records document decisions taken before the log existed, so that the
 log is the one place to look. Their alternatives are the ones weighed at the time, as

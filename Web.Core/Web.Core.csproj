@@ -9,13 +9,16 @@
   </PropertyGroup>
 
   <!--
-    Parsing and tokenisation shared by the two front ends: the ASP.NET host (Web) and
-    the WebAssembly client (WebClient). Both must produce an identical token stream,
-    so the logic lives here once rather than being written twice.
+    The adapter between the F# core and the two front ends: the ASP.NET host (Web)
+    and the WebAssembly client (WebClient). It maps a Session's values to JSON DTOs
+    and shares one tokeniser, so both front ends produce an identical token stream.
+
+    It no longer references the WPF assembly. Every command used to live behind
+    Terminal.csproj, which meant the browser build dragged in the desktop shell to
+    run `ls`.
   -->
   <ItemGroup>
-    <ProjectReference Include="..\CommandLine\Terminal.csproj" />
-    <ProjectReference Include="..\Commands\Commands.csproj" />
+    <ProjectReference Include="..\Core\Core.fsproj" />
     <ProjectReference Include="..\Parser.FParsec\Parser.FParsec.fsproj" />
   </ItemGroup>
 
