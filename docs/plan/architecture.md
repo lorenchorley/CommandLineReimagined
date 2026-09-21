@@ -20,6 +20,9 @@ a phase document and this one disagree, this one is wrong and should be fixed fi
 | `Execution.Tests` | C# | Execution tests | Deleted once `Core.Tests` covers every case |
 | `CommandLineReimagined` (`Application.csproj`) | C# | WPF host | Registration updated to the `Session` |
 
+`FileId` is declared in `Values.fs` rather than `Events.fs`, because `FileRef` names
+one and values compile first.
+
 `Core` depends on `Parser.Tree` and `Parser.FParsec` only. Nothing in `Core` references
 the ECS, rendering, WPF, Blazor or JavaScript.
 
@@ -150,7 +153,7 @@ module Projection =
 type Store(log: ILog, clock: unit -> DateTimeOffset) =
     member Initialize : unit -> Async<unit>                       // replay
     member Current    : Projection
-    member Commit     : source: string -> Event list -> Async<Outcome<Transaction>>
+    member Commit     : source: string -> Event list -> Async<Outcome<Transaction option>>
     member Undo       : unit -> Async<Outcome<Transaction option>>
     member Redo       : unit -> Async<Outcome<Transaction option>>
     member History    : unit -> (Transaction * undone: bool) list
@@ -159,7 +162,8 @@ type Store(log: ILog, clock: unit -> DateTimeOffset) =
 
 `Commit` validates events against `Current` before appending (a `FileCreated` whose
 name already exists in its folder is a `Conflict`), applies them, appends, raises
-`Changed`.
+`Changed`. An empty event list appends nothing and answers `Ok None`, which is how a
+read-only line leaves no transaction behind.
 
 ### Filesystem model
 
@@ -215,10 +219,14 @@ and IOutputLine =
 and IOutputText =
     abstract Text : string with get, set
 
+type IBlobs =
+    abstract Put : string -> Async<Hash>
+    abstract Get : Hash -> Async<string option>
+
 type Invocation =
     { Spec: CommandSpec; Args: Map<string, Value>; Assignments: (string * Value) list
       Input: Value; Output: IOutput; Scope: Scope; Projection: Projection
-      Location: Location; Cancel: CancellationToken }
+      Location: Location; Blobs: IBlobs; Cancel: CancellationToken }
 
 type CommandResult = { Value: Value; Events: Event list }
 
@@ -226,7 +234,10 @@ type Command = { Spec: CommandSpec; Run: Invocation -> Async<Outcome<CommandResu
 ```
 
 A command reads `Projection` and `Location`, never the store. It returns events; it
-does not apply them. Long-running commands write through `Output` and observe
+does not apply them. `Blobs` is the whole of the log a command may see: `write` puts
+its text and names the hash in an event, `cat` gets it back. It is a capability rather
+than the log itself, so a command can read and write content and cannot append,
+undo or read the history. Long-running commands write through `Output` and observe
 `Cancel`. Meta commands receive a `StoreAccess` capability through a separate
 constructor argument and are the only ones allowed to call `Undo`, `Redo`, `History`,
 or, in the case of `run`, to execute further lines.
@@ -266,7 +277,10 @@ type Response =
     { Source: string; Output: string list; Result: Value option
       Fault: Fault option; Location: Location }
 
-type Session(log: ILog, ?clock, ?seed: Event list) =
+type SeedFile = { Name: string; Folder: string; Content: string option }
+type Seed     = IBlobs -> Async<Event list>
+
+type Session(log: ILog, options: SessionOptions, seed: Seed) =
     member Initialize    : unit -> Async<unit>       // replay, then seed if the log was empty
     member Execute       : source: string * executionId: int * CancellationToken -> Async<Response>
     member Cancel        : unit -> bool
@@ -280,6 +294,12 @@ type Session(log: ILog, ?clock, ?seed: Event list) =
 
 `Execute` never raises. A parse failure is a `Syntax` fault; an unexpected exception
 is an `Internal` fault; cancellation is a `Cancelled` fault with message `Stopped.`.
+
+A seed is a function of the blob store rather than a list of events, because content
+has to reach the blob store before an event can name its hash, and the blob store
+belongs to the log the session is handed. `SessionOptions` carries the four things
+hosts differ on: the clock, the source of record ids, the HTTP client and what `exit`
+means.
 
 ## Wire formats (C# adapter in `Web.Core`)
 

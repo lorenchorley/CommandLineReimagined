@@ -1,0 +1,175 @@
+/// Running a line.
+///
+/// Decision 0015: one line is one transaction. The stages are folded left to right,
+/// threading a value and accumulating events into a working projection so a later
+/// stage sees an earlier one's effect. If every stage succeeds the events are
+/// committed together; if any fails, nothing is.
+namespace CommandLineReimagined.Core
+
+open System
+open System.Threading
+
+/// What running a line produced, before the session dresses it up.
+type Execution =
+    { Value: Value
+      /// The transaction, when the line changed something. A read-only line commits
+      /// nothing and leaves this empty, which is what keeps `undo` from having to step
+      /// over an `ls`.
+      Committed: Transaction option }
+
+type Evaluator(commands: Command list, store: Store, blobs: IBlobs) =
+
+    let byName =
+        commands
+        |> List.map (fun command -> command.Spec.Name.ToLowerInvariant(), command)
+        |> Map.ofList
+
+    let unknownCommand =
+        commands |> List.tryFind (fun c -> c.Spec.Name = "UnknownCommand")
+
+    let find (name: string) = Map.tryFind (name.ToLowerInvariant()) byName
+
+    member _.Commands = commands
+
+    member _.Specs =
+        commands
+        |> List.map (fun command -> command.Spec)
+        |> List.filter (fun spec -> spec.Name <> "UnknownCommand")
+        |> List.sortWith (fun a b -> String.CompareOrdinal(a.Name, b.Name))
+
+    /// <summary>Runs a parsed line.</summary>
+    /// <remarks>
+    /// Never raises. A fault is a value all the way out; an unexpected exception from
+    /// a command is caught here and becomes a fault of kind `Internal`, so a defect
+    /// surfaces as a message rather than ending the session.
+    /// </remarks>
+    member _.Execute (tree: Tree.Node) (source: string) (output: IOutput) (cancel: CancellationToken) =
+        async {
+            match tree with
+            | :? Tree.Empty -> return Ok { Value = Value.Empty; Committed = None }
+            | :? Tree.Pipeline as pipeline ->
+                let stages = List.ofSeq pipeline.OrderedCommands
+
+                if List.isEmpty stages then
+                    return Ok { Value = Value.Empty; Committed = None }
+                else
+
+                    /// The projection a stage reads: the committed one with this line's
+                    /// events so far folded in.
+                    let mutable working = store.Current
+                    let mutable pending: Event list = []
+
+                    let record (events: Event list) =
+                        pending <- pending @ events
+                        working <- Projection.applyAll working events
+
+                    let runCommand (command: Command) (arguments: Tree.Arguments) (input: Value) =
+                        async {
+                            let scope = Scope working.Variables
+
+                            match Binder.bind arguments command.Spec input scope with
+                            | Error fault -> return Error fault
+                            | Ok bound ->
+                                // The arguments' own events land before the command
+                                // runs, so a tag that bound a variable is visible to it.
+                                record bound.Events
+                                let scope = Scope working.Variables
+
+                                let invocation =
+                                    { Spec = command.Spec
+                                      Args = bound.Args
+                                      Assignments = bound.Assignments
+                                      Input = input
+                                      Output = output
+                                      Scope = scope
+                                      Projection = working
+                                      Location = working.Location
+                                      Blobs = blobs
+                                      Cancel = cancel }
+
+                                try
+                                    let! result = command.Run invocation
+
+                                    match result with
+                                    | Error fault -> return Error fault
+                                    | Ok result ->
+                                        // Meta commands act on the store directly and
+                                        // are outside the transaction, so whatever they
+                                        // return is not this line's to commit.
+                                        if not command.Spec.Meta then
+                                            record result.Events
+
+                                        return Ok result.Value
+                                with
+                                | :? OperationCanceledException -> return Error(Fault.cancelled ())
+                                | exn -> return Error(Fault.internalError exn)
+                        }
+
+                    let runStage (input: Value) (expression: Tree.Expression) =
+                        async {
+                            let named (name: string) (arguments: Tree.Arguments) =
+                                async {
+                                    match find name with
+                                    | Some command -> return! runCommand command arguments input
+                                    | None ->
+                                        // Reported through a command rather than by
+                                        // failing here, so an unknown name renders the
+                                        // same way as any other failure.
+                                        match unknownCommand with
+                                        | Some command ->
+                                            let arguments = Tree.Arguments()
+
+                                            arguments.Arguments.Add(
+                                                Tree.ArgumentValue(Value = Tree.Identifier(Name = name))
+                                            )
+
+                                            return! runCommand command arguments Value.Empty
+                                        | None -> return Error(Fault.unknownCommand name)
+                                }
+
+                            return!
+                                expression.Expression.Match(
+                                    (fun (f: Tree.Function) -> named f.Id.Name f.Arguments),
+                                    (fun (c: Tree.Cli) -> named c.Name.Name c.Arguments),
+                                    (fun (tag: Tree.InstanceTag) ->
+                                        async {
+                                            let scope = Scope working.Variables
+
+                                            match Binder.evaluateTag scope tag with
+                                            | Error fault -> return Error fault
+                                            | Ok(value, events) ->
+                                                record events
+                                                return Ok value
+                                        })
+                                )
+                        }
+
+                    let rec fold (input: Value) stage remaining =
+                        async {
+                            match remaining with
+                            | [] -> return Ok input
+                            | expression :: rest ->
+                                if cancel.IsCancellationRequested then
+                                    return Error(Fault.cancelled ())
+                                else
+                                    let! result = runStage input expression
+
+                                    match result with
+                                    | Error fault -> return Error(Fault.atStage stage fault)
+                                    | Ok value -> return! fold value (stage + 1) rest
+                        }
+
+                    let! result = fold Value.Empty 1 stages
+
+                    match result with
+                    | Error fault ->
+                        // Nothing is committed, so a failed line leaves no trace at all
+                        // (decision 0015).
+                        return Error fault
+                    | Ok value ->
+                        let! committed = store.Commit source pending
+
+                        return committed |> Outcome.map (fun transaction -> { Value = value; Committed = transaction })
+
+            | other -> return Error(Fault.cannotEvaluate (other.GetType().Name))
+        }

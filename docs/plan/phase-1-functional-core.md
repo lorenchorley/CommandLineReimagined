@@ -201,7 +201,7 @@ Commit: "Phase 1 documentation and browser check".
 All of these in `Core.Tests` and in `tools/browser-check.mjs`, from a fresh session:
 
 ```
-ls                                  -> up documents projects readme.txt
+ls                                  -> documents projects readme.txt
 mkdir a | cd nowhere                -> Directory does not exist : nowhere    ; ls shows no a
 mkdir alpha                         -> alpha
 ls                                  -> (a listing)
@@ -224,3 +224,11 @@ progress 3 1                        -> 100
 
 Plus: every project builds, all test projects pass, Windows CI green, payload under
 20 MB, no console errors in the browser check.
+
+The first line read `up documents projects readme.txt` when this plan was written,
+which was the output of the session as it then was: its root was `/home/terminal`, a
+folder with a parent. A fresh session now starts at `/`, which the `attr` line below
+confirms by showing `folder = /`, and this checkpoint's own command contract says the
+parent entry appears only when you are not at the root. Two lines of one document
+cannot both be right; the contract is the normative one, so the acceptance line is
+corrected rather than the behaviour.

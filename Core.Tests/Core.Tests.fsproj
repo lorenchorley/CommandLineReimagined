@@ -20,6 +20,14 @@
     <Compile Include="ProjectionTests.fs" />
     <Compile Include="FilesTests.fs" />
     <Compile Include="StoreTests.fs" />
+    <Compile Include="SessionHarness.fs" />
+    <Compile Include="ExecutionTests.fs" />
+    <Compile Include="FileCommandTests.fs" />
+    <Compile Include="VariableCommandTests.fs" />
+    <Compile Include="AsyncCommandTests.fs" />
+    <Compile Include="MetaCommandTests.fs" />
+    <Compile Include="CompletionTests.fs" />
+    <Compile Include="AcceptanceTests.fs" />
   </ItemGroup>
 
   <ItemGroup>

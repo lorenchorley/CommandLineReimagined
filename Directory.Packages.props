@@ -32,6 +32,15 @@
 
   <ItemGroup Label="Language and parsing">
     <!--
+      FSharp.Core is normally supplied implicitly by the SDK, at the version the F#
+      compiler in that SDK was built against. Central transitive pinning overrides
+      that with whatever the graph's lowest requirement is, and FParsec asks for
+      4.3.4, a version predating string interpolation, so the core would not
+      compile against it. Naming it here puts it back under our control rather than
+      under a transitive dependency's.
+    -->
+    <PackageVersion Include="FSharp.Core" Version="8.0.102" />
+    <!--
       FParsec 2.0.0-beta exists. The parser is the project's foundation and its tests
       pin exact error columns, so it stays on the released line until someone has time
       to read that release's notes properly.

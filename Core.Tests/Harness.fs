@@ -92,3 +92,21 @@ let everyEventShape () =
       VariableChanged("v", Some(Value.Number 1.0), None)
       VariableChanged("v", Some(Value.Number 1.0), Some(Value.Number 9.0))
       LocationChanged({ Folder = "/"; View = None }, { Folder = "/documents"; View = None }) ]
+
+/// <summary>Membership assertions over F# lists.</summary>
+/// <remarks>
+/// `CollectionAssert` takes an `ICollection`, which an F# list is not, and converting
+/// at every call site buries what is being asserted. These also print the whole list
+/// when they fail, so a failure says what was there instead of only what was not.
+/// </remarks>
+let assertContains (expected: string) (items: string list) =
+    Assert.IsTrue(
+        List.contains expected items,
+        sprintf "Expected '%s' among: %s" expected (String.Join(" | ", items))
+    )
+
+let assertDoesNotContain (unexpected: string) (items: string list) =
+    Assert.IsFalse(
+        List.contains unexpected items,
+        sprintf "Did not expect '%s' among: %s" unexpected (String.Join(" | ", items))
+    )

@@ -28,6 +28,21 @@
     <Compile Include="Projection.fs" />
     <Compile Include="Store.fs" />
     <Compile Include="Scope.fs" />
+    <Compile Include="Tree.fs" />
+    <Compile Include="Commands/Spec.fs" />
+    <Compile Include="Binder.fs" />
+    <Compile Include="Commands/Files.fs" />
+    <Compile Include="Commands/Values.fs" />
+    <Compile Include="Commands/Async.fs" />
+    <Compile Include="Commands/Meta.fs" />
+    <Compile Include="Evaluator.fs" />
+    <Compile Include="Completion.fs" />
+    <Compile Include="Seed.fs" />
+    <Compile Include="Session.fs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="FSharp.Core" />
   </ItemGroup>
 
   <ItemGroup>
