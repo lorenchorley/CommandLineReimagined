@@ -227,14 +227,46 @@ module Fault =
 
     let stepsMustBePositive () = create Invalid "'steps' must be at least 1."
 
-    let stepsMustBeWhole value =
-        create Invalid (sprintf "'steps' must be a whole number, not '%s'." value)
-
     let notAValidUrl text = create Invalid (sprintf "Not a valid URL : %s" text)
 
     let noContentLength () = create Invalid "The server did not report a content length."
 
+    let stepsMustBeWhole value =
+        create Invalid (sprintf "'steps' must be a whole number, not '%s'." value)
+
     let transferEndedEarly () = create Invalid "The transfer ended before all bytes arrived."
+
+    // ------------------------------------------------------------- Record errors
+
+    let fileNeedsAName () = create Invalid "A file must have a name."
+
+    /// <summary>A name that could never be written as a path to the record it names.</summary>
+    /// <remarks>
+    /// A name is one segment of a path (decision 0016): `/` would make it two, and `.`
+    /// and `..` already mean somewhere else, so a record called any of them could be
+    /// listed and never reached.
+    /// </remarks>
+    let notAValidFileName name reason =
+        create Invalid (sprintf "'%s' is not a valid file name: %s." name reason)
+
+    /// <summary>`attr` asked to write an attribute the runtime owns (decision 0013).</summary>
+    let setByTheTerminal name =
+        create Invalid (sprintf "'%s' is set by the terminal and cannot be written." name)
+
+    /// `size` is the content's length, worked out whenever it is asked for. A stored one
+    /// would be a second `size` column that could disagree with the first.
+    let computedFromContent name =
+        create Invalid (sprintf "'%s' is worked out from the content and cannot be written." name)
+
+    /// Decision 0016: a folder is a place other records name in their `folder`
+    /// attribute, and a record that stopped being one would strand them.
+    let directoryStaysADirectory path =
+        create Invalid (sprintf "A directory cannot change its kind : %s" path) |> withPath path
+
+    /// Decision 0016: a folder has no content, so a file with some cannot become one.
+    let contentCannotBeADirectory path =
+        create Invalid (sprintf "A file with content cannot become a directory : %s" path)
+        |> withPath path
 
     // ----------------------------------------------------------- Evaluation errors
 

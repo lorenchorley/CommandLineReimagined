@@ -72,7 +72,7 @@ module Table =
     /// is deliberately absent: every record has one, it is never what a listing is for,
     /// and a column nobody reads costs a phone screen more than it is worth. `attr`
     /// shows it.
-    let recordColumns = [ Attributes.name; Attributes.kind; Attributes.folder; "size"; Attributes.modified ]
+    let recordColumns = [ Attributes.name; Attributes.kind; Attributes.folder; Attributes.size; Attributes.modified ]
 
     /// <summary>The table a listing is.</summary>
     /// <remarks>
@@ -84,7 +84,7 @@ module Table =
         let extra =
             records
             |> List.collect (fun record -> record.Attributes |> Map.toList |> List.map fst)
-            |> List.filter (fun name -> not (List.contains name Attributes.reserved))
+            |> List.filter (fun name -> not (List.contains name Attributes.owned))
             |> List.distinct
             |> List.sortWith (fun a b -> String.CompareOrdinal(a, b))
 
