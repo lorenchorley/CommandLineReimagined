@@ -308,12 +308,32 @@ async function submit(page, line) {
   };
 }
 
+/**
+ * The folder or URL to check, written either way round.
+ *
+ *   browser-check.mjs publish/wwwroot          browser-check.mjs --dir publish/wwwroot
+ *   browser-check.mjs https://host/path/       browser-check.mjs --url https://host/path/
+ *
+ * Both spellings are accepted because both get written: the positional form by hand,
+ * the flag form in a workflow. Reading only the positional one turned a passing live
+ * site into a red build, with the script's own usage message as the only clue.
+ */
+function targetFrom(argv) {
+  const flag = name => {
+    const at = argv.indexOf(name);
+    return at >= 0 && at + 1 < argv.length ? argv[at + 1] : null;
+  };
+
+  return flag('--url') ?? flag('--dir') ?? argv.find(argument => !argument.startsWith('--')) ?? null;
+}
+
 async function main() {
-  const target = process.argv[2];
+  const target = targetFrom(process.argv.slice(2));
   const deployed = /^https?:\/\//.test(target ?? '');
 
   if (!target || (!deployed && !existsSync(`${target}/index.html`))) {
     console.error('usage: node tools/browser-check.mjs (<published wwwroot> | <url>)');
+    console.error('       the same thing written --dir <published wwwroot> or --url <url>');
     console.error('  publish it first: dotnet publish WebClient/WebClient.csproj -c Release -o publish');
     process.exit(2);
   }
