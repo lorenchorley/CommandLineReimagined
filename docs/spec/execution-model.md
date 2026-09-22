@@ -214,7 +214,9 @@ If there is no match, the implementation **must** resolve the definition named
 `UnknownCommand` instead, bind the written name to its first parameter, and execute it
 with no pipe input. That command fails with `Unknown command : <name>`, kind
 `UnknownCommand`. Reporting through a command rather than directly means an unknown
-name renders like any other failure. `UnknownCommand` is not listed by `help`.
+name renders like any other failure. `UnknownCommand` is not listed by `help`, and
+**must not** itself be resolvable by name: typing `UnknownCommand` is an unknown command,
+`Unknown command : UnknownCommand`.
 
 If `UnknownCommand` is not registered, fail with `Unknown command : <name>` directly.
 
@@ -230,7 +232,7 @@ failure here is a fault of kind `Binding` unless it says otherwise.
 **Step 1: named arguments, flags and assignments.** Walk the written arguments left to
 right.
 
-- A named argument (`name: value`, written in the function form: `sort(name, desc: true)`)
+- A named argument (`name: value`, written in the function form: `take(count: 2)`)
   resolves `name` against parameter names and against parameters' flags,
   case-insensitively. No match fails with
   `'<command>' has no argument named '<name>'.` Otherwise bind the value, by the
@@ -407,9 +409,8 @@ the outer stage the parenthesis is written in: `try echo (echo a | cat nowhere)`
 stage 1.
 
 A pipeline in parentheses standing as a stage is part of the line's own sequence of
-stages, and a fault from inside it **should** likewise report the stage the parenthesis
-stands at. The reference implementation keeps the inner position there instead:
-`try (echo a | cat nowhere) | set f` leaves `$f.stage` at 2.
+stages, and a fault from inside it **must** likewise report the stage the parenthesis
+stands at: `try (echo a | cat nowhere) | set f` leaves `$f.stage` at 1.
 
 A nested pipeline reached where no line is running — in the text of a view file that
 was written by hand — **must** fail with `A pipeline in parentheses only runs as part of
@@ -484,9 +485,8 @@ Rules:
   The scope is threaded through the evaluation, so a later attribute, child or argument
   sees the binding.
 
-When the same attribute name is written twice, the later value wins. The reference
-implementation then writes the name twice when it displays the tag: `<t a=1 a=2/>`
-displays as `<t a=2 a=2/>`.
+When the same attribute name is written twice, the later value wins, and the tag holds
+the name once: `<t a=1 a=2/>` displays as `<t a=2/>`.
 
 ## Variables and scope
 
@@ -520,7 +520,9 @@ The two are independent, and an implementation **must** keep them so:
 - `pwd` **must** answer `Query` when a view is set and `Text` of `Folder` otherwise.
 - `up` **must** clear the view when one is set, and move to the parent otherwise, so
   two `up`s leave a view over a subfolder in the order they were entered.
-- Both changes travel as `LocationChanged`, so undo restores the whole location.
+- Renaming a folder at or above `Folder` with `attr` **must** move `Folder` with it,
+  in the same line, so the session is never left in a folder that no longer exists.
+- Every change travels as `LocationChanged`, so undo restores the whole location.
 
 A view's predicate is evaluated once per candidate record, in a child scope with `$row`
 bound to a row of the same shape `ls` produces — so `$row.kind`, `$row.folder`,
@@ -574,10 +576,16 @@ projection, so they cannot produce anything else.
 
 Before appending, an implementation **must** validate the events in order against the
 state each will land on — the committed projection with the earlier events of the same
-batch applied — and **must** reject a `FileCreated` whose name is already used by
-another record in its folder with a fault of kind `Conflict`
-(`Target file already exists : <path>`), and one with an empty name with a fault of kind
-`Invalid` (`A file must have a name.`).
+batch applied. A `FileCreated`, and an `AttributesChanged` that changes a record's
+`name` or `folder`, **must** be rejected when the name is empty
+(`A file must have a name.`, `Invalid`), contains `/` or is `.` or `..`
+(`'<name>' is not a valid file name: …`, `Invalid`), or is already used by another record
+in its folder (`Target file already exists : <path>`, `Conflict`). An `AttributesChanged`
+that moves a record into a folder that does not exist **must** be rejected with
+`Directory does not exist : <folder>` (`NotFound`). A change that leaves `name` and
+`folder` alone is not judged, so a record from an older log can still be given an
+attribute. The same name rule governs every command that names a record
+([command catalogue](command-catalogue.md#rules-every-command-follows)).
 
 ## Undo
 
@@ -694,9 +702,9 @@ an unknown variable.
 
 The evaluator **must** stamp `Stage` with the one-based position of the failing stage,
 and **must not** overwrite a stage already set, so the innermost failure keeps its own
-position. A fault leaving a nested pipeline in operand position **must** have its stage
-cleared first, so that the stage reported is the one in the line that was written (see
-[Nested pipelines](#nested-pipelines)).
+position. A fault leaving a nested pipeline, in operand position or standing as a
+stage, **must** have its stage cleared first, so that the stage reported is the one in
+the line that was written (see [Nested pipelines](#nested-pipelines)).
 
 A fault is also a value: see [Recovery](#recovery). The kind's word, as `$f.kind` reads
 it and a host carries it, is the case name exactly: `Syntax`, `Binding`,

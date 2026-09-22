@@ -84,11 +84,27 @@ is given one from its extension, case-insensitively:
 | `.md` | `markdown` |
 | anything else, or none | `text` |
 
-**Store validation.** Before committing, the store checks every `FileCreated` against
-the state it lands on. A record with an empty name is refused with
-`A file must have a name.` (`Invalid`), which is how `mkdir ""`, `mkdir /` and
-`write "" x` fail; a name already used in the folder, by a file or a folder, is refused
-with `Target file already exists : <path>` (`Conflict`).
+**Names.** One rule decides whether a name can be given to a record, whether the
+record is being created or renamed:
+
+| Name | Fault |
+| --- | --- |
+| empty | `A file must have a name.` (`Invalid`) |
+| contains `/` | `'<name>' is not a valid file name: '/' separates directories.` (`Invalid`) |
+| `.` or `..` | `'<name>' is not a valid file name: it already names a directory.` (`Invalid`) |
+| already used in the folder, by a file or a folder | `Target file already exists : <path>` (`Conflict`) |
+
+`attr`, `save` and `save-view` apply the rule themselves, so a refusal is their stage
+failing and `else` can recover from it.
+
+**Store validation.** Before committing, the store checks the events in order against
+the state each lands on. A `FileCreated`, and an `AttributesChanged` that changes a
+record's `name` or `folder`, **must** satisfy the name rule; this is how `mkdir ""`,
+`mkdir /` and `write "" x` fail. An `AttributesChanged` that moves a record into a
+folder that does not exist is refused with `Directory does not exist : <folder>`
+(`NotFound`). A change that leaves both `name` and `folder` alone is not judged, so a
+record from an older log whose name today's rule refuses can still be given an
+attribute.
 
 ## Registration
 
@@ -166,7 +182,9 @@ what it is:
   folder.
 - An argument that is a plain operand, or a piped value, is a **name**. It is evaluated
   and resolved. A record of kind `view` **must** be entered as the view its content
-  parses to; anything else **must** be resolved as a folder path.
+  parses to, and its content **must** be a predicate, an expression with an operator in
+  it, as `find` and `save-view` require; anything else **must** be resolved as a folder
+  path.
 - Entering a folder **must** clear `Location.View`.
 
 The target **must** be normalised, so `cd ..` yields the parent's real path. Entering
@@ -176,7 +194,8 @@ location, view included.
 
 Errors: `Directory does not exist : <target>` (`NotFound`), quoting the target as
 written, also when it names a file; `'<path>' does not hold a predicate : <text>`
-(`Invalid`) for a view record whose content does not parse, quoting the content trimmed.
+(`Invalid`) for a view record whose content does not parse or has no operator, quoting
+the content trimmed.
 
 ### up
 
@@ -185,7 +204,7 @@ written, also when it names a file; `'<path>' does not hold a predicate : <text>
 | Parameters | none |
 | Returns | With a view set, `Text` of the current folder's path. Otherwise as `cd ..`: `File` of the parent folder, or `Text` `/` at the root |
 | Events | `LocationChanged`, or none at the root with no view |
-| Marks | `ReadOnly` |
+| Marks | none |
 
 With a view set, `up` **must** clear `Location.View` and **must** leave
 `Location.Folder` unchanged. Without one it moves to the parent, exactly as `cd ..`.
@@ -194,8 +213,8 @@ Two `up`s from a view over a subfolder therefore leave the view, then the folder
 At the root, moving up **must** leave the location unchanged, emit nothing and **must
 not** fail.
 
-`up` is declared `ReadOnly` although it emits an event; see
-[Known deviations](#known-deviations).
+`up` is not `ReadOnly`, because it emits `LocationChanged`; a refresh of it is refused
+with `A live refresh only re-reads : up`.
 
 ### pwd
 
@@ -242,8 +261,8 @@ renamed with `attr`, deleted with `rm` and entered with `cd`. Reversing the line
 deletes it.
 
 Errors: `'save-view' needs a predicate, such as $row.kind eq note.` (`Binding`);
-`A view needs a name.` (`Invalid`) for empty text; `Target file already exists : <path>`
-(`Conflict`).
+`A view needs a name.` (`Invalid`) for empty text; the other faults of the
+[name rule](#rules-every-command-follows).
 
 ## Files
 
@@ -308,15 +327,14 @@ or one of its ancestors.
 | Events | `FileCreated` |
 | Marks | none |
 
-Copies a record into a folder. The copy **must** keep the source's name and every
+Copies a file into a folder. The copy **must** keep the source's name and every
 attribute, with `folder` set to the target and `created` and `modified` set to now, and
-shares the source's content, so a copy costs no content. Overwriting is refused.
+shares the source's content, so a copy costs no content. Overwriting is refused, and so
+is a folder as the source: copying a folder would mean copying everything under it.
 Reversing the line deletes the copy.
 
-A folder given as the source is copied as one record, without its contents; see
-[Known deviations](#known-deviations).
-
 Errors: `File does not exist : <source>` (`NotFound`);
+`'cp' copies files, and <source> is a directory.` (`Invalid`);
 `Target directory does not exist : <target>` (`NotFound`), also when the target is a
 file; `Target file already exists : <path>` (`Conflict`).
 
@@ -345,7 +363,7 @@ together ([decision 0016](../decisions/0016-folders-as-records.md)).
 | --- | --- |
 | Parameters | `path` (*piped*), `assignments` (*assignments*) |
 | Returns | `Table` of `name` and `value` with no assignments, otherwise the updated `File` |
-| Events | None with no assignments; otherwise `AttributesChanged` |
+| Events | None with no assignments; otherwise `AttributesChanged`, and for a renamed folder an `AttributesChanged` per record under it and a `LocationChanged` when you are inside it |
 | Marks | none |
 
 With no assignments it **must** return a table with columns `name` and `value`, one row
@@ -359,16 +377,29 @@ argument, so `n=5` stores a `Number`. Any attribute name may be written without 
 ([decision 0017](../decisions/0017-assignment-arguments.md)). Reversing the line
 restores every attribute the record had.
 
-`name` and `kind` may be written. Renaming onto a name already used in the folder
-**must** be refused. `folder`, `created` and `modified` are the runtime's and **must**
-be refused.
+`name` and `kind` may be written; `folder`, `created`, `modified` and `size` **must**
+be refused. A new name **must** satisfy the
+[name rule](#rules-every-command-follows).
+
+Renaming a folder **must** carry what is under it: every record whose `folder` is the
+folder's path or lies beneath it has that attribute rewritten to the new path, shallowest
+first, without its `modified` changing, and when the current folder is at or under the
+old path the location follows it. All of it is one line, so one `undo` puts everything
+back ([decision 0016](../decisions/0016-folders-as-records.md)).
+
+A change of `kind` **must** keep decision 0016 true: a folder stays a folder, empty or
+not, and a file with content cannot become one. A record with no content, such as one
+made by `save`, may become a folder.
 
 `attr` is deliberately not `ReadOnly`, because it writes when given assignments.
 
 Errors: `File does not exist : <path>` (`NotFound`);
 `That is a directory, not a file : /` (`Invalid`) for the root;
-`'<name>' is set by the terminal and cannot be written.` (`Invalid`);
-`Target file already exists : <path>` (`Conflict`).
+`'<name>' is set by the terminal and cannot be written.` (`Invalid`) for `folder`,
+`created` and `modified`; `'size' is worked out from the content and cannot be written.`
+(`Invalid`); `A directory cannot change its kind : <path>` (`Invalid`);
+`A file with content cannot become a directory : <path>` (`Invalid`); the faults of the
+[name rule](#rules-every-command-follows).
 
 ### save
 
@@ -381,13 +412,21 @@ Errors: `File does not exist : <path>` (`NotFound`);
 
 Creates a record in the current folder from an object tag. The tag's type name becomes
 `kind`, its `name` attribute's display text becomes `name`, and every other attribute is
-copied across; `folder`, `created` and `modified` are then the runtime's. The record has
-no content, so `cat` on it **must** return empty text rather than failing. A tag of type
-`folder` therefore makes a folder. Reversing the line deletes the record.
+copied across. The tag **must not** carry `folder`, `created`, `modified` or `size`,
+which are refused with `attr`'s messages, so a tag cannot put a record anywhere `attr`
+would refuse to. The record has no content, so `cat` on it **must** return empty text
+rather than failing. A tag of type `folder` therefore makes a folder. Reversing the line
+deletes the record.
+
+`save` takes its attributes from the tag and declares no *assignments* parameter
+([decision 0027](../decisions/0027-save-takes-a-tag.md)), so `save note name=x` is
+`'save' does not take 'name=' assignments.` (`Binding`).
 
 Errors: `A saved tag needs a 'name' attribute.` (`Invalid`), also for an empty name;
-`Target file already exists : <path>` (`Conflict`); `'save' needs a tag, not <kind>.`
-(`Invalid`) for anything but an object tag, a component tag included.
+`'<name>' is set by the terminal and cannot be written.` (`Invalid`);
+`'size' is worked out from the content and cannot be written.` (`Invalid`); the other
+faults of the [name rule](#rules-every-command-follows); `'save' needs a tag, not
+<kind>.` (`Invalid`) for anything but an object tag, a component tag included.
 
 ## Values
 
@@ -473,7 +512,8 @@ This command exists to exercise the asynchronous path. It **must not** touch the
 store.
 
 Errors: `'steps' must be at least 1.` (`Invalid`);
-`'steps' must be a whole number, not '<value>'.` (`Invalid`), raised for a `steps` or a
+`'delay' must be zero or more, not '<value>'.` (`Invalid`);
+`'<parameter>' must be a whole number, not '<value>'.` (`Invalid`) for a `steps` or a
 `delay` that is not a whole number, including a bare `-steps` flag, which binds `true`.
 
 ### download
@@ -482,13 +522,13 @@ Errors: `'steps' must be at least 1.` (`Invalid`);
 | --- | --- |
 | Parameters | `url` (*optional*, a small file in this repository when not written), `into` (*optional*, the current folder when not written) |
 | Returns | `File` |
-| Events | New file: `FileCreated`, `ContentChanged`. Existing file: `ContentChanged` |
+| Events | Exactly what `write` emits: new file, `FileCreated`, `ContentChanged`; existing file, `ContentChanged`, `AttributesChanged` updating `modified` |
 | Marks | none |
 
 Fetches `url` over the session's `HttpClient` into a file in `into`, named by the last
 segment of the URL's path, with its kind inferred from that name. An existing file of
-that name has its content replaced; reversing the line restores it, or deletes a file
-that did not exist.
+that name has its content replaced, as `write` replaces it; reversing the line restores
+it, or deletes a file that did not exist.
 
 The response body is read whole and written in one step, so a cancelled or failed
 download leaves no partial file ([decision 0015](../decisions/0015-atomic-lines.md)).
@@ -548,8 +588,10 @@ pipe, so `ls | select` reaches this message. A column named twice appears twice.
 `sort` **must** be stable in both directions: rows that compare equal keep the order
 they arrived in, so an implementation **must not** reverse an ascending sort to
 descend. Cells compare by the [comparison](execution-model.md#comparison) rules, so a
-number column sorts numerically. `desc` is written as a word after the column,
-`sort name desc`, or as the flag `-desc`; any value bound to it sorts descending.
+number column sorts numerically. `desc` is a switch with a word for each direction:
+`desc` or the flag `-desc` sorts descending, `asc` ascending, and the words match
+case-insensitively. Any other word is
+`'sort' takes 'desc' or 'asc' for 'desc', not '<word>'.` (`Binding`).
 
 `take` and `skip` beyond the end of the table **must** answer everything and nothing
 respectively, not a fault. A count that is not a whole number at least zero raises
@@ -588,7 +630,9 @@ write leaves nothing behind.
 | `to-csv` | `path`, `value` (*piped*), `delimiter` (*optional*, `,`) | `File` | none |
 
 The writers' options are reached by flag in practice: `to-xml out.xml -root listing
--row entry -declaration`. `declaration` is a switch: the bare flag turns it on.
+-row entry -declaration`. `declaration` is a switch: the bare flag, or the word
+`declaration`, turns it on, and any other word is
+`'to-xml' takes '-declaration' on its own, not '<word>'.` (`Binding`).
 
 ### Reading XML
 
@@ -806,24 +850,12 @@ and a host with nothing to close **may** do nothing, as the browser does.
 | Marks | `Meta` |
 
 Raises `Unknown command : <name>` (`UnknownCommand`). The evaluator runs it with the
-name that did not resolve bound to `name`. It is not listed by `help` or offered by
-completion.
+name that did not resolve bound to `name`. It is not resolvable by name, so typing
+`UnknownCommand` is itself an unknown command, `Unknown command : UnknownCommand`, and
+it is not listed by `help` or offered by completion.
 
 ## Known deviations
 
-Places where the implementation does something this catalogue does not hold it to, or
-that a decision record does not support. Each is described as the code behaves today.
-
-| Command | Behaviour | Against |
-| --- | --- | --- |
-| `up` | Declared `ReadOnly` although it emits `LocationChanged`. A refresh commits nothing, so re-running it is harmless, but `cd`, which emits the same event, is not declared. | [The command model](execution-model.md#the-command-model): `ReadOnly` is a command that can only ever read. |
-| `attr` | `name` is checked only for a clash: an empty name and a name containing `/` are accepted. `kind` is not checked at all, so `kind=folder` turns a file into a folder and `kind=text` turns a folder into a file. | [Decision 0016](../decisions/0016-folders-as-records.md); the store's own `A file must have a name.` |
-| `attr` | Renaming or re-kinding a folder leaves its contents' `folder` attribute naming the old path, so they vanish from every listing but `find`; renaming the current folder leaves the location naming a folder that no longer exists. | [Decision 0016](../decisions/0016-folders-as-records.md): a folder's path is its parent's path plus its name. |
-| `attr` | `size=<n>` is accepted and stored, so `ls` shows two columns named `size`. | [Decision 0013](../decisions/0013-attribute-filesystem.md): `size` is computed, not stored. |
-| `save` | Declares no *assignments* parameter, so `save note name=x` is a `Binding` fault; a name containing `/` is accepted. | [Decision 0017](../decisions/0017-assignment-arguments.md), which says `attr` and `save` take any attribute name. |
-| `cp` | A folder as the source copies the folder record alone, making an empty folder with the source's attributes. | The command's description, "Copy a file into a directory". |
-| `cd` | A record of kind `view` whose content parses but has no operator is entered as a view, which then matches nothing. | `find` and `save-view`, which refuse such an expression. |
-| `progress` | A `delay` that is not whole is reported as `'steps' must be a whole number …`; a `delay` below -1 raises an `Internal` fault from the runtime. | The fault catalogue: a user's mistake is never `Internal`. |
-| `sort` | Any value for `desc` sorts descending, so `sort name asc` descends. | The parameter's description, "Write 'desc' to order downwards". |
-| `download` | Replacing an existing file does not update its `modified`, where `write` does. | [Documents](#documents): writers emit what `write` would. |
-| `UnknownCommand` | Resolvable by name, so typing `UnknownCommand` answers `Unknown command : ` with an empty name. | It is meant to be reachable only through resolution. |
+None. `ls` and `cd` quoting a missing folder as written rather than resolved, noted
+under [Paths](#rules-every-command-follows), is deliberate and pinned by
+`FilesTests.AMissingFolderIsNamedAsItWasWritten`.

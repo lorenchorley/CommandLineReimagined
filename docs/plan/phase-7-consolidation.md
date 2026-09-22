@@ -107,6 +107,10 @@ state of the project at the end of the plan is what this says.
 - **`workingDirectory`** is gone from the wire format and a test pins its absence. There
   were no other shims marked for removal, and `Execution.Tests` and `Commands` were
   already deleted.
+- **[0029](../decisions/0029-scene-editor-direction.md) is Proposed**, not Accepted. It
+  was added by the owner during this phase as a direction beyond the plan, not a
+  decision the plan executes, so the definition of done's rule for records from 0006 on
+  is read as covering the records the phases took.
 - **Not taken**: the optional step. Snapshots are not needed at the sizes a tab's log
   reaches, and the desktop's file-backed log and `debug` are desktop work that decision
   0012 leaves out of scope.
