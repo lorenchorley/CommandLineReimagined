@@ -77,16 +77,16 @@ page rather than by where it is. A comparison with no operator in it **must** pr
 the operand's own node rather than a wrapper around it, so a line written before
 expressions existed parses to the tree it always did.
 
-`StringConstant.Value` is assigned the literal **as written, with its quotes**. The
-setter strips one double quote from each end, repeatedly, while the remaining text
-starts and ends with a quote and is longer than twice the number of pairs already
-stripped. It records the number of pairs in `QuoteCount`, the delimiter itself in
-`QuoteString`, and keeps the inner text as the value. This is what lets `""x""`
-round-trip as `""x""` rather than as `"x"`. The length condition stops the stripping
-early on a short body, so `""""` reads as one pair around the value `""` and
-`"""ab"""` as two pairs around `"ab"`; the serialised text is exact either way, but the
-value differs from the body the grammar recognised (see
-[string literals](lexical-grammar.md#tokens)).
+A `StringConstant` carries its body as `Value`, the number of quotes in its delimiter as
+`QuoteCount`, and the delimiter itself as `QuoteString`. The combinator grammar builds
+one with `StringConstant.Delimited(quoteCount, body)`, from the delimiter it matched, so
+`""""` is the empty string with a count of two and `"""ab"""` is `ab` with a count of
+three. The count is what lets `""x""` round-trip as `""x""` rather than as `"x"`.
+
+The `Value` setter is kept for the retained GOLD interpreter, which hands the node the
+literal with its quotes: it strips one quote from each end, repeatedly, while the rest
+starts and ends with one and is longer than twice the pairs already stripped. That
+guess stops early on a short body, which is why the combinator grammar does not use it.
 
 `VariableName`'s setter strips a leading `$` in the same spirit, so the name never
 carries its sigil.
@@ -174,11 +174,9 @@ So `f( a , b )` serialises as `f(a, b)`, `a|b` as `a | b` and `echo"hi"` as `ech
 
 The web host runs this on every parse and returns the result alongside the tokens, so a
 lossy parse is detectable from outside. `Parser.Tests/SerialisationTests.cs`, which
-also pins the normal forms, and the round-trip assertions elsewhere enforce it.
-
-The reference implementation fails one case: a property with an empty tag body,
-`<t>[p][/p]</t>`, parses but throws when serialised, because the serialiser writes a
-property without children in the `[name=value]` form and its `Value` is null.
+also pins the normal forms, and the round-trip assertions elsewhere enforce it. A property with an empty tag body,
+`<t>[p][/p]</t>`, is the list form with an empty list, and `HasChildren` is true for it
+because `Children` is not null.
 
 ### Tokenisation
 
@@ -236,6 +234,5 @@ pipe is the single `punctuation` token `| `, with the space after it.
 Two consequences of that rule are visible in the reference implementation. A line
 break inside a string is part of the string's body token, not a `newline` token; the
 web host never lays a tree out over several lines, so it never emits `newline`. And a
-string whose body is only whitespace has that body tagged `whitespace` rather than
-`string`, because whitespace is recognised by the text of a write rather than by the
-node that wrote it.
+write that is only whitespace is tagged `whitespace` by its text, except inside a
+string, so the body of `" "` is `string`.

@@ -51,8 +51,10 @@ public sealed class TokenStreamVisitor : VisitorBase
         }
 
         // Spaces come from VisitorBase's private Space(), so they arrive carrying
-        // whatever kind is currently in scope. Tag them separately instead.
-        _tokens.Add(new SemanticToken(str, string.IsNullOrWhiteSpace(str) ? Kinds.Whitespace : _kind));
+        // whatever kind is currently in scope. Tag them separately instead — except
+        // inside a string, where `" "` is a body that happens to be a space.
+        bool space = string.IsNullOrWhiteSpace(str) && _kind != Kinds.String;
+        _tokens.Add(new SemanticToken(str, space ? Kinds.Whitespace : _kind));
     }
 
     public override void Append(char c) => Append(c.ToString());

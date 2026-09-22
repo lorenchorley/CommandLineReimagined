@@ -159,22 +159,22 @@ let private flagText: P<string> =
 // StringCharacter = {All Printable} - ["] + {HT} + {CR} + {LF}, so a literal's body
 // never contains a quote and the forms are told apart by their delimiters alone.
 
-let private delimited (delim: string) : P<string> =
+let private delimited (delim: string) : P<int * string> =
     attempt (
         pstring delim >>. manyChars (noneOf "\"") .>>. pstring delim
-        |>> fun (body, _) -> delim + body + delim)
+        |>> fun (body, _) -> (delim.Length, body))
 
 /// Longest delimiter first, matching the lexer's maximal munch: `""""` is a doubled
 /// empty string, not two single ones.
-let private stringLiteralText: P<string> =
+let private stringLiteralText: P<int * string> =
     choice [ delimited "\"\"\""      // StringLiteral4, unreachable in the .grm
              delimited "\"\""        // StringLiteral3
              delimited "\"" ]        // StringLiteral2
 
-// StringConstant's own setter counts and strips the quotes, so it is given the
-// literal exactly as written.
+// The delimiter is known here, so the node is told it rather than left to count the
+// quotes again from the outside, which misread a short body.
 let private constant: P<Constant> =
-    stringLiteralText |>> fun raw -> StringConstant(Value = raw) :> Constant
+    stringLiteralText |>> fun (quotes, body) -> StringConstant.Delimited(quotes, body) :> Constant
 
 // ----------------------------------------------------------------- Names
 
@@ -253,14 +253,20 @@ let private tagAttributeList: P<TagAttributeList> =
 let private tagOpen: P<unit> =
     attempt (pchar '<' >>. followedBy (satisfy (fun c -> isIdentifierChar c || c = '$' || c = '/')))
 
-/// The part shared by the closed and open forms: '<' [name '|'] type attributes
+/// <summary>The part shared by the closed and open forms: '&lt;' [name '|'] type attributes</summary>
+/// <remarks>
+/// Only the opening and the type are attempted: until the type has been read, `<$x>`
+/// or a closing tag may still be what this is. Once it has, it is a tag, and a failure
+/// in its attributes is that tag's failure. Attempting the whole header turned the
+/// fatal error for `<t a=eq/>` into a backtrack to column 0 with the explanation lost.
+/// </remarks>
 let private objectHeader: P<VariableName option * ObjectType * TagAttributeList> =
-    tagOpen
-    >>. pipe3
-            (opt (attempt (variableName .>> ws .>> pchar '|' .>> ws)))
-            (objectType .>> ws)
-            tagAttributeList
-            (fun name typ attributes -> (name, typ, attributes))
+    attempt (
+        tagOpen
+        >>. (opt (attempt (variableName .>> ws .>> pchar '|' .>> ws)))
+        .>>. (objectType .>> ws))
+    .>>. tagAttributeList
+    |>> fun ((name, typ), attributes) -> (name, typ, attributes)
 
 /// <ClosingObjectTag> ::= '<' '/' <ObjectType> '>' | '<' '/' '>'
 let private closingObjectTag: P<ObjectType option> =
@@ -268,7 +274,7 @@ let private closingObjectTag: P<ObjectType option> =
     >>. ((pchar '>' >>% None) <|> (objectType .>> ws .>> pchar '>' |>> Some))
 
 let private objectInstance: P<ObjectInstance> =
-    attempt objectHeader
+    objectHeader
     >>= fun (name, typ, attributes) ->
         // Closed form ends at '/>'; anything else is an opening tag with a body.
         (attempt (symStr "/>")

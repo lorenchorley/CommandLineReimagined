@@ -458,6 +458,33 @@ public class TerminalSessionTests
 
     // ---- tokens -----------------------------------------------------------------
 
+    /// <summary>A string whose body is a space is still a string.</summary>
+    /// <remarks>
+    /// Spaces are tagged as whitespace whatever is in scope, because the serialiser writes
+    /// them from outside any node. A string's body is not one of those spaces.
+    /// </remarks>
+    [TestMethod]
+    public void AStringOfSpacesIsTokenisedAsAString()
+    {
+        var parse = new CommandLineReimagined.Web.Parsing.CommandParseService().Parse("echo \" \"");
+
+        Assert.IsNull(parse.Error);
+        Assert.AreEqual("\" \"", string.Concat(parse.Tokens.Where(t => t.Kind == "string").Select(t => t.Text)));
+    }
+
+    /// <summary>A reserved word as an attribute's value says why, where it is.</summary>
+    /// <remarks>
+    /// The whole tag header used to be attempted, so the fatal error for the word became
+    /// a backtrack to column 0 with its explanation gone.
+    /// </remarks>
+    [TestMethod]
+    public async Task AReservedWordInATagAttributeIsExplained()
+    {
+        var response = await _session.ExecuteAsync("<t a=eq/>");
+
+        Assert.AreEqual("Column 5: 'eq' is an operator; write \"eq\" to pass it as text", response.Error);
+    }
+
     [TestMethod]
     public void TheFunctionFormsNameIsTokenisedAsACommand()
     {

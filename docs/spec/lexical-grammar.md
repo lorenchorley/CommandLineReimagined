@@ -99,16 +99,9 @@ A string body cannot contain a double quote and there is no escape character. A 
 may contain spaces, tabs, carriage returns and line feeds; it is the only place a line
 break may appear.
 
-The three delimiters carry the same value, the body. The delimiter count **must** be
-retained in the tree so that re-serialisation reproduces the input exactly.
-
-The reference implementation does not recover the body for every input: it hands the
-tree node the literal with its quotes and the node strips pairs of quotes from the
-outside in (see [`StringConstant`](semantic-tree.md#values)), which stops early on a
-short body. `""""` therefore carries the value `""` rather than the empty string, and
-`"""ab"""` carries `"ab"`. The single-quote form, and the two- and three-quote forms
-with a body of at least one and at least three characters respectively, are
-unaffected. Re-serialisation is exact in every case.
+The three delimiters carry the same value, the body, so `""""` is the empty string and
+`"""ab"""` is `ab`. The delimiter count **must** be retained in the tree so that
+re-serialisation reproduces the input exactly.
 
 A `Word` **must not** be a `ReservedWord`: the thirteen words above — eight comparison
 words, `and`, `or`, `not`, and the recovery keywords `else` and `try` — are reserved in
@@ -127,8 +120,7 @@ them as what they are first: `not` begins a negation, and `else` ends the argume
 `echo else` are therefore syntax errors at the end of the line, where the missing
 operand or pipeline should have been.
 A tag attribute's value is a `Word` position too, so `<t a=eq/>` **must** be refused
-as well. The reference implementation refuses it, but reports it at column 0 without the
-explanation, because the tag header is tried as a whole and backtracks over the error.
+as well, at the word's column and with the same message.
 
 A `CommandName` **must not** be a `ReservedWord` either, and an implementation **must**
 report one as a syntax error at the column the name starts in; the message **should**
