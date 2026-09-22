@@ -25,6 +25,12 @@ namespace Isagri.Reporting.Quid.RequestFilters.SemanticTree
         void VisitTagAttributes(TagAttributeList tagAttributes);
         void VisitTagList(TagList tagList);
         void VisitVariableName(VariableName variableName);
+        void VisitMemberName(MemberName memberName);
+        void VisitOperatorWord(OperatorWord operatorWord);
+        void VisitComparisonExpression(ComparisonExpression comparisonExpression);
+        void VisitBooleanExpression(BooleanExpression booleanExpression);
+        void VisitNotExpression(NotExpression notExpression);
+        void VisitNestedPipeline(NestedPipeline nestedPipeline);
         void VisitProperyName(ProperyName properyName);
         void VisitPropertyAssignment(PropertyAssignment propertyAssignment);
         void VisitStringConstant(StringConstant stringConstant);

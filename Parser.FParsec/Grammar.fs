@@ -77,7 +77,23 @@ let private wordChar: P<char> =
     choice [ satisfy (fun c -> isWordChar c && c <> '/')
              wordSlash ]
 
-let private bareWordText: P<string> = many1Chars2 wordStartChar wordChar <?> "argument"
+/// Decision 0019: the word operators and the recovery keywords are never bare words,
+/// in any position. The match is exact, so `equals`, `eq.txt` and `Eq` are ordinary
+/// words and only the bare word itself is taken.
+let reservedWords =
+    [ "and"; "or"; "not"; "eq"; "ne"; "gt"; "ge"; "lt"; "le"; "like"; "has"; "else"; "try" ]
+
+let private reserved = Set.ofList reservedWords
+
+/// The failure is deliberately not backtracked: `echo eq` is a syntax error rather than
+/// a line with one fewer argument, and the message says how to write the word as text.
+let private bareWordText: P<string> =
+    (many1Chars2 wordStartChar wordChar <?> "argument")
+    >>= fun word ->
+        if reserved.Contains word then
+            failFatally (sprintf "'%s' is an operator; write \"%s\" to pass it as text" word word)
+        else
+            preturn word
 
 /// FlagIdentifier = '-'{IdentifierCharacter}+
 let private flagText: P<string> =
@@ -115,9 +131,23 @@ let private componentType: P<ComponentType> = identifierText |>> fun n -> Compon
 let private propertyName: P<ProperyName> = identifierText |>> fun n -> ProperyName(Name = n)
 let private attributeName: P<TagAttributeName> = identifierText |>> fun n -> TagAttributeName(Name = n)
 
-/// <VariableReference> ::= '$' <VariableName>
+/// <MemberName> ::= '.' <Identifier>, carrying its own dot so the tokeniser sees
+/// `.size` as one thing. Attempted, so a `$v` with a full stop after it that is not a
+/// member — the end of a sentence in a quoted string is not one, but a stray dot could
+/// be — leaves the dot where it was.
+let private memberName: P<MemberName> =
+    attempt (pchar '.' >>. identifierText) |>> fun name -> MemberName(Name = name)
+
+/// <VariableReference> ::= '$' <VariableName> ( '.' <Identifier> )*
+///
+/// Decision 0008: `$row.size` is how a predicate reads a column, and member access is
+/// the ordinary variable notation rather than a special form inside predicates.
 let private variableReference: P<VariableReference> =
-    pchar '$' >>. variableName |>> fun n -> VariableReference(Name = n)
+    pchar '$' >>. variableName .>>. many memberName
+    |>> fun (name, members) ->
+            let reference = VariableReference(Name = name)
+            members |> List.iter reference.Members.Add
+            reference
 
 // ----------------------------------------------------------------- Forward references
 // Tags nest, and a value may be a tag, so these are tied back below.
@@ -300,19 +330,89 @@ let private argumentValue: P<Value> =
     choice [ instanceTag |>> fun t -> TagValue(Tag = t) :> Value
              argumentSimpleValue |>> fun v -> v :> Value ]
 
+// ----------------------------------------------------------------- Expressions
+//
+// Phase 3. Decision 0007 chose words over symbols, so there is no lexical clash with
+// tags to resolve here: an operator is a whole word, and decision 0019 keeps those
+// words out of every other position so `eq` can never be an argument by accident.
+//
+//   Expression ::= OrExpr
+//   OrExpr     ::= AndExpr ( "or" AndExpr )*
+//   AndExpr    ::= NotExpr ( "and" NotExpr )*
+//   NotExpr    ::= "not" NotExpr | Comparison
+//   Comparison ::= Operand ( CompareOp Operand )?
+//   Operand    ::= ArgumentValue | "(" Pipeline ")"
+//
+// A comparison with no operator is the operand itself rather than a wrapper around it,
+// which is what keeps every line written before expressions existed parsing to exactly
+// the tree it used to.
+
+let private pipeline, pipelineRef = createParserForwardedToRef<PipedCommandList, unit> ()
+
+/// A word operator: the whole word and nothing longer, so `eq` is an operator and
+/// `equals` is an argument.
+let private operatorWord (word: string) : P<OperatorWord> =
+    attempt (pstring word .>> notFollowedBy (satisfy isWordChar))
+    .>> ws
+    |>> fun name -> OperatorWord(Name = name)
+
+let private comparisonOperator: P<OperatorWord> =
+    choice (
+        [ "eq"; "ne"; "ge"; "gt"; "le"; "lt"; "like"; "has" ]
+        |> List.map operatorWord)
+
+/// <Operand> ::= <ArgumentValue> | '(' <PipedCommandList> ')'
+let private operand: P<Value> =
+    choice
+        [ attempt (pchar '(' >>. ws) >>. pipeline .>> pchar ')'
+          |>> fun nested -> NestedPipeline(Pipeline = nested) :> Value
+
+          argumentValue ]
+    .>> ws
+
+let private comparison: P<Value> =
+    operand .>>. opt (comparisonOperator .>>. operand)
+    |>> function
+        | left, None -> left
+        | left, Some(op, right) ->
+            ComparisonExpression(Left = left, Operator = op, Right = right) :> Value
+
+let private notExpression, notExpressionRef = createParserForwardedToRef<Value, unit> ()
+
+notExpressionRef.Value <-
+    (operatorWord "not" .>>. notExpression
+     |>> fun (op, operand) -> NotExpression(Operator = op, Operand = operand) :> Value)
+    <|> comparison
+
+/// Left associative, so `a and b and c` reads as `(a and b) and c` and means the same.
+let private foldBinary (first: Value, rest: (OperatorWord * Value) list) =
+    rest
+    |> List.fold
+        (fun left (op, right) -> BooleanExpression(Left = left, Operator = op, Right = right) :> Value)
+        first
+
+let private andExpression: P<Value> =
+    notExpression .>>. many (operatorWord "and" .>>. notExpression) |>> foldBinary
+
+let private orExpression: P<Value> =
+    andExpression .>>. many (operatorWord "or" .>>. andExpression) |>> foldBinary
+
+/// <Expression> ::= <OrExpr>
+let private argumentExpression: P<Value> = orExpression
+
 // ----------------------------------------------------------------- Commands
 
 /// <FunctionArgument> ::= <RequiredArgument> | <OptionalArgument>
 let private functionArgument: P<CommandArgument> =
     choice
         [ // <OptionalArgument> ::= <ID> ':' <Value>
-          attempt (identifierText .>> ws .>> pchar ':' .>> ws) .>>. argumentValue
+          attempt (identifierText .>> ws .>> pchar ':' .>> ws) .>>. argumentExpression
           |>> fun (name, v) ->
                 OptionalCommandArgument(Name = OneOf.OneOf<CommandArgumentFlag, Identifier>.op_Implicit (Identifier(Name = name)), Value = v)
                 :> CommandArgument
 
-          // <RequiredArgument> ::= <Value>
-          argumentValue |>> fun v -> RequiredCommandArgument(Value = v) :> CommandArgument ]
+          // <RequiredArgument> ::= <Expression>
+          argumentExpression |>> fun v -> RequiredCommandArgument(Value = v) :> CommandArgument ]
     .>> ws
 
 /// <FunctionArgumentList> ::= <FunctionArgumentList> ',' <FunctionArgument>
@@ -342,13 +442,13 @@ let private assignmentArgument: P<CommandArgument> =
     |>> fun (name, v) ->
             AssignmentArgument(Name = Identifier(Name = name), Value = v) :> CommandArgument
 
-/// <CommandArgument> ::= <Flag> | <Assignment> | <Value>
+/// <CommandArgument> ::= <Flag> | <Assignment> | <Expression>
 let private commandArgument: P<CommandArgument> =
     choice [ flagText |>> fun f -> CommandArgumentFlag(Name = f) :> CommandArgument
              // Before the plain value, because a value would otherwise swallow the name
              // as a word and leave `=work` behind.
              assignmentArgument
-             argumentValue |>> fun v -> CommandArgumentValue(Value = v) :> CommandArgument ]
+             argumentExpression |>> fun v -> CommandArgumentValue(Value = v) :> CommandArgument ]
     .>> ws
 
 let private commandArgumentList: P<CommandArguments> =
@@ -381,6 +481,8 @@ let private pipedCommandList: P<PipedCommandList> =
             let list = PipedCommandList()
             commands |> List.iter list.OrderedCommands.Add
             list
+
+pipelineRef.Value <- pipedCommandList
 
 /// <Program> ::= <PipedCommandList> | ! Empty
 ///

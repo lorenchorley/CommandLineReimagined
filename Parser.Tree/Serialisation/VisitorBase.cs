@@ -332,6 +332,62 @@ public abstract class VisitorBase : ISemanticTreeVisitor
     {
         Append('$');
         variableReference.Name.Accept(this);
+
+        foreach (var member in variableReference.Members)
+        {
+            member.Accept(this);
+        }
+    }
+
+    /// <summary>
+    /// A member carries its own dot, so <c>.size</c> is written and tagged as one thing.
+    /// </summary>
+    public virtual void VisitMemberName(MemberName memberName)
+    {
+        Append('.');
+        Append(memberName.Name);
+    }
+
+    public virtual void VisitOperatorWord(OperatorWord operatorWord)
+    {
+        Append(operatorWord.Name);
+    }
+
+    public virtual void VisitComparisonExpression(ComparisonExpression comparisonExpression)
+    {
+        comparisonExpression.Left.Accept(this);
+        Space();
+        comparisonExpression.Operator.Accept(this);
+        Space();
+        comparisonExpression.Right.Accept(this);
+    }
+
+    public virtual void VisitBooleanExpression(BooleanExpression booleanExpression)
+    {
+        booleanExpression.Left.Accept(this);
+        Space();
+        booleanExpression.Operator.Accept(this);
+        Space();
+        booleanExpression.Right.Accept(this);
+    }
+
+    public virtual void VisitNotExpression(NotExpression notExpression)
+    {
+        notExpression.Operator.Accept(this);
+        Space();
+        notExpression.Operand.Accept(this);
+    }
+
+    /// <summary>
+    /// A pipeline in parentheses. The parentheses are written back tight against the
+    /// pipeline, because a space before one is what tells a nested pipeline from a
+    /// function call.
+    /// </summary>
+    public virtual void VisitNestedPipeline(NestedPipeline nestedPipeline)
+    {
+        Append('(');
+        nestedPipeline.Pipeline.Accept(this);
+        Append(')');
     }
 
     public virtual void VisitVariableTag(VariableTag variableTag)

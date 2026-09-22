@@ -61,7 +61,10 @@ Word              ::= ( WordStart | "-" &Digit ) ( WordChar | "/" !( ">" | "}" )
                       -- a leading WordStart of "/" is subject to the same lookahead
 Flag              ::= "-" !Digit IdentifierChar+
 Digit             ::= "0".."9"
-VariableReference ::= "$" Identifier
+VariableReference ::= "$" Identifier MemberName*
+MemberName        ::= "." Identifier
+ReservedWord      ::= "and" | "or" | "not" | "eq" | "ne" | "gt" | "ge" | "lt" | "le"
+                    | "like" | "has" | "else" | "try"
 StringLiteral     ::= '"""' StringBody '"""'
                     | '""'  StringBody '""'
                     | '"'   StringBody '"'
@@ -78,9 +81,22 @@ may contain spaces, tabs, carriage returns and line feeds.
 The three delimiters carry the same value. The delimiter count **must** be retained in
 the tree so that re-serialisation reproduces the input exactly.
 
-There are no keywords, so nothing is matched case-insensitively at the lexical level.
-Case is preserved. Command name resolution is case-insensitive and happens later, in
+A `Word` **must not** be a `ReservedWord`: the thirteen words above are the operators
+and the recovery keywords, and they are reserved in every position
+([decision 0019](../decisions/0019-reserved-words-in-expression-positions.md)). The
+match is exact and case-sensitive, so `equals`, `eq.txt` and `Eq` are ordinary words;
+only the bare word itself is taken. An implementation **must** report a `Word` that is a
+reserved word as a syntax error rather than silently accepting it, and the message
+**should** say how to write it as text: `echo "eq"`.
+
+Reserved words are the only keywords, and they are the only thing matched literally at
+the lexical level. Case is otherwise preserved. Command name resolution is
+case-insensitive and happens later, in
 [execution](execution-model.md#resolving-a-command).
+
+A `MemberName` carries its own full stop, so `$row.size` is three tokens — a sigil, a
+variable name and one member — and re-serialising writes the stop back with the member
+it belongs to.
 
 ## Grammar
 
@@ -95,15 +111,24 @@ CommandExpression    ::= FunctionExpression
 
 FunctionExpression   ::= Identifier Space* "(" Space* FunctionArgumentList Space* ")" Space*
 FunctionArgumentList ::= ( FunctionArgument ( "," Space* FunctionArgument )* )?
-FunctionArgument     ::= Identifier Space* ":" Space* ArgumentValue
-                       | ArgumentValue
+FunctionArgument     ::= Identifier Space* ":" Space* Expression
+                       | Expression
 
 CliExpression        ::= Identifier Space* CommandArgument*
 CommandArgument      ::= Flag
                        | Assignment
-                       | ArgumentValue
+                       | Expression
 
 Assignment           ::= Identifier "=" ArgumentValue
+
+Expression           ::= OrExpr
+OrExpr               ::= AndExpr ( "or" Space* AndExpr )*
+AndExpr              ::= NotExpr ( "and" Space* NotExpr )*
+NotExpr              ::= "not" Space* NotExpr | Comparison
+Comparison           ::= Operand ( CompareOp Space* Operand )?
+CompareOp            ::= "eq" | "ne" | "gt" | "ge" | "lt" | "le" | "like" | "has"
+Operand              ::= ArgumentValue Space*
+                       | "(" Space* PipedCommandList ")" Space*
 
 ArgumentValue        ::= InstanceTag
                        | ArgumentSimpleValue
@@ -157,6 +182,25 @@ An earlier version of this specification required a tag attribute's value to be 
 and said that widening it made `<thing path=a/b/>` ambiguous. It is not ambiguous once
 `/>` is recognised by lookahead: the only `/` that can end a word is one with `>` or
 `}` after it, and a path's interior slashes never are.
+
+### Expressions
+
+An `Expression` whose `Comparison` has no `CompareOp`, and which is neither negated nor
+combined, **must** produce the operand's own node rather than a wrapper around it. A
+line written before expressions existed therefore parses to exactly the tree it always
+did, and only a line that actually writes an operator produces an expression node.
+
+An operator **must** be followed by something that is not a `WordChar`, so `eq` is an
+operator and `equals` is a word. This is the fourth ordered choice that matters.
+
+`and` binds tighter than `or`, and both are left associative. `not` takes the whole
+`NotExpr` after it, so `not $row.kind eq folder` negates the comparison rather than its
+left operand. There are no symbol operators and no parenthesised sub-expressions: a
+parenthesis in operand position is a nested pipeline, not a grouping.
+
+Which parameter an `Expression` reaches is [binding](execution-model.md#argument-binding),
+not grammar: an expression that wrote an operator binds only to a parameter declared
+`Predicate`.
 
 ### Assignments
 

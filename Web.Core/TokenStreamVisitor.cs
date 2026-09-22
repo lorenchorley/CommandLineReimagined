@@ -31,6 +31,10 @@ public sealed class TokenStreamVisitor : VisitorBase
         public const string Identifier = "identifier";
         public const string Type = "type";
         public const string Attribute = "attribute";
+        /// One of the word operators: `eq`, `and`, `not` and the rest (decision 0007).
+        public const string Operator = "operator";
+        /// The `.size` of `$row.size`, dot included.
+        public const string Member = "member";
         public const string Punctuation = "punctuation";
         public const string Whitespace = "whitespace";
         public const string NewLine = "newline";
@@ -98,6 +102,20 @@ public sealed class TokenStreamVisitor : VisitorBase
     public override void VisitVariableName(VariableName variableName)
     {
         using (Using(Kinds.Variable)) base.VisitVariableName(variableName);
+    }
+
+    /// <summary>
+    /// A member reads a column, so it is coloured as itself rather than as part of the
+    /// variable it hangs off.
+    /// </summary>
+    public override void VisitMemberName(MemberName memberName)
+    {
+        using (Using(Kinds.Member)) base.VisitMemberName(memberName);
+    }
+
+    public override void VisitOperatorWord(OperatorWord operatorWord)
+    {
+        using (Using(Kinds.Operator)) base.VisitOperatorWord(operatorWord);
     }
 
     /// <summary>
