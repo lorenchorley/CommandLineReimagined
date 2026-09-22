@@ -230,8 +230,15 @@ let private enterNamed (invocation: Invocation) (written: string) =
                 | Some hash -> invocation.Blobs.Get hash
                 | Option.None -> async.Return(Some "")
 
-            match Expr.parse path (defaultArg content "") with
+            let text = defaultArg content ""
+
+            match Expr.parse path text with
             | Error fault -> return Error fault
+            // The check `save-view` makes before it writes one, made again on the way
+            // back in: a view whose text is a plain word, because someone wrote over it
+            // or retyped a note as a view, would otherwise be entered as a question
+            // whose every answer is false.
+            | Ok expr when not (Expr.isPredicate expr) -> return Error(Fault.notAPredicate path (text.Trim()))
             | Ok expr -> return enterView invocation expr
         | _ -> return enterFolder invocation written
     }
@@ -259,11 +266,12 @@ let cd =
                 | Option.None -> return Error(Fault.needsArgument "cd" "TargetPath")
             } }
 
+/// Not read-only, for the same reason `cd` is not: it emits `LocationChanged`, so it
+/// is in `history` and `undo` takes it back, and a live refresh must not run it.
 let up =
     { Spec =
         CommandSpec.create "up" "Leave the current view, or move up one directory"
             [ "move"; "parent"; "back"; "navigate"; "view" ] []
-        |> CommandSpec.readOnly
       Run =
         fun invocation ->
             async {
@@ -480,6 +488,11 @@ let cp (newId: IdSource) (now: unit -> DateTimeOffset) =
 
                 match Files.resolve invocation.Projection invocation.Location sourceWritten with
                 | Error fault -> return Error fault
+                // Copying the folder's record alone made an empty folder that read as a
+                // copy. A recursive copy is a tree of records in one line, which is what
+                // `rm` declines to delete for the same reason.
+                | Ok source when Record.isFolder source ->
+                    return Error(Fault.cannotCopyADirectory (Files.pathOf invocation.Projection source))
                 | Ok source ->
                     match Files.resolveFolder invocation.Projection invocation.Location targetWritten with
                     | Error _ ->
@@ -516,6 +529,71 @@ let cp (newId: IdSource) (now: unit -> DateTimeOffset) =
 /// `name` and `kind` may be set; the rest are the runtime's (decision 0013).
 let private settableReserved = [ Attributes.name; Attributes.kind ]
 
+/// <summary>Why an attribute cannot be written by hand, if it cannot.</summary>
+/// <remarks>
+/// Shared by `attr` and `save`, the two ways a user names attributes, so a tag cannot
+/// put a record somewhere `attr` would have refused to move it. `size` has a message of
+/// its own because it is not the terminal's to set either: it is not stored at all.
+/// </remarks>
+let private unwritable (name: string) =
+    if name = Attributes.size then
+        Some(Fault.computedFromContent name)
+    elif List.contains name Attributes.reserved && not (List.contains name settableReserved) then
+        Some(Fault.setByTheTerminal name)
+    else
+        None
+
+/// <summary>Whether a change of kind leaves decision 0016 true.</summary>
+/// <remarks>
+/// Conservative on purpose: a folder stays a folder, empty or not, and a file with
+/// content never becomes one. A folder that became a note would strand whatever names
+/// it in `folder`, and a note with content that became a folder would be a folder with
+/// content, which 0016 says there is not. A record with no content at all — a saved tag
+/// — may become a folder, because a record with no content is all a folder is.
+/// </remarks>
+let private kindFault (record: FileRecord) (path: string) (kind: string) =
+    if Record.isFolder record && kind <> Value.folderKind then
+        Some(Fault.directoryStaysADirectory path)
+    elif not (Record.isFolder record) && kind = Value.folderKind && record.Content.IsSome then
+        Some(Fault.contentCannotBeADirectory path)
+    else
+        None
+
+/// <summary>What renaming a folder carries with it.</summary>
+/// <remarks>
+/// A folder's path is its parent's path plus its name (decision 0016), and every record
+/// under it holds that path in its `folder` attribute, so the new name has to be written
+/// into each of them — and into the session's location, when it is standing inside —
+/// or they are left naming a folder that no longer exists. They are events of the same
+/// line, so one `undo` puts everything back (decision 0015). A child's `modified` is
+/// left alone: nothing about the child changed, only the name of where it is.
+/// </remarks>
+let private carried (projection: Projection) (location: Location) (oldPath: string) (newPath: string) =
+    let moved (folder: string) = newPath + folder.Substring oldPath.Length
+
+    let descendants =
+        projection.Files
+        |> Map.toList
+        |> List.map snd
+        |> List.filter (fun record -> Files.isAncestorOf oldPath (Record.folder record))
+        // Shallowest first, so the store sees each record land in a folder that has
+        // already moved.
+        |> List.sortBy (fun record -> (Record.folder record).Length, Record.name record)
+        |> List.map (fun record ->
+            AttributesChanged(
+                record.Id,
+                record.Attributes,
+                Map.add Attributes.folder (Value.Text(moved (Record.folder record))) record.Attributes
+            ))
+
+    let following =
+        if Files.isAncestorOf oldPath location.Folder then
+            [ LocationChanged(location, { location with Folder = moved location.Folder }) ]
+        else
+            []
+
+    descendants @ following
+
 let attr (now: unit -> DateTimeOffset) =
     { Spec =
         CommandSpec.create
@@ -540,49 +618,43 @@ let attr (now: unit -> DateTimeOffset) =
 
                         return Invocation.pure' (Value.Table(Table.ofColumns [ "name"; "value" ] rows))
                     else
-                        let invalid =
-                            invocation.Assignments
-                            |> List.map fst
-                            |> List.tryFind (fun name ->
-                                List.contains name Attributes.reserved
-                                && not (List.contains name settableReserved))
-
-                        match invalid with
-                        | Some name ->
-                            return
-                                Error(
-                                    Fault.create
-                                        Invalid
-                                        (sprintf "'%s' is set by the terminal and cannot be written." name)
-                                )
+                        match invocation.Assignments |> List.tryPick (fst >> unwritable) with
+                        | Some fault -> return Error fault
                         | None ->
-                            let renamed =
+                            let after =
                                 invocation.Assignments
-                                |> List.tryPick (fun (name, value) ->
-                                    if name = Attributes.name then Some(Value.display value) else None)
+                                |> List.fold (fun map (name, value) -> Map.add name value map) record.Attributes
+                                |> touch (now ())
 
-                            let clash =
-                                match renamed with
-                                | Some newName when newName <> Record.name record ->
-                                    Files.tryFindIn invocation.Projection (Record.folder record) newName
-                                    |> Option.map (fun _ ->
-                                        Fault.nameAlreadyExists (Value.joinPath (Record.folder record) newName))
-                                | _ -> None
+                            let path = Files.pathOf invocation.Projection record
+                            let folder = Record.folder record
+                            let name = Attributes.text after Attributes.name
+                            let renamed = name <> Record.name record
 
-                            match clash with
+                            // Checked here as well as in the store, so a refusal is a
+                            // stage failing, which `else` can recover from, rather than
+                            // the commit failing once the line has finished.
+                            let clash () =
+                                Files.tryFindIn invocation.Projection folder name
+                                |> Option.map (fun _ -> Fault.nameAlreadyExists (Value.joinPath folder name))
+
+                            let problem =
+                                (if renamed then Files.nameFault name |> Option.orElseWith clash else None)
+                                |> Option.orElseWith (fun () -> kindFault record path (Attributes.text after Attributes.kind))
+
+                            match problem with
                             | Some fault -> return Error fault
                             | None ->
-                                let after =
-                                    invocation.Assignments
-                                    |> List.fold (fun map (name, value) -> Map.add name value map) record.Attributes
-                                    |> touch (now ())
-
-                                let updated = { record with Attributes = after }
+                                let following =
+                                    if renamed && Record.isFolder record then
+                                        carried invocation.Projection invocation.Location path (Value.joinPath folder name)
+                                    else
+                                        []
 
                                 return
                                     Invocation.withEvents
-                                        (Record.toValue updated)
-                                        [ AttributesChanged(record.Id, record.Attributes, after) ]
+                                        (Record.toValue { record with Attributes = after })
+                                        (AttributesChanged(record.Id, record.Attributes, after) :: following)
             } }
 
 // ------------------------------------------------------------------------- save
@@ -611,8 +683,15 @@ let save (newId: IdSource) (now: unit -> DateTimeOffset) =
                         let name = Value.display nameValue
                         let folder = invocation.Location.Folder
 
+                        let refused =
+                            Files.nameFault name
+                            |> Option.orElseWith (fun () ->
+                                tag.Attributes |> Map.toList |> List.tryPick (fst >> unwritable))
+
                         if name = "" then
                             return Error(Fault.create Invalid "A saved tag needs a 'name' attribute.")
+                        elif refused.IsSome then
+                            return Error refused.Value
                         elif (Files.tryFindIn invocation.Projection folder name).IsSome then
                             return Error(Fault.targetFileExists (Value.joinPath folder name))
                         else
@@ -668,6 +747,8 @@ let saveView (newId: IdSource) (now: unit -> DateTimeOffset) =
 
                     if name = "" then
                         return Error(Fault.create Invalid "A view needs a name.")
+                    elif (Files.nameFault name).IsSome then
+                        return Error (Files.nameFault name).Value
                     elif (Files.tryFindIn invocation.Projection folder name).IsSome then
                         return Error(Fault.targetFileExists (Value.joinPath folder name))
                     else

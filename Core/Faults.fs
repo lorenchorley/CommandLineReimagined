@@ -227,14 +227,68 @@ module Fault =
 
     let stepsMustBePositive () = create Invalid "'steps' must be at least 1."
 
-    let stepsMustBeWhole value =
-        create Invalid (sprintf "'steps' must be a whole number, not '%s'." value)
+    /// Names the parameter it is about, because `progress` has two numbers and a
+    /// message that always said `steps` sent you to the wrong one.
+    let mustBeWhole parameter value =
+        create Invalid (sprintf "'%s' must be a whole number, not '%s'." parameter value)
+
+    /// A wait cannot be shorter than none, and `-1` to the runtime means "for ever",
+    /// which is not what anybody typing it meant.
+    let mustNotBeNegative parameter value =
+        create Invalid (sprintf "'%s' must be zero or more, not '%s'." parameter value)
+
+    /// <summary>A switch written as a word it does not take.</summary>
+    /// <remarks>
+    /// Any word used to count as on, so `sort name asc` sorted downwards. The message
+    /// lists what the switch does take, which is the whole of what there is to know.
+    /// </remarks>
+    let notASwitchValue command parameter (allowed: string list) word =
+        match allowed with
+        | [ own ] -> create Binding (sprintf "'%s' takes '-%s' on its own, not '%s'." command own word)
+        | _ ->
+            let quoted = allowed |> List.map (sprintf "'%s'") |> String.concat " or "
+            create Binding (sprintf "'%s' takes %s for '%s', not '%s'." command quoted parameter word)
 
     let notAValidUrl text = create Invalid (sprintf "Not a valid URL : %s" text)
 
     let noContentLength () = create Invalid "The server did not report a content length."
 
-    let transferEndedEarly () = create Invalid "The transfer ended before all bytes arrived."
+    // ------------------------------------------------------------- Record errors
+
+    let fileNeedsAName () = create Invalid "A file must have a name."
+
+    /// <summary>A name that could never be written as a path to the record it names.</summary>
+    /// <remarks>
+    /// A name is one segment of a path (decision 0016): `/` would make it two, and `.`
+    /// and `..` already mean somewhere else, so a record called any of them could be
+    /// listed and never reached.
+    /// </remarks>
+    let notAValidFileName name reason =
+        create Invalid (sprintf "'%s' is not a valid file name: %s." name reason)
+
+    /// <summary>`attr` asked to write an attribute the runtime owns (decision 0013).</summary>
+    let setByTheTerminal name =
+        create Invalid (sprintf "'%s' is set by the terminal and cannot be written." name)
+
+    /// `size` is the content's length, worked out whenever it is asked for. A stored one
+    /// would be a second `size` column that could disagree with the first.
+    let computedFromContent name =
+        create Invalid (sprintf "'%s' is worked out from the content and cannot be written." name)
+
+    /// Decision 0016: a folder is a place other records name in their `folder`
+    /// attribute, and a record that stopped being one would strand them.
+    let directoryStaysADirectory path =
+        create Invalid (sprintf "A directory cannot change its kind : %s" path) |> withPath path
+
+    /// Decision 0016: a folder has no content, so a file with some cannot become one.
+    let contentCannotBeADirectory path =
+        create Invalid (sprintf "A file with content cannot become a directory : %s" path)
+        |> withPath path
+
+    /// `cp` copies one record. Copying a folder's record without what is in it made an
+    /// empty folder that looked like a copy and was not one.
+    let cannotCopyADirectory path =
+        create Invalid (sprintf "'cp' copies files, and %s is a directory." path) |> withPath path
 
     // ----------------------------------------------------------- Evaluation errors
 

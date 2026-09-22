@@ -23,6 +23,14 @@ type FileCommandTests() =
               { Name = "notes.txt"; Folder = "/"; Content = Some "hello" } ]
         )
 
+    /// `/documents/sub/deep.txt` and `/documents/a.txt`, to rename out from under.
+    let nested () =
+        let harness = harness ()
+        harness.Run "mkdir documents/sub" |> ignore
+        harness.Run "write documents/sub/deep.txt deep" |> ignore
+        harness.Run "write documents/a.txt top" |> ignore
+        harness
+
     // ------------------------------------------------------------------------- cat
 
     [<TestMethod>]
@@ -255,6 +263,16 @@ type FileCommandTests() =
 
         StringAssert.Contains(harness.Error "cp notes.txt documents", "Target file already exists")
 
+    /// Copying a folder used to copy its record alone, which made an empty folder that
+    /// read as a copy of a full one.
+    [<TestMethod>]
+    member _.CpRefusesAFolder() =
+        let harness = harness ()
+        harness.Run "write documents/a.txt x" |> ignore
+
+        Assert.AreEqual<string>("'cp' copies files, and /documents is a directory.", harness.Error "cp documents empty")
+        Assert.AreEqual<string>("", harness.Names "ls empty")
+
     // ------------------------------------------------------------------------ attr
 
     [<TestMethod>]
@@ -318,6 +336,125 @@ type FileCommandTests() =
 
         StringAssert.Contains(harness.Error "attr notes.txt name=other.txt", "already exists")
 
+    /// A name is checked on every change, not only when a record is made: a rename to
+    /// nothing, or to something with a `/` in it, made a record no path could reach.
+    [<TestMethod>]
+    member _.AttrHoldsARenameToTheNameRule() =
+        let harness = harness ()
+
+        Assert.AreEqual<string>("A file must have a name.", harness.Error "attr notes.txt name=\"\"")
+
+        Assert.AreEqual<string>(
+            "'a/b' is not a valid file name: '/' separates directories.",
+            harness.Error "attr notes.txt name=\"a/b\"")
+
+        Assert.AreEqual<string>(
+            "'..' is not a valid file name: it already names a directory.",
+            harness.Error "attr notes.txt name=\"..\"")
+
+        Assert.IsTrue(harness.Exists "notes.txt")
+
+    /// Refused as a stage, not at the commit, so `else` can recover from it like any
+    /// other failure.
+    [<TestMethod>]
+    member _.ARefusedRenameCanBeRecovered() =
+        let harness = harness ()
+
+        Assert.AreEqual<string>("kept", harness.Text "attr notes.txt name=\"\" else echo kept")
+
+    /// `size` is the content's length, worked out when a listing is built (decision
+    /// 0013). Storing one gave a listing two `size` columns.
+    [<TestMethod>]
+    member _.AttrRefusesSize() =
+        let harness = harness ()
+
+        Assert.AreEqual<string>(
+            "'size' is worked out from the content and cannot be written.",
+            harness.Error "attr notes.txt size=4")
+
+        Assert.AreEqual<int>(1, (harness.Table "ls").Columns |> List.filter (fun c -> c.Name = "size") |> List.length)
+
+    // -------------------------------------------------------------- attr on folders
+
+    /// A folder's path is its parent's path plus its name (decision 0016), and what is
+    /// inside holds that path, so a rename has to carry everything under it. It used to
+    /// rename the folder's record alone, and its contents vanished from every listing.
+    [<TestMethod>]
+    member _.RenamingAFolderCarriesWhatIsInIt() =
+        let harness = nested ()
+        harness.Run "attr documents name=docs" |> ignore
+
+        Assert.AreEqual<string>("sub a.txt", harness.Names "ls docs")
+        Assert.AreEqual<string>("deep", harness.Content "/docs/sub/deep.txt")
+        StringAssert.Contains(harness.Error "ls documents", "Directory does not exist")
+
+    /// One line, one transaction (decision 0015): one `undo` puts the folder and
+    /// everything under it back.
+    [<TestMethod>]
+    member _.OneUndoRestoresARenamedFolderAndItsContents() =
+        let harness = nested ()
+        harness.Run "attr documents name=docs" |> ignore
+
+        harness.Run "undo" |> ignore
+
+        Assert.AreEqual<string>("sub a.txt", harness.Names "ls documents")
+        Assert.AreEqual<string>("deep", harness.Content "/documents/sub/deep.txt")
+
+    /// Standing inside a folder that is renamed takes you with it, or the next `ls`
+    /// would be of a folder that is not there any more.
+    [<TestMethod>]
+    member _.RenamingTheFolderYouAreInTakesYouWithIt() =
+        let harness = nested ()
+        harness.Run "cd documents/sub" |> ignore
+
+        harness.Run "attr /documents name=d2" |> ignore
+
+        Assert.AreEqual<string>("/d2/sub", harness.Location)
+        Assert.AreEqual<string>("deep.txt", harness.Names "ls")
+
+        harness.Run "undo" |> ignore
+
+        Assert.AreEqual<string>("/documents/sub", harness.Location)
+
+    [<TestMethod>]
+    member _.RenamingAFolderOntoASiblingIsAConflict() =
+        let harness = nested ()
+
+        let fault = harness.Fail "attr documents name=empty"
+
+        Assert.AreEqual<FaultKind>(Conflict, fault.Kind)
+        Assert.AreEqual<string>("Target file already exists : /empty", fault.Message)
+
+    /// A folder stays a folder (decision 0016), even an empty one: what names it in
+    /// `folder` would otherwise be inside a note.
+    [<TestMethod>]
+    member _.AFolderCannotChangeItsKind() =
+        let harness = nested ()
+
+        Assert.AreEqual<string>("A directory cannot change its kind : /documents", harness.Error "attr documents kind=text")
+        Assert.AreEqual<string>("A directory cannot change its kind : /empty", harness.Error "attr empty kind=note")
+        Assert.AreEqual<string>("sub a.txt", harness.Names "ls documents")
+
+    /// A folder has no content (decision 0016), so a file that has some never becomes one.
+    [<TestMethod>]
+    member _.AFileWithContentCannotBecomeAFolder() =
+        let harness = harness ()
+
+        Assert.AreEqual<string>(
+            "A file with content cannot become a directory : /notes.txt",
+            harness.Error "attr notes.txt kind=folder")
+
+    /// A record with no content is all a folder is, so a saved tag may become one.
+    [<TestMethod>]
+    member _.ARecordWithNoContentMayBecomeAFolder() =
+        let harness = harness ()
+        harness.Run "save <note name=todo/>" |> ignore
+
+        harness.Run "attr todo kind=folder" |> ignore
+        harness.Run "cd todo" |> ignore
+
+        Assert.AreEqual<string>("/todo", harness.Location)
+
     /// A command that declares no assignments says so, rather than ignoring them.
     [<TestMethod>]
     member _.ACommandThatTakesNoAssignmentsSaysSo() =
@@ -355,6 +492,29 @@ type FileCommandTests() =
         let harness = harness ()
 
         StringAssert.Contains(harness.Error "save <note name=notes.txt/>", "already exists")
+
+    /// The name rule is the one `attr` and the store apply: a tag named `a/b` used to
+    /// become a record called `a/b`, which no path could reach.
+    [<TestMethod>]
+    member _.SaveHoldsItsNameToTheNameRule() =
+        let harness = harness ()
+
+        Assert.AreEqual<string>(
+            "'a/b' is not a valid file name: '/' separates directories.",
+            harness.Error "save <note name=\"a/b\"/>")
+
+    /// A tag's attributes are kept as written (decision 0027), except the ones `attr`
+    /// would refuse: a tag could otherwise put a record in a folder that does not exist,
+    /// or give a listing a second `size` column.
+    [<DataTestMethod>]
+    [<DataRow("folder=/nowhere", "'folder' is set by the terminal and cannot be written.")>]
+    [<DataRow("created=yesterday", "'created' is set by the terminal and cannot be written.")>]
+    [<DataRow("size=4", "'size' is worked out from the content and cannot be written.")>]
+    member _.SaveRefusesWhatAttrRefuses(attribute: string, message: string) =
+        let harness = harness ()
+
+        Assert.AreEqual<string>(message, harness.Error $"save <note name=todo {attribute}/>")
+        Assert.IsFalse(harness.Exists "todo")
 
     [<TestMethod>]
     member _.SaveNeedsATagRatherThanText() =

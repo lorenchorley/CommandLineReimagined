@@ -97,7 +97,8 @@ let sort =
                 // arrived in and two sorts in a row compose the way a reader expects.
                 // Descending negates the comparison rather than reversing the result,
                 // which would put the ties back to front as well.
-                let direction = if Invocation.flag "desc" invocation then -1 else 1
+                let! descending = Invocation.switch (Some "asc") "desc" invocation
+                let direction = if descending then -1 else 1
 
                 let rows =
                     table.Rows

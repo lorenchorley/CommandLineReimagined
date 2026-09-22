@@ -135,6 +135,18 @@ type RecoveryTests() =
 
         Assert.AreEqual<string>("2", harness.Text "echo $problem.stage")
 
+    /// A pipeline in parentheses is one stage of the line around it, whether it stands
+    /// as the stage or as an argument, so a fault from inside names the outer stage. As
+    /// a stage it used to leak its own inner number.
+    [<TestMethod>]
+    member _.AParenthesisedStageReportsTheOuterStage() =
+        let harness = seeded ()
+        harness.Run "try (echo a | cat nowhere) | set standing" |> ignore
+        harness.Run "try echo (echo a | cat nowhere) | set argument" |> ignore
+
+        Assert.AreEqual<string>("1", harness.Text "echo $argument.stage")
+        Assert.AreEqual<string>("1", harness.Text "echo $standing.stage")
+
     [<TestMethod>]
     member _.AFailedTryStageLeavesNoEvents() =
         let harness = seeded ()

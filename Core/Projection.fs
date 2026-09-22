@@ -28,8 +28,18 @@ module Attributes =
 
     let reserved = [ name; kind; folder; created; modified ]
 
-    /// `size` is deliberately absent: it is the content's length, computed when it is
-    /// asked for, so it can never disagree with the content.
+    /// `size` is deliberately absent from `reserved`: it is not stored at all but is the
+    /// content's length, computed when it is asked for, so it can never disagree with
+    /// the content (decision 0013). It is named so that nothing can store one.
+    let size = "size"
+
+    /// <summary>Every name a listing already has a column for, or the runtime owns.</summary>
+    /// <remarks>
+    /// A user attribute by one of these names would be a second column of the same name,
+    /// so a listing's extra columns and `attr`'s refusals both start from this.
+    /// </remarks>
+    let owned = reserved @ [ size ]
+
     let text (attributes: Map<string, Value>) (key: string) =
         match Map.tryFind key attributes with
         | Some value -> Value.display value
@@ -175,6 +185,20 @@ module Files =
             match tryFindIn projection folder name with
             | Some record -> Record.isFolder record
             | Option.None -> false)
+
+    /// <summary>Why a name cannot be a record's name, if it cannot.</summary>
+    /// <remarks>
+    /// One rule for making a record and for renaming one, so that no route — `mkdir`,
+    /// `write`, `save`, `save-view` or `attr name=` — can make a record that has no
+    /// path. `mkdir` and `write` split what they are given at `/` before a name ever
+    /// reaches here; `save` and `attr` take the name as a value, which is where a
+    /// `/` could otherwise get in.
+    /// </remarks>
+    let nameFault (name: string) : Fault option =
+        if name = "" then Some(Fault.fileNeedsAName ())
+        elif name.Contains '/' then Some(Fault.notAValidFileName name "'/' separates directories")
+        elif name = "." || name = ".." then Some(Fault.notAValidFileName name "it already names a directory")
+        else Option.None
 
     /// <summary>The kind of a file, guessed from its name when nobody said.</summary>
     /// <remarks>

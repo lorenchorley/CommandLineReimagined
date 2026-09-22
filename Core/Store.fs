@@ -76,23 +76,37 @@ type Store(log: ILog, clock: unit -> DateTimeOffset) =
     /// is the only place a `Conflict` can be raised after the fact.
     /// </remarks>
     let validate (start: Projection) (events: Event list) : Outcome<unit> =
+        /// One rule for a name however it arrives (decision 0016): it has to be one
+        /// segment of a path, and no other record in the folder may have it already.
+        let placed (current: Projection) (id: FileId) (folder: string) (name: string) =
+            match Files.nameFault name with
+            | Some fault -> Some fault
+            | Option.None ->
+                match Files.tryFindIn current folder name with
+                | Some existing when existing.Id <> id -> Some(Fault.nameAlreadyExists (Value.joinPath folder name))
+                | _ -> Option.None
+
         let rec loop (current: Projection) remaining =
             match remaining with
             | [] -> Ok()
             | event :: rest ->
                 let problem =
                     match event with
-                    | FileCreated record ->
-                        let folder = Record.folder record
-                        let name = Record.name record
+                    | FileCreated record -> placed current record.Id (Record.folder record) (Record.name record)
+                    | AttributesChanged(id, before, after) ->
+                        let text = Attributes.text
+                        let folder = text after Attributes.folder
+                        let name = text after Attributes.name
+                        let moved = folder <> text before Attributes.folder
 
-                        if name = "" then
-                            Some(Fault.create Invalid "A file must have a name.")
+                        // Only a change is judged, so a record from an older log with a
+                        // name today's rule refuses can still be given a tag.
+                        if moved && not (Files.folderExists current folder) then
+                            Some(Fault.directoryDoesNotExist folder)
+                        elif moved || name <> text before Attributes.name then
+                            placed current id folder name
                         else
-                            match Files.tryFindIn current folder name with
-                            | Some existing when existing.Id <> record.Id ->
-                                Some(Fault.nameAlreadyExists (Value.joinPath folder name))
-                            | _ -> Option.None
+                            Option.None
                     | _ -> Option.None
 
                 match problem with

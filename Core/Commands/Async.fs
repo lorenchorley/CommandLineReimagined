@@ -11,14 +11,15 @@ open System.Net.Http
 open CommandLineReimagined.Core
 
 /// A number written for a parameter that has to be whole. A bare `-steps` flag binds
-/// `true`, which is the case the message names.
+/// `true`, which is the case the message names, and the message names the parameter
+/// it is about, since there are two.
 let private whole (name: string) (fallback: int) (invocation: Invocation) : Outcome<int> =
     if not (Invocation.given name invocation) then
         Ok fallback
     else
         match Invocation.value name invocation with
         | Value.Number n when Double.IsInteger n -> Ok(int n)
-        | other -> Error(Fault.stepsMustBeWhole (Value.display other))
+        | other -> Error(Fault.mustBeWhole name (Value.display other))
 
 let progress =
     { Spec =
@@ -37,6 +38,10 @@ let progress =
                 | Ok steps, Ok delay ->
                     if steps <= 0 then
                         return Error(Fault.stepsMustBePositive ())
+                    // Refused before it reaches the runtime, which throws on most
+                    // negative waits and takes -1 to mean "for ever".
+                    elif delay < 0 then
+                        return Error(Fault.mustNotBeNegative "delay" (string delay))
                     else
                         let counter = invocation.Output.NewLine().Write "0%"
                         let bar = invocation.Output.NewLine().Write ""
@@ -139,39 +144,17 @@ let download (client: unit -> HttpClient) (newId: Files.IdSource) (now: unit -> 
                                     ignore stopwatch
                                     speed.Text <- $"{float total / 1024.0 / 1024.0:F2} MB"
 
-                                    let! hash = invocation.Blobs.Put text
+                                    // Written the way `write` writes, so a download over
+                                    // an existing file touches `modified` as a write does
+                                    // and a new one gets the same attributes.
+                                    let! written =
+                                        Files.writeContent newId now invocation (Value.joinPath folder name) None text
 
-                                    match Files.tryFindIn invocation.Projection folder name with
-                                    | Some existing when Record.isFolder existing ->
-                                        return Error(Fault.isADirectory (Value.joinPath folder name))
-                                    | Some existing ->
+                                    if Result.isOk written then
                                         invocation.Output.NewLine().Write($"Downloaded to {Value.joinPath folder name}")
                                         |> ignore
 
-                                        return
-                                            Invocation.withEvents
-                                                (Record.toValue existing)
-                                                [ ContentChanged(existing.Id, existing.Content, Some hash) ]
-                                    | None ->
-                                        let record =
-                                            { Id = newId ()
-                                              Attributes =
-                                                Map.ofList
-                                                    [ Attributes.name, Value.Text name
-                                                      Attributes.kind, Value.Text(Files.inferKind name)
-                                                      Attributes.folder, Value.Text folder
-                                                      Attributes.created, Value.Text((now ()).ToString "o")
-                                                      Attributes.modified, Value.Text((now ()).ToString "o") ]
-                                              Content = None }
-
-                                        invocation.Output.NewLine().Write($"Downloaded to {Value.joinPath folder name}")
-                                        |> ignore
-
-                                        return
-                                            Invocation.withEvents
-                                                (Record.toValue { record with Content = Some hash })
-                                                [ FileCreated record
-                                                  ContentChanged(record.Id, None, Some hash) ]
+                                    return written
                             with
                             | :? OperationCanceledException -> return Error(Fault.cancelled ())
                             | exn -> return Error(Fault.create Invalid $"Download failed : {exn.Message}")

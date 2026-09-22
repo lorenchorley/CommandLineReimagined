@@ -334,6 +334,17 @@ type ExecutionTests() =
 
         StringAssert.Contains(harness.Error "nosuchcommand", "Unknown command")
 
+    /// The command that reports unknown names is not itself a name you can type: typed,
+    /// it reported an unknown command with no name.
+    [<TestMethod>]
+    member _.TypingTheUnknownCommandsNameNamesIt() =
+        let harness = seeded ()
+
+        let fault = harness.Fail "UnknownCommand"
+
+        Assert.AreEqual<FaultKind>(UnknownCommand, fault.Kind)
+        Assert.AreEqual<string>("Unknown command : UnknownCommand", fault.Message)
+
     [<TestMethod>]
     member _.FailingCommandReportsWhyRatherThanSilentlyDoingNothing() =
         let harness = seeded ()

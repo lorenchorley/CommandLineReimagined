@@ -72,6 +72,45 @@ type StoreTests() =
         expectFault Conflict (run (store.Commit "mkdir notes" [ FileCreated(folder "d" "notes" "/") ]))
         |> ignore
 
+    /// A rename is held to the same rule as a creation: renaming used to go unchecked,
+    /// so the store would take an empty name, a name with a `/` in it, or a name a
+    /// sibling already had, as long as the command had not noticed.
+    [<TestMethod>]
+    member _.ARenameIsHeldToTheSameRuleAsACreation() =
+        let store = initialised ()
+        let notes = file "f" "notes" "/"
+        commit store "seed" [ FileCreated notes; mkdir "alpha" "/" ] |> ignore
+
+        let renamed name =
+            [ AttributesChanged(notes.Id, notes.Attributes, Map.add Attributes.name (Value.Text name) notes.Attributes) ]
+
+        Assert.AreEqual<string>(
+            "A file must have a name.",
+            (expectFault Invalid (run (store.Commit "attr" (renamed "")))).Message)
+
+        Assert.AreEqual<string>(
+            "'a/b' is not a valid file name: '/' separates directories.",
+            (expectFault Invalid (run (store.Commit "attr" (renamed "a/b")))).Message)
+
+        Assert.AreEqual<string>(
+            "Target file already exists : /alpha",
+            (expectFault Conflict (run (store.Commit "attr" (renamed "alpha")))).Message)
+
+    /// A record can only be moved into a folder that is there, or it would be listed by
+    /// nothing and reachable by no path.
+    [<TestMethod>]
+    member _.AMoveMustLandInAFolderThatExists() =
+        let store = initialised ()
+        let notes = file "f" "notes" "/"
+        commit store "seed" [ FileCreated notes ] |> ignore
+
+        let moved =
+            AttributesChanged(notes.Id, notes.Attributes, Map.add Attributes.folder (Value.Text "/nowhere") notes.Attributes)
+
+        Assert.AreEqual<string>(
+            "Directory does not exist : /nowhere",
+            (expectFault NotFound (run (store.Commit "move" [ moved ]))).Message)
+
     [<TestMethod>]
     member _.TheSameNameInDifferentFoldersIsFine() =
         let store = initialised ()

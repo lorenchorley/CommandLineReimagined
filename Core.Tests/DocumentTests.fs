@@ -291,6 +291,15 @@ type XmlTests() =
             "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<listing>\n  <entry name=\"documents\"/>\n</listing>\n",
             harness.Content "/out.xml")
 
+    /// A switch takes its own name or nothing: any word after it used to turn it on.
+    [<TestMethod>]
+    member _.ToXmlDeclarationIsASwitch() =
+        let harness = seeded ()
+
+        Assert.AreEqual<string>(
+            "'to-xml' takes '-declaration' on its own, not 'no'.",
+            harness.Error "<a/> | to-xml out.xml -declaration no")
+
     [<TestMethod>]
     member _.ToXmlOverwritesAndUndoRestores() =
         let harness = seeded ()

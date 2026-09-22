@@ -239,12 +239,36 @@ module Invocation =
         | Some(Value.Query expr) -> Some expr
         | _ -> None
 
-    /// A flag written bare binds `true`; a flag not written at all is absent.
-    let flag (name: string) (invocation: Invocation) =
+    /// <summary>A switch, and whether it is on.</summary>
+    /// <remarks>
+    /// Written bare, `-desc` binds `true`, and not written at all it is off. Written as
+    /// a word it is on only for the switch's own name, so `sort name desc` reads as it
+    /// looks, and off for `off`, the word a command offers for the other way (`asc`).
+    /// Any other word is a fault naming what the switch takes: it used to count as on,
+    /// so `sort name asc` sorted downwards.
+    /// </remarks>
+    let switch (off: string option) (name: string) (invocation: Invocation) : Outcome<bool> =
+        let own =
+            invocation.Spec.Parameters
+            |> List.tryFind (fun p -> p.Name = name)
+            |> Option.bind (fun p -> p.Flag)
+            |> Option.defaultValue name
+
+        let reads (expected: string) (written: string) =
+            System.String.Equals(written, expected, System.StringComparison.OrdinalIgnoreCase)
+
         match Map.tryFind name invocation.Args with
-        | Some(Value.Boolean b) -> b
-        | Some v -> not (Value.isAbsent v)
-        | None -> false
+        | Some(Value.Boolean b) -> Ok b
+        | Some v when not (Value.isAbsent v) ->
+            let written = Value.display v
+
+            if reads own written then Ok true
+            elif off |> Option.exists (fun word -> reads word written) then Ok false
+            else Error(Fault.notASwitchValue invocation.Spec.Name name (own :: Option.toList off) written)
+        | _ -> Ok false
+
+    /// A switch with no word for off: written bare or as its own name, it is on.
+    let flag (name: string) (invocation: Invocation) = switch None name invocation
 
     /// A result that changed nothing, which is most of them.
     let pure' (value: Value) = Ok { Value = value; Events = [] }

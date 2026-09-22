@@ -122,6 +122,24 @@ type MetaCommandTests() =
 
         Assert.AreEqual<int>(4, List.length (harness.Table "history").Rows)
 
+    /// An undo and a redo carry the source of the line they reverse, so on their own
+    /// they read as the line itself. `compensates` names the transaction each one
+    /// reverses: the undo reverses the mkdir, the redo reverses the undo.
+    [<TestMethod>]
+    member _.HistorySaysWhatEachCompensationReverses() =
+        let harness = seeded ()
+        harness.Run "mkdir alpha" |> ignore
+        harness.Run "undo" |> ignore
+        harness.Run "redo" |> ignore
+
+        let table = harness.Table "history"
+
+        Assert.AreEqual<string list>([ "seq"; "at"; "source"; "undone"; "compensates" ], Table.names table)
+
+        Assert.AreEqual<Value list>(
+            [ Value.None; Value.None; Value.Number 2.0; Value.Number 3.0 ],
+            table.Rows |> List.map (Table.cell table "compensates"))
+
     /// <summary>The seed is recorded but is nobody's to undo (decision 0018).</summary>
     /// <remarks>
     /// It is a transaction like any other, so a replay reproduces it and `history`

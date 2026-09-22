@@ -52,8 +52,12 @@ module Nesting =
 
 type Evaluator(commands: Command list, store: Store, blobs: IBlobs) =
 
+    /// Every command but the one that reports unknown names. That one is reached when a
+    /// name resolves to nothing, never by being typed: typed, it ran with no name and
+    /// answered `Unknown command : ` about nothing at all.
     let byName =
         commands
+        |> List.filter (fun command -> command.Spec.Name <> "UnknownCommand")
         |> List.map (fun command -> command.Spec.Name.ToLowerInvariant(), command)
         |> Map.ofList
 
@@ -309,8 +313,15 @@ type Evaluator(commands: Command list, store: Store, blobs: IBlobs) =
                                 }),
                             // A pipeline standing as a stage is handed the pipe, so
                             // `ls | (where $row.kind eq folder | count)` means what it
-                            // would without the parentheses.
-                            (fun (nested: Tree.NestedPipeline) -> runPipeline input nested.Pipeline)
+                            // would without the parentheses. A fault from inside loses
+                            // its stage number, as one from an argument does in
+                            // `runNested`: as far as the line is concerned, the stage
+                            // that failed is the one the parentheses stand in.
+                            (fun (nested: Tree.NestedPipeline) ->
+                                async {
+                                    let! result = runPipeline input nested.Pipeline
+                                    return result |> Outcome.mapFault (fun fault -> { fault with Stage = None })
+                                })
                         )
                 }
 

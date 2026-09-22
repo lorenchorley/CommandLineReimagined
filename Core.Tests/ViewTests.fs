@@ -319,6 +319,18 @@ type ViewTests() =
         Assert.AreEqual<FaultKind>(Invalid, fault.Kind)
         StringAssert.Contains(fault.Message, "/weekend")
 
+    /// Text that parses but asks nothing — one word — is not a view either. `cd` used to
+    /// enter it as a question every record answered `false` to, where `save-view` and
+    /// `find` refuse the same text.
+    [<TestMethod>]
+    member _.AViewFileHoldingAPlainWordIsNotEntered() =
+        let harness = journal ()
+        harness.Run "save-view weekend $row.mood eq great" |> ignore
+        harness.Run "echo monday | write weekend" |> ignore
+
+        Assert.AreEqual<string>("'/weekend' does not hold a predicate : monday", harness.Error "cd weekend")
+        Assert.AreEqual<Expr option>(None, harness.View)
+
     // -------------------------------------------------------------- refresh
 
     /// What a live listing is made of: the same answer, computed again, with nothing
@@ -368,6 +380,17 @@ type ViewTests() =
         | None -> Assert.Fail "A refresh of 'mkdir' should have been refused."
 
         Assert.IsFalse(harness.Exists "/sneaky", "The refused refresh must not have created anything.")
+
+    /// `up` moves you, which is a change: it lands in `history` and `undo` takes it back.
+    /// It used to be marked read-only, which let a live refresh name it.
+    [<TestMethod>]
+    member _.RefreshRefusesUp() =
+        let harness = journal ()
+        harness.Run "cd journal" |> ignore
+
+        match (harness.Refresh "up").Fault with
+        | Some fault -> Assert.AreEqual<string>("A live refresh only re-reads : up", fault.Message)
+        | None -> Assert.Fail "A refresh of 'up' should have been refused."
 
     /// Refused for the whole line, not stage by stage: a pipeline that reads and then
     /// writes is a writing line.
