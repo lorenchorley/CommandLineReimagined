@@ -1,4 +1,4 @@
-﻿using Application;
+using Application;
 using Application.EventHandlers;
 using Application.FrameworkAccessors;
 using Application.UpdateHandlers;
@@ -14,8 +14,9 @@ public static class ServiceExtensions
 {
     public static void ConfigureServices(HostBuilderContext hostContext, IServiceCollection services)
     {
-        services.AddHttpClient();
-
+        // AddHttpClient is gone with the Commands project that brought the package in.
+        // Nothing here resolves an HttpClient any more: the session is handed one by
+        // DesktopSession, which owns it.
         services.AddCoreECSServices();
         // AddCommands is gone: the commands live in the core now and the session
         // registers them all at once (see AddModules).
