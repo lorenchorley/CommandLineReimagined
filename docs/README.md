@@ -14,6 +14,7 @@ The terminal runs in a browser tab. The parser, the commands and the filesystem 
 | [Getting started](getting-started.md) | Open a terminal and run your first commands. |
 | [Worked examples](examples.md) | Follow complete sessions, keystroke by keystroke. |
 | [The command language](language.md) | Understand every syntax the parser accepts. |
+| [Tables and predicates](tables.md) | Question a listing: filter, sort, count, group. |
 | [Command reference](commands.md) | Look up one command's arguments and behaviour. |
 | [The web terminal](web-terminal.md) | Learn the screen: chips, completion, Stop, undo. |
 | [How it works](concepts.md) | See what happens between pressing Enter and the answer. |
@@ -41,12 +42,13 @@ A traditional shell passes text between programs, and every program parses that 
 again. Here the shell parses once, into a tree, and passes *values* along the pipe:
 
 ```
-ls | set files
+ls | where $row.kind eq folder | count
 ```
 
-`ls` returns a list of paths. `set` binds that list, still a list, to `$files`. Nothing
-was ever flattened to text and re-split, so nothing can be mangled by a space in a file
-name.
+`ls` returns a table of records. `where` keeps the rows its predicate is true for,
+still as a table, and `count` answers a number. Nothing was ever flattened to text and
+re-split, so nothing can be mangled by a space in a file name — and nothing had to be
+parsed a second time to be filtered.
 
 Because the parse is a tree, the screen can show what the parser decided. Tap any word
 in the scrollback and the terminal tells you whether it was a command, a flag, a string,

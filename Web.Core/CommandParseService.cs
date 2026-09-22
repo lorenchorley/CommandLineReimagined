@@ -12,7 +12,14 @@ public sealed record ParseResponse(
     string? Reserialised,
     ParseErrorInfo? Error);
 
-public sealed record ParseErrorInfo(string Kind, int Line, int Column, IReadOnlyList<string> Expected);
+/// <summary>Why a line would not parse.</summary>
+/// <remarks>
+/// <paramref name="Explanation"/> is what the grammar said when it knew why, as opposed
+/// to what it was expecting. A reserved word in argument position is the case it exists
+/// for; it is null when the parser only knew what could have appeared there.
+/// </remarks>
+public sealed record ParseErrorInfo(
+    string Kind, int Line, int Column, IReadOnlyList<string> Expected, string? Explanation = null);
 
 /// <summary>
 /// Wraps the GOLD-engine interpreter for the web host.
@@ -54,8 +61,13 @@ public sealed class CommandParseService
     private static ParseErrorInfo Describe(ParserError error) =>
         error.Match(
             messages => new ParseErrorInfo("error", 0, 0, messages),
-            syntax => new ParseErrorInfo("syntax", syntax.Line, syntax.Column, Expected(syntax)),
-            lexical => new ParseErrorInfo("lexical", lexical.SyntaxError.Line, lexical.SyntaxError.Column, Expected(lexical.SyntaxError)));
+            syntax => new ParseErrorInfo("syntax", syntax.Line, syntax.Column, Expected(syntax), syntax.Explanation),
+            lexical => new ParseErrorInfo(
+                "lexical",
+                lexical.SyntaxError.Line,
+                lexical.SyntaxError.Column,
+                Expected(lexical.SyntaxError),
+                lexical.SyntaxError.Explanation));
 
     private static IReadOnlyList<string> Expected(SyntaxError syntax)
     {

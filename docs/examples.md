@@ -10,7 +10,11 @@ the second uses the directory the first made, and the last clears up after both.
 
 ```
 $ ls
-up  documents  projects  readme.txt
+name        kind    folder  size  modified
+documents   folder  /       0     2026-09-22T09:30:00.0000000+00:00
+examples    folder  /       0     2026-09-22T09:30:00.0000000+00:00
+projects    folder  /       0     2026-09-22T09:30:00.0000000+00:00
+readme.txt  text    /       41    2026-09-22T09:30:00.0000000+00:00
 
 $ mkdir scratch
 scratch
@@ -28,17 +32,15 @@ $ cat scratch/plan.txt
 second draft
 
 $ undo
-Undone: cat
-
-$ undo
-Undone: write
+Undone: write scratch/plan.txt "second draft"
 
 $ cat scratch/plan.txt
 first draft
 ```
 
-The first `undo` reversed the `cat`, which had nothing to reverse. That is why it names
-what it undid. The second reversed the overwrite and restored the previous contents.
+One `undo` was enough. The two `cat` lines changed nothing, so they were never
+recorded, and `undo` reached past them to the last line that did something — naming it,
+so you can see what you are about to take back.
 
 ## 2. Copy a file through a pipe
 
@@ -50,7 +52,9 @@ $ cat documents/notes.txt | write scratch/notes-copy.txt
 notes-copy.txt
 
 $ ls scratch
-up  notes-copy.txt  plan.txt
+name            kind  folder    size  modified
+notes-copy.txt  text  /scratch  50    2026-09-22T09:30:00.0000000+00:00
+plan.txt        text  /scratch  11    2026-09-22T09:30:00.0000000+00:00
 ```
 
 `cat` returned text, and `write` used it for the parameter you did not write out. The
@@ -60,30 +64,36 @@ text never became a command-line string in between, so quoting could not go wron
 
 ```
 $ ls | set files
-up  documents  projects  readme.txt
+name        kind    folder  size  modified
+documents   folder  /       0     2026-09-22T09:30:00.0000000+00:00
+examples    folder  /       0     2026-09-22T09:30:00.0000000+00:00
+projects    folder  /       0     2026-09-22T09:30:00.0000000+00:00
+scratch     folder  /       0     2026-09-22T09:30:00.0000000+00:00
+readme.txt  text    /       41    2026-09-22T09:30:00.0000000+00:00
 
 $ set target documents
 documents
 
 $ ls $target
-up  notes.txt
+name       kind  folder      size  modified
+notes.txt  text  /documents  50    2026-09-22T09:30:00.0000000+00:00
 
 $ vars
-$files = up documents\ projects\ readme.txt
-$target = documents
+name    value
+files   5 rows
+target  documents
 
 $ undo
-Undone: ls
-
-$ undo
-Undone: set
+Undone: set target documents
 
 $ vars
-$files = up documents\ projects\ readme.txt
+name   value
+files  5 rows
 ```
 
-`$files` holds the list itself. Undo unwound the `set target` binding and left the
-earlier one alone.
+`$files` holds the table itself, not a printed copy of it, which is why `vars` says how
+many rows it has rather than drawing it again inside another table. Undo unwound the
+`set target` binding and left the earlier one alone.
 
 ## 4. Structured values with tags
 
@@ -190,11 +200,125 @@ $ rm scratch
 Removed scratch
 
 $ undo
-Undone: rm
+Undone: rm scratch
 
 $ ls
-up  documents  projects  scratch  readme.txt
+name        kind    folder  size  modified
+documents   folder  /       0     2026-09-22T09:30:00.0000000+00:00
+examples    folder  /       0     2026-09-22T09:30:00.0000000+00:00
+projects    folder  /       0     2026-09-22T09:30:00.0000000+00:00
+scratch     folder  /       0     2026-09-22T09:30:00.0000000+00:00
+readme.txt  text    /       41    2026-09-22T09:30:00.0000000+00:00
 ```
 
 `rm` refuses a directory that still has anything in it, which is why the files went
 first. Undo recreated the directory.
+
+## 9. Question a listing
+
+Every listing is a table, and a table can be filtered, counted, sorted and grouped
+without leaving the line. This example makes a few records with `save`, then asks
+things about them.
+
+```
+$ mkdir journal
+journal
+
+$ cd journal
+/journal
+
+$ save <note name=monday mood=good tag=work/>
+monday
+
+$ save <note name=tuesday mood=tired tag=work/>
+tuesday
+
+$ save <note name=saturday mood=great tag=home/>
+saturday
+
+$ ls | select name mood tag
+name      mood   tag
+monday    good   work
+saturday  great  home
+tuesday   tired  work
+
+$ ls | where $row.tag eq work | select name mood
+name     mood
+monday   good
+tuesday  tired
+
+$ ls | where $row.tag eq work | count
+2
+
+$ ls | where $row.mood like gre | select name
+name
+saturday
+
+$ ls | group tag
+key   rows
+work  2 rows
+home  1 row
+
+$ ls | sort mood desc | first
+<row name=tuesday kind=note folder=/journal size=0 modified=2026-09-22T09:30:00.0000000+00:00 mood=tired tag=work/>
+```
+
+`mood` and `tag` are columns because the records carry them: `save` turns a tag's
+attributes into a file's attributes, and a listing shows every attribute anything in
+the folder has. Nothing was declared anywhere.
+
+Not one of those lines changed anything, so `undo` after them reverses the last `save`
+rather than the last question.
+
+[Tables and predicates](tables.md) is the full guide.
+
+## 10. Run an example program
+
+Four programs are seeded into `/examples`, one per pillar of the design. `run` executes
+one a line at a time, echoing each line before its result.
+
+```
+$ run examples/tables.clr
+> ls
+name        kind    folder  size  modified
+documents   folder  /       0     2026-09-22T09:30:00.0000000+00:00
+examples    folder  /       0     2026-09-22T09:30:00.0000000+00:00
+projects    folder  /       0     2026-09-22T09:30:00.0000000+00:00
+readme.txt  text    /       41    2026-09-22T09:30:00.0000000+00:00
+> ls | where $row.kind eq folder | count
+3
+> ls | sort name desc | first
+<row name=readme.txt kind=text folder=/ size=41 modified=2026-09-22T09:30:00.0000000+00:00/>
+> ls | select name kind | take 2
+name       kind
+documents  folder
+examples   folder
+> set greeting hello
+hello
+> set answer 42
+42
+> vars
+name      value
+answer    42
+greeting  hello
+> help | where $row.name eq set | select name description
+name  description
+set   Bind a value, or whatever was piped in, to a variable
+name  description
+set   Bind a value, or whatever was piped in, to a variable
+```
+
+The last block appears twice: once as the line's own result while the script ran, and
+once as the value the script answered with, which is its last line's.
+
+Each line committed its own transaction, so `undo` steps back through the script a line
+at a time:
+
+```
+$ undo
+Undone: set answer 42
+```
+
+`cat examples/tables.clr` shows the program. The other three —
+`journal.clr`, `resilient.clr` and `inventory.clr` — need views, error recovery and XML,
+which are not built yet.

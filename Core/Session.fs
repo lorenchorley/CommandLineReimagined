@@ -223,7 +223,7 @@ type Session(log: ILog, options: SessionOptions, seed: Seed) =
                 async {
                     let parsed = parser.Parse<Tree.Node> source
 
-                    match parsed.Match((fun tree -> Ok tree), (fun _ -> Error(Fault.couldNotParse ()))) with
+                    match parsed.Match((fun tree -> Ok tree), (fun error -> Error(Fault.ofParseError error))) with
                     | Error fault -> return Error fault
                     | Ok tree ->
                         let! result = evaluator.Execute tree source output cancel
@@ -308,9 +308,7 @@ type Session(log: ILog, options: SessionOptions, seed: Seed) =
                 return respond (Some(Fault.alreadyRunning ())) None
             else
                 let parsed = parser.Parse<Tree.Node> source
-
-                let tree =
-                    parsed.Match((fun tree -> Ok tree), (fun _ -> Error(Fault.couldNotParse ())))
+                let tree = parsed.Match((fun tree -> Ok tree), (fun error -> Error(Fault.ofParseError error)))
 
                 match tree with
                 | Error fault -> return respond (Some fault) None

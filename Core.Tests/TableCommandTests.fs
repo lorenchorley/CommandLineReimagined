@@ -246,7 +246,12 @@ type TableCommandTests() =
     member _.AReservedWordIsASyntaxError() =
         let harness = seeded ()
 
-        Assert.AreEqual<FaultKind>(Syntax, (harness.Fail "echo eq").Kind)
+        let fault = harness.Fail "echo eq"
+
+        Assert.AreEqual<FaultKind>(Syntax, fault.Kind)
+
+        // The rule knows why, so the fault says why rather than "could not parse".
+        Assert.AreEqual<string>("'eq' is an operator; write \"eq\" to pass it as text", fault.Message)
         Assert.AreEqual<string>("eq", harness.Text "echo \"eq\"")
 
     // -------------------------------------------------------------------- help
@@ -269,3 +274,17 @@ type TableCommandTests() =
         harness.Run "help" |> ignore
 
         Assert.AreEqual<string list>([ "seed" ], harness.History())
+
+    /// <summary>Descending keeps the ties in the order they arrived.</summary>
+    /// <remarks>
+    /// Reversing an ascending sort would put them back to front, so two sorts in a row
+    /// would not compose: `sort name | sort size desc` has to leave the equal sizes in
+    /// name order.
+    /// </remarks>
+    [<TestMethod>]
+    member _.SortDescendingIsStable() =
+        let harness = seeded ()
+
+        Assert.AreEqual<string>(
+            "readme.txt documents examples projects",
+            harness.Names "ls | sort size desc")

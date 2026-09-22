@@ -16,11 +16,18 @@ drive. `..` and `.` work.
 | [`attr`](#attr) | Show a file's attributes, or set them | only when given `name=value` |
 | [`cat`](#cat) | Read a file as text | no |
 | [`cd`](#cd) | Enter a directory | yes, where you are |
+| [`columns`](#columns) | A table's columns and their types | no |
+| [`count`](#count) | How many rows a table has | no |
 | [`cp`](#cp) | Copy a file into a directory | yes |
+| [`distinct`](#distinct) | Unique rows, or a column's unique values | no |
 | [`download`](#download) | Download a file, with progress | yes |
 | [`echo`](#echo) | Return an argument or the piped value | no |
 | [`exit`](#exit) | Ask the host to close | no |
+| [`first`](#first) | The first row of a table | no |
+| [`group`](#group) | Gather the rows that share a value | no |
+| [`help`](#help) | The commands, as a table | no |
 | [`history`](#history) | The lines that changed something | no |
+| [`last`](#last) | The last row of a table | no |
 | [`ls`](#ls) | List a directory | no |
 | [`mkdir`](#mkdir) | Create a directory | yes |
 | [`progress`](#progress) | Run a progress bar, to exercise long commands | no |
@@ -28,19 +35,33 @@ drive. `..` and `.` work.
 | [`redo`](#redo) | Put back what `undo` took away | yes |
 | [`reset`](#reset) | Empty the log and start again | yes, and cannot be undone |
 | [`rm`](#rm) | Delete a file or empty directory | yes |
+| [`rows`](#rows) | A table's rows, as objects | no |
+| [`run`](#run) | Run a script, a line at a time | whatever its lines change |
 | [`save`](#save) | Create a file from a tag | yes |
+| [`select`](#select) | Keep only the named columns | no |
 | [`set`](#set) | Bind a value to a variable | yes |
+| [`skip`](#skip) | Drop the first rows | no |
+| [`sort`](#sort) | Order a table's rows by a column | no |
+| [`table`](#table) | Read a tag as a table | no |
+| [`take`](#take) | Keep the first rows | no |
 | [`undo`](#undo) | Reverse the last line that changed something | yes |
 | [`up`](#up) | Move up one directory | yes, where you are |
 | [`vars`](#vars) | List the variables in scope | no |
+| [`where`](#where) | Keep the rows a predicate is true for | no |
 | [`write`](#write) | Write text to a file | yes |
+
+The thirteen table functions — `columns`, `count`, `distinct`, `first`, `group`,
+`last`, `rows`, `select`, `skip`, `sort`, `table`, `take` and `where` — all take their
+table from the pipe, coerce a table-shaped tag, and change nothing.
+[Tables and predicates](tables.md) is the guide to them; this is the reference.
 
 The column says whether the command produces events. A line made only of commands that
 change nothing leaves no trace at all, which is why `undo` after `ls` reverses the line
 before the `ls` rather than the `ls` itself. See
 [How it works](concepts.md#events-and-what-a-line-is).
 
-`help` and `clear` are handled by the page rather than by a command. See
+`clear` is handled by the page rather than by a command: it is about the screen rather
+than about the filesystem. See
 [The web terminal](web-terminal.md#words-the-page-handles-itself).
 
 ---
@@ -58,15 +79,17 @@ attr <path> [name=value ...]
 | `path` | yes, or piped | The file |
 | `name=value` | no | Attributes to set, written with no spaces around the `=` |
 
-With no assignments it lists every attribute the record carries:
+With no assignments it answers a table of `name` and `value`, one row per attribute the
+record carries:
 
 ```
 $ attr readme.txt
-created = 2026-09-21T09:00:00.0000000+00:00
-folder = /
-kind = text
-modified = 2026-09-21T09:00:00.0000000+00:00
-name = readme.txt
+name      value
+created   2026-09-22T09:30:00.0000000+00:00
+folder    /
+kind      text
+modified  2026-09-22T09:30:00.0000000+00:00
+name      readme.txt
 ```
 
 With assignments it writes them and returns the file. The names are yours: a file can
@@ -163,6 +186,58 @@ path ending in `..`.
 
 ---
 
+## columns
+
+The table's columns and the type each one holds.
+
+**Parameters**
+
+| Name | Notes |
+| --- | --- |
+| `table` | optional, piped. The table to work on. Taken from the pipe when it is not written. |
+
+**Returns** a table of `name` and `type`. A type is `text`, `number`, `boolean`,
+`file`, `object` or `mixed`, and is read off the cells rather than declared.
+
+```
+$ ls | columns
+name      type
+name      file
+kind      text
+folder    text
+size      number
+modified  text
+```
+
+---
+
+## count
+
+How many rows there are.
+
+**Parameters**
+
+| Name | Notes |
+| --- | --- |
+| `table` | optional, piped. The table to work on. Taken from the pipe when it is not written. |
+
+**Returns** a number.
+
+```
+$ ls | count
+4
+$ ls | where $row.kind eq folder | count
+3
+```
+
+**Errors**
+
+| Message | Cause |
+| --- | --- |
+| `'count' needs a table, not text.` | Something that is not a table, and cannot be read as one, was piped in. |
+
+---
+
 ## cp
 
 Copies a file into a directory. The copy keeps the source's file name.
@@ -193,6 +268,29 @@ readme.txt
 
 ---
 
+## distinct
+
+Unique rows, or the unique values of one column.
+
+**Parameters**
+
+| Name | Notes |
+| --- | --- |
+| `column` | optional. A column, to take the unique values of it. |
+| `table` | optional, piped. The table to work on. Taken from the pipe when it is not written. |
+
+**Returns** a table. With no column, the rows with duplicates removed; with one, a
+single-column table of that column's unique values, in the order they first appear.
+
+```
+$ ls | distinct kind
+kind
+folder
+text
+```
+
+---
+
 ## download
 
 Downloads a file into a directory, writing progress while it runs. This is an
@@ -211,7 +309,7 @@ asynchronous command: it can be stopped, and it reports what it wrote.
 $ download
 100%
 =====...=====>
-Downloaded to /home/terminal/README.md
+Downloaded to /README.md
 README.md
 ```
 
@@ -280,6 +378,81 @@ In the desktop shell it closes the window.
 
 ---
 
+## first
+
+The first row of a table.
+
+**Parameters**
+
+| Name | Notes |
+| --- | --- |
+| `table` | optional, piped. The table to work on. Taken from the pipe when it is not written. |
+
+**Returns** the row as an object of type `row`, or nothing when the table is empty.
+Nothing is an answer, not a failure.
+
+```
+$ ls | sort name desc | first
+<row name=readme.txt kind=text folder=/ size=41 modified=2026-09-22T09:30:00.0000000+00:00/>
+```
+
+---
+
+## group
+
+Gathers the rows that share a column's value.
+
+**Parameters**
+
+| Name | Notes |
+| --- | --- |
+| `column` | The column to group by. |
+| `table` | optional, piped. The table to work on. Taken from the pipe when it is not written. |
+
+**Returns** a table of `key` and `rows`, one row per distinct value, in the order the
+values first appear. Each `rows` cell holds a whole table; a cell is one line, so it
+reads as its row count, and `rows` is how you look inside one.
+
+```
+$ ls | group kind
+key     rows
+folder  3 rows
+text    1 row
+```
+
+**Errors**
+
+| Message | Cause |
+| --- | --- |
+| `'group' has no column named '<name>'.` | No such column. `columns` lists what there is. |
+
+---
+
+## help
+
+Every command, with its parameters and what it does.
+
+**Parameters** none.
+
+**Returns** a table of `name`, `parameters` and `description`. A required parameter is
+written `<name>`, an optional one `[name]`, and one that collects the rest `name...`.
+
+```
+$ help | take 4
+name     parameters            description
+attr     <path> [assignments]  Show a file's attributes, or set them with name=value
+cat      <path>                Read a file and return its text
+cd       <TargetPath>          Enter a directory
+columns  [table]               The table's columns and their types
+$ help | where $row.name eq set | select name description
+name  description
+set   Bind a value, or whatever was piped in, to a variable
+```
+
+It changes nothing and leaves nothing to undo.
+
+---
+
 ## history
 
 The lines that changed something, oldest first.
@@ -288,36 +461,66 @@ The lines that changed something, oldest first.
 history
 ```
 
+**Returns** a table of `seq`, `at`, `source` and `undone`.
+
 ```
 $ history
-1  09:00:00  seed
-2  09:01:12  mkdir alpha
-3  09:01:20  write note.txt hello
+seq  at        source                undone
+1    09:30:00  seed                  false
+2    09:30:00  mkdir alpha           false
+3    09:30:00  write note.txt hello  false
 ```
 
-Each line shows its sequence number, the time, and the line exactly as it was typed. A
-line whose effect has been reversed is marked:
+Each row is a sequence number, the time, the line exactly as it was typed, and whether
+its effect has been reversed:
 
 ```
 $ undo
 Undone: write note.txt hello
 $ history
-1  09:00:00  seed
-2  09:01:12  mkdir alpha
-3  09:01:20  write note.txt hello  (undone)
-4  09:01:31  write note.txt hello
+seq  at        source                undone
+1    09:30:00  seed                  false
+2    09:30:00  mkdir alpha           false
+3    09:30:00  write note.txt hello  true
+4    09:30:00  write note.txt hello  false
 ```
 
-The fourth entry is the undo itself, which is a line in its own right. Lines that
-changed nothing, such as `ls`, never appear, because they were never recorded.
+The fourth row is the undo itself, which is a line in its own right. Lines that changed
+nothing, such as `ls`, never appear, because they were never recorded.
+
+Being a table, it can be questioned:
+
+```
+$ history | where $row.undone eq true | count
+1
+```
 
 `seed` is the filesystem the session started with. It is shown, and it cannot be undone.
 
 ---
 
+## last
+
+The last row of a table.
+
+**Parameters**
+
+| Name | Notes |
+| --- | --- |
+| `table` | optional, piped. The table to work on. Taken from the pipe when it is not written. |
+
+**Returns** the row as an object of type `row`, or nothing when the table is empty.
+
+```
+$ ls | sort name | last
+<row name=readme.txt kind=text folder=/ size=41 modified=2026-09-22T09:30:00.0000000+00:00/>
+```
+
+---
+
 ## ls
 
-Lists a directory: the parent entry first, then directories, then files.
+Lists a directory: directories first, then files, each by name.
 
 **Parameters**
 
@@ -325,18 +528,31 @@ Lists a directory: the parent entry first, then directories, then files.
 | --- | --- |
 | `path` | optional. Defaults to the current directory. |
 
-**Returns** a list of paths. Each one is a chip you can tap to insert its name.
+**Returns** a table. Five columns are always there — `name`, `kind`, `folder`, `size`
+and `modified` — followed by every other attribute anything in the folder carries,
+ordered by name. A file that does not carry one has a gap in that column.
 
 ```
 $ ls
-up  documents  projects  readme.txt
+name        kind    folder  size  modified
+documents   folder  /       0     2026-09-22T09:30:00.0000000+00:00
+examples    folder  /       0     2026-09-22T09:30:00.0000000+00:00
+projects    folder  /       0     2026-09-22T09:30:00.0000000+00:00
+readme.txt  text    /       41    2026-09-22T09:30:00.0000000+00:00
 $ ls documents
-up  notes.txt
-$ ls -path documents
-up  notes.txt
+name       kind  folder      size  modified
+notes.txt  text  /documents  50    2026-09-22T09:30:00.0000000+00:00
 ```
 
-The `up` entry is omitted when the current directory is the root.
+`size` is the length of the file's content, worked out when the table is built rather
+than stored, so it can never disagree with what `cat` shows. `created` is not a column;
+`attr` shows it.
+
+There is no parent entry. A listing used to begin with an `up` row, and a table of
+records has nowhere to put one: every row is a record, and `up` is not. The browser
+offers `up` in the location line instead, and it runs the [`up`](#up) command.
+
+Everything in [Tables and predicates](tables.md) applies to a listing.
 
 **Errors**
 
@@ -527,6 +743,76 @@ first.
 
 ---
 
+## rows
+
+A table's rows, as objects rather than as a table.
+
+**Parameters**
+
+| Name | Notes |
+| --- | --- |
+| `table` | optional, piped. The table to work on. Taken from the pipe when it is not written. |
+
+**Returns** a list of objects of type `row`.
+
+```
+$ ls | select name kind | rows
+<row name=documents kind=folder/> <row name=examples kind=folder/> <row name=projects kind=folder/> <row name=readme.txt kind=text/>
+```
+
+---
+
+## run
+
+Runs a script: every line in it, as if it had been typed.
+
+**Parameters**
+
+| Name | Notes |
+| --- | --- |
+| `path` | piped. The script to run. |
+
+**Returns** the value of the last line it ran.
+
+A script is a text file of command lines, one per line, conventionally with the
+extension `.clr` — which infers the kind `script`. Blank lines and lines whose first
+non-space character is `#` are skipped.
+
+Each line is executed exactly as if typed, and **commits its own transaction**, so
+`undo` after a script steps back a line at a time rather than taking the whole file
+away. `run` itself commits nothing, which is what makes that possible. Each line is
+written to the output as `> <line>`, followed by its result, so the scrollback shows
+the run.
+
+Execution stops at the first fault, and the message names the script and the line.
+Skipped lines are counted, so the number is the one an editor shows.
+
+```
+$ run examples/tables.clr
+> ls
+name        kind    folder  size  modified
+documents   folder  /       0     2026-09-22T09:30:00.0000000+00:00
+examples    folder  /       0     2026-09-22T09:30:00.0000000+00:00
+projects    folder  /       0     2026-09-22T09:30:00.0000000+00:00
+readme.txt  text    /       41    2026-09-22T09:30:00.0000000+00:00
+> ls | where $row.kind eq folder | count
+3
+```
+
+Four example programs are seeded into `/examples`, one per pillar of the design. Only
+`examples/tables.clr` runs to completion today; the others need phases that are not
+built yet. See [Worked examples](examples.md).
+
+**Errors**
+
+| Message | Cause |
+| --- | --- |
+| `File does not exist : <path>` | No such file. |
+| `<path> line <n>: <message>` | A line failed. The lines before it have already committed. |
+| `Scripts are only allowed to run scripts 8 deep.` | A script that runs a script that runs a script, eight times over — usually one that runs itself. |
+
+---
+
 ## save
 
 Creates a file from a tag. The tag's type becomes the file's `kind`, its `name`
@@ -555,6 +841,37 @@ The tag can be piped in: `echo <note name=todo/> | save`.
 
 The `name` attribute is required, and a name already used in the folder is an error.
 The file has no content, so `cat` on it returns empty text; `write` gives it some.
+
+---
+
+## select
+
+Keeps only the named columns, in the order named.
+
+**Parameters**
+
+| Name | Notes |
+| --- | --- |
+| `columns` | One or more column names. Collects every remaining positional argument. |
+| `table` | optional, piped. The table to work on. Taken from the pipe when it is not written. |
+
+**Returns** a table of those columns.
+
+```
+$ ls | select name size
+name        size
+documents   0
+examples    0
+projects    0
+readme.txt  41
+```
+
+**Errors**
+
+| Message | Cause |
+| --- | --- |
+| `'select' needs at least one column.` | Nothing was named. The pipe is the table, not the column list. |
+| `'select' has no column named '<name>'.` | No such column. `columns` lists what there is. |
 
 ---
 
@@ -590,6 +907,118 @@ hello
 | `'set' needs an argument for 'value'.` | No value written and nothing piped in. |
 | `'<name>' is not a valid variable name.` | Names take letters, digits and underscore. |
 | `Unknown variable : $<name>` | You wrote `set $x 1`; `$x` reads the variable rather than naming it. |
+
+---
+
+## skip
+
+Drops the first rows and keeps the rest.
+
+**Parameters**
+
+| Name | Notes |
+| --- | --- |
+| `count` | How many rows to drop. |
+| `table` | optional, piped. The table to work on. Taken from the pipe when it is not written. |
+
+**Returns** a table. Dropping more rows than there are leaves none, which is not an
+error.
+
+```
+$ ls | skip 3 | select name
+name
+readme.txt
+```
+
+---
+
+## sort
+
+Orders the rows by a column.
+
+**Parameters**
+
+| Name | Notes |
+| --- | --- |
+| `column` | The column to order by. |
+| `desc` | optional. Write `desc` after the column, or `-desc`, to order downwards. |
+| `table` | optional, piped. The table to work on. Taken from the pipe when it is not written. |
+
+**Returns** a table. Numbers order numerically, everything else by the text on screen.
+The sort is stable in both directions, so rows that compare equal keep the order they
+arrived in and `sort name | sort size desc` leaves the equal sizes in name order.
+
+```
+$ ls | sort size desc | select name size
+name        size
+readme.txt  41
+documents   0
+examples    0
+projects    0
+```
+
+**Errors**
+
+| Message | Cause |
+| --- | --- |
+| `'sort' has no column named '<name>'.` | No such column. |
+
+---
+
+## table
+
+Reads a tag, or a list of tags, as a table.
+
+**Parameters**
+
+| Name | Notes |
+| --- | --- |
+| `table` | optional, piped. The table to work on. Taken from the pipe when it is not written. |
+
+**Returns** the table. The coercion is implicit wherever a table is expected, so this
+is for seeing what a tag reads as, and for saying in a script that a value is meant to
+be one.
+
+```
+$ <items><item sku=A1 name=bolts qty=120/><item sku=B2 name=nuts qty=12/><item sku=C3 qty=0/></items> | table
+sku  name   qty
+A1   bolts  120
+B2   nuts   12
+C3          0
+```
+
+A tag is table-shaped when every child has the same type and no child has children of
+its own. The columns are the union of the children's attributes, in the order they
+first appear, and a missing one is a gap.
+
+**Errors**
+
+| Message | Cause |
+| --- | --- |
+| `<items> is not a table: child 2 is <other> where the first is <item>.` | The children disagree about their type. |
+| `<items> is not a table: child 2 has children of its own.` | A child is a tree rather than a row. |
+
+---
+
+## take
+
+Keeps the first rows.
+
+**Parameters**
+
+| Name | Notes |
+| --- | --- |
+| `count` | How many rows to keep. |
+| `table` | optional, piped. The table to work on. Taken from the pipe when it is not written. |
+
+**Returns** a table. Taking more rows than there are takes what there is.
+
+```
+$ ls | take 2 | select name
+name
+documents
+examples
+```
 
 ---
 
@@ -652,18 +1081,63 @@ terminal
 
 ## vars
 
-Lists every variable in scope, one per line, and returns their values as a list.
+Every variable in scope.
 
 **Parameters** none.
 
+**Returns** a table of `name` and `value`, ordered by name.
+
 ```
 $ vars
-$files = up documents\ projects\ readme.txt
-$greeting = hello
+name      value
+entries   4 rows
+greeting  hello
 ```
 
-With nothing bound it writes `No variables. Try: set greeting hello` and returns
-nothing.
+A cell is one line, so a variable holding a table says how many rows it has. It is
+still the table: `echo $entries | count` answers 4.
+
+With nothing bound it writes `No variables. Try: set greeting hello` beside an empty
+table, so `vars | count` is 0 rather than a fault.
+
+---
+
+## where
+
+Keeps the rows a predicate is true for.
+
+**Parameters**
+
+| Name | Notes |
+| --- | --- |
+| `predicate` | An expression over `$row`, such as `$row.kind eq folder`. |
+| `table` | optional, piped. The table to work on. Taken from the pipe when it is not written. |
+
+**Returns** a table of the rows the predicate answered true for. The predicate is
+evaluated once per row, in a scope of its own with `$row` bound to that row, so a
+variable called `row` outside it is left alone.
+
+```
+$ ls | where $row.kind eq folder | count
+3
+$ ls | where $row.qty lt $row.min | select name qty min
+name     qty  min
+nuts     12   40
+washers  0    20
+$ ls | where not $row.tag eq work | select name
+name
+saturday
+```
+
+The operators are `eq ne gt ge lt le like has`, combined with `and`, `or` and `not`.
+[Tables and predicates](tables.md#predicates) says what each one means.
+
+**Errors**
+
+| Message | Cause |
+| --- | --- |
+| `Unknown variable : $row` | A predicate written outside a table function, where nothing bound `$row`. |
+| `'where' needs an argument for 'predicate'.` | No predicate written. |
 
 ---
 

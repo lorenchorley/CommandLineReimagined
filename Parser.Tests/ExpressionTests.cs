@@ -176,6 +176,20 @@ public class ExpressionTests
         ParserHarness.ParseError(source);
     }
 
+    /// <summary>The error says why, and points at the word.</summary>
+    /// <remarks>
+    /// "expected /" at the end of the line says nothing at all. The rule knows exactly
+    /// what is wrong, so it says it, at the column the word starts in.
+    /// </remarks>
+    [TestMethod]
+    public void AReservedWordErrorExplainsItself()
+    {
+        var error = ParserHarness.ParseError("echo eq");
+
+        Assert.AreEqual(5, error.Column);
+        Assert.AreEqual("'eq' is an operator; write \"eq\" to pass it as text", error.Explanation);
+    }
+
     /// <summary>Quoting is how a reserved word is passed as data.</summary>
     [TestMethod]
     public void AQuotedReservedWordIsText()
@@ -235,12 +249,32 @@ public class ExpressionTests
         Assert.AreEqual("first", ParserHarness.Function("first(ls)").Id.Name);
     }
 
+    /// <summary>
+    /// A glob is a bare word, because `like` is meant to be typed with a thumb.
+    /// </summary>
+    /// <remarks>
+    /// Decision 0007's point was that a notation needing a shift key is the wrong one
+    /// on a phone, and quoting every pattern would have made `like` exactly that.
+    /// </remarks>
+    [DataTestMethod]
+    [DataRow("where $row.name like *.txt")]
+    [DataRow("where $row.name like *s")]
+    [DataRow("where $row.name like note*")]
+    public void AGlobIsABareWord(string source)
+    {
+        var comparison = Argument(source) as ComparisonExpression;
+
+        Assert.IsNotNull(comparison);
+        Assert.IsInstanceOfType<Identifier>(comparison.Right);
+    }
+
     // ---------------------------------------------------------- Round trips
 
     [DataTestMethod]
     [DataRow("where $row.size gt 100")]
     [DataRow("where $row.kind eq folder")]
     [DataRow("where $row.name like note")]
+    [DataRow("where $row.name like *.txt")]
     [DataRow("where $a and $b")]
     [DataRow("where $a or $b")]
     [DataRow("where $a or $b and $c")]

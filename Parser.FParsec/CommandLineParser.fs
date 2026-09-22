@@ -36,9 +36,32 @@ type CommandLineParser() =
 
         ResizeArray(found) :> IReadOnlyList<string>
 
+    /// <summary>What the parser said, as opposed to what it expected.</summary>
+    /// <remarks>
+    /// A grammar rule that knows why the input is wrong says so with a message rather
+    /// than with a label, and a list of expected symbols is no substitute for it.
+    /// </remarks>
+    static let explanationOf (messages: ErrorMessageList) =
+        let sorted: ErrorMessage[] = ErrorMessageList.ToSortedArray messages
+
+        sorted
+        |> Array.choose (fun message ->
+            match message with
+            | :? ErrorMessage.Message as m -> Some m.String
+            | _ -> Option.None)
+        |> Array.distinct
+        |> function
+            | [||] -> null
+            | texts -> String.Join(" ", texts)
+
     static let toSyntaxError (error: FParsec.Error.ParserError) =
         let line, column = positionOf error.Position
-        SyntaxError(Line = line, Column = column, ExpectedSymbols = expectedOf error.Messages)
+
+        SyntaxError(
+            Line = line,
+            Column = column,
+            ExpectedSymbols = expectedOf error.Messages,
+            Explanation = explanationOf error.Messages)
 
     /// <summary>Parses a command line into a tree, or reports why it could not.</summary>
     member _.Parse<'TRoot>(source: string) : ParserResult<'TRoot> =

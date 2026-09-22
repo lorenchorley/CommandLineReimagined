@@ -67,7 +67,7 @@ type TableTests() =
         let fault = expectFault Invalid (Table.ofTag tag)
 
         StringAssert.Contains(fault.Message, "child 2")
-        StringAssert.Contains(fault.Message, "'thing'")
+        StringAssert.Contains(fault.Message, "<thing>")
 
     [<TestMethod>]
     member _.AChildWithChildrenIsNotATable() =
@@ -229,3 +229,22 @@ type TableTests() =
     [<TestMethod>]
     member _.ATableIsItsOwnKind() =
         Assert.AreEqual<string>("table", Value.kind (Value.Table Table.empty))
+
+    /// <summary>A cell is one line, whatever is in it.</summary>
+    /// <remarks>
+    /// `group` puts a whole table in a cell. Printing its rows down the page would take
+    /// the alignment with it, so a nested table says how many rows it has and `rows` is
+    /// how you look inside.
+    /// </remarks>
+    [<TestMethod>]
+    member _.ANestedTableReadsAsItsRowCount() =
+        let inner = expectOk (Table.ofTag (parent [ item [ "sku", Value.Text "A1" ] ]))
+        let outer = Table.ofColumns [ "key"; "rows" ] [ [ Value.Text "work"; Value.Table inner ] ]
+
+        Assert.AreEqual<string>("key   rows\nwork  1 row", Value.display (Value.Table outer))
+
+    [<TestMethod>]
+    member _.TextWithALineBreakIsFoldedIntoItsCell() =
+        let table = Table.ofColumns [ "note" ] [ [ Value.Text "one\ntwo" ] ]
+
+        Assert.AreEqual<string>("note\none two", Value.display (Value.Table table))

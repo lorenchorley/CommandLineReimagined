@@ -166,6 +166,14 @@ public sealed class TerminalSession
     /// </remarks>
     private static string Describe(ParseErrorInfo error)
     {
+        // A rule that knew why the input was wrong said so, and that sentence beats any
+        // list of what could have appeared there. The column still comes with it,
+        // because the word it is about may not be the only one on the line.
+        if (!string.IsNullOrEmpty(error.Explanation))
+        {
+            return $"Column {error.Column}: {error.Explanation}";
+        }
+
         if (error.Kind is not ("syntax" or "lexical"))
         {
             return error.Expected.Count > 0

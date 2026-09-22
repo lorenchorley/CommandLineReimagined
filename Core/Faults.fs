@@ -63,6 +63,30 @@ module Fault =
     let syntax message = create Syntax message
     let couldNotParse () = create Syntax "Could not parse the command."
 
+    /// <summary>The fault for a line that would not parse.</summary>
+    /// <remarks>
+    /// A grammar rule that knows why the input is wrong says so, and that sentence is
+    /// what a person needs: `echo eq` is answered with how to write `eq` as text rather
+    /// than with "could not parse". A rule that only knew what it was expecting falls
+    /// back to the general message, which the browser replaces with the parser's own
+    /// position and expected set.
+    /// </remarks>
+    let ofParseError (error: Commands.Parser.ParserError) =
+        let explained (syntax: Commands.Parser.SyntaxError) =
+            if System.String.IsNullOrEmpty syntax.Explanation then
+                couldNotParse ()
+            else
+                create Syntax syntax.Explanation
+
+        error.Match(
+            (fun (messages: System.Collections.Generic.List<string>) ->
+                if messages.Count = 0 then
+                    couldNotParse ()
+                else
+                    create Syntax (System.String.Join(" ", messages))),
+            explained,
+            (fun (lexical: Commands.Parser.LexicalError) -> explained lexical.SyntaxError))
+
     // ------------------------------------------------------------- Argument errors
 
     let needsArgument command parameter =

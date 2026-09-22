@@ -46,10 +46,28 @@ without calling a command.
 | `Value` | abstract | Base. |
 | `SimpleValue` | abstract | A value that is not a tag. |
 | `Identifier` | `Name: string` | A bare word or identifier, as written. |
-| `VariableReference` | `Name: VariableName` | `$name`. |
+| `VariableReference` | `Name: VariableName`, `Members: List<MemberName>` | `$name`, or `$name.member`. |
+| `MemberName` | `Name: string` | The `.size` of `$row.size`. It carries its own stop. |
 | `Constant` | abstract | Base for literals. |
 | `StringConstant` | `Value: string`, `QuoteCount: int`, `QuoteString: string` | A string literal. |
 | `TagValue` | `Tag: InstanceTag` | A tag used where a value is expected. |
+| `NestedPipeline` | `Pipeline: PipedCommandList` | A pipeline in parentheses, where a value is expected. |
+
+### Expressions
+
+| Node | Fields | Meaning |
+| --- | --- | --- |
+| `ExpressionNode` | abstract, descends from `Value` | An expression written in argument position. |
+| `ComparisonExpression` | `Left: Value`, `Operator: OperatorWord`, `Right: Value` | `$row.size gt 100`. |
+| `BooleanExpression` | `Left: Value`, `Operator: OperatorWord`, `Right: Value` | `a and b`, `a or b`. |
+| `NotExpression` | `Operator: OperatorWord`, `Operand: Value` | `not a`. |
+| `OperatorWord` | `Name: string` | One of the word operators. |
+
+`ExpressionNode` descends from `Value` because the grammar admits an expression exactly
+where it admits a value, and which of the two was written is decided by what is on the
+page rather than by where it is. A comparison with no operator in it **must** produce
+the operand's own node rather than a wrapper around it, so a line written before
+expressions existed parses to the tree it always did.
 
 `StringConstant.Value` is assigned the literal **as written, with its quotes**. The
 setter strips matching pairs of leading and trailing double quotes, records how many it
@@ -118,6 +136,8 @@ every `Text` **must** reproduce the serialised form.
 | `flag` | A `CommandArgumentFlag`, including its dash. |
 | `string` | A `StringConstant`, including its delimiters. |
 | `variable` | A `VariableReference`, a `VariableName`, a `VariableTag`. |
+| `member` | A `MemberName`, including its leading stop. |
+| `operator` | An `OperatorWord`. |
 | `identifier` | An `Identifier` that is not a command name. |
 | `type` | An `ObjectType` or a `ComponentType`. |
 | `attribute` | A `TagAttributeName` or a `ProperyName`. |

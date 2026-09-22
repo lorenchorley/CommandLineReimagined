@@ -10,7 +10,7 @@ the page's rather than the language's.
 | Title bar | The project name, and a status that reads `wasm` in green once the runtime has loaded. |
 | Scrollback | Every command you have run, with its live output, errors and results. |
 | Token inspector | One line above the input, naming the role of the word you last tapped. |
-| Prompt | The full current directory. |
+| Prompt | The full current directory, with an `up` button beside it below the root. |
 | Input | A transparent text field over a coloured mirror of what you type. |
 | Run button | Runs the line. It becomes a red Stop button while a command is running. |
 | Completion row | Appears while you type, offering commands, variables and paths. |
@@ -33,7 +33,7 @@ parse, and the mirror shows plain text rather than complaining.
 | Tab | Apply the only completion, or extend to the common prefix of several. |
 | Escape | Stop a running command. |
 
-History keeps what you actually submitted, including `help` and `clear`.
+History keeps what you actually submitted, including `clear`.
 
 ## Completions
 
@@ -43,27 +43,45 @@ completions end with a separator so you can keep descending.
 
 | You type | You are offered |
 | --- | --- |
-| `c` | `cat`, `cd`, `cp`, `clear` |
+| `c` | `cat`, `cd`, `cp`, `clear`, `columns`, `count` |
 | `cat re` | `readme.txt` |
 | `cd doc` | `documents/` |
 | `cat documents/no` | `documents/notes.txt` |
-| `ls \| se` | `set` |
-| `echo $` | every bound variable |
+| `ls \| se` | `select`, `set` |
+| `echo $` | every bound variable, and `$row` |
+| `ls \| where $row.` | the columns a listing here would have |
+| `ls \| where $row.kind e` | `eq` |
 
 The first word of the line, and the first word after a pipe, complete to command names.
-A word starting with `$` completes to variables. Everything else completes to files and
-directories relative to the current one. An empty line offers nothing, because the
-suggestion row already covers that case.
+A word starting with `$` completes to variables — `$row` among them, although nothing
+bound it: it exists only inside a predicate, and it is the one variable you write
+without having bound it. After a full stop, a word starting with `$` completes to
+column names. Everything else completes to files and directories relative to the
+current one. An empty line offers nothing, because the suggestion row already covers
+that case.
+
+The word operators are offered too, but only where an expression is plainly being
+written — the test is a `$` earlier in the stage. Without it, `cat no` would offer
+`not` beside `notes.txt`.
 
 ## Results on screen
 
 A result is rendered by kind:
 
+- **Tables** — a listing, `vars`, `attr`, `history`, `help` and anything a table
+  function answered — become a real table. Tapping a column header re-sorts what is on
+  screen, without running anything; tapping a cell appends it to the input. A wide
+  table scrolls sideways inside its own entry rather than widening the page. Each cell
+  is drawn by the rules below, so a folder in a listing is still coloured as a folder
+  and still carries the path it argues.
 - **Paths, objects, components, numbers and booleans** become chips. Tapping a chip
   appends its text to the input, which is how you avoid typing a file name on a phone.
 - **Text** becomes an indented block, so `cat` output keeps its line breaks.
 - **Errors** are shown in red under the command. A command you stopped shows
   `Stopped.` in amber instead.
+
+Tapping a header sorts what you are looking at. `ls | sort size desc` is the one that
+changes what the terminal answered, and it is a different question.
 
 Output written while a command runs appears above the result, and updates in place.
 
@@ -92,20 +110,23 @@ leaves no folder behind.
 
 ## Words the page handles itself
 
-Two words never reach the evaluator, because both are about the screen rather than
-about the filesystem:
+One word never reaches the evaluator, because it is about the screen rather than about
+the filesystem:
 
 | Word | Effect |
 | --- | --- |
-| `help` | Lists every command with its parameters and description, generated from the command specifications. |
 | `clear` | Empties the scrollback. It does not touch the filesystem, the variables or the log. |
 
-They also appear in completions, so typing `cl` offers `clear` alongside real commands.
+It also appears in completions, so typing `cl` offers `clear` alongside real commands.
 
-`undo` used to be a third. It is a real command now, along with `redo` and `history`,
-so it goes through the evaluator like everything else and can be piped. That also means
-the desktop shell and the browser get the same three, rather than each having its own
-half of the feature.
+`undo` and `help` used to be here too. Both are real commands now — `undo` with `redo`
+and `history`, `help` as a table you can question with
+`help | where $row.name eq set` — so they go through the evaluator like everything else
+and can be piped. That also means the desktop shell and the browser get the same
+commands, rather than each having its own half of the feature.
+
+What `help` used to say about pipes, tags and variables is in the banner at the top of
+the scrollback, where it is visible before anything has been typed rather than after.
 
 ## Tapping a word
 
@@ -116,13 +137,15 @@ back, not just on results.
 
 ## The filesystem in the tab
 
-The root is `/home/terminal`, seeded on first use with `documents/notes.txt`,
-`projects/` and `readme.txt`. It is Emscripten's in-memory filesystem: real enough that
-`mkdir`, `cp` and `write` behave normally, and gone when the tab is closed or reloaded.
+The root is `/`, seeded on first use with `documents/notes.txt`, `examples/` holding
+the four example programs, `projects/` and `readme.txt`. It is not a disk and not
+Emscripten's filesystem: it is a projection folded from the log, so `mkdir`, `cp` and
+`write` describe changes and the store applies them, and `cd ..` at the root stays at
+the root.
 
-`/home/terminal` is where you start, not a fence. `cd ..` and `up` walk above it into
-the rest of the page's in-memory filesystem, which holds whatever the .NET runtime put
-there. `cd /home/terminal` brings you back.
+The log is kept in this browser between visits, so a reload replays it and the files
+come back. `reset` empties it and seeds again, and is the one command that cannot be
+undone.
 
 Nothing is uploaded. The parser, the commands and the files are all inside the page, so
 the terminal works offline once loaded. The exception is `download`, which really does

@@ -28,8 +28,11 @@ test methods; data-driven methods expand to more cases at run time.
 | Productions the original grammar never implemented | `Parser.Tests/CompletedGrammarTests` | 17 |
 | Error positions and expected symbols | `Parser.Tests/SyntaxErrorTests` | 5 |
 | Round-trip serialisation | `Parser.Tests/SerialisationTests` | 7 |
+| Word operators, precedence, member access, reserved words, nested pipelines | `Parser.Tests/ExpressionTests` | 19 |
 | Agreement with the retained GOLD parser | `Parser.Tests/ParserEquivalenceTests` | 4 |
 | The two string forms of every value, and number formatting | `Core.Tests/ValueTests` | 17 |
+| The Table value: coercion, columns, types, gaps, rows, display | `Core.Tests/TableTests` | 23 |
+| Evaluating a predicate: members, comparison, gaps, boolean words | `Core.Tests/ExpressionTests` | 21 |
 | Folding events, and that every event inverts back to where it started | `Core.Tests/ProjectionTests` | 13 |
 | Path resolution over the projection, and kind inference | `Core.Tests/FilesTests` | 16 |
 | Committing, undo, redo, history, replay determinism, blobs | `Core.Tests/StoreTests` | 26 |
@@ -38,7 +41,9 @@ test methods; data-driven methods expand to more cases at run time.
 | Variables and their undo | `Core.Tests/VariableCommandTests` | 14 |
 | Asynchronous commands, live output, cancellation | `Core.Tests/AsyncCommandTests` | 10 |
 | `undo`, `redo` and `history` as commands | `Core.Tests/MetaCommandTests` | 16 |
-| Completion over the projection | `Core.Tests/CompletionTests` | 12 |
+| The table functions, as whole command lines | `Core.Tests/TableCommandTests` | 29 |
+| The example programs, against their golden results, and `run` | `Core.Tests/ExampleProgramTests` | 11 |
+| Completion over the projection, the operators and the columns | `Core.Tests/CompletionTests` | 19 |
 | The phase's acceptance list, from a fresh session | `Core.Tests/AcceptanceTests` | 10 |
 | Replaying a log, seeding once, and `reset` | `Core.Tests/PersistenceTests` | 13 |
 | The stored shape of a transaction, every event and value case, versioning | `Web.Core.Tests/LogFormatTests` | 21 |
@@ -51,11 +56,11 @@ Cases actually run, which is what the suite reports:
 
 | Project | Cases |
 | --- | --- |
-| `Parser.Tests` | 228 |
-| `Core.Tests` | 269 |
-| `Web.Core.Tests` | 57 |
+| `Parser.Tests` | 281 |
+| `Core.Tests` | 370 |
+| `Web.Core.Tests` | 58 |
 | `Terminal.Tests` | 32 |
-| Total | 586 |
+| Total | 741 |
 
 Run them with:
 
@@ -75,7 +80,9 @@ here, asserting on the projection rather than on a temporary directory.
 - [ ] Whitespace is space and tab only; a newline ends the program.
 - [ ] String delimiters are matched longest first, and the delimiter count survives a
       round trip.
-- [ ] Bare words are accepted in argument positions and rejected in attribute values.
+- [ ] Bare words are accepted in argument positions and in attribute values.
+- [ ] The thirteen reserved words are rejected as bare words everywhere, exactly, with
+      a message saying how to write one as text.
 - [ ] `-flag` is a flag and `--flag` is a syntax error.
 - [ ] The empty program is decided before the command list, so error positions are
       faithful.
@@ -83,14 +90,23 @@ here, asserting on the projection rather than on a temporary directory.
       reported as a message.
 - [ ] Serialising a parsed tree reproduces the input.
 - [ ] Token kinds match the table in [Semantic tree](semantic-tree.md#tokenisation),
-      including the function form's name as `command`.
+      including the function form's name as `command`, the operator words as `operator`
+      and a member with its stop as `member`.
+- [ ] `and` binds tighter than `or`, both are left associative, and `not` takes the
+      whole comparison after it.
+- [ ] An operand with no operator around it produces the operand's own node, not a
+      wrapper.
 
 **Runtime**
 
 - [ ] Values expose distinct display and argument strings, and paths differ between
       them.
 - [ ] Binding follows the four steps, including optional parameters filling
-      positionally.
+      positionally, and a parameter that collects the rest never takes the pipe.
+- [ ] An expression binds only to a parameter declared as a predicate, and any other
+      parameter refuses it.
+- [ ] A predicate is evaluated per row in a child scope with `$row` bound, leaving any
+      outer `row` alone.
 - [ ] Piped input reaches only parameters that accept it and that were not written out.
 - [ ] Arity and missing-argument messages match the wording in
       [Execution model](execution-model.md#argument-binding).
@@ -102,6 +118,15 @@ here, asserting on the projection rather than on a temporary directory.
 - [ ] Undo returns the name of what it reversed, and reversing a read-only command
       succeeds.
 - [ ] An asynchronous command observes cancellation and reports through `FailedInvoke`.
+- [ ] A table-shaped tag reads as a table wherever one is expected, gaps are `None`,
+      and a tag that is not table-shaped names the child that broke the shape.
+- [ ] Columns are typed from their cells, and a `None` cell does not make a column
+      mixed.
+- [ ] Comparisons are numeric when both sides read as numbers and ordinal otherwise, a
+      comparison touching a gap is false, and two gaps are `eq`.
+- [ ] `sort` is stable in both directions.
+- [ ] `run` commits one transaction per line, skips blank and commented lines while
+      counting them, and names the script and the line in a fault.
 
 **Terminal**
 
@@ -123,7 +148,9 @@ case.
 | `<a/>` and `<a></a>` are distinct in the tree but evaluate alike. | Intended. The tree is a faithful record of what was typed. |
 | The retained GOLD parser reports column 12 where the combinator parser reports 11 on one truncated input. | Documented in `ParserEquivalenceTests`. The combinator position is correct. |
 | `pwd` at the filesystem root produces a result whose display name is empty. | Cosmetic. The path is still correct in the response and in the prompt. |
-| Suggestion and completion chips are 26 pixels tall, below the usual 44 pixel touch target. | Known. Worth raising; the input and the run button already meet it. |
+| A pipeline in parentheses parses as an operand and evaluates to `A pipeline in parentheses is not a value yet`. | Intended for now. An operand is where it belongs, and what running one means is Phase 5's question. |
+| A `Query` value has no stored shape, so a log cannot carry one. | Intended for now. Nothing can produce one outside a predicate, which is consumed where it is written. Views need it, and will add it. |
+| Suggestion and completion chips are 26 pixels tall, below the usual 44 pixel touch target. | Known. Worth raising; the input, the run button and a table's cells already meet it. |
 | `Scope` supports nesting, but no host creates a child scope. | Intended. The model is ahead of the shell. |
 | Messages are English only and the client is published with invariant globalisation. | Intended for now; see [Design doc](design-doc.md#internationalisation). |
 

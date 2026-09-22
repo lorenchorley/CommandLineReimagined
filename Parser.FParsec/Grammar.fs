@@ -50,11 +50,15 @@ let private identifierText: P<string> = many1SatisfyL isIdentifierChar "identifi
 // `notes.txt`, `../docs`, `C:\\Users` or `https://host/path`. The .grm sketched this as
 // the commented-out {BareStringCharacter} set and never finished it, so every file name
 // with a dot needed quotes.
+// `*` is a word character because `like` takes a glob: decision 0007's point was that
+// a notation you have to reach for a shift key to write is the wrong notation on a
+// phone, and `where $row.name like "*.txt"` is exactly that. Nothing else in the
+// grammar uses `*`, so there is nothing for it to collide with.
 let private isWordChar (c: char) =
-    isIdentifierChar c || ".\\/:~+@%-".IndexOf c >= 0
+    isIdentifierChar c || ".\\/:~+@%-*".IndexOf c >= 0
 
 let private isWordStart (c: char) =
-    isIdentifierChar c || ".\\/~".IndexOf c >= 0
+    isIdentifierChar c || ".\\/~*".IndexOf c >= 0
 
 // Decision 0007: `/>` and `/}` are delimiters, so a `/` belongs to the word it is in
 // only when what follows is not one of those two brackets. That is what lets
@@ -85,15 +89,30 @@ let reservedWords =
 
 let private reserved = Set.ofList reservedWords
 
-/// The failure is deliberately not backtracked: `echo eq` is a syntax error rather than
-/// a line with one fewer argument, and the message says how to write the word as text.
+/// <summary>A bare word, unless it is a reserved one.</summary>
+/// <remarks>
+/// The failure is deliberately fatal: `echo eq` is a syntax error rather than a line
+/// with one fewer argument, and the message says how to write the word as text. Written
+/// as a primitive rather than with `failFatally` so that the position it reports is the
+/// start of the word rather than the end of it — "column 7" on a seven-character line
+/// points at nothing.
+/// </remarks>
 let private bareWordText: P<string> =
-    (many1Chars2 wordStartChar wordChar <?> "argument")
-    >>= fun word ->
-        if reserved.Contains word then
-            failFatally (sprintf "'%s' is an operator; write \"%s\" to pass it as text" word word)
+    let word = many1Chars2 wordStartChar wordChar <?> "argument"
+
+    fun stream ->
+        let start = stream.Index
+        let reply = word stream
+
+        if reply.Status = Ok && reserved.Contains reply.Result then
+            stream.Seek start
+
+            Reply(
+                FatalError,
+                messageError (
+                    sprintf "'%s' is an operator; write \"%s\" to pass it as text" reply.Result reply.Result))
         else
-            preturn word
+            reply
 
 /// FlagIdentifier = '-'{IdentifierCharacter}+
 let private flagText: P<string> =

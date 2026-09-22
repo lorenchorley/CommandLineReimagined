@@ -36,7 +36,7 @@ CommandLineReimagined                    wasm      <- runtime status
 |                                            |
 +--------------------------------------------+
   identifier - notes.txt                          <- token inspector
-  /home/terminal                                  <- working directory
+  /                                               <- working directory, with `up` below the root
 +------------------------------------+ +-----+
 | type a command...                  | | Run |    <- input and Run/Stop
 +------------------------------------+ +-----+
@@ -54,11 +54,26 @@ the `ls` suggestion:
 
 ```
 $ ls
-up  documents  projects  readme.txt
+name        kind    folder  size  modified
+documents   folder  /       0     2026-09-22T09:30:00.0000000+00:00
+examples    folder  /       0     2026-09-22T09:30:00.0000000+00:00
+projects    folder  /       0     2026-09-22T09:30:00.0000000+00:00
+readme.txt  text    /       41    2026-09-22T09:30:00.0000000+00:00
 ```
 
-Those are chips, not plain text. Tapping one inserts its name into the input, which
-saves typing a path on a phone. `up` is the parent directory entry.
+That is a table, not a block of text: on the page it is drawn as one, and tapping a
+cell inserts it into the input, which saves typing a path on a phone. Tapping a column
+header re-sorts what is on screen. Below the root the location line offers an `up`
+button.
+
+A listing is a value you can question:
+
+```
+$ ls | where $row.kind eq folder | count
+3
+```
+
+[Tables and predicates](tables.md) is the guide to that.
 
 Read a file:
 
@@ -71,11 +86,11 @@ Move around, and notice that the working directory line changes:
 
 ```
 $ cd documents
-documents
+/documents
 $ pwd
-documents
+/documents
 $ up
-terminal
+/
 ```
 
 Make something, then take it back:
@@ -83,17 +98,26 @@ Make something, then take it back:
 ```
 $ mkdir scratch
 scratch
-$ ls
-up  documents  projects  scratch  readme.txt
+$ ls | select name
+name
+documents
+examples
+projects
+scratch
+readme.txt
 $ undo
-Undone: mkdir
-$ ls
-up  documents  projects  readme.txt
+Undone: mkdir scratch
+$ ls | select name
+name
+documents
+examples
+projects
+readme.txt
 ```
 
-`undo` steps back exactly one command each time you use it. It names what it reversed,
-because read-only commands such as `ls` are on the history too and undoing one of those
-correctly changes nothing.
+`undo` steps back one line each time you use it, and names what it reversed. A line
+that changed nothing — an `ls`, a `cat`, any question about a table — was never
+recorded, so `undo` reaches past it to the last line that did something.
 
 ## Write a file with a pipe
 
@@ -118,13 +142,19 @@ hello
 $ echo $greeting
 hello
 $ ls | set files
-up  documents  projects  readme.txt
+name        kind    folder  size  modified
+documents   folder  /       0     2026-09-22T09:30:00.0000000+00:00
+examples    folder  /       0     2026-09-22T09:30:00.0000000+00:00
+projects    folder  /       0     2026-09-22T09:30:00.0000000+00:00
+readme.txt  text    /       41    2026-09-22T09:30:00.0000000+00:00
 $ vars
-$files = up documents\ projects\ readme.txt
-$greeting = hello
+name      value
+files     4 rows
+greeting  hello
 ```
 
-`$files` holds the list of paths, not a printed copy of it.
+`$files` holds the table itself, not a printed copy of it, which is why `vars` says how
+many rows it has instead of drawing it again. `echo $files | count` answers 4.
 
 ## Run something slow and stop it
 
@@ -187,17 +217,28 @@ your own:
 $ attr readme.txt tag=work
 readme.txt
 $ attr readme.txt
-created = 2026-09-21T09:00:00.0000000+00:00
-folder = /
-kind = text
-modified = 2026-09-21T09:02:11.0000000+00:00
-name = readme.txt
-tag = work
+name      value
+created   2026-09-22T09:30:00.0000000+00:00
+folder    /
+kind      text
+modified  2026-09-22T09:30:00.0000000+00:00
+name      readme.txt
+tag       work
+```
+
+Once a file carries an attribute, it becomes a column in the listing, and a listing is
+something you can ask questions of:
+
+```
+$ ls | where $row.tag eq work | select name
+name
+readme.txt
 ```
 
 ## Next
 
 - [Worked examples](examples.md) for complete sessions to copy.
+- [Tables and predicates](tables.md) for filtering, sorting and counting a listing.
 - [The command language](language.md) for tags, components, variables and the function
   call form.
 - [How it works](concepts.md) for what happens between Enter and the answer.

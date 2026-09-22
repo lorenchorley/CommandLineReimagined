@@ -34,15 +34,23 @@ command implements.
 | --- | --- |
 | Name | `ls` |
 | Parameters | `path` (optional, flag `path`) |
-| Returns | `List` of `File` |
+| Returns | `Table` |
 | Undo | none |
 
-Lists `path`, or the current folder. The list **must** be ordered: the parent entry
-first when the folder being listed is not the root, then folders, then files, each
-group ordered by name with an ordinal comparison.
+Lists `path`, or the current folder. The rows **must** be ordered: folders, then files,
+each group ordered by name with an ordinal comparison.
 
 This ordering is normative. It previously said entry order "follows the filesystem",
 which meant it was whatever the host happened to return and could not be tested at all.
+
+The columns **must** be `name`, `kind`, `folder`, `size` and `modified`, followed by
+every other attribute any listed record carries, ordered by name with an ordinal
+comparison. `created` **must not** be a column. The `name` cell **must** be the record
+as a `File`, so it carries the path it argues; `size` **must** be the length of the
+record's content in characters, computed rather than stored, and 0 where there is none.
+
+A listing **must not** contain a parent entry. Every row of a table of records is a
+record, and navigating upwards is the host's affordance and the `up` command.
 
 Errors: `Directory does not exist : <path>`.
 
@@ -161,11 +169,12 @@ a file, since names are unique within a folder across files and folders together
 | --- | --- |
 | Name | `attr` |
 | Parameters | `path` (piped), `assignments` (kind `Assignments`) |
-| Returns | `List` of `Text` with no assignments, otherwise the `File` |
+| Returns | `Table` of `name` and `value` with no assignments, otherwise the `File` |
 | Undo | restores every attribute the record had |
 
-With no assignments it **must** return one `Text` per attribute, formatted
-`name = value`. With assignments it emits `AttributesChanged` and returns the file.
+With no assignments it **must** return a table with columns `name` and `value`, one row
+per attribute the record carries, ordered by name, `created` included. With assignments
+it emits `AttributesChanged` and returns the file.
 
 `name` and `kind` may be written and **must** be validated: renaming onto a name
 already used in the folder is a `Conflict`. `folder`, `created` and `modified` are the
@@ -224,11 +233,12 @@ Errors: `'<name>' is not a valid variable name.`, `'set' needs a value for '<nam
 | --- | --- |
 | Name | `vars` |
 | Parameters | none |
-| Returns | `ListValue` of the values, or `Empty` when nothing is bound |
+| Returns | `Table` of `name` and `value` |
 | Undo | none |
 
-Writes one output line per variable, `$<name> = <display>`, ordered by name. With
-nothing bound it writes one line inviting the user to bind something.
+One row per variable in scope, ordered by name. With nothing bound it **must** still
+return a table, so that `vars | count` is 0 rather than a fault, and **should** write
+one output line inviting the user to bind something.
 
 ## Long-running commands
 
@@ -273,6 +283,94 @@ Errors: `Not a valid URL : <text>`, `Target directory does not exist : <path>`,
 `The server did not report a content length.`,
 `The transfer ended before all bytes arrived.` A failure is also written as
 `Download failed : <reason>`.
+
+## Table functions
+
+Thirteen commands over tables. Each one **must**:
+
+- declare an optional piped parameter, last, that carries the table;
+- coerce whatever it is given per
+  [Reading a tag as a table](execution-model.md#reading-a-tag-as-a-table), and raise
+  `'<command>' needs a table, not <kind>.` when it cannot;
+- raise `'<command>' has no column named '<name>'.` for a column it was asked for and
+  the table does not have;
+- emit no events.
+
+| Name | Parameters | Returns |
+| --- | --- | --- |
+| `where` | `predicate` (kind `Predicate`) | the rows the predicate answered `Boolean true` for |
+| `select` | `columns` (kind `Rest`) | those columns, in the order named |
+| `sort` | `column`, `desc` (optional, flag `desc`) | the rows ordered by the column |
+| `take` | `count` | the first `count` rows |
+| `skip` | `count` | every row after the first `count` |
+| `first` | none | the first row as an `Object` of type `row`, or `None` |
+| `last` | none | the last row as an `Object` of type `row`, or `None` |
+| `count` | none | a `Number` |
+| `distinct` | `column` (optional) | unique rows, or that column's unique values as a one-column table |
+| `group` | `column` | a table of `key` and `rows`, one row per distinct value |
+| `columns` | none | a table of `name` and `type` |
+| `rows` | none | a `List` of `Object` rows |
+| `table` | none | the table itself |
+
+`where` **must** evaluate its predicate in a child scope with `$row` bound to the row
+as an `Object` of type `row`, and keep the row only where the answer is `Boolean true`.
+
+`sort` **must** be stable in both directions: rows that compare equal keep the order
+they arrived in, so an implementation **must not** reverse an ascending sort to
+descend.
+
+`select` with no columns **must** raise `'select' needs at least one column.` rather
+than answering an empty table.
+
+`take` and `skip` beyond the end of the table **must** answer everything and nothing
+respectively, not a fault. A count that is not a whole number at least zero is
+`'count' must be a whole number, not '<value>'.`
+
+`group` **must** put a whole table in each `rows` cell, and preserve the order in which
+the distinct values first appeared.
+
+A row built for `first`, `last`, `rows` or `group` **must** carry the columns in the
+table's order and **must** omit a cell that is `None`.
+
+### help
+
+| Field | Value |
+| --- | --- |
+| Name | `help` |
+| Parameters | none |
+| Returns | `Table` of `name`, `parameters` and `description` |
+| Meta | yes |
+
+One row per command, excluding `UnknownCommand`, ordered by name with an ordinal
+comparison. `parameters` **must** be the declared parameters in order, each written
+`<name>` when required, `[name]` when optional and `name...` when it collects the rest.
+
+### run
+
+| Field | Value |
+| --- | --- |
+| Name | `run` |
+| Parameters | `path` (piped) |
+| Returns | the value of the last line executed |
+| Meta | yes |
+
+Reads the file as text and splits it on line breaks. A line that is empty after
+trimming, or whose first non-space character is `#`, **must** be skipped and **must**
+still be counted.
+
+Each remaining line **must** be parsed and executed exactly as if typed, committing its
+own transaction, with `Transaction.Source` set to the line's trimmed text. `run` itself
+**must** emit no events.
+
+Each line **must** be written to the output as `> <line>` before it runs, followed by
+the display string of its result when that is not empty.
+
+Execution **must** stop at the first fault, and the fault **must** be re-raised with
+the message `<path> line <n>: <message>`, keeping its kind, where `n` counts every line
+in the file. Cancellation **must** be observed between lines. A `run` nested more than
+eight deep is `Scripts are only allowed to run scripts 8 deep.`
+
+Errors: `File does not exist : <path>`, `That is a directory, not a file : <path>`.
 
 ## Host commands
 
@@ -343,8 +441,9 @@ before rather than after.
 | --- | --- |
 | Name | `history` |
 | Parameters | none |
-| Returns | `List` of `Text`, or `Text "Nothing has happened yet."` |
+| Returns | `Table` of `seq`, `at`, `source` and `undone` |
 | Meta | yes |
 
-One line per transaction, oldest first, formatted `<seq>  <HH:mm:ss>  <source>`, with
-`  (undone)` appended where the line's effect is not currently in force.
+One row per transaction, oldest first. `seq` is a `Number`, `at` the time as
+`HH:mm:ss`, `source` the line as it was written, and `undone` a `Boolean` that is true
+where the line's effect is not currently in force.

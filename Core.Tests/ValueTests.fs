@@ -63,16 +63,6 @@ type ValueTests() =
 
         Assert.AreEqual<string>("/readme.txt", Value.argument value)
 
-    /// The parent entry navigates rather than naming a target, so it argues where it
-    /// goes rather than what it is called.
-    [<TestMethod>]
-    member _.TheParentEntryArguesItsDestination() =
-        let value = Value.File(ref "up" Value.parentKind "/documents")
-
-        Assert.AreEqual<string>("up", Value.display value)
-        Assert.AreEqual<string>("/documents", Value.argument value)
-        Assert.AreEqual<string>("parent", Value.kind value)
-
     [<TestMethod>]
     member _.AFolderIsItsOwnKind() =
         Assert.AreEqual<string>("folder", Value.kind (Value.File(ref "documents" "folder" "/")))

@@ -134,11 +134,6 @@ module Tag =
 [<CompilationRepresentation(CompilationRepresentationFlags.ModuleSuffix)>]
 module Value =
 
-    /// The parent entry `ls` puts at the head of a listing. It is a `File` whose kind
-    /// says it navigates rather than names a target, which is what the desktop shell
-    /// and the browser page have both always drawn as `up`.
-    let parentKind = "parent"
-
     let folderKind = "folder"
 
     /// A number reads as a person would write it: no trailing zeros, no thousands
@@ -187,8 +182,11 @@ module Value =
             if Map.isEmpty tag.Attributes then ""
             else
                 " "
+                // One line, like the notation. An attribute holding a nested table —
+                // which is what a row from `group` carries — would otherwise print its
+                // own rows down the page in the middle of a tag.
                 + (orderedAttributes tag
-                   |> List.map (fun (name, v) -> name + "=" + display v)
+                   |> List.map (fun (name, v) -> name + "=" + cellText v)
                    |> String.concat " ")
 
         if List.isEmpty tag.Children then
@@ -206,7 +204,7 @@ module Value =
     /// the last column, so a line has no invisible spaces on the end of it.
     /// </remarks>
     and private tableText (table: Table) =
-        let cells = table.Rows |> List.map (List.map display)
+        let cells: string list list = table.Rows |> List.map (List.map cellText)
         let headers = table.Columns |> List.map (fun column -> column.Name)
 
         let widths =
@@ -222,6 +220,20 @@ module Value =
             |> fun text -> text.TrimEnd()
 
         (headers :: cells) |> List.map line |> String.concat "\n"
+
+    /// <summary>One cell, on one line.</summary>
+    /// <remarks>
+    /// A cell is one cell: a nested table — which is what `group` puts in one — would
+    /// otherwise print its own rows down the page and take the alignment with it, so it
+    /// says how many rows it has and `rows` is how you look inside. Text with a line
+    /// break in it is folded for the same reason.
+    /// </remarks>
+    and private cellText (value: Value) =
+        match value with
+        | Value.Table nested ->
+            let count = List.length nested.Rows
+            sprintf "%d row%s" count (if count = 1 then "" else "s")
+        | other -> (display other).Replace("\r\n", " ").Replace("\n", " ")
 
     /// <summary>An expression, written the way it was typed.</summary>
     /// <remarks>
@@ -245,12 +257,10 @@ module Value =
     /// <summary>What the value means when a command is given it as an argument.</summary>
     /// <remarks>
     /// The two-string rule: a file shows its name but argues its path, so `ls` reads
-    /// as a list of names and `ls | cd` still lands somewhere. A parent entry argues
-    /// the folder it points at, because that is the whole of what it is for.
+    /// as a list of names and `ls | cd` still lands somewhere.
     /// </remarks>
     let argument (value: Value) : string =
         match value with
-        | Value.File file when file.Kind = parentKind -> file.Folder
         | Value.File file -> joinPath file.Folder file.Name
         | other -> display other
 
@@ -262,7 +272,6 @@ module Value =
         | Value.Text _ -> "text"
         | Value.Number _ -> "number"
         | Value.Boolean _ -> "boolean"
-        | Value.File file when file.Kind = parentKind -> parentKind
         | Value.File file when file.Kind = folderKind -> folderKind
         | Value.File _ -> "file"
         | Value.List _ -> "list"

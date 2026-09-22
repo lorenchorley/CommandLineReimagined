@@ -19,19 +19,83 @@ person, and what it means as an argument to another command.
 | `Boolean` | the flag | `true` or `false` | same |
 | `File` | `Id`, `Name`, `Kind`, `Folder` | the name | the full path, `folder/name` |
 | `List` | items | items' display strings, space separated | same |
-| `Object` | `TypeName`, `Attributes`, `Children` | the tag as written | same |
-| `Component` | `TypeName`, `Attributes`, `Children` | the tag as written | same |
+| `Object` | `TypeName`, `Attributes`, `Order`, `Children` | the tag as written | same |
+| `Component` | `TypeName`, `Attributes`, `Order`, `Children` | the tag as written | same |
+| `Table` | `Columns`, `Rows` | the header and one line per row, aligned | same |
+| `Query` | an `Expr` | the expression as it was written | same |
 
 `Empty` means "this command returns nothing"; `None` means "the answer is that there is
 nothing". They read alike and are distinct, and an implementation **must** keep them so.
 
-A `File` whose `Kind` is `parent` is the entry `ls` puts at the head of a listing below
-the root. It displays as `up` and **must** argue the folder it points at, not a path
-built from its name.
-
 The two string forms **must** differ for files: display gives the name, and the
 argument form gives the full path. This is what makes `ls | cd` work with no quoting
 rule. Implementations **must not** collapse them.
+
+A tag's `Order` is its attribute names in the order they were written. Attributes
+**must** be written out in that order, with any the order does not name after them, so
+that a tag reads back the way it was typed and a row built from a table reads in column
+order.
+
+### Displaying a table
+
+A table's display string **must** be the column names, then one line per row, each cell
+padded to the width of the widest thing in its column and separated by two spaces, with
+no trailing padding on a line.
+
+A cell **must** occupy one line. A cell holding a table **must** read as
+`<n> row` or `<n> rows`, and a cell holding text with a line break in it **must** have
+the breaks folded to spaces. The same rule applies to a tag's attribute values, because
+the tag notation is one line as well.
+
+### Tables
+
+```
+ColumnType ::= text | number | boolean | file | object | mixed
+Column     ::= { Name, Type }
+Table      ::= { Columns: Column list, Rows: Value list list }
+```
+
+Every row **must** have exactly as many cells as there are columns. A missing cell is
+`None`; an implementation **must not** represent it as a short row.
+
+A column's type is read off its cells, not declared. It is the one type every cell that
+is not `None` has, `mixed` when they disagree, and `text` when there is nothing to go
+on. Cells that are `None` **must not** affect it.
+
+### Reading a tag as a table
+
+A tag is *table-shaped* when every child is a tag, every child has the same type name,
+and no child has children of its own. A table-shaped tag **must** read as a table
+wherever a table is expected. Its columns are the union of the children's attribute
+names in the order they first appear; each row is that child's values, with `None`
+where it has none.
+
+A tag that is not table-shaped **must** produce a fault of kind `invalid` naming the
+first child that broke the shape and why.
+
+### Comparison
+
+Two values compare with one of `eq ne gt ge lt le like has`.
+
+- If either value is absent (`Empty` or `None`), the comparison is `false`, except that
+  `eq` on two absent values is `true`.
+- `eq`, `ne`, `gt`, `ge`, `lt` and `le` order the two values. When both read as numbers
+  with the invariant culture — including text that does — the ordering is numeric.
+  Otherwise it is an ordinal comparison of the display strings.
+- `like` is `true` when the right value's display string occurs in the left's, ignoring
+  case; when the right contains `*`, it is a whole-string match with `*` standing for
+  anything, ignoring case.
+- `has` is `true` when the left is a `List` containing the right, a `Table` with a cell
+  equal to it, a tag with an attribute equal to it, or text containing it.
+
+Equality throughout is equality of display strings, so a `Number` 1 and the text `1`
+are `eq`, and a `Boolean` is `eq` to `true` or `false` written as a word.
+
+The same ordering **must** drive `sort`, so a column that compares as numbers also
+sorts as numbers. An absent value orders before everything.
+
+`and`, `or` and `not` combine expressions. Only `Boolean true` is true; every other
+value, absent or not, is false. `and` and `or` **must** short-circuit.
 
 ## The command model
 
@@ -84,17 +148,23 @@ bound values. An implementation **must** follow this order.
 **Step 2: positional and fallback.** For each declared parameter in declaration order,
 skipping those already bound:
 
-1. If the positional queue is not empty, bind its next value. Optional parameters take
-   part: `progress 20 50` fills two optional parameters positionally.
-2. Otherwise, if the parameter accepts piped input and the input is not empty, bind the
+1. If the parameter collects the rest, bind a `List` of every remaining positional
+   value and empty the queue. It **must not** take the piped input.
+2. Otherwise, if the positional queue is not empty, bind its next value. Optional
+   parameters take part: `progress 20 50` fills two optional parameters positionally.
+3. Otherwise, if the parameter accepts piped input and the input is not empty, bind the
    input.
-3. Otherwise, if the parameter is optional, bind its default.
-4. Otherwise raise `'<command>' needs an argument for '<parameter>'.`
+4. Otherwise, if the parameter is optional, bind its default.
+5. Otherwise raise `'<command>' needs an argument for '<parameter>'.`
+
+A command **may** declare at most one parameter that collects the rest, and it **must**
+be the last one that can take a positional argument.
 
 **Step 3: leftovers.** If the positional queue is not empty, raise
 `'<command>' takes N arguments, but M were given.` where N is the number of declared
 parameters and M is N plus the number left over. The word `argument` is singular when
-N is 1.
+N is 1. A command that declares a parameter collecting the rest can never reach this
+step, and **must** report its own arity in its own words.
 
 **Step 4: order.** Return the bound values in declaration order, so a command may index
 them positionally.
@@ -106,11 +176,22 @@ them positionally.
 | String literal | `TextValue` of the text inside the quotes |
 | Identifier or word | `NumberValue` if it parses as a number with the invariant culture, otherwise `TextValue` |
 | `$name` | The variable's value, or raise `Unknown variable : $<name>` |
+| `$name.member` | The member read off the variable's value: an attribute of a tag, or `name`, `kind`, `folder`, `path` or `id` of a file. A member that is not there is `None`, not a fault. |
 | A tag | The object or component it builds, binding its variable if it names one |
+| An expression | Bound only to a parameter declared as a predicate, unevaluated, as a `Query`. For any other parameter, raise `'<command>' takes a value for '<parameter>', not an expression.` |
 | Anything else | Raise `Unsupported argument value : <node>` |
 
 Number parsing **must** use the invariant culture and allow a leading sign, a decimal
 point and an exponent.
+
+A written argument counts as an expression only when it actually wrote an operator. A
+bare operand **must** bind as the value it is, whatever the parameter's kind.
+
+### Predicates
+
+A parameter declared as a predicate receives the expression unevaluated. The command
+evaluates it once per item, in a child scope with `$row` bound to that item, so a
+variable called `row` outside the predicate **must** be unaffected.
 
 ## Running a pipeline
 

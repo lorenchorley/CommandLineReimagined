@@ -97,6 +97,29 @@ $ <file path=documents/notes.txt/>
 <file path=documents/notes.txt/>
 ```
 
+A `*` is an ordinary word character, so a glob for `like` needs no quotes:
+`where $row.name like *.txt`.
+
+Thirteen words are **reserved** and are never bare words, wherever they appear:
+
+```
+and  or  not  eq  ne  gt  ge  lt  le  like  has  else  try
+```
+
+They are the operators of an [expression](#expressions), and `else` and `try` belong to
+error recovery. Writing one as an ordinary word is a syntax error that says how to write
+it as text instead:
+
+```
+$ echo eq
+'eq' is an operator; write "eq" to pass it as text
+$ echo "eq"
+eq
+```
+
+The match is exact and case-sensitive, so `equals`, `eq.txt` and `Eq` are ordinary
+words. No command is named after a reserved word, and none may be.
+
 ### Assignments
 
 An argument written `name=value`, with no spaces around the `=`, is an assignment: a
@@ -168,7 +191,7 @@ A flag with nothing after it is a switch and binds `true`:
 
 ```
 $ ls -path
-Directory does not exist : /home/terminal/true
+Directory does not exist : true
 ```
 
 That message is what a switch looks like when the command wanted a value. Flags bind
@@ -207,6 +230,68 @@ $ set n 42
 42
 $ echo $n
 42
+```
+
+### Members
+
+A variable reference may read a member off what it names, with a full stop:
+
+```
+$ set thing <measurement unit=metres value=3/>
+<measurement unit=metres value=3/>
+$ echo $thing.unit
+metres
+```
+
+An object or a component answers its attributes. A file answers `name`, `kind`,
+`folder`, `path` and `id`. A member that is not there is *nothing* rather than an
+error, which is what lets a predicate skip a row that is missing a column instead of
+stopping the line.
+
+This is what a predicate uses to read a column: `$row.size` is a member access on an
+ordinary variable, not a special form.
+
+## Expressions
+
+An argument may be an expression: two operands and a comparison, combined with `and`,
+`or` and `not`. Expressions are what [predicates](tables.md#predicates) are written in.
+
+```
+Expression ::= OrExpr
+OrExpr     ::= AndExpr ( "or" AndExpr )*
+AndExpr    ::= NotExpr ( "and" NotExpr )*
+NotExpr    ::= "not" NotExpr | Comparison
+Comparison ::= Operand ( CompareOp Operand )?
+CompareOp  ::= "eq" | "ne" | "gt" | "ge" | "lt" | "le" | "like" | "has"
+Operand    ::= ArgumentValue | "(" Pipeline ")"
+```
+
+`and` binds tighter than `or`, and both are left associative, so `a or b and c` reads
+as `a or (b and c)`. `not` takes the whole comparison after it, so
+`not $row.kind eq folder` negates the comparison rather than its left operand. There
+are no symbol operators, no parenthesised sub-expressions, and no arithmetic.
+
+An operand with no operator around it is just that operand: `cd documents` has not
+become an expression because expressions exist. Only a line that actually writes an
+operator produces one.
+
+Which command an expression can be written for is not a question of grammar. A command
+declares a parameter that takes a predicate — `where` is the one that does — and a
+command that declares none says so:
+
+```
+$ echo $a eq b
+'echo' takes a value for 'text', not an expression.
+```
+
+What the operators mean is in [Tables and predicates](tables.md#predicates).
+
+A parenthesis in operand position is a nested pipeline, not a grouping. It parses, and
+running one is not built yet:
+
+```
+$ ls | where $row.size gt (ls | count)
+A pipeline in parentheses is not a value yet : (ls | count)
 ```
 
 ## How arguments reach parameters
@@ -266,10 +351,23 @@ hello
 $ set files
 'set' needs an argument for 'value'.
 $ ls | set entries
-up  documents  projects  readme.txt
+name        kind    folder  size  modified
+documents   folder  /       0     2026-09-22T09:30:00.0000000+00:00
+examples    folder  /       0     2026-09-22T09:30:00.0000000+00:00
+projects    folder  /       0     2026-09-22T09:30:00.0000000+00:00
+readme.txt  text    /       41    2026-09-22T09:30:00.0000000+00:00
 $ vars
-$entries = up documents\ projects\ readme.txt
-$greeting = hello
+name      value
+entries   4 rows
+greeting  hello
+```
+
+A cell is one line, so a table bound to a variable says how many rows it has when it
+appears inside another table. It is still the table:
+
+```
+$ echo $entries | count
+4
 ```
 
 Names may contain letters, digits and underscore. Writing `set $x 1` does not name a
@@ -354,7 +452,7 @@ These are absent by design or not built yet. Nothing here silently half-works.
 
 | Not supported | What to do instead |
 | --- | --- |
-| Wildcards such as `*.txt` | Name files individually. |
+| Wildcards in paths, such as `cat *.txt` | Name files individually. `*` is a glob for `like` in a predicate, and nothing else. |
 | Redirection `>` and `>>` | Pipe into `write`. |
 | Several commands per line with `;` or `&&` | Run them one at a time. |
 | Escapes inside strings | Strings cannot contain a double quote at all. |
@@ -365,7 +463,7 @@ These are absent by design or not built yet. Nothing here silently half-works.
 
 The terminal colours each word by the role the grammar gave it, and tapping a word in
 the scrollback names that role. The roles are: command, flag, string, variable,
-identifier, type, attribute and punctuation.
+identifier, type, attribute, operator, member and punctuation.
 
 Because the tree is faithful, serialising it reproduces your text exactly. That
 round-trip is checked on every parse, which is what keeps colouring and structure

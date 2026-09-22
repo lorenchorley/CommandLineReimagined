@@ -91,11 +91,13 @@ let sort =
 
                 // F#'s sort is stable, so rows that compare equal keep the order they
                 // arrived in and two sorts in a row compose the way a reader expects.
-                let ordered =
-                    table.Rows
-                    |> List.sortWith (fun a b -> Expr.order (List.item index a) (List.item index b))
+                // Descending negates the comparison rather than reversing the result,
+                // which would put the ties back to front as well.
+                let direction = if Invocation.flag "desc" invocation then -1 else 1
 
-                let rows = if Invocation.flag "desc" invocation then List.rev ordered else ordered
+                let rows =
+                    table.Rows
+                    |> List.sortWith (fun a b -> direction * Expr.order (List.item index a) (List.item index b))
 
                 return Value.Table { table with Rows = rows }
             })

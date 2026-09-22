@@ -135,7 +135,7 @@ module Table =
                             Fault.notATable
                                 describe
                                 index
-                                (sprintf "is a '%s' where the first is a '%s'" tag.TypeName wanted))
+                                (sprintf "is <%s> where the first is <%s>" tag.TypeName wanted))
                     | _ -> check (index + 1) (Some tag.TypeName) rest |> Outcome.map (fun rest -> tag :: rest)
 
         outcome {

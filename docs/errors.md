@@ -123,11 +123,49 @@ $ progress steps=20
 
 To bind a declared parameter by name, use a colon: `progress steps: 20`.
 
+### `'<word>' is an operator; write "<word>" to pass it as text`
+
+Thirteen words are reserved and are never bare words:
+`and or not eq ne gt ge lt le like has else try`. They are the operators of an
+expression, and the last two belong to error recovery. Quote one to pass it as text:
+`echo "eq"`.
+
+The match is exact, so `equals`, `eq.txt` and `Eq` are ordinary words. The message
+names the column the word starts in.
+
 ### `Unsupported argument value : <node>`
 
 The parser produced a value the binder does not know how to evaluate. Strings, words,
 numbers, variable references and tags are all handled, so this means the grammar
 accepts something execution does not implement yet. It is a gap, not your mistake.
+
+## Table errors
+
+From the table functions, and from reading a tag as a table.
+
+| Message | Meaning |
+| --- | --- |
+| `'<command>' needs a table, not <kind>.` | Something that is not a table, and cannot be read as one, was piped in. |
+| `'<command>' has no column named '<name>'.` | No such column. `columns` lists what there is. |
+| `'select' needs at least one column.` | `select` with nothing to select. The pipe is the table, not the column list. |
+| `<items> is not a table: child N is <other> where the first is <item>.` | A tag whose children disagree about their type. |
+| `<items> is not a table: child N has children of its own.` | A child is a tree rather than a row. |
+| `<items> is not a table: child N is text, not a tag.` | A child that is not a tag at all. |
+| `'count' must be a whole number, not '<value>'.` | `take` or `skip` was given something that is not a count. |
+| `'where' needs an argument for 'predicate'.` | `where` with nothing to test. |
+| `Unknown variable : $row` | A predicate written outside a table function, where nothing bound `$row`. |
+| `'<command>' takes a value for '<parameter>', not an expression.` | A comparison was written for a command that does not take a predicate. |
+| `A <node> cannot be part of an expression.` | A tag as one side of a comparison. |
+| `A pipeline in parentheses is not a value yet : (...)` | A nested pipeline parses; running one is not built yet. |
+
+## Script errors
+
+From `run`.
+
+| Message | Meaning |
+| --- | --- |
+| `<path> line <n>: <message>` | A line of a script failed. The lines before it have already committed; the ones after it did not run. Blank and commented lines are counted, so `n` is the number an editor shows. |
+| `Scripts are only allowed to run scripts 8 deep.` | A script that runs a script that runs a script, eight times over — usually one that runs itself. |
 
 ## Execution errors
 
@@ -178,6 +216,7 @@ Not errors from the language, but from the session.
 | `Stopped.` | You cancelled the command. It may have written its own note as well, such as `Cancelled at 9%`. |
 | `Nothing to undo.` | No line has changed anything yet. Not an error: nothing went wrong. |
 | `Nothing to redo.` | Nothing has been undone. Not an error either. |
+| `No variables. Try: set greeting hello` | `vars` with nothing bound. Not an error: the table is simply empty. |
 | `Undone: <line>` | Undo reversed that line. Lines that changed nothing are not recorded, so they are never what it names. |
 | `Redone: <line>` | Redo put that line back. It names the original line, not the undo. |
 | `The session has not been initialised. Call Initialize first.` | A host executed a line before replaying the log. A defect in the host, not in what you typed. |
@@ -185,7 +224,7 @@ Not errors from the language, but from the session.
 ## Reading a path in a message
 
 Most messages quote the resolved path rather than what you typed. Run `cat notes.txt`
-in `/home/terminal` and the message names `/home/terminal/notes.txt`. That is
+in `/documents` and the message names `/documents/notes.txt`. That is
 deliberate: the most common cause of a missing file is being somewhere else than you
 thought, and the prompt above the input always shows where you are.
 

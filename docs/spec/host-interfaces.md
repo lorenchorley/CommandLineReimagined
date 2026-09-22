@@ -233,10 +233,23 @@ and the position is zero.
 }
 ```
 
-`result` is the value flattened for display. Kinds are `file`, `folder`, `parent`,
-`object`, `component`, `number`, `boolean`, `none` and `text`. A list flattens into its
-items. `path` is present only for files, and is the value's argument string, so
-inserting it into a line resolves. `resultText` is the value's display string.
+`result` is the value flattened for display. Kinds are `file`, `folder`, `object`,
+`component`, `number`, `boolean`, `none`, `table`, `query` and `text`. A list flattens
+into its items. `path` is present only for files, and is the value's argument string,
+so inserting it into a line resolves. `resultText` is the value's display string.
+
+A table is one item and keeps its shape, with `columns` and `rows` beside its `text`:
+
+```json
+{ "kind": "table",
+  "columns": [ { "name": "name", "type": "file" }, { "name": "size", "type": "number" } ],
+  "rows": [ [ { "kind": "file", "text": "notes.txt", "path": "/documents/notes.txt" },
+              { "kind": "number", "text": "50" } ] ] }
+```
+
+A column's `type` is `text`, `number`, `boolean`, `file`, `object` or `mixed`. Each
+cell **must** be described by the same rules as a standalone value, so a file in a
+listing still carries its path.
 
 `error` carries a user-facing sentence, or null. `fault` carries the same message with
 structure beside it:

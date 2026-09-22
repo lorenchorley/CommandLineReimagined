@@ -62,15 +62,16 @@ A command returns a `Value`. The kinds are:
 | Text | `cat`, `echo "x"` | the text |
 | Number | `echo 42`, `progress` | the number |
 | Boolean | a flag with no value | `true` or `false` |
-| File | `ls`, `mkdir`, `write`, `attr`, `save` | the record's name |
-| List | `ls`, `vars`, `history` | its items, space separated |
+| File | `mkdir`, `write`, `attr`, `save`, a listing's `name` column | the record's name |
+| List | `rows`, an argument that collected several | its items, space separated |
+| Table | `ls`, `vars`, `attr`, `history`, `help`, every table function | a header and one line per row |
 | Object | `<thing a=1/>` | the tag as written |
 | Component | `{renderer/}` | the tag as written |
 
 Every value answers two questions: how it should read to a human, and what it means as
 an argument to another command. A file displays as `documents` and argues as
-`/home/terminal/documents`. That single distinction is what makes `ls | cd` work
-without any quoting rules.
+`/documents`. That single distinction is what makes `ls | cd` work without any quoting
+rules.
 
 ## Binding arguments
 

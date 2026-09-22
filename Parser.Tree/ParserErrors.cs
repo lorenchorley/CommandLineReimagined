@@ -22,6 +22,17 @@ public class SyntaxError
     public int Column { get; init; }
 
     public IReadOnlyList<string> ExpectedSymbols { get; init; } = Array.Empty<string>();
+
+    /// <summary>
+    /// What the parser had to say about the position, when it had something better than
+    /// a list of what could have appeared there.
+    /// </summary>
+    /// <remarks>
+    /// A reserved word in argument position is the case this exists for: "expected /"
+    /// says nothing, and "'eq' is an operator; write "eq" to pass it as text" says all
+    /// of it. Null when the parser only knew what it was expecting.
+    /// </remarks>
+    public string? Explanation { get; init; }
 }
 
 public class LexicalError
