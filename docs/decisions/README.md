@@ -38,6 +38,7 @@ a later record, **Rejected**.
 | [0026](0026-inventory-sorts-its-reorder-list.md) | The inventory program sorts its reorder list before writing it | Accepted |
 | [0027](0027-save-takes-a-tag.md) | `save` takes its attributes in the tag, not as assignments | Accepted |
 | [0028](0028-mixed-columns.md) | A column whose cells disagree is typed `mixed`, not `text` | Accepted |
+| [0029](0029-scene-editor-direction.md) | The entity component system becomes a scene the command line edits | Proposed |
 
 Retrospective records document decisions taken before the log existed, so that the
 log is the one place to look. Their alternatives are the ones weighed at the time, as

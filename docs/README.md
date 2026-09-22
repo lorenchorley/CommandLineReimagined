@@ -34,6 +34,10 @@ as a value, an event-sourced store, an attribute filesystem, tables, queries and
 Every phase is built, and each ends with an "As built" section recording where the
 result differs from what was planned.
 
+A [proposed design direction](plan/scene-editor-direction.md) records where the entity
+component system could go next: a scene the command line builds and edits, rendered on
+a canvas beside the terminal.
+
 The [specification](spec/README.md) defines the language and the runtime normatively:
 grammar, semantic tree, execution model, command contracts and the host interfaces.
 The user documentation describes what the system does; the specification says what any
