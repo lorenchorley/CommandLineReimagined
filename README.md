@@ -24,10 +24,15 @@ Undone: cat documents/notes.txt | write backup.txt
 
 $ cd $row.kind eq folder
 $row.kind eq folder
+
+$ cat notes-from-yesterday.txt else echo "starting fresh"
+starting fresh
 ```
 
 A listing is a table, a predicate over it is a question, and a question is somewhere
-you can be: after that last line, `ls` answers the query rather than a directory.
+you can be: after the `cd`, `ls` answers the query rather than a directory. A failure
+is a value too: `else` recovers without leaving the line, and `try` keeps a fault for a
+later stage to read.
 
 ## Try it
 

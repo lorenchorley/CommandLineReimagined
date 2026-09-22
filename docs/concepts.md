@@ -88,8 +88,12 @@ or a component.
 ## Pipes
 
 A pipeline is a fold. Each stage receives the previous stage's value as its input, and
-the last stage's value is the result of the line. A stage that throws stops the
-pipeline, and the error reaches you instead of a result.
+the last stage's value is the result of the line. A stage that fails stops the
+pipeline, and the fault reaches you instead of a result — unless the line said
+otherwise. `try` in front of a stage turns its fault into its result, and `else`
+between two pipelines runs the second with the first one's fault as its input. A fault
+is a value like any other, which is why a variable can hold one and `$problem.kind`
+can read it. See [Errors as values](language.md#errors-as-values).
 
 The input is offered only to parameters that declared they accept it, so a command with
 several parameters is not confused about which one the pipe fills.
@@ -127,6 +131,11 @@ you typed. If any stage fails, nothing is appended at all.
 That is the rule worth remembering: **a line is all or nothing**. `mkdir a | cd nowhere`
 leaves no folder `a` behind. You do not have to know how many stages ran before the
 failure in order to clean up, because nothing ran, as far as the store is concerned.
+
+Recovery keeps the rule rather than bending it. A branch of an `else` that failed, and
+a `try` stage that failed, are put back exactly as a failed line is, so
+`mkdir a | cd nowhere else echo "no"` answers `no` and still leaves no `a`. What commits
+is the work of the branch that produced the value, and nothing else.
 
 A line that produces no events commits nothing. `ls` and `pwd` leave no transaction.
 

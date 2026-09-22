@@ -22,13 +22,14 @@ test methods; data-driven methods expand to more cases at run time.
 | Requirement | Test class | Methods |
 | --- | --- | --- |
 | Lexical rules: identifiers, accents, flags, string forms, variables | `Parser.Tests/LexicalTests` | 15 |
-| Bare words, in arguments and in tag attributes; assignments; negative numbers | `Parser.Tests/BareWordTests` | 18 |
+| Bare words, in arguments and in tag attributes; assignments; negative numbers | `Parser.Tests/BareWordTests` | 19 |
 | The three command forms, arguments, pipes, hyphenated command names | `Parser.Tests/CommandFormTests` | 26 |
 | Object and component tags, nesting, closing forms, variable tags | `Parser.Tests/ObjectInstanceTests` | 17 |
 | Productions the original grammar never implemented | `Parser.Tests/CompletedGrammarTests` | 17 |
 | Error positions and expected symbols | `Parser.Tests/SyntaxErrorTests` | 5 |
 | Round-trip serialisation | `Parser.Tests/SerialisationTests` | 7 |
 | Word operators, precedence, member access, reserved words, nested pipelines, the expression entry point | `Parser.Tests/ExpressionTests` | 21 |
+| `else`, `try`, `??`, pipelines in parentheses as stages and operands, the adjacent function parenthesis, reserved command names | `Parser.Tests/RecoveryTests` | 23 |
 | Agreement with the retained GOLD parser | `Parser.Tests/ParserEquivalenceTests` | 4 |
 | The two string forms of every value, and number formatting | `Core.Tests/ValueTests` | 16 |
 | The Table value: coercion, columns, types, gaps, rows, display | `Core.Tests/TableTests` | 23 |
@@ -43,13 +44,14 @@ test methods; data-driven methods expand to more cases at run time.
 | `undo`, `redo` and `history` as commands | `Core.Tests/MetaCommandTests` | 16 |
 | The table functions, as whole command lines | `Core.Tests/TableCommandTests` | 29 |
 | Views: `cd` on a predicate, `ls` across folders, `up`, `find`, `save-view`, refreshing | `Core.Tests/ViewTests` | 38 |
-| The example programs, against their golden results, and `run` | `Core.Tests/ExampleProgramTests` | 14 |
-| Completion over the projection, the operators, the columns and the places | `Core.Tests/CompletionTests` | 22 |
+| Recovery: `else`, `try`, `??`, nested pipelines, fault values and their members, `is-fault`, what a refresh refuses | `Core.Tests/RecoveryTests` | 32 |
+| The example programs, against their golden results, and `run` | `Core.Tests/ExampleProgramTests` | 18 |
+| Completion over the projection, the operators, the columns, the places and the keywords | `Core.Tests/CompletionTests` | 25 |
 | The phase's acceptance list, from a fresh session | `Core.Tests/AcceptanceTests` | 10 |
 | Replaying a log, seeding once, and `reset` | `Core.Tests/PersistenceTests` | 13 |
-| The stored shape of a transaction, every event and value case, versioning | `Web.Core.Tests/LogFormatTests` | 22 |
+| The stored shape of a transaction, every event and value case, versioning | `Web.Core.Tests/LogFormatTests` | 24 |
 | The browser's IndexedDB module, including a browser without it | `tools/store-check.mjs` | 20 |
-| DTO shapes including tables, views, refreshing, streaming, cancellation, completion, tokens | `Web.Core.Tests/TerminalSessionTests` | 43 |
+| DTO shapes including tables, views, refreshing, caught faults, streaming, cancellation, completion, tokens | `Web.Core.Tests/TerminalSessionTests` | 45 |
 | Path and naming helpers | `Terminal.Tests/ValidCommandTests` | 2 |
 | The published page, in a browser at phone size | `tools/browser-check.mjs` | 1 session |
 
@@ -57,11 +59,11 @@ Cases actually run, which is what the suite reports:
 
 | Project | Cases |
 | --- | --- |
-| `Parser.Tests` | 293 |
-| `Core.Tests` | 413 |
-| `Web.Core.Tests` | 65 |
+| `Parser.Tests` | 336 |
+| `Core.Tests` | 452 |
+| `Web.Core.Tests` | 69 |
 | `Terminal.Tests` | 32 |
-| Total | 803 |
+| Total | 889 |
 
 Run them with:
 
@@ -161,7 +163,7 @@ case.
 | `<a/>` and `<a></a>` are distinct in the tree but evaluate alike. | Intended. The tree is a faithful record of what was typed. |
 | The retained GOLD parser reports column 12 where the combinator parser reports 11 on one truncated input. | Documented in `ParserEquivalenceTests`. The combinator position is correct. |
 | `pwd` at the filesystem root produces a result whose display name is empty. | Cosmetic. The path is still correct in the response and in the prompt. |
-| A pipeline in parentheses parses as an operand and evaluates to `A pipeline in parentheses is not a value yet`. | Intended for now. An operand is where it belongs, and what running one means is Phase 5's question. |
+| A pipeline in parentheses inside a predicate runs once, and the predicate keeps its value, so a view saved with one does not re-run it. | Intended. A view is a question about records, and a question that changed its own terms each time it was asked would be a different question. |
 | Suggestion and completion chips are 26 pixels tall, below the usual 44 pixel touch target. | Known. Worth raising; the input, the run button and a table's cells already meet it. |
 | `Scope` supports nesting, but no host creates a child scope outside a predicate. | Intended. The model is ahead of the shell. |
 | `attr` is not marked read-only, so a live listing cannot be an `attr`. | Intended. The same command reads with no assignments and writes with them, and a refresh is decided by name before it runs. |

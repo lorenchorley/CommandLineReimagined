@@ -63,11 +63,16 @@ What a log holds is a contract between builds: what one writes, a later one read
 implementation **must not** serialise the F# types directly, or renaming a union case
 would make a stored filesystem unreadable.
 
-Every document carries `"v"`, and a reader exists per version.
+Every document carries `"v"`, and a reader exists per version. This build writes
+version 2 and reads 1 and 2. Version 2 added the `query` and `fault` value kinds, which
+a variable can hold from Phase 5 (`try cat x | set problem`); every version 1 document
+is a valid version 2 one, so one reader serves both, and the version exists so that a
+build which only knew version 1 refuses a log it would misread rather than failing on
+an unknown kind halfway through it.
 
 ```json
 {
-  "v": 1,
+  "v": 2,
   "seq": 2,
   "at": "2026-09-21T12:34:56.7890000+02:00",
   "source": "write notes.txt hello",
@@ -92,7 +97,10 @@ through the grammar's expression entry point, so it is the same text a saved vie
 holds and the same text the location line shows.
 
 Values are written tagged with a kind `k`, one of `empty`, `none`, `text`, `number`,
-`boolean`, `file`, `list`, `object` or `component`. An implementation **must not**
+`boolean`, `file`, `list`, `object`, `component`, `table`, `query` or `fault`. A `query`
+is its predicate's display text, read back through the grammar like a view. A `fault`
+is `{ "k": "fault", "kind": "NotFound", "message": ..., "stage": 1, "path": ...,
+"cause": null }`, where `kind` is the kind's word and `cause` is another fault or null. An implementation **must not**
 write a value as the nearest JSON type: an attribute whose text is `2026` has to come
 back as text, and JSON cannot tell that from a number without being told.
 
@@ -188,9 +196,12 @@ apply them.
 | Context | Offers |
 | --- | --- |
 | Empty line | nothing |
-| First word, or first word after `\|` | command names, plus `help` and `clear` |
-| A word starting with `$` | variable names, including the `$` |
-| Anything else | files and folders in the current folder, folders ending in `/` |
+| The first word of a stage: at the start, after `\|`, after `(`, after `else`, after `try` | command names, `clear`, and the keyword `try` |
+| A word starting with `$` and containing a `.` | column names after the stop: the record columns and every attribute in the current folder |
+| A word starting with `$` | variable names, including the `$`, and `$row` |
+| After an operand in a stage that has a `$` in it | the word operators |
+| After `cd` | folders, and files of kind `view` |
+| Anything else | files and folders in the current folder, folders ending in `/`; and `else` once two letters of it are typed |
 
 The last word starts after the nearest preceding whitespace, `|`, `(` or `,`. Matching
 is case-insensitive and by prefix. A path completion's text includes whatever directory
@@ -240,7 +251,7 @@ and the position is zero.
 ```
 
 `result` is the value flattened for display. Kinds are `file`, `folder`, `object`,
-`component`, `number`, `boolean`, `none`, `table`, `query` and `text`. A list flattens
+`component`, `number`, `boolean`, `none`, `table`, `query`, `fault` and `text`. A list flattens
 into its items. `path` is present only for files, and is the value's argument string,
 so inserting it into a line resolves. `resultText` is the value's display string.
 
@@ -253,6 +264,16 @@ A table is one item and keeps its shape, with `columns` and `rows` beside its `t
               { "kind": "number", "text": "50" } ] ] }
 ```
 
+A fault that `try` or `else` made into a value is a result, not an error: `error` and
+`fault` are null, and the item carries the fault's kind beside its message, with the
+path it was about, if any, in `path`:
+
+```json
+{ "kind": "fault", "text": "File does not exist : /x", "path": "/x", "faultKind": "NotFound" }
+```
+
+A host **must** draw it differently from a failed line, because the line did not fail.
+
 A column's `type` is `text`, `number`, `boolean`, `file`, `object` or `mixed`. Each
 cell **must** be described by the same rules as a standalone value, so a file in a
 listing still carries its path.
@@ -263,6 +284,9 @@ structure beside it:
 ```json
 { "kind": "NotFound", "message": "Directory does not exist : nowhere", "stage": 1, "path": "nowhere" }
 ```
+
+`kind` here, and `faultKind` on a caught fault, is the kind's word exactly as
+`$f.kind` reads it.
 
 A host **must** keep `error` as the sentence it always was; `fault` is additional.
 

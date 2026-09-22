@@ -28,6 +28,7 @@ drive. `..` and `.` work.
 | [`group`](#group) | Gather the rows that share a value | no |
 | [`help`](#help) | The commands, as a table | no |
 | [`history`](#history) | The lines that changed something | no |
+| [`is-fault`](#is-fault) | Whether a value is a fault that `try` or `else` caught | no |
 | [`last`](#last) | The last row of a table | no |
 | [`ls`](#ls) | List a directory, or the view you are in | no |
 | [`mkdir`](#mkdir) | Create a directory | yes |
@@ -368,7 +369,13 @@ up  documents  projects  readme.txt
 ```
 
 The value keeps its type: `echo 42` returns a number, and `ls | echo` returns the list
-of paths rather than a printed copy of it.
+of paths rather than a printed copy of it. After `else`, what is piped in is the fault,
+so `echo` with nothing written shows what went wrong:
+
+```
+$ cat missing.txt else echo
+File does not exist : /missing.txt
+```
 
 **Errors**
 
@@ -435,12 +442,18 @@ The first row of a table.
 | `table` | optional, piped. The table to work on. Taken from the pipe when it is not written. |
 
 **Returns** the row as an object of type `row`, or nothing when the table is empty.
-Nothing is an answer, not a failure.
+Nothing is an answer, not a failure, and `??` is how to give it a default.
 
 ```
 $ ls | sort name desc | first
 <row name=readme.txt kind=text folder=/ size=41 modified=2026-09-22T09:30:00.0000000+00:00/>
+$ first (ls | where $row.kind eq view) ?? "no views yet"
+no views yet
 ```
+
+The table can be written as a [pipeline in parentheses](language.md#pipelines-in-parentheses),
+with a space before it: `first (ls)`. Written against the name, `first(ls)` is the
+function form, and hands `first` the word `ls`.
 
 ---
 
@@ -542,6 +555,33 @@ $ history | where $row.undone eq true | count
 ```
 
 `seed` is the filesystem the session started with. It is shown, and it cannot be undone.
+
+---
+
+## is-fault
+
+Whether a value is a fault: the result of a stage written with `try`, or what `else`
+pipes into the pipeline after it. See [Errors as values](language.md#errors-as-values).
+
+**Parameters**
+
+| Name | Notes |
+| --- | --- |
+| `value` | optional, piped. The value to ask about. |
+
+**Returns** `true` or `false`. Given nothing at all it answers `false`: nothing is not a
+failure.
+
+```
+$ try cat missing.txt | set problem
+File does not exist : /missing.txt
+$ is-fault $problem
+true
+$ echo fine | is-fault
+false
+$ cat missing.txt else is-fault
+true
+```
 
 ---
 

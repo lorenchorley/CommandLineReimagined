@@ -58,3 +58,29 @@ stand as a stage or as an operand.
 
 `docs/language.md` "Errors as values"; `docs/errors.md` intro rewritten around faults
 and recovery; `docs/spec/execution-model.md` the railway rules; `docs/spec/lexical-grammar.md`.
+
+## As built
+
+Built as written, with four things that turned up underneath and are recorded here so
+the next phase starts from what is true:
+
+- **A second record.** [0024](../decisions/0024-stop-is-not-recoverable.md): `try` and
+  `else` do not recover from `Cancelled`. Without it, Stop would be a suggestion on any
+  line with either word in it. Records being numbered in the order taken, the XML
+  record expected in Phase 6 is now 0025 in the
+  [architecture](architecture.md#expected-new-decision-records) table.
+- **Reserved command names are enforced.** Decision 0019 always said a command may not
+  be named after a reserved word; nothing checked it, and `eq x` reached the evaluator
+  as an unknown command. `else x` cannot be allowed to read as a command called `else`,
+  so the grammar now refuses a reserved word in command position, with its own message.
+- **A nested pipeline in a predicate is a constant.** It runs once, before binding, and
+  the predicate holds its value; a view saved with one keeps the value. Re-running it
+  per row, or per refresh, would make a view a question that changes its own terms.
+- **The log format is version 2.** A variable can hold a fault now, and a query could
+  already (`pwd | set here` in a view) with no stored shape for it; both kinds were
+  added, and the version bumped so that a build which only knew version 1 refuses a log
+  it would misread. One reader serves both versions.
+
+`Value.Fault` forced `Faults.fs` to compile before `Values.fs`; the architecture says
+why. The page draws a caught fault in amber with its kind tag, distinct from the red
+of a failed line, and the browser check tells the two apart by where the tag sits.

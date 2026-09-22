@@ -23,6 +23,7 @@ person, and what it means as an argument to another command.
 | `Component` | `TypeName`, `Attributes`, `Order`, `Children` | the tag as written | same |
 | `Table` | `Columns`, `Rows` | the header and one line per row, aligned | same |
 | `Query` | an `Expr` | the expression as it was written | same |
+| `Fault` | a `Fault` | its message | same |
 
 `Empty` means "this command returns nothing"; `None` means "the answer is that there is
 nothing". They read alike and are distinct, and an implementation **must** keep them so.
@@ -30,6 +31,12 @@ nothing". They read alike and are distinct, and an implementation **must** keep 
 The two string forms **must** differ for files: display gives the name, and the
 argument form gives the full path. This is what makes `ls | cd` work with no quoting
 rule. Implementations **must not** collapse them.
+
+A `Fault` value is a failure a line kept going past: what `try` turns a stage's failure
+into, and what `else` pipes into the branch after it ([Recovery](#recovery)). Its
+members are readable like a tag's attributes: `message` and `kind` as `Text` (the kind
+as its word, `NotFound` and so on), `path` as `Text` or `None`, `stage` as `Number` or
+`None`, and `cause` as a `Fault` or `None`. A name it does not have is `None`.
 
 A tag's `Order` is its attribute names in the order they were written. Attributes
 **must** be written out in that order, with any the order does not name after them, so
@@ -181,7 +188,8 @@ them positionally.
 | String literal | `TextValue` of the text inside the quotes |
 | Identifier or word | `NumberValue` if it parses as a number with the invariant culture, otherwise `TextValue` |
 | `$name` | The variable's value, or raise `Unknown variable : $<name>` |
-| `$name.member` | The member read off the variable's value: an attribute of a tag, or `name`, `kind`, `folder`, `path` or `id` of a file. A member that is not there is `None`, not a fault. |
+| `$name.member` | The member read off the variable's value: an attribute of a tag, `name`, `kind`, `folder`, `path` or `id` of a file, or `message`, `kind`, `path`, `stage` or `cause` of a fault. A member that is not there is `None`, not a fault. |
+| `( pipeline )` | The value the nested pipeline answered. See [Nested pipelines](#nested-pipelines). |
 | A tag | The object or component it builds, binding its variable if it names one |
 | An expression | Bound only to a parameter declared as a predicate, unevaluated, as a `Query`. For any other parameter, raise `'<command>' takes a value for '<parameter>', not an expression.` |
 | Anything else | Raise `Unsupported argument value : <node>` |
@@ -198,22 +206,29 @@ A parameter declared as a predicate receives the expression unevaluated. The com
 evaluates it once per item, in a child scope with `$row` bound to that item, so a
 variable called `row` outside the predicate **must** be unaffected.
 
+A nested pipeline inside a predicate is the exception: it has already run, and the
+predicate holds the value it answered as a constant. Every row is compared against that
+one value, and a predicate kept as a view keeps the value, not the pipeline.
+
 ## Running a pipeline
 
 ```
 Execute(tree, output, scope, cancellation):
     if tree is EmptyCommand:            return Empty
-    if tree is PipedCommandList:
-        if no commands:                 return Empty
-        current = Empty
-        for expression in commands:
-            throw if cancellation requested
-            current = ExecuteExpression(expression, current, output, scope, cancellation)
-        return current
-    otherwise:                          raise "Cannot execute a <node>."
+    if tree is PipedCommandList:        return Branches([tree])
+    if tree is RecoveryLine:            return Branches(tree.Pipelines)
+    otherwise:                          raise "Cannot evaluate a <node>."
+
+Pipeline(input, stages):
+    current = input
+    for stage, n in stages:
+        fail Cancelled if cancellation requested
+        current = Stage(n, current, stage)     -- a fault here is stamped with stage n
+    return current
 ```
 
 Each stage receives the previous stage's value. The last stage's value is the result.
+A line's first pipeline is given `Empty` as its input.
 
 Cancellation **must** be observed between stages, and a stage that throws **must** stop
 the pipeline and propagate.
@@ -222,7 +237,64 @@ A stage is one of:
 
 - a function expression, executed as a command;
 - a command line expression, executed as a command;
-- an instance tag, evaluated to a value without calling a command.
+- an instance tag, evaluated to a value without calling a command;
+- a pipeline in parentheses, run as a pipeline with the stage's input as its input.
+
+### Recovery
+
+Decisions [0014](../decisions/0014-recovery-operator.md) and
+[0024](../decisions/0024-stop-is-not-recoverable.md). A **recoverable** fault is one of
+any kind but `Cancelled`.
+
+```
+Branches(pipelines):
+    start = the working projection and the pending events
+    result = Pipeline(Empty, pipelines[0])
+    for next in pipelines[1..]:
+        if result is Ok, or its fault is not recoverable:  stop
+        restore start
+        result = Pipeline(Fault(fault), next)
+    return result
+
+Stage(n, input, stage):
+    before = the working projection and the pending events
+    result = run the command expression with input
+    if stage has "try" and result is Error f and f is recoverable:
+        restore before
+        result = Ok(Fault(f stamped with stage n))
+    if stage has a default and result is Ok v and v is Empty or None:
+        result = evaluate the default
+    return result
+```
+
+An implementation **must**:
+
+- run a pipeline after `else` only when the one before it failed with a recoverable
+  fault, with that fault as its input;
+- restore the working projection and the pending events before it does, so the events
+  that commit are those of the branch that produced the value and no other;
+- when every branch fails, fail the line with the last branch's fault;
+- on a failed `try` stage, discard what the stage recorded, and hand the next stage a
+  `Fault` value stamped with the stage's position;
+- evaluate a default only when the stage answered `Empty` or `None`. A `Fault` value is
+  an answer: `try x ?? y` keeps the fault;
+- never recover from `Cancelled`, with `try` or with `else`.
+
+### Nested pipelines
+
+A pipeline in parentheses in operand position — an argument, either side of a
+comparison, under `and`, `or` or `not`, or a default — **must** be run before the
+stage's arguments are bound, in the order written, with `Empty` as its input, in the
+line's working projection. Its value is what the binder sees in its place, and its
+events join the line's transaction. It **must** run once per evaluation of the stage it
+is written in, not once per row of a predicate.
+
+A fault from inside a nested pipeline fails the stage it is written in, keeping its
+message and kind; the stage number is the outer stage's.
+
+A nested pipeline reached where no line is running — in the text of a view file that
+was written by hand — **must** fail with `A pipeline in parentheses only runs as part of
+a line : (...)` when evaluated.
 
 ### A line is one transaction
 
@@ -326,8 +398,10 @@ An implementation **may** offer a way to re-run a line without committing it, so
 can keep a listing on screen up to date as the store changes. Where it does:
 
 - Every stage of the line **must** name a registered command whose spec is `ReadOnly`.
-  A line that does not **must** be refused with a fault of kind `Invalid`, *before* any
-  of it runs. An unregistered name is not read-only.
+  That includes every branch after `else`, every nested pipeline, every stage in
+  parentheses and every default, and an instance tag standing as a stage is not
+  read-only. A line that fails this **must** be refused with a fault of kind `Invalid`,
+  *before* any of it runs. An unregistered name is not read-only.
 - The run **must** commit nothing, whatever events it gathers, and **must** leave the
   history and the undo chain untouched.
 
@@ -410,7 +484,7 @@ token and **should** check it at least once per step.
 
 A host cancels by cancelling the token it passed in. A cancelled command **must** return
 a fault of kind `Cancelled` with the message `Stopped.`, and the line commits nothing,
-like any other failed line.
+like any other failed line. Neither `try` nor `else` recovers from it.
 
 Cancellation **must** also be observed between stages.
 
@@ -429,7 +503,12 @@ Every message in the [error reference](../errors.md) is preserved word for word 
 
 The evaluator **must** stamp `Stage` with the one-based position of the failing stage,
 and **must not** overwrite a stage already set, so the innermost failure keeps its own
-position.
+position. A fault leaving a nested pipeline **must** have its stage cleared first, so
+that the stage reported is the one in the line that was written.
+
+A fault is also a value: see [Recovery](#recovery). The kind's word, as `$f.kind` reads
+it and a host carries it, is the case name exactly: `Syntax`, `Binding`,
+`UnknownCommand`, `NotFound`, `Conflict`, `Invalid`, `Cancelled`, `Internal`.
 
 An implementation **must not** let a failure end the session. `Session.Execute` **must
 not** raise: a parse failure is `Syntax`, a cancellation is `Cancelled` with the message

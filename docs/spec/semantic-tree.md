@@ -15,18 +15,20 @@ records and implement `IVisitable`.
 | `RootNode` | abstract | What a parse returns. |
 | `EmptyCommand` | none | Empty or whitespace-only input. |
 | `PipedCommandList` | `OrderedCommands: List<CommandExpression>` | One or more commands, left to right. |
+| `RecoveryLine` | `Pipelines: List<PipedCommandList>` | Two or more pipelines joined by `else`. A line without `else` is a `PipedCommandList`, never a line of one. |
 
 ### Command expressions
 
 | Node | Fields | Meaning |
 | --- | --- | --- |
-| `CommandExpression` | `Expression: OneOf<FunctionExpression, CommandExpressionCli, InstanceTag>` | One stage of a pipeline. |
+| `CommandExpression` | `Expression: OneOf<FunctionExpression, CommandExpressionCli, InstanceTag, NestedPipeline>`, `Try: bool`, `Default: Value?` | One stage of a pipeline: what it runs, whether it was written with `try`, and the operand after `??`, if any. |
 | `FunctionExpression` | `Id: Identifier`, `Arguments: CommandArguments` | `name(a, b: c)`. |
 | `CommandExpressionCli` | `Name: CommandName`, `Arguments: CommandArguments` | `name a b`. |
 | `CommandName` | `Name: string` | A command name in command line form. |
 
 An `InstanceTag` in `CommandExpression` is the tag form: the stage produces a value
-without calling a command.
+without calling a command. A `NestedPipeline` there is a pipeline in parentheses
+standing as a stage.
 
 ### Arguments
 
@@ -51,7 +53,7 @@ without calling a command.
 | `Constant` | abstract | Base for literals. |
 | `StringConstant` | `Value: string`, `QuoteCount: int`, `QuoteString: string` | A string literal. |
 | `TagValue` | `Tag: InstanceTag` | A tag used where a value is expected. |
-| `NestedPipeline` | `Pipeline: PipedCommandList` | A pipeline in parentheses, where a value is expected. |
+| `NestedPipeline` | `Pipeline: PipedCommandList` | A pipeline in parentheses, where a value is expected, or standing as a stage. |
 
 ### Expressions
 
@@ -137,13 +139,18 @@ every `Text` **must** reproduce the serialised form.
 | `string` | A `StringConstant`, including its delimiters. |
 | `variable` | A `VariableReference`, a `VariableName`, a `VariableTag`. |
 | `member` | A `MemberName`, including its leading stop. |
-| `operator` | An `OperatorWord`. |
+| `operator` | An `OperatorWord`, and the `??` of a default. |
+| `keyword` | The `try` in front of a stage and the `else` between pipelines. |
 | `identifier` | An `Identifier` that is not a command name. |
 | `type` | An `ObjectType` or a `ComponentType`. |
 | `attribute` | A `TagAttributeName` or a `ProperyName`. |
 | `punctuation` | Everything the traversal emits itself: brackets, slashes, commas, pipes, equals. |
 | `whitespace` | A run of spaces or tabs. |
 | `newline` | A line break, inside a string. |
+
+`try`, `else` and `??` are not nodes: nothing about them varies. `VisitorBase` writes
+them through two hooks, `AppendKeyword` and `AppendOperator`, which a tokenising
+visitor overrides to give them their kinds.
 
 The function form's name is an `Identifier` in the tree rather than a `CommandName`,
 because the grammar reuses the identifier production there. It **must** still be

@@ -11,7 +11,7 @@ Productions use `::=`, alternation `|`, grouping `( )`, optional `?`, zero or mo
 and one or more `+`. Terminals are in double quotes.
 
 Alternatives are **ordered**: a parser **must** try them left to right and take the
-first that succeeds. This matters in three places, all noted below.
+first that succeeds. This matters in several places, each noted below.
 
 Two lookahead operators appear in the productions below, and neither consumes input:
 `&X` requires that `X` follows, and `!X` requires that it does not. They carry the
@@ -70,6 +70,7 @@ StringLiteral     ::= '"""' StringBody '"""'
                     | '""'  StringBody '""'
                     | '"'   StringBody '"'
 StringBody        ::= ( any character other than '"' )*
+Default           ::= "??"
 ```
 
 String delimiters **must** be tried longest first, so `""""` is one empty
@@ -90,8 +91,19 @@ only the bare word itself is taken. An implementation **must** report a `Word` t
 reserved word as a syntax error rather than silently accepting it, and the message
 **should** say how to write it as text: `echo "eq"`.
 
-Reserved words are the only keywords, and they are the only thing matched literally at
-the lexical level. Case is otherwise preserved. Command name resolution is
+A `CommandName` **must not** be a `ReservedWord` either, and an implementation **must**
+report one as a syntax error at the column the name starts in; the message **should**
+say that the word is reserved and cannot name a command. Before recovery existed this
+was harmless — `eq x` reached execution as an unknown command — but `else x` would read
+as a command called `else` rather than a line whose first pipeline is missing.
+
+`try` and `else` are matched as whole words: the next character **must not** be a
+`WordChar`, so `trying` and `elsewhere` are ordinary names and words. `??` is the only
+symbol operator; `?` is not a `WordChar`, so an argument list always ends in front of
+it.
+
+Reserved words are the only keywords, and with `??` they are the only things matched
+literally at the lexical level. Case is otherwise preserved. Command name resolution is
 case-insensitive and happens later, in
 [execution](execution-model.md#resolving-a-command).
 
@@ -110,20 +122,25 @@ parameter name — admits one.
 ## Grammar
 
 ```
-Program              ::= Space* ( EOF | PipedCommandList Space* EOF )
+Program              ::= Space* ( EOF | Line Space* EOF )
 
-PipedCommandList     ::= CommandExpression ( "|" Space* CommandExpression )*
+Line                 ::= PipedCommandList ( "else" Space* PipedCommandList )*
+
+PipedCommandList     ::= Stage ( "|" Space* Stage )*
+
+Stage                ::= ( "try" Space* )? CommandExpression ( Default Space* Operand )?
 
 CommandExpression    ::= FunctionExpression
                        | CliExpression
                        | InstanceTag
+                       | "(" Space* PipedCommandList ")" Space*
 
-FunctionExpression   ::= CommandName Space* "(" Space* FunctionArgumentList Space* ")" Space*
+FunctionExpression   ::= CommandName "(" Space* FunctionArgumentList Space* ")" Space*
 FunctionArgumentList ::= ( FunctionArgument ( "," Space* FunctionArgument )* )?
 FunctionArgument     ::= Identifier Space* ":" Space* Expression
                        | Expression
 
-CliExpression        ::= CommandName Space* CommandArgument*
+CliExpression        ::= CommandName Space* ( !"else" CommandArgument )*
 CommandArgument      ::= Flag
                        | Assignment
                        | Expression
@@ -211,6 +228,28 @@ Which parameter an `Expression` reaches is [binding](execution-model.md#argument
 not grammar: an expression that wrote an operator binds only to a parameter declared
 `Predicate`.
 
+### Lines, stages and recovery
+
+`else` binds looser than `|`: each side of it is a whole `PipedCommandList`, so
+`a | b else c | d` is `(a | b) else (c | d)`. A `Line` with no `else` **must** produce
+the `PipedCommandList` itself rather than a line of one, so every tree written before
+recovery existed is unchanged. `else` is not an argument: a `CliExpression`'s argument
+list **must** end in front of it rather than reporting it as a reserved word, which is
+the fifth ordered choice that matters.
+
+`try` and the `Default` belong to one `Stage`, not to the pipeline. `try cat x | set p`
+marks `cat x` alone, and `first (ls) ?? none | set p` defaults what `first` answered.
+One `Default` per stage: `a ?? b ?? c` is a syntax error rather than a chain.
+
+A `FunctionExpression`'s opening parenthesis **must** be adjacent to its `CommandName`.
+With `Space` between them the parenthesis is not a call: it begins an `Operand`, which
+is a nested pipeline, so `first(ls)` calls `first` with the word `ls` and `first (ls)`
+calls `first` with whatever the pipeline `ls` answers
+([decision 0023](../decisions/0023-adjacent-function-parenthesis.md)). A nested pipeline
+contains a `PipedCommandList`, not a `Line`: `else` inside parentheses is a syntax error.
+
+What these mean at run time is [execution](execution-model.md#recovery), not grammar.
+
 ### Assignments
 
 `Assignment` is `name=value` with no spaces, and it is **data**: a name paired with a
@@ -263,6 +302,8 @@ A closing tag whose type differs from its opening tag **must** fail with the mes
 | `echo --double` | Syntax error at column 5 |
 | `mkdir \|` | Syntax error at column 7 |
 | `[size=3]` | Syntax error at column 0 |
+| `else echo x` | Syntax error at column 0: `'else' is a reserved word and cannot name a command` |
+| `cat x else` | Syntax error at column 10 |
 | `<a></b>` | Message: `Closing tag 'b' does not match opening tag 'a'` |
 
 ## Entry points besides a program

@@ -149,8 +149,8 @@ These thirteen words are operators wherever they appear, and never arguments:
 and  or  not  eq  ne  gt  ge  lt  le  like  has  else  try
 ```
 
-`else` and `try` belong to error recovery and do nothing yet. Writing one of them as an
-ordinary word is a syntax error that says so:
+`else` and `try` belong to [error recovery](language.md#errors-as-values). Writing one
+of them as an ordinary word is a syntax error that says so:
 
 ```
 $ echo eq

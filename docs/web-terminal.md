@@ -43,7 +43,7 @@ completions end with a separator so you can keep descending.
 
 | You type | You are offered |
 | --- | --- |
-| `c` | `cat`, `cd`, `cp`, `clear`, `columns`, `count` |
+| `c` | `cat`, `cd`, `columns`, `count`, `cp`, `clear` |
 | `cat re` | `readme.txt` |
 | `cd doc` | `documents/` |
 | `cat documents/no` | `documents/notes.txt` |
@@ -51,8 +51,14 @@ completions end with a separator so you can keep descending.
 | `echo $` | every bound variable, and `$row` |
 | `ls \| where $row.` | the columns a listing here would have |
 | `ls \| where $row.kind e` | `eq` |
+| `tr` | `try` |
+| `cat x else c` | `cat`, `cd`, `columns`, `count`, `cp`, `clear` |
+| `cat x el` | `else` |
 
-The first word of the line, and the first word after a pipe, complete to command names.
+The first word of a stage completes to command names: the first word of the line, and
+the first word after a pipe, after `else`, after `try` and after an opening
+parenthesis. `try` is offered there too. `else` is offered where an argument would be,
+once two letters of it are typed.
 A word starting with `$` completes to variables — `$row` among them, although nothing
 bound it: it exists only inside a predicate, and it is the one variable you write
 without having bound it. After a full stop, a word starting with `$` completes to
@@ -140,6 +146,15 @@ already taken at a glance. The [error reference](errors.md) lists every kind.
 
 Nothing the line did survives. A line is one transaction, so `mkdir a | cd nowhere`
 leaves no folder behind.
+
+A fault that `try` caught, or that `else` handed on, is not a failure: the line went on
+and answered with it. The page draws it in amber, with a left rule like any other
+result and the same kind tag in front — `NotFound`, the word `$problem.kind` reads —
+so the two are told apart by colour and by the tag's place: in the red line of a
+failure, or in the body of a result. See
+[Errors as values](language.md#errors-as-values).
+
+`try` and `else` are coloured as keywords as you type them, and `??` as an operator.
 
 ## Words the page handles itself
 

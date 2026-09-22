@@ -319,9 +319,9 @@ $ undo
 Undone: set answer 42
 ```
 
-`cat examples/tables.clr` shows the program. `journal.clr` runs too, and is the
-subject of the next example. The other two — `resilient.clr` and `inventory.clr` —
-need error recovery and XML, which are not built yet.
+`cat examples/tables.clr` shows the program. `journal.clr` and `resilient.clr` run
+too, and are the subjects of examples 11 and 12. The fourth, `inventory.clr`, needs XML
+and CSV, which are not built yet.
 
 ## 11. A question is somewhere you can be
 
@@ -417,3 +417,88 @@ Removed cheerful
 A view is an ordinary record of kind `view`, so it is listed, deleted and undone like
 any other file. [The filesystem](filesystem.md) is the full guide, and
 `run examples/journal.clr` is the same ideas as a program.
+
+## 12. Recover without leaving the line
+
+A failure stops a line, and a failed line changes nothing. That much has always been
+true. What is new is that the line can say what to do instead. This is
+`examples/resilient.clr`, a line at a time, from a fresh terminal.
+
+`else` runs the pipeline after it only when the one before it failed:
+
+```
+$ cat notes-from-yesterday.txt else echo "starting fresh"
+starting fresh
+```
+
+`else` binds looser than `|`, so everything after it is one pipeline, and `today.txt`
+is written only because yesterday's notes could not be read:
+
+```
+$ cat notes-from-yesterday.txt else echo "starting fresh" | write today.txt
+today.txt
+
+$ cat today.txt
+starting fresh
+```
+
+`try` keeps a failure instead of stopping at it. The stage's fault becomes its result,
+and the next stage gets it like any other value. The terminal draws it in amber, not
+red, because the line succeeded:
+
+```
+$ try cat nowhere.txt | set problem
+File does not exist : /nowhere.txt
+
+$ echo $problem.kind
+NotFound
+
+$ echo $problem.message
+File does not exist : /nowhere.txt
+```
+
+`??` gives a default to a stage that answered nothing. There are no saved views yet, so
+`first` of an empty table is nothing, and the default is what flows on. The spaced
+parenthesis is a pipeline whose result `first` is given:
+
+```
+$ first (ls | where $row.kind eq view) ?? "no views yet"
+no views yet
+
+$ first (ls | where $row.kind eq view) ?? "no views yet" | set latest
+no views yet
+
+$ echo $latest
+no views yet
+```
+
+The last line is the one that shows what recovery does not do. `mkdir today` succeeds,
+`cd nowhere` fails, and the pipeline on the left of the `else` fails with it. The right
+side answers, and only the right side commits:
+
+```
+$ mkdir today | cd nowhere else echo "the whole line was rolled back"
+the whole line was rolled back
+
+$ ls
+name        kind    folder  size  modified
+documents   folder  /       0     2026-09-22T09:30:00.0000000+00:00
+examples    folder  /       0     2026-09-22T09:30:00.0000000+00:00
+projects    folder  /       0     2026-09-22T09:30:00.0000000+00:00
+readme.txt  text    /       41    2026-09-22T09:30:00.0000000+00:00
+today.txt   text    /       14    2026-09-22T09:30:00.0000000+00:00
+
+$ find $row.name eq today | count
+0
+```
+
+`today.txt` is there; `today` never was. The line that tried to make it wrote nothing
+the store needed to remember, so `undo` steps straight past it to the line before:
+
+```
+$ undo
+Undone: first (ls | where $row.kind eq view) ?? "no views yet" | set latest
+```
+
+[Errors as values](language.md#errors-as-values) is the guide to all three, and
+`run examples/resilient.clr` is the same program in one go.

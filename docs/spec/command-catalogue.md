@@ -295,6 +295,20 @@ One row per variable in scope, ordered by name. With nothing bound it **must** s
 return a table, so that `vars | count` is 0 rather than a fault, and **should** write
 one output line inviting the user to bind something.
 
+### is-fault
+
+| Field | Value |
+| --- | --- |
+| Name | `is-fault` |
+| Parameters | `value` (optional, piped) |
+| Returns | `Boolean`: whether the value is a `Fault` |
+| Undo | none |
+| ReadOnly | yes |
+
+A script that branches on whether something worked needs a question it can ask
+without knowing what success would have looked like. Given nothing at all, the answer
+**must** be `false`.
+
 ## Long-running commands
 
 Both are `CommandActionAsync`. Both **must** observe the invocation's cancellation

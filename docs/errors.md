@@ -3,24 +3,40 @@
 Every message the terminal can show, what it means, and what to do. Messages are
 grouped by where they come from.
 
-Errors never stop the session, and a failed line changes nothing at all: the whole line
-is one transaction, so a failure discards everything its earlier stages described. The
-next line runs normally.
+A failure is a value. Every one is a **fault**: a message, a kind, and where it has
+one, the path it was about and the stage of the line that raised it. What happens to
+the fault is up to the line.
 
-Every message carries a **kind** as well as its wording. The wording is what you read;
-the kind is what tells a missing file apart from a name already taken without having to
-parse the sentence, and it is what `try` will let a program match on.
+- **Nothing written**: the line stops at the stage that failed and shows the message in
+  red. A failed line changes nothing at all: the whole line is one transaction, so a
+  failure discards everything its earlier stages described. The next line runs normally,
+  and errors never stop the session.
+- **`else`**: the pipeline after it runs instead, with the fault piped in, so
+  `cat notes.txt else echo "none"` recovers and `cat notes.txt else set problem` keeps
+  it. Only the branch that answered commits anything.
+- **`try`**: the stage's fault becomes its result, and the line goes on.
+  `try cat notes.txt | set problem` binds it, and `$problem.kind` and
+  `$problem.message` read it back. The terminal draws a caught fault in amber, because
+  the line did not fail.
 
-| Kind | Meaning |
-| --- | --- |
-| `syntax` | The line could not be turned into a tree. |
-| `binding` | What was written does not fit what the command declared. |
-| `unknowncommand` | No command by that name. |
-| `notfound` | A path, a variable or a record that is not there. |
-| `conflict` | Something is already there. |
-| `invalid` | Understood, and not allowed. |
-| `cancelled` | You stopped it. |
-| `internal` | A defect. Not your mistake; worth reporting. |
+[Errors as values](language.md#errors-as-values) has the whole of it, including `??`
+for a stage that answered nothing. Stop is the one fault neither `else` nor `try` will
+catch.
+
+The wording is what you read. The **kind** is what tells a missing file apart from a
+name already taken without having to parse the sentence, and it is what a program
+matches on: `$problem.kind` reads the word in the second column.
+
+| Tag on screen | `$problem.kind` | Meaning |
+| --- | --- | --- |
+| `syntax` | `Syntax` | The line could not be turned into a tree. |
+| `binding` | `Binding` | What was written does not fit what the command declared. |
+| `unknowncommand` | `UnknownCommand` | No command by that name. |
+| `notfound` | `NotFound` | A path, a variable or a record that is not there. |
+| `conflict` | `Conflict` | Something is already there. |
+| `invalid` | `Invalid` | Understood, and not allowed. |
+| `cancelled` | — | You stopped it. Never caught, so never read. |
+| `internal` | `Internal` | A defect. Not your mistake; worth reporting. |
 
 ## Parse errors
 
@@ -133,6 +149,12 @@ expression, and the last two belong to error recovery. Quote one to pass it as t
 The match is exact, so `equals`, `eq.txt` and `Eq` are ordinary words. The message
 names the column the word starts in.
 
+### `'<word>' is a reserved word and cannot name a command`
+
+The same thirteen words, written where a command's name belongs: `else echo x`, with
+nothing before the `else`, or `eq x`. A line cannot start with `else`; there has to be
+a pipeline for it to recover from.
+
 ### `Unsupported argument value : <node>`
 
 The parser produced a value the binder does not know how to evaluate. Strings, words,
@@ -156,7 +178,7 @@ From the table functions, and from reading a tag as a table.
 | `Unknown variable : $row` | A predicate written outside a table function, where nothing bound `$row`. |
 | `'<command>' takes a value for '<parameter>', not an expression.` | A comparison was written for a command that does not take a predicate. |
 | `A <node> cannot be part of an expression.` | A tag as one side of a comparison. |
-| `A pipeline in parentheses is not a value yet : (...)` | A nested pipeline parses; running one is not built yet. |
+| `A pipeline in parentheses only runs as part of a line : (...)` | A saved view whose text has a pipeline in parentheses in it, written by hand with `write` rather than kept by `save-view`. A line runs its nested pipelines before the predicate is built, and `save-view` keeps the value; a view file has no line around it to run one. |
 
 ## View errors
 

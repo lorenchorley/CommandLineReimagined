@@ -225,6 +225,13 @@ catches it and returns it as the response's error. Unexpected exceptions are cau
 the same boundary and reported with their type, so a defect surfaces as a message
 rather than a dead terminal. A failed command leaves the session usable.
 
+A fault is also a value the language can hold. `try` turns a stage's failure into its
+result and `else` hands a failure to the pipeline that recovers, so a script can step
+round a missing file without the line failing
+([decision 0014](../decisions/0014-recovery-operator.md)). Both put back whatever the
+failed part had done, which keeps a line atomic, and neither catches Stop
+([decision 0024](../decisions/0024-stop-is-not-recoverable.md)).
+
 ### Observability
 
 The parse response carries the token stream and the re-serialised text, so a host can
