@@ -28,6 +28,9 @@ a later record, **Rejected**.
 | [0016](0016-folders-as-records.md) | Folders are records with a `kind` of `folder`, and the root is implicit | Accepted |
 | [0017](0017-assignment-arguments.md) | `name=value` in argument position is data; `name: value` binds a parameter | Accepted |
 | [0018](0018-the-seed-is-not-a-line-anyone-typed.md) | The seeded filesystem is recorded but cannot be undone | Accepted |
+| [0019](0019-reserved-words-in-expression-positions.md) | Reserved words are reserved everywhere, not only in expressions | Accepted |
+| [0020](0020-scripts-and-run.md) | Scripts are files of command lines, and `run` executes them one line at a time | Accepted |
+| [0021](0021-variadic-parameters.md) | A command may declare one parameter that collects the rest of the arguments | Accepted |
 
 Retrospective records document decisions taken before the log existed, so that the
 log is the one place to look. Their alternatives are the ones weighed at the time, as

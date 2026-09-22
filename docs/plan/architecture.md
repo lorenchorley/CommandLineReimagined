@@ -395,7 +395,8 @@ grow to 44 pixels in Phase 1.
 | 0015 | A line is one atomic transaction | 1 |
 | 0016 | Folders are records of kind `folder`; the root is implicit | 1 |
 | 0017 | `name=value` in argument position is data, `name: value` binds a parameter | 1 |
-| 0018 | Reserved words in expression positions | 3 |
-| 0019 | Function form requires an adjacent parenthesis; a spaced parenthesis is a nested pipeline | 5 |
-| 0020 | XML element text content is out of scope for the first XML release | 6 |
-| 0021 | Scripts: one line per statement, `#` comments, `.clr`, `run` commits per line and stops at the first fault | 3 |
+| 0019 | Reserved words in expression positions | 3 |
+| 0022 | Function form requires an adjacent parenthesis; a spaced parenthesis is a nested pipeline | 5 |
+| 0023 | XML element text content is out of scope for the first XML release | 6 |
+| 0020 | Scripts: one line per statement, `#` comments, `.clr`, `run` commits per line and stops at the first fault | 3 |
+| 0021 | One parameter may collect the remaining positional arguments | 3 |

@@ -36,7 +36,8 @@ decision record saying why.
 
 ## The `run` command
 
-Added in Phase 3, when the first program becomes runnable. Decision record 0021.
+Added in Phase 3, when the first program becomes runnable. Decision record
+[0020](../decisions/0020-scripts-and-run.md).
 
 | Field | Value |
 | --- | --- |

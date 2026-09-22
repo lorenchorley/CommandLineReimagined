@@ -7,8 +7,10 @@
 [0008](../decisions/0008-explicit-row-variable.md),
 [0009](../decisions/0009-table-coercion.md).
 
-**Records to add first.** 0018 reserved words in expression positions; 0021 scripts
-and `run`.
+**Records to add first.** [0019](../decisions/0019-reserved-words-in-expression-positions.md)
+reserved words; [0020](../decisions/0020-scripts-and-run.md) scripts and `run`;
+[0021](../decisions/0021-variadic-parameters.md) variadic parameters, which `select`
+turned out to need.
 
 ## The Table value
 
