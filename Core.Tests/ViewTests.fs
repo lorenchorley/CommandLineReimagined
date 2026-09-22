@@ -319,6 +319,18 @@ type ViewTests() =
         Assert.AreEqual<FaultKind>(Invalid, fault.Kind)
         StringAssert.Contains(fault.Message, "/weekend")
 
+    /// Text that parses but asks nothing — one word — is not a view either. `cd` used to
+    /// enter it as a question every record answered `false` to, where `save-view` and
+    /// `find` refuse the same text.
+    [<TestMethod>]
+    member _.AViewFileHoldingAPlainWordIsNotEntered() =
+        let harness = journal ()
+        harness.Run "save-view weekend $row.mood eq great" |> ignore
+        harness.Run "echo monday | write weekend" |> ignore
+
+        Assert.AreEqual<string>("'/weekend' does not hold a predicate : monday", harness.Error "cd weekend")
+        Assert.AreEqual<Expr option>(None, harness.View)
+
     // -------------------------------------------------------------- refresh
 
     /// What a live listing is made of: the same answer, computed again, with nothing

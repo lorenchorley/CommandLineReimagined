@@ -230,8 +230,15 @@ let private enterNamed (invocation: Invocation) (written: string) =
                 | Some hash -> invocation.Blobs.Get hash
                 | Option.None -> async.Return(Some "")
 
-            match Expr.parse path (defaultArg content "") with
+            let text = defaultArg content ""
+
+            match Expr.parse path text with
             | Error fault -> return Error fault
+            // The check `save-view` makes before it writes one, made again on the way
+            // back in: a view whose text is a plain word, because someone wrote over it
+            // or retyped a note as a view, would otherwise be entered as a question
+            // whose every answer is false.
+            | Ok expr when not (Expr.isPredicate expr) -> return Error(Fault.notAPredicate path (text.Trim()))
             | Ok expr -> return enterView invocation expr
         | _ -> return enterFolder invocation written
     }
