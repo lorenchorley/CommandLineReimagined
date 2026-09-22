@@ -81,15 +81,6 @@ public sealed class TerminalSession
     /// <summary>Where the session is: a folder, and possibly a view over it.</summary>
     public LocationInfo Location => Describe(_session.Location);
 
-    /// <summary>
-    /// The folder path, under the name the page used before there were views.
-    /// </summary>
-    /// <remarks>
-    /// Kept for one phase so the page and this can be updated separately, then removed.
-    /// </remarks>
-    [Obsolete("Use Location. Removed after Phase 2.")]
-    public string WorkingDirectory => _session.Location.Folder;
-
     public bool IsRunning => _session.IsRunning;
 
     /// <summary>
@@ -164,8 +155,7 @@ public sealed class TerminalSession
             value is null ? null : ValueModule.display(value),
             error,
             fault,
-            Describe(response.Location),
-            response.Location.Folder);
+            Describe(response.Location));
     }
 
     /// <summary>
@@ -335,8 +325,7 @@ public sealed record ExecutionResponse(
     string? ResultText,
     string? Error,
     FaultInfo? Fault,
-    LocationInfo Location,
-    string WorkingDirectory);
+    LocationInfo Location);
 
 /// <summary>One thing the page draws.</summary>
 /// <remarks>

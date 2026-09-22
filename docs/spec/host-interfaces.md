@@ -245,8 +245,7 @@ and the position is zero.
   "resultText": "documents",
   "error": null,
   "fault": null,
-  "location": { "folder": "/", "view": null },
-  "workingDirectory": "/"
+  "location": { "folder": "/", "view": null }
 }
 ```
 
@@ -290,8 +289,7 @@ structure beside it:
 
 A host **must** keep `error` as the sentence it always was; `fault` is additional.
 
-`location` replaces `workingDirectory`, which is kept as an alias for one phase and
-then removed. A folder is `/` at the root, with no trailing separator. `view` is null,
+`location` is where the session is after the line. A folder is `/` at the root, with no trailing separator. `view` is null,
 or the predicate as it was written. The two are independent: a view does not replace
 the folder, because a new file still lands there.
 

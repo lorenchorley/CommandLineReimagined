@@ -208,6 +208,26 @@ public class TerminalSessionTests
         Assert.IsNull((await _session.ExecuteAsync("up")).Location.View);
     }
 
+    /// <summary>
+    /// The page reads where it is from <c>location</c> and nothing else.
+    /// </summary>
+    /// <remarks>
+    /// <c>workingDirectory</c> carried the folder alone until there were views, and was
+    /// kept as an alias while the page moved over. A second name for half of the same
+    /// fact is one a host could go on reading and be wrong inside a view.
+    /// </remarks>
+    [TestMethod]
+    public async Task TheWireFormatCarriesLocationAndNoWorkingDirectory()
+    {
+        var response = await _session.ExecuteAsync("cd documents");
+
+        var json = System.Text.Json.JsonSerializer.Serialize(
+            response, new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web));
+
+        StringAssert.Contains(json, "\"location\":{\"folder\":\"/documents\",\"view\":null}");
+        Assert.IsFalse(json.Contains("workingDirectory"), json);
+    }
+
     // ---- refreshing a live listing ----------------------------------------------
 
     [TestMethod]

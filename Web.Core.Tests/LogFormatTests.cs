@@ -362,7 +362,10 @@ public class LogFormatTests
         var node = JsonNode.Parse(LogFormat.Write(Transaction(Event.NewFileCreated(Record()))))!.AsObject();
 
         Assert.AreEqual(LogFormat.Version, node["v"]!.GetValue<int>());
-        Assert.AreEqual(2, LogFormat.Version);
+
+        // Pinned against what was written rather than against the constant itself, which
+        // the analyser rightly calls always true: a new version has to change this line.
+        Assert.AreEqual(2, node["v"]!.GetValue<int>());
     }
 
     /// <summary>A version this build does not know is refused, by name.</summary>
