@@ -78,8 +78,8 @@ public sealed class TerminalSession
                     spec.Parameters.Select(p => new ParameterSummary(p.Name, p.Optional)).ToList()))
                 .ToList();
 
-    /// <summary>Where the session is: a folder, and from Phase 4 possibly a view.</summary>
-    public LocationInfo Location => new(_session.Location.Folder, null);
+    /// <summary>Where the session is: a folder, and possibly a view over it.</summary>
+    public LocationInfo Location => Describe(_session.Location);
 
     /// <summary>
     /// The folder path, under the name the page used before there were views.
@@ -114,6 +114,33 @@ public sealed class TerminalSession
             FSharpOption<TaskCreationOptions>.None,
             FSharpOption<CancellationToken>.None);
 
+        return Describe(source, response, parse);
+    }
+
+    /// <summary>
+    /// Re-reads a line the way a live listing does.
+    /// </summary>
+    /// <remarks>
+    /// The same response shape as <see cref="ExecuteAsync"/>, because the page draws the
+    /// refreshed table with the same renderer it drew the first one with. What is
+    /// different is underneath: nothing is committed, nothing reaches the history, and a
+    /// line that would change something comes back as a fault instead of running.
+    /// </remarks>
+    public async Task<ExecutionResponse> RefreshAsync(string source)
+    {
+        source ??= string.Empty;
+
+        var response = await FSharpAsync.StartAsTask(
+            _session.Refresh(source),
+            FSharpOption<TaskCreationOptions>.None,
+            FSharpOption<CancellationToken>.None);
+
+        return Describe(source, response, new CommandParseService().Parse(source));
+    }
+
+    /// <summary>One response, as the page's JSON.</summary>
+    private static ExecutionResponse Describe(string source, Response response, ParseResponse parse)
+    {
         var fault = response.Fault is null ? null : Describe(response.Fault.Value);
 
         // A parse failure carries a column and a list of what would have been accepted,
@@ -137,9 +164,19 @@ public sealed class TerminalSession
             value is null ? null : ValueModule.display(value),
             error,
             fault,
-            new LocationInfo(response.Location.Folder, null),
+            Describe(response.Location),
             response.Location.Folder);
     }
+
+    /// <summary>
+    /// Where the session is, as the prompt needs it.
+    /// </summary>
+    /// <remarks>
+    /// A view travels as the text it was written as, because that is the whole of what
+    /// the page does with it: shows it, and offers it back if you want to type it again.
+    /// </remarks>
+    private static LocationInfo Describe(Location location) =>
+        new(location.Folder, location.View is null ? null : ExprModule.display(location.View.Value));
 
     public bool Cancel() => _session.Cancel();
 
@@ -313,7 +350,13 @@ public sealed record ResultColumn(string Name, string Type);
 /// </remarks>
 public sealed record FaultInfo(string Kind, string Message, int? Stage, string? Path);
 
-/// <summary>Where the session is. `View` is a saved query, and arrives in Phase 4.</summary>
+/// <summary>
+/// Where the session is: a folder, and the predicate being looked through, if any.
+/// </summary>
+/// <remarks>
+/// Both at once, because a view does not replace the folder: new files still land in
+/// <paramref name="Folder"/> while <paramref name="View"/> decides what a listing shows.
+/// </remarks>
 public sealed record LocationInfo(string Folder, string? View);
 
 public sealed record CommandSummary(string Name, string Description, IReadOnlyList<ParameterSummary> Parameters);

@@ -58,6 +58,23 @@ public static class TerminalBridge
         return JsonSerializer.Serialize(response, Options);
     }
 
+    /// <summary>
+    /// Re-reads a line for a live listing, and returns the result as JSON.
+    /// </summary>
+    /// <remarks>
+    /// The page asks for this when the store changes, to redraw the listing it is
+    /// showing. It commits nothing and leaves no scrollback entry, and a line that would
+    /// change something comes back as a fault: a refresh nobody typed is not allowed to
+    /// write.
+    /// </remarks>
+    [JSInvokable]
+    public static async Task<string> Refresh(string source)
+    {
+        var response = await Session.RefreshAsync(source ?? string.Empty);
+
+        return JsonSerializer.Serialize(response, Options);
+    }
+
     /// <summary>Stops the running command. Returns whether there was one.</summary>
     [JSInvokable]
     public static bool Cancel() => Session.Cancel();
@@ -86,6 +103,7 @@ public static class TerminalBridge
 
         var session = new TerminalSession(_log);
         session.OutputChanged += OnOutputChanged;
+        session.StoreChanged += OnStoreChanged;
         _session = session;
 
         await session.InitializeAsync();
@@ -126,6 +144,34 @@ public static class TerminalBridge
     /// <summary>Where the session is, for the prompt.</summary>
     [JSInvokable]
     public static string Location() => JsonSerializer.Serialize(Session.Location, Options);
+
+    /// <summary>
+    /// Tells the page that the store moved on.
+    /// </summary>
+    /// <remarks>
+    /// Fire and forget, and deliberately so: this is raised from inside a commit, which
+    /// is inside the interop call the page is still awaiting, so calling back
+    /// synchronously would have the page asking for a refresh of a line that has not
+    /// finished running. The page defers as well; between the two, a refresh always
+    /// lands after the line that caused it.
+    /// </remarks>
+    private static void OnStoreChanged(long sequence) => _ = NotifyStoreChanged(sequence);
+
+    private static async Task NotifyStoreChanged(long sequence)
+    {
+        try
+        {
+            if (_js is not null)
+            {
+                await _js.InvokeVoidAsync("terminal.storeChanged", sequence);
+            }
+        }
+        catch (Exception)
+        {
+            // The page may have no handler yet, or may be unloading. A missed refresh
+            // costs a stale table until the next line, which is not worth a failure.
+        }
+    }
 
     private static void OnOutputChanged(int executionId, IReadOnlyList<string> lines)
     {

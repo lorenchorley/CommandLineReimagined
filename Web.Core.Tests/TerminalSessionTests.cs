@@ -181,6 +181,69 @@ public class TerminalSessionTests
         Assert.AreEqual("/documents", _session.Location.Folder);
     }
 
+    /// <summary>
+    /// A view travels beside the folder, not instead of it.
+    /// </summary>
+    /// <remarks>
+    /// The prompt draws both: the question being looked through, and the folder a new
+    /// file would still land in.
+    /// </remarks>
+    [TestMethod]
+    public async Task TheResponseSaysWhichViewTheSessionIsIn()
+    {
+        await _session.ExecuteAsync("cd documents");
+
+        var response = await _session.ExecuteAsync("cd $row.kind eq folder");
+
+        Assert.AreEqual("$row.kind eq folder", response.Location.View);
+        Assert.AreEqual("/documents", response.Location.Folder);
+        Assert.AreEqual("$row.kind eq folder", _session.Location.View);
+    }
+
+    [TestMethod]
+    public async Task LeavingAViewClearsItFromTheResponse()
+    {
+        await _session.ExecuteAsync("cd $row.kind eq folder");
+
+        Assert.IsNull((await _session.ExecuteAsync("up")).Location.View);
+    }
+
+    // ---- refreshing a live listing ----------------------------------------------
+
+    [TestMethod]
+    public async Task ARefreshAnswersTheSameShapeAsARun()
+    {
+        var run = await _session.ExecuteAsync("ls");
+        var refreshed = await _session.RefreshAsync("ls");
+
+        Assert.IsNull(refreshed.Error);
+        CollectionAssert.AreEqual(
+            (System.Collections.ICollection)Names(run.Result!.Single()),
+            (System.Collections.ICollection)Names(refreshed.Result!.Single()));
+    }
+
+    [TestMethod]
+    public async Task ARefreshSeesWhatHasChangedSince()
+    {
+        await _session.ExecuteAsync("ls");
+        await _session.ExecuteAsync("mkdir appeared");
+
+        CollectionAssert.Contains(
+            (System.Collections.ICollection)Names((await _session.RefreshAsync("ls")).Result!.Single()),
+            "appeared");
+    }
+
+    /// The page asks for this behind the user's back, so it must not be able to write.
+    [TestMethod]
+    public async Task ARefreshRefusesALineThatWouldChangeSomething()
+    {
+        var response = await _session.RefreshAsync("mkdir sneaky");
+
+        Assert.IsNotNull(response.Fault);
+        StringAssert.Contains(response.Error!, "only re-reads");
+        CollectionAssert.DoesNotContain((System.Collections.ICollection)await Listing(), "sneaky");
+    }
+
     // ---- undo, redo and history -------------------------------------------------
     // Commands now, not bridge methods, so they go through ExecuteAsync like the rest.
 

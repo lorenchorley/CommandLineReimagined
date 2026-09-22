@@ -107,6 +107,34 @@ const PHASE_3 = [
 ];
 
 /**
+ * Phase 4: a query is a place.
+ *
+ * Run from a fresh store. The example program first, because it is the phase's proof,
+ * and then the four things about a view that only the page can be wrong about: what
+ * the prompt says, what a listing shows across folders, and the way back out.
+ */
+const PHASE_4 = [
+  { line: 'run examples/journal.clr', expect: ['> cd $row.mood eq great', '> up', 'Undone: rm tuesday'] },
+
+  // The program leaves you in /journal. The rest of these are about views as such,
+  // so they start from the root.
+  { line: 'cd /', expect: ['/'] },
+
+  { line: 'cd $row.kind eq folder', expect: ['$row.kind eq folder'] },
+  // A view lists across folders, so the seeded tree and the journal appear together.
+  { line: 'ls', expect: ['documents', 'examples', 'projects', 'journal'], absent: ['readme.txt'] },
+  // Both work notes are back: journal.clr's last act was to undo the `rm`.
+  { line: 'find $row.kind eq note and $row.tag eq work | count', expect: ['2'] },
+  { line: 'up', expect: ['/'] },
+  { line: 'ls', expect: ['readme.txt'] },
+
+  { line: 'save-view weekend $row.mood eq great', expect: ['weekend'] },
+  { line: 'cd weekend', expect: ['$row.mood eq great'] },
+  { line: 'ls', expect: ['saturday'], absent: ['monday'] },
+  { line: 'up', expect: ['/'] },
+];
+
+/**
  * Phase 2: what a reload is for. Run, reload the page, and check what came back.
  *
  * This cannot be a unit test. Replaying a log is covered in `Core.Tests`; what is only
@@ -397,6 +425,59 @@ async function main() {
     await submit(page, 'reset');
     await runScript(page, PHASE_3, note);
     console.log(`Ran ${PHASE_3.length} more for Phase 3.`);
+
+    // ---- Phase 4: views, the location line and a live listing ---------------
+
+    await submit(page, 'reset');
+    await runScript(page, PHASE_4, note);
+    console.log(`Ran ${PHASE_4.length} more for Phase 4.`);
+
+    // The location line says which of the two ways of being somewhere this is.
+    await submit(page, 'cd $row.kind eq folder');
+    const viewing = (await page.locator('#prompt').innerText()).trim();
+
+    if (!viewing.includes('view:') || !viewing.includes('$row.kind eq folder')) {
+      note(`in a view the location line reads ${JSON.stringify(viewing)}`);
+    }
+
+    await page.locator('#prompt .up').click();
+    await page.waitForFunction(
+      () => document.getElementById('prompt').innerText.trim() === '/', null, { timeout: 10000 });
+
+    // A listing keeps itself up to date: `mkdir` in the next entry adds a row to the
+    // table above it, without that entry being re-run by hand.
+    await submit(page, 'ls');
+    // Pinned by index rather than with `.last()`: more entries follow, and a locator
+    // is resolved when it is used, so `.last()` would quietly become the wrong entry.
+    const listed = page.locator('.entry').nth(await page.locator('.entry').count() - 1);
+    const badge = await listed.locator('.watch .badge').innerText();
+
+    if (badge.trim() !== 'live') {
+      note(`the newest listing is not marked live; it says ${JSON.stringify(badge)}`);
+    }
+
+    const rowsBefore = await listed.locator('.grid tbody tr').count();
+    await submit(page, 'mkdir appeared');
+
+    try {
+      await page.waitForFunction(
+        ({ index, count }) =>
+          document.querySelectorAll('.entry')[index].querySelectorAll('.grid tbody tr').length > count,
+        { index: await page.locator('.entry').count() - 2, count: rowsBefore },
+        { timeout: 10000 });
+    } catch {
+      note('the live listing did not gain a row when a folder was created below it');
+    }
+
+    // Turning it off freezes it: the next change leaves the table alone.
+    await listed.locator('.watch .badge').click();
+    const frozenAt = await listed.locator('.grid tbody tr').count();
+    await submit(page, 'mkdir ignored');
+    await page.waitForTimeout(500);
+
+    if (await listed.locator('.grid tbody tr').count() !== frozenAt) {
+      note('a paused listing refreshed anyway');
+    }
 
     // ---- Phase 2: the log survives a reload ---------------------------------
 

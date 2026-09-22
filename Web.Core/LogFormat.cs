@@ -106,13 +106,21 @@ public static class LogFormat
             ["content"] = record.Content is { } hash ? JsonValue.Create(hash.Value) : null,
         };
 
+    /// <summary>
+    /// Where the session was, as two fields.
+    /// </summary>
+    /// <remarks>
+    /// The view is written as the predicate's text rather than as a tree. It is the
+    /// same text a saved view file holds and the same text the prompt shows, so a
+    /// stored location is legible in the browser's own storage inspector, and reading
+    /// it back is the grammar's job rather than this file's. A shape for the tree would
+    /// have been a second grammar to keep in step with the first.
+    /// </remarks>
     private static JsonObject ToNode(Location location) =>
         new()
         {
             ["folder"] = location.Folder,
-            // A saved query is Phase 4; the field is written now so that a log from
-            // this build is readable by that one without a version bump.
-            ["view"] = null,
+            ["view"] = location.View is { } view ? JsonValue.Create(ExprModule.display(view.Value)) : null,
         };
 
     private static JsonObject ToNode(FSharpMap<string, Value> attributes)
@@ -298,9 +306,29 @@ public static class LogFormat
             ReadAttributes(node["attributes"]!.AsObject()),
             ReadOptionalString(node["content"]));
 
-    private static Location ReadLocation(JsonObject node) =>
-        // The view stays None until Phase 4 gives it a shape to read.
-        new(node["folder"]!.GetValue<string>(), FSharpOption<Expr>.None);
+    private static Location ReadLocation(JsonObject node)
+    {
+        string folder = node["folder"]!.GetValue<string>();
+        string? view = node["view"]?.GetValue<string>();
+
+        if (string.IsNullOrEmpty(view))
+        {
+            return new(folder, FSharpOption<Expr>.None);
+        }
+
+        var parsed = ExprModule.parse("the stored location", view);
+
+        // A stored view that no longer parses is a transaction this build cannot read,
+        // and is counted and skipped as one. Quietly dropping the view instead would
+        // put the session somewhere it never was and say nothing about it.
+        if (parsed.IsError)
+        {
+            throw new FormatException(
+                $"A stored location holds a view this build cannot read: {view}");
+        }
+
+        return new(folder, FSharpOption<Expr>.Some(parsed.ResultValue));
+    }
 
     private static FSharpMap<string, Value> ReadAttributes(JsonObject node) =>
         MapModule.OfSeq(node.Select(pair =>

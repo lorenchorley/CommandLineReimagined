@@ -151,6 +151,30 @@ public class LogFormatTests
         Assert.AreEqual("/documents", changed.after.Folder);
     }
 
+    /// <summary>
+    /// A view survives the round trip, which is what makes undo work across a reload.
+    /// </summary>
+    /// <remarks>
+    /// It is stored as the predicate's text and read back through the grammar, so a
+    /// location that was entered as a question comes back as the same question rather
+    /// than as the folder it happened to be over.
+    /// </remarks>
+    [TestMethod]
+    public void LocationChangedKeepsItsView()
+    {
+        var view = ExprModule.parse("test", "$row.kind eq folder");
+
+        var read = RoundTrip(Transaction(Event.NewLocationChanged(
+            new Location("/", FSharpOption<Expr>.None),
+            new Location("/", FSharpOption<Expr>.Some(view.ResultValue)))));
+
+        var changed = (Event.LocationChanged)read.Events.Single();
+
+        Assert.IsNull(changed.before.View);
+        Assert.IsNotNull(changed.after.View);
+        Assert.AreEqual("$row.kind eq folder", ExprModule.display(changed.after.View!.Value));
+    }
+
     // ---- transactions -----------------------------------------------------------
 
     [TestMethod]

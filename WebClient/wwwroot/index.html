@@ -104,6 +104,21 @@
   .grid td.object, .grid td.table { color:var(--variable); }
   .grid td.none { color:var(--punctuation); }
   .grid td.none::before { content:'—'; }
+  /*
+    A live listing. The badge says the table is being kept up to date and is the way to
+    stop it; the flash is how a table that changed under you says that it did, which a
+    silent redraw could not.
+  */
+  .watch:empty { display:none; }
+  .watch { margin-top:4px; }
+  .watch .badge {
+    font:11px ui-monospace,monospace; padding:6px 10px; border-radius:6px; min-height:28px;
+    border:1px solid var(--line); background:var(--panel); color:var(--dim); cursor:pointer;
+  }
+  .watch .badge.on { color:var(--ok); border-color:var(--ok); }
+  .watch .frozen { font-size:11px; color:var(--punctuation); }
+  @keyframes flash { from { background:rgba(107,138,253,.28); } to { background:transparent; } }
+  .flash { animation:flash .8s ease-out; }
   .running .out:last-child::after { content:''; display:inline-block; width:6px; height:11px;
           margin-left:3px; background:var(--accent); vertical-align:-1px; animation:blink 1s steps(2) infinite; }
   @keyframes blink { to { visibility:hidden; } }
@@ -126,6 +141,11 @@
     font:11px ui-monospace,monospace; padding:3px 9px; border-radius:6px; background:var(--panel);
     color:var(--type); border:1px solid var(--line); font-weight:600;
   }
+  /* A view reads as the question it is, with the folder it was entered from behind it. */
+  #prompt .viewing { color:var(--operator); font-weight:600; }
+  #prompt .predicate { color:var(--member); }
+  #prompt .inside { color:var(--punctuation); }
+  #complete .key.view { color:var(--member); }
   .inputrow { display:flex; gap:6px; align-items:stretch; }
   /* A transparent input sits on a coloured mirror, so the text is tokenised while
      staying a real input the phone keyboard understands. */
@@ -299,6 +319,20 @@ function sortedRows(table) {
   return table.desc ? ordered.reverse() : ordered;
 }
 
+/*
+  What tapping a cell should write.
+
+  A cell that names a place writes the line that takes you there, rather than the path
+  on its own: a folder in the `name` column, and the `folder` column of a view's
+  listing, which is the column that says which folder a row came from. Everything else
+  inserts what it is, as it always has.
+*/
+function insertionFor(column, cell) {
+  if (cell.kind === 'folder') return 'cd ' + (cell.path || cell.text);
+  if (column && column.name === 'folder' && cell.text) return 'cd ' + cell.text;
+  return cell.path || cell.text;
+}
+
 function gridHtml(id) {
   const table = tables.get(id);
 
@@ -307,11 +341,18 @@ function gridHtml(id) {
     `${escape(column.name)}</th>`).join('');
 
   const body = sortedRows(table).map(row =>
-    '<tr>' + row.map(cell =>
-      `<td class="${cell.kind}" data-insert="${escape(cell.path || cell.text)}">${escape(cell.text)}</td>`
+    '<tr>' + row.map((cell, index) =>
+      `<td class="${cell.kind}" data-insert="${escape(insertionFor(table.columns[index], cell))}">` +
+      `${escape(cell.text)}</td>`
     ).join('') + '</tr>').join('');
 
   return `<table><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>`;
+}
+
+/// Forgets the tables an entry was showing, so re-rendering one does not leave its
+/// old data behind in the map for the rest of the session.
+function forgetTables(element) {
+  for (const grid of element.querySelectorAll('.grid')) tables.delete(Number(grid.dataset.table));
 }
 
 /// Starts an entry the moment a command is submitted, so live output has somewhere to
@@ -323,7 +364,9 @@ function startEntry(id, text) {
     if (!parsed.error) echoed = tokenHtml(parsed.tokens);
   } catch {}
 
-  const entry = addEntry(`<div class="echo"><span class="sigil">$ </span>${echoed}</div><div class="live"></div><div class="tail"></div>`);
+  const entry = addEntry(
+    `<div class="echo"><span class="sigil">$ </span>${echoed}</div>` +
+    `<div class="live"></div><div class="tail"></div><div class="watch"></div>`);
   entry.classList.add('running');
   return entry;
 }
@@ -341,12 +384,93 @@ function finishEntry(entry, r) {
   scroll.scrollTop = scroll.scrollHeight;
 }
 
-// Called from .NET while a command runs, with the complete current output lines.
+// ---- live listings --------------------------------------------------------
+
+/*
+  The newest listing keeps itself up to date.
+
+  A listing is a question about the store, and the store changes under it: `mkdir x`
+  in the next entry makes the answer above it wrong. Because the log says when it
+  changed, the page can ask the question again — through `Refresh`, which re-reads and
+  commits nothing — and replace the table in place. Only the newest listing does this;
+  the ones above it froze when they scrolled out of the conversation, which is what a
+  scrollback is for.
+*/
+let live = null;       // { entry, source, on } for the newest listing
+let refreshWanted = false;
+
+/// Which lines are worth keeping live: the two that ask what is there.
+const listings = ['ls', 'find'];
+
+function isListing(text) {
+  return listings.includes(text.trim().split(/[\s|]/)[0]);
+}
+
+function markLive(entry, source) {
+  if (live && live.entry !== entry) {
+    const bar = live.entry.querySelector('.watch');
+    if (bar) bar.innerHTML = '<span class="frozen">frozen</span>';
+  }
+
+  live = { entry, source, on: true };
+  drawWatch();
+}
+
+function drawWatch() {
+  if (!live) return;
+  const bar = live.entry.querySelector('.watch');
+  if (!bar) return;
+
+  bar.innerHTML = `<button class="badge ${live.on ? 'on' : ''}">${live.on ? 'live' : 'paused'}</button>`;
+
+  bar.querySelector('button').onclick = () => {
+    live.on = !live.on;
+    drawWatch();
+    if (live.on) refreshLive();
+  };
+}
+
+/// Asks the same question again and redraws the answer. A refusal or a failure leaves
+/// what is on screen alone: a listing that has gone wrong is better than a blank one.
+async function refreshLive() {
+  refreshWanted = false;
+  if (!live || !live.on || running || !ready) return;
+
+  const target = live;
+
+  try {
+    const response = JSON.parse(await DotNet.invokeMethodAsync('WebClient', 'Refresh', target.source));
+    if (response.error || live !== target) return;
+
+    const tail = target.entry.querySelector('.tail');
+    forgetTables(tail);
+    tail.innerHTML = itemsHtml(response.result);
+
+    // A table that changed while you were reading it has to say so, or the numbers
+    // just quietly disagree with what you remember.
+    tail.classList.remove('flash');
+    void tail.offsetWidth;
+    tail.classList.add('flash');
+  } catch {
+    // The runtime may be busy or gone. The next change asks again.
+  }
+}
+
+// Called from .NET: while a command runs, with the complete current output lines, and
+// after every commit, with the sequence number the store reached.
 window.terminal = {
   output(id, lines) {
     if (!running || running.id !== id) return;
     running.entry.querySelector('.live').innerHTML = linesHtml(lines);
     scroll.scrollTop = scroll.scrollHeight;
+  },
+
+  // Raised from inside the commit, which is inside the call the page is still
+  // awaiting, so the refresh is deferred rather than run here. A line finishing
+  // refreshes too, which is what picks this up when it arrives mid-execution.
+  storeChanged() {
+    refreshWanted = true;
+    if (!running) setTimeout(refreshLive, 0);
   }
 };
 
@@ -413,23 +537,37 @@ async function run() {
   // rather than about the filesystem. `undo` used to be here too, and `help` until
   // Phase 3; both are real commands now, so they go through the evaluator like
   // everything else and can be piped.
-  if (text === 'clear') { scroll.innerHTML = ''; tables.clear(); afterRun(text); return; }
+  if (text === 'clear') { scroll.innerHTML = ''; tables.clear(); live = null; afterRun(text); return; }
 
   const id = nextId++;
   running = { id, entry: startEntry(id, text) };
   runButton.textContent = 'Stop'; runButton.classList.add('stop');
   afterRun(text);
 
+  const entry = running.entry;
+
   try {
     const response = await DotNet.invokeMethodAsync('WebClient', 'Execute', text, id);
-    finishEntry(running.entry, JSON.parse(response));
+    const result = JSON.parse(response);
+    finishEntry(entry, result);
+
+    // The newest listing is the one kept live, and only when it answered a table:
+    // a failed `ls` has nothing to keep up to date.
+    if (!result.error && isListing(text) && (result.result || []).some(item => item.kind === 'table')) {
+      markLive(entry, text);
+    }
   } catch (e) {
-    running.entry.classList.remove('running');
-    running.entry.querySelector('.tail').innerHTML = `<div class="err">${escape(String(e))}</div>`;
+    entry.classList.remove('running');
+    entry.querySelector('.tail').innerHTML = `<div class="err">${escape(String(e))}</div>`;
   } finally {
     running = null;
     runButton.textContent = 'Run'; runButton.classList.remove('stop');
     await refreshPrompt();
+
+    // A commit raised `storeChanged` while this line was still running, so the
+    // refresh it asked for happens now that nothing is in flight.
+    if (refreshWanted) await refreshLive();
+
     cmd.focus();
   }
 }
@@ -452,15 +590,22 @@ function afterRun(text) {
   A listing is a table of records from Phase 3, and a table has nowhere to put the `up`
   entry that used to head one: every row is a record, and `up` is not. It lives here
   instead, beside the folder it would take you out of, and it runs the `up` command.
+
+  From Phase 4 there are two ways of being somewhere. A folder reads as its path; a
+  view reads as the question it is, with the folder it was entered from behind it,
+  because that is still where a new file would land. `up` leaves the view first and the
+  folder second, in the order they were entered.
 */
 async function refreshPrompt() {
   if (!ready) return;
   const location = JSON.parse(DotNet.invokeMethod('WebClient', 'Location'));
 
-  // A location is a folder today and may be a saved query later, so the prompt reads
-  // whichever one is set rather than assuming a path.
-  const where = escape(location.view || location.folder);
-  const canGoUp = !location.view && location.folder !== '/';
+  const where = location.view
+    ? `<span class="viewing">view:</span> <span class="predicate">${escape(location.view)}</span>` +
+      `<span class="inside"> in ${escape(location.folder)}</span>`
+    : escape(location.folder);
+
+  const canGoUp = !!location.view || location.folder !== '/';
 
   $('prompt').innerHTML = canGoUp
     ? `<button class="up" id="up">up</button> ${where}`
@@ -564,6 +709,9 @@ runButton.onclick = run;
 [['help','help'],['ls','ls'],['where','ls | where $row.kind eq folder'],
  ['sort','ls | sort size desc'],['select','ls | select name kind'],['count','ls | count'],
  ['first','ls | sort name | first'],['run','run examples/tables.clr'],
+ ['run journal','run examples/journal.clr'],
+ ['find','find $row.kind eq folder'],['cd a view','cd $row.kind eq folder'],
+ ['save-view','save-view folders $row.kind eq folder'],['up','up'],
  ['cat readme.txt','cat readme.txt'],['cd documents','cd documents'],
  ['mkdir scratch','mkdir scratch'],['echo hi | write note.txt','echo hi | write note.txt'],
  ['rm note.txt','rm note.txt'],['progress 20 100','progress 20 100'],['progress','progress'],
@@ -590,6 +738,10 @@ function bannerFor(store) {
     'The parser, the commands and the filesystem are all .NET compiled to WebAssembly. ' +
     'Type <b>help</b> for the commands, or tap a suggestion below. ' +
     'Listings are tables you can question: <b>ls | where $row.kind eq folder | count</b>. ' +
+    'A question is also somewhere you can be: <b>cd $row.kind eq folder</b> enters it, ' +
+    '<b>ls</b> lists it across folders, <b>up</b> leaves it, <b>find</b> asks it once ' +
+    'and <b>save-view</b> keeps it as a file. The newest listing stays live as the ' +
+    'filesystem changes; tap <b>live</b> under it to stop. ' +
     'Also pipes, the function form (echo(a, b)), tags (&lt;thing a=1/&gt;), ' +
     'components ({renderer/}) and variables (set v 5, then $v). ' +
     'Tap a column header to re-sort what is on screen, or a cell to insert it. ' +
