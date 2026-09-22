@@ -7,7 +7,7 @@ namespace Commands.Parser.SemanticTree
     public record OptionalCommandArgument : CommandArgument
     {
         public OneOf<CommandArgumentFlag, Identifier> Name { get; init; }
-        public Value Value { get; init; }
+        public Value Value { get; init; } = null!;
 
         public override void Accept(ISemanticTreeVisitor visitor)
         {

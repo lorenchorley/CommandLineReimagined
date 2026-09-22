@@ -47,7 +47,7 @@ public class ComponentGenerator : IIncrementalGenerator
                 public bool AppliedToShadow { get; set; } = false;
                 public EntityIndex Entity { get; set; } // Parent entity
                 public ComponentIndex Component { get; set; } // Component to create
-                public Component CreatedComponent { get; set; }
+                public Component CreatedComponent { get; set; } = null!;
 
                 public {{componentTypeName}}Creation(EntityIndex entity) 
                 {
@@ -134,7 +134,7 @@ public class ComponentGenerator : IIncrementalGenerator
             public class {{componentTypeName}}Proxy : {{componentTypeName}}, IComponentProxy
             {
                 public bool DifferentialActive { get; set; } = true;
-                public Action<IEvent> RegisterDifferential { get; init; }
+                public Action<IEvent> RegisterDifferential { get; init; } = null!;
 
                 //public IComponentCreation GenerateCreationEvent()
                 //{
@@ -161,10 +161,10 @@ public class ComponentGenerator : IIncrementalGenerator
     }
 
     private string GeneratePrivateFields(List<IPropertySymbol> properties)
-        => string.Join(NewLine, properties.Select(p => $"private {p.OriginalDefinition.Type.ToDisplayString()} _{ToCamelCase(p.OriginalDefinition.Name)};"));
+        => string.Join(NewLine, properties.Select(p => $"private {p.OriginalDefinition.Type.ToDisplayString()} _{ToCamelCase(p.OriginalDefinition.Name)} = default!;"));
 
     private string GeneratePublicFields(List<IPropertySymbol> properties)
-        => string.Join(NewLine, properties.Select(p => $"public {p.OriginalDefinition.Type.ToDisplayString()} {p.OriginalDefinition.Name};"));
+        => string.Join(NewLine, properties.Select(p => $"public {p.OriginalDefinition.Type.ToDisplayString()} {p.OriginalDefinition.Name} = default!;"));
     
     private string GeneratePublicModifiedFlagFields(List<IPropertySymbol> properties)
         => string.Join(NewLine, properties.Select(p => $"public bool {p.OriginalDefinition.Name}_ModifiedFlag = false;"));

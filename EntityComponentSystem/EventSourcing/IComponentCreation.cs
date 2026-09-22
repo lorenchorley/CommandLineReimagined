@@ -12,5 +12,5 @@ public interface IComponentCreation : IEvent
     ComponentIndex Component { get; set; }
     Component CreatedComponent { get; set; }
 
-    void ApplyTo(IdentifiableList list, TreeType treeType);
+    new void ApplyTo(IdentifiableList list, TreeType treeType);
 }

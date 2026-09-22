@@ -11,7 +11,7 @@ public class HighlightComponent : LineSegmentComponent, IRenderableComponent
     [State]
     public virtual int Column { get; set; }
     [State]
-    public virtual TextComponent TextComponent { get; set; }
+    public virtual TextComponent TextComponent { get; set; } = null!;
 
     private static readonly Brush _fillColor = new SolidBrush(Color.Red);
     public Brush FillColor { get; internal set; } = _fillColor;

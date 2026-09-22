@@ -27,7 +27,7 @@ public class ParserEquivalenceTests
     private static readonly CommandLineInterpreter Gold = new();
     private static readonly CommandLineReimagined.Parsing.CommandLineParser FParsec = new();
 
-    [DataTestMethod]
+    [TestMethod]
     [DataRow("")]
     [DataRow("command")]
     [DataRow("command argument")]
@@ -68,7 +68,7 @@ public class ParserEquivalenceTests
         Assert.AreEqual(gold, fparsec, $"The two parsers disagree on '{source}'.");
     }
 
-    [DataTestMethod]
+    [TestMethod]
     [DataRow("command)")]
     [DataRow("command --flag")]
     [DataRow("echo \"unterminated")]
@@ -83,7 +83,7 @@ public class ParserEquivalenceTests
         Assert.IsTrue(FParsec.Parse<RootNode>(source).IsT1, $"FParsec accepted '{source}'.");
     }
 
-    [DataTestMethod]
+    [TestMethod]
     [DataRow("command )", 8)]
     [DataRow("command(", 8)]
     [DataRow("a | | b", 4)]

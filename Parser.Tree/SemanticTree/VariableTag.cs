@@ -4,7 +4,7 @@ namespace Commands.Parser.SemanticTree
 {
     public record VariableTag : InstanceTag
     {
-        public VariableName Name { get; init; }
+        public VariableName Name { get; init; } = null!;
 
         public override void Accept(ISemanticTreeVisitor visitor)
         {

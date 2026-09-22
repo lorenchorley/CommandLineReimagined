@@ -15,7 +15,7 @@ namespace Parser.Tests;
 [TestClass]
 public class BareWordTests
 {
-    [DataTestMethod]
+    [TestMethod]
     [DataRow("cat notes.txt", "notes.txt")]
     [DataRow("cd ..", "..")]
     [DataRow("cd ../documents", "../documents")]
@@ -102,7 +102,7 @@ public class BareWordTests
     /// asserted the syntax error. A `/` is now part of the word unless a `>` or a `}`
     /// follows it, so the last one closes the tag and the rest belong to the path.
     /// </remarks>
-    [DataTestMethod]
+    [TestMethod]
     [DataRow("<file path=documents/notes.txt/>", "documents/notes.txt")]
     [DataRow("<t path=a/>", "a")]
     [DataRow("<t path=/absolute/path/>", "/absolute/path")]
@@ -128,7 +128,7 @@ public class BareWordTests
     }
 
     /// <summary>A `-` in front of a digit is a number, not a flag.</summary>
-    [DataTestMethod]
+    [TestMethod]
     [DataRow("echo -5", "-5")]
     [DataRow("echo -5.5", "-5.5")]
     [DataRow("echo -0", "-0")]
@@ -171,7 +171,7 @@ public class BareWordTests
     }
 
     /// <summary>An assignment's value can be a quoted string, a variable or a tag.</summary>
-    [DataTestMethod]
+    [TestMethod]
     [DataRow("attr f note=\"two words\"")]
     [DataRow("attr f owner=$me")]
     [DataRow("attr f size=<dimension value=3/>")]
@@ -193,7 +193,7 @@ public class BareWordTests
     /// assignment, which is what this pins down; giving `=` a meaning of its own as a
     /// bare word is a separate question nobody has asked for.
     /// </remarks>
-    [DataTestMethod]
+    [TestMethod]
     [DataRow("echo a = b")]
     [DataRow("echo a =b")]
     [DataRow("echo a= b")]
@@ -225,20 +225,20 @@ public class BareWordTests
     /// `<` opens a tag only when a name, a `$` or a `/` follows it directly. This is
     /// what leaves the bracket free to mean less-than in Phase 3.
     /// </summary>
-    [DataTestMethod]
+    [TestMethod]
     [DataRow("< thing")]
     [DataRow("echo < thing")]
     public void ASpacedBracketDoesNotOpenATag(string source) =>
         ParserHarness.ParseError(source);
 
-    [DataTestMethod]
+    [TestMethod]
     [DataRow("<thing/>")]
     [DataRow("<$name>")]
     [DataRow("<thing><inner/></thing>")]
     public void ATightBracketStillOpensATag(string source) =>
         ParserHarness.Parse(source);
 
-    [DataTestMethod]
+    [TestMethod]
     [DataRow("cat documents/notes.txt")]
     [DataRow("<file path=documents/notes.txt/>")]
     [DataRow("<t path=a/>")]

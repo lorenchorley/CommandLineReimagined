@@ -71,7 +71,7 @@ public class RecoveryTests
     }
 
     /// <summary>Decision 0019: a reserved word cannot name a command, and the error says so.</summary>
-    [DataTestMethod]
+    [TestMethod]
     [DataRow("else echo x", "else")]
     [DataRow("eq x", "eq")]
     [DataRow("and(x)", "and")]
@@ -83,7 +83,7 @@ public class RecoveryTests
         Assert.AreEqual($"'{word}' is a reserved word and cannot name a command", error.Explanation);
     }
 
-    [DataTestMethod]
+    [TestMethod]
     [DataRow("else echo x")]
     [DataRow("cat x else")]
     [DataRow("cat x else else echo y")]
@@ -133,7 +133,7 @@ public class RecoveryTests
         Assert.AreEqual("trying", stage.Expression.AsT1.Name.Name);
     }
 
-    [DataTestMethod]
+    [TestMethod]
     [DataRow("try")]
     [DataRow("try | echo")]
     [DataRow("cat try")]
@@ -164,7 +164,7 @@ public class RecoveryTests
     }
 
     /// <summary>One <c>??</c> per stage; a second is a syntax error rather than a chain.</summary>
-    [DataTestMethod]
+    [TestMethod]
     [DataRow("first ?? a ?? b")]
     [DataRow("first ??")]
     [DataRow("?? a")]
@@ -222,7 +222,7 @@ public class RecoveryTests
 
     // ----------------------------------------------------------- round trips
 
-    [DataTestMethod]
+    [TestMethod]
     [DataRow("cat notes-from-yesterday.txt else echo \"starting fresh\"")]
     [DataRow("cat notes-from-yesterday.txt else echo \"starting fresh\" | write today.txt")]
     [DataRow("try cat nowhere.txt | set problem")]

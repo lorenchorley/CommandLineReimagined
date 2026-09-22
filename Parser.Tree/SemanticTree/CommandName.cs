@@ -5,7 +5,7 @@ namespace Commands.Parser.SemanticTree
 {
     public record CommandName : IVisitable
     {
-        public string Name { get; set; }
+        public string Name { get; set; } = null!;
 
         public void Accept(ISemanticTreeVisitor visitor)
         {

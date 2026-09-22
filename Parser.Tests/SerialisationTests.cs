@@ -11,7 +11,7 @@ namespace Parser.Tests;
 [TestClass]
 public class SerialisationTests
 {
-    [DataTestMethod]
+    [TestMethod]
     // Commands
     [DataRow("")]
     [DataRow("command")]
