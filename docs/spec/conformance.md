@@ -40,6 +40,9 @@ test methods; data-driven methods expand to more cases at run time.
 | `undo`, `redo` and `history` as commands | `Core.Tests/MetaCommandTests` | 16 |
 | Completion over the projection | `Core.Tests/CompletionTests` | 12 |
 | The phase's acceptance list, from a fresh session | `Core.Tests/AcceptanceTests` | 10 |
+| Replaying a log, seeding once, and `reset` | `Core.Tests/PersistenceTests` | 13 |
+| The stored shape of a transaction, every event and value case, versioning | `Web.Core.Tests/LogFormatTests` | 21 |
+| The browser's IndexedDB module, including a browser without it | `tools/store-check.mjs` | 20 |
 | DTO shapes, streaming, cancellation, completion, tokens | `Web.Core.Tests/TerminalSessionTests` | 36 |
 | Path and naming helpers | `Terminal.Tests/ValidCommandTests` | 2 |
 | The published page, in a browser at phone size | `tools/browser-check.mjs` | 1 session |
@@ -49,10 +52,10 @@ Cases actually run, which is what the suite reports:
 | Project | Cases |
 | --- | --- |
 | `Parser.Tests` | 228 |
-| `Core.Tests` | 256 |
-| `Web.Core.Tests` | 36 |
+| `Core.Tests` | 269 |
+| `Web.Core.Tests` | 57 |
 | `Terminal.Tests` | 32 |
-| Total | 552 |
+| Total | 586 |
 
 Run them with:
 

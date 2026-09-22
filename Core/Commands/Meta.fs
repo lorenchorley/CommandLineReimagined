@@ -76,6 +76,36 @@ let history (store: StoreAccess) =
                     return Invocation.pure' (Value.List lines)
             } }
 
+/// <summary>Empties the log and starts again from the seeded filesystem.</summary>
+/// <remarks>
+/// The escape hatch, for a log that cannot be read back or a session someone wants to
+/// start over. It is the one command that cannot be undone, and its description says
+/// so, because there is nothing left to undo it from: the transactions that would have
+/// been reversed are the ones it threw away.
+/// </remarks>
+let reset (store: StoreAccess) =
+    { Spec =
+        CommandSpec.create
+            "reset"
+            "Empty the log and start again from the seeded filesystem. This cannot be undone"
+            [ "reset"; "clear"; "empty"; "start"; "over" ]
+            []
+        |> CommandSpec.meta
+      Run =
+        fun _ ->
+            async {
+                let! seeded = store.Reset()
+                let plural = if seeded = 1 then "" else "s"
+
+                let message =
+                    if seeded = 0 then
+                        "Reset. The filesystem is empty."
+                    else
+                        sprintf "Reset. %d file%s restored." seeded plural
+
+                return Invocation.pure' (Value.Text message)
+            } }
+
 let exit (store: StoreAccess) =
     { Spec =
         CommandSpec.create "exit" "Close the application" [ "quit"; "close"; "stop" ] []

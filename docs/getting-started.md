@@ -152,19 +152,48 @@ screen. Neither is a command in the usual sense; see
 
 ## Where the files live
 
-The filesystem is in memory, inside the tab. Its root is `/home/terminal`, and it is
-seeded on first use with:
+The filesystem is kept in your browser, for this site, and it is seeded on first use
+with:
 
 ```
-/home/terminal
+/
 ├── documents/
 │   └── notes.txt
 ├── projects/
 └── readme.txt
 ```
 
-Closing or reloading the tab discards everything you made. Nothing is uploaded and
-nothing is stored on the device.
+**It survives a reload.** Make a file, close the tab, come back tomorrow, and it is
+still there. The status line at the top says `wasm` when the terminal is running; if it
+also says `not persisted`, this browser is not keeping anything and the session lasts
+only as long as the tab. A private window is the usual reason.
+
+Nothing is uploaded. Everything is stored by your browser, on your device, for this
+site alone, in the same place a website keeps its own data. Clearing site data removes
+it, and so does `reset`:
+
+```
+$ reset
+Reset. 4 files restored.
+```
+
+`reset` empties the log and starts again from the seeded files above. It is the only
+command that cannot be undone.
+
+A file is not a name and some text. It is a record with attributes, and you can add
+your own:
+
+```
+$ attr readme.txt tag=work
+readme.txt
+$ attr readme.txt
+created = 2026-09-21T09:00:00.0000000+00:00
+folder = /
+kind = text
+modified = 2026-09-21T09:02:11.0000000+00:00
+name = readme.txt
+tag = work
+```
 
 ## Next
 

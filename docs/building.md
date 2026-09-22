@@ -112,6 +112,19 @@ storing the runtime several times over.
 
 The payload after this is about 15 MB across 121 files.
 
+## Check the log's storage
+
+`WebClient/wwwroot/store.js` keeps the log in the browser's IndexedDB. Most of its job
+is failure behaviour — a private window, storage that goes away mid-session — which is
+awkward to arrange in a real browser and trivial outside one:
+
+```bash
+npm install --no-save fake-indexeddb
+node tools/store-check.mjs
+```
+
+It runs in a second and is part of the Linux CI job.
+
 ## Check the page in a browser
 
 The test suites prove the core. This proves the page: that the runtime boots, that the
@@ -151,7 +164,7 @@ console error.
 | Job | Runner | What it does |
 | --- | --- | --- |
 | Full solution | Windows | Builds the whole solution, including the desktop shell, and runs every test project. |
-| Libraries and tests | Linux | Builds every project except the desktop shell and the WebAssembly client, and runs every test project. |
+| Libraries and tests | Linux | Builds every project except the desktop shell and the WebAssembly client, runs every test project, and checks the store module. |
 | WebAssembly client | Linux | Installs `wasm-tools`, publishes the client, fails if the payload exceeds 20 MB, and runs the browser check. |
 
 `deploy.yml` deploys to Azure App Service and skips itself when no `AZURE_CREDENTIALS`

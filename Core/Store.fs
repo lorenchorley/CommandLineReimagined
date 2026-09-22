@@ -248,6 +248,20 @@ type Store(log: ILog, clock: unit -> DateTimeOffset) =
             { Transaction = transaction
               Undone = not (isCompensation transaction) && isCompensated transactions transaction })
 
+    /// <summary>Empties the log and starts again from nothing.</summary>
+    /// <remarks>
+    /// The escape hatch for a store that cannot be read back, and the only thing in
+    /// here that does not append. It is not undoable, because there is nothing left to
+    /// undo it from: the transactions that would have been reversed are gone.
+    /// </remarks>
+    member _.Reset() =
+        async {
+            do! log.Clear()
+            transactions <- []
+            projection <- Projection.empty
+            changed.Trigger 0L
+        }
+
     member _.PutBlob(content: string) = log.PutBlob content
 
     member _.GetBlob(hash: Hash) = log.GetBlob hash

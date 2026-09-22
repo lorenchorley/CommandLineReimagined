@@ -27,6 +27,7 @@
     <Compile Include="AsyncCommandTests.fs" />
     <Compile Include="MetaCommandTests.fs" />
     <Compile Include="CompletionTests.fs" />
+    <Compile Include="PersistenceTests.fs" />
     <Compile Include="AcceptanceTests.fs" />
   </ItemGroup>
 

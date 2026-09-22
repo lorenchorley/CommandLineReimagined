@@ -46,6 +46,10 @@
   .echo .sigil { color:var(--dim); }
   .out { white-space:pre-wrap; word-break:break-word; color:var(--fg); opacity:.85; }
   .err { color:var(--bad); white-space:pre-wrap; word-break:break-word; }
+  .warn {
+    color:var(--flag); border:1px solid var(--flag); border-radius:4px;
+    padding:0 4px; font-size:10px; cursor:help;
+  }
   .kind {
     display:inline-block; font-size:10px; text-transform:lowercase; letter-spacing:.03em;
     border:1px solid var(--bad); border-radius:4px; padding:0 4px; margin-right:6px;
@@ -148,6 +152,8 @@
     <div class="keys" id="keys"></div>
   </div>
 
+<!-- The log's storage. Loaded before the runtime, which calls into it during boot. -->
+<script src="store.js"></script>
 <script src="framework/blazor.webassembly.js" autostart="true"></script>
 <script>
 const $ = id => document.getElementById(id);
@@ -373,7 +379,8 @@ function showHelp() {
     'Completions appear above the keys as you type. The Run button becomes Stop while a ' +
     'command runs. clear empties the screen. undo, redo and history are commands: ' +
     'undo reverses the last line that changed something, and a line that changed ' +
-    'nothing leaves nothing to undo.</div>');
+    'nothing leaves nothing to undo. Your files are kept in this browser between ' +
+    'visits; reset empties the log and starts again, and cannot be undone.</div>');
 }
 
 // ---- input handling -------------------------------------------------------
@@ -448,6 +455,8 @@ runButton.onclick = run;
  ['&lt;v|thing a=1/&gt;','<v|thing a=1/>'],['{renderer/}','{renderer/}'],['pwd','pwd'],
  ['download','download'],['undo','undo'],['redo','redo'],['history','history'],
  ['attr','attr readme.txt tag=work'],['save','save &lt;note name=todo/&gt;'],['clear','clear']]
+ // `reset` is deliberately absent: it is the one command that cannot be undone, and a
+ // key that empties the filesystem on one tap is not one to put next to `clear`.
   .forEach(([label, value]) => {
     const b = document.createElement('button');
     b.className = 'key'; b.innerHTML = label;
@@ -456,6 +465,28 @@ runButton.onclick = run;
     };
     $('keys').appendChild(b);
   });
+
+/// What the banner says depends on whether this is a first visit, a restored one, or a
+/// session that will not be kept. Saying "nothing is sent anywhere" matters more once
+/// something is being stored, so that is where it is said.
+function bannerFor(store) {
+  const common =
+    'The parser, the commands and the filesystem are all .NET compiled to WebAssembly. ' +
+    'Type <b>help</b> to see the commands, or tap a suggestion below.';
+
+  if (!store.persistent) {
+    return 'A terminal running in this tab. ' + common +
+           ' This browser is not keeping the log, so everything here disappears when the tab does.';
+  }
+
+  if (store.replayed > 0) {
+    return `Restored ${store.replayed} line(s) from last time. ` + common +
+           ' Your files live in this browser, and are not sent anywhere.';
+  }
+
+  return 'A terminal running in this tab. ' + common +
+         ' Your files are kept in this browser between visits, and are not sent anywhere.';
+}
 
 // ---- boot -----------------------------------------------------------------
 
@@ -472,13 +503,15 @@ runButton.onclick = run;
     // in Phase 2 it reads IndexedDB, and the wait is already in the right place.
     $('status').innerHTML = '<span style="color:var(--dim)">restoring…</span>';
 
-    DotNet.invokeMethodAsync('WebClient', 'Initialize').then(finishBoot).catch(e => {
-      // The message matters: a session that cannot restore is showing the user an
-      // empty filesystem that may not be empty, and "failed" alone says nothing about
-      // whether their files are gone or the code is broken.
-      $('status').innerHTML = '<span style="color:var(--bad)">failed to restore</span>';
-      addEntry(`<div class="err">Could not restore the session: ${escape(String(e && e.message || e))}</div>`);
-    });
+    DotNet.invokeMethodAsync('WebClient', 'Initialize')
+      .then(status => finishBoot(JSON.parse(status)))
+      .catch(e => {
+        // The message matters: a session that cannot restore is showing the user an
+        // empty filesystem that may not be empty, and "failed" alone says nothing about
+        // whether their files are gone or the code is broken.
+        $('status').innerHTML = '<span style="color:var(--bad)">failed to restore</span>';
+        addEntry(`<div class="err">Could not restore the session: ${escape(String(e && e.message || e))}</div>`);
+      });
     return;
   }
 
@@ -486,17 +519,27 @@ runButton.onclick = run;
   else $('status').innerHTML = '<span style="color:var(--bad)">failed to load</span>';
 })(0);
 
-function finishBoot() {
+function finishBoot(store) {
     ready = true;
     cmd.disabled = false; runButton.disabled = false;
-    $('status').innerHTML = '<span style="color:var(--ok)">wasm</span>';
+
+    // `not persisted` is said up front, before anything is typed. Finding out after a
+    // morning's work that none of it was being kept would be the worst moment to learn
+    // it, and a private window is the common case rather than a broken one.
+    $('status').innerHTML = store.persistent
+      ? '<span style="color:var(--ok)">wasm</span>'
+      : '<span style="color:var(--ok)">wasm</span> <span class="warn" title="' +
+        escape(store.reason || 'This browser is not keeping the log.') +
+        '">not persisted</span>';
 
     try { commands = JSON.parse(DotNet.invokeMethod('WebClient', 'Commands')); } catch {}
 
-    $('banner').innerHTML =
-      'A terminal running in this tab. The parser, the commands and the filesystem are ' +
-      'all .NET compiled to WebAssembly — nothing is sent anywhere. Type <b>help</b> to ' +
-      'see the commands, or tap a suggestion below. Try <b>progress</b> and press Stop.';
+    $('banner').innerHTML = bannerFor(store);
+
+    if (store.unreadable > 0) {
+      addEntry(`<div class="err">${store.unreadable} stored line(s) could not be read and were skipped. ` +
+               `<b>reset</b> starts over.</div>`);
+    }
 
     refreshPrompt();
     refreshMirror();

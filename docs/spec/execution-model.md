@@ -265,6 +265,22 @@ skip it while `history` still shows it.
 `history` is the transactions oldest first, each with a derived `Undone`. A compensation
 **must not** itself be marked undone.
 
+## Starting and starting over
+
+A session replays its log before it will run anything, and **must** refuse to execute
+before that has completed with a fault of kind `Internal`. An empty filesystem and a
+lost one look identical to a user, so a host that forgets to wait is told rather than
+shown nothing.
+
+Seeding happens **only** when the replayed log is empty, or a reload would lay a second
+copy of the seed over what was restored. The seed is one transaction, marked not
+undoable.
+
+`reset` empties the log and seeds it again. It is the only operation that removes
+anything from the log, and it is not undoable: the transactions that would have been
+reversed are the ones it threw away. An implementation **must** say so in the command's
+description, so `help` warns before rather than after.
+
 ## Cancellation
 
 Cancellation is cooperative. A long-running command **must** observe its invocation's

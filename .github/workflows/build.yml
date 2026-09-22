@@ -70,6 +70,18 @@ jobs:
             echo "::endgroup::"
           done
 
+      # The log's storage module, against a real IndexedDB implementation rather than
+      # a browser. It runs in a second, and its job is mostly failure behaviour that a
+      # browser makes awkward to arrange: a private window, storage that goes away.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Check the store module
+        run: |
+          npm install --no-save fake-indexeddb
+          node tools/store-check.mjs
+
   wasm:
     name: WebAssembly client (Linux)
     runs-on: ubuntu-latest

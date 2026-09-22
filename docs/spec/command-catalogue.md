@@ -323,6 +323,20 @@ be a fault.
 Reverses the latest undo that has not itself been reversed, and **must** name the
 original line rather than the undo. Having nothing to redo **must not** be a fault.
 
+### reset
+
+| Field | Value |
+| --- | --- |
+| Name | `reset` |
+| Parameters | none |
+| Returns | `Text` naming how many files were restored |
+| Meta | yes |
+
+Empties the log and seeds it again. It is the only operation that removes anything
+from the log, and it **must not** be undoable: the transactions that would have been
+reversed are the ones it threw away. The description **must** say so, so `help` warns
+before rather than after.
+
 ### history
 
 | Field | Value |

@@ -76,6 +76,32 @@ const SCRIPT = [
 ];
 
 /**
+ * Phase 2: what a reload is for. Run, reload the page, and check what came back.
+ *
+ * This cannot be a unit test. Replaying a log is covered in `Core.Tests`; what is only
+ * checkable here is that the log reached IndexedDB at all, that the page waits for the
+ * replay before enabling the input, and that a second visit finds the first one's work.
+ */
+const BEFORE_RELOAD = [
+  { line: 'mkdir persisted', expect: ['persisted'] },
+  { line: 'write kept.txt remembered', expect: ['kept.txt'] },
+  { line: 'set survivor yes', expect: ['yes'] },
+];
+
+const AFTER_RELOAD = [
+  { line: 'ls', expect: ['persisted', 'kept.txt', 'documents', 'readme.txt'] },
+  { line: 'cat kept.txt', expect: ['remembered'] },
+  { line: 'echo $survivor', expect: ['yes'] },
+  // Undo reaches back across the reload, because the compensation chain is in the log.
+  { line: 'undo', expect: ['Undone: set survivor yes'] },
+];
+
+const AFTER_RESET = [
+  { line: 'ls', expect: ['documents', 'projects', 'readme.txt'], absent: ['persisted', 'kept.txt'] },
+  { line: 'undo', expect: ['Nothing to undo.'] },
+];
+
+/**
  * Makes a published folder servable.
  *
  * Blazor publishes its runtime to `_framework`, and the static host this is deployed
@@ -131,6 +157,43 @@ async function serve(root, port) {
 
   server.kill();
   throw new Error(`The static server did not start in ${root}.`);
+}
+
+/** Waits for the page to finish booting and returns its status line. */
+async function boot(page) {
+  // The runtime takes a few seconds to download and start, and the page shows
+  // "restoring…" while it replays the log. Ready means the input is enabled.
+  await page.waitForSelector('#status:has-text("wasm")', { timeout: 120000 });
+  await page.waitForFunction(() => !document.getElementById('cmd').disabled, null, { timeout: 30000 });
+
+  return (await page.locator('#status').innerText()).trim();
+}
+
+/** Runs a table of lines and reports any mismatch through `note`. */
+async function runScript(page, script, note) {
+  for (const step of script) {
+    const { text, fault } = await submit(page, step.line);
+
+    for (const expected of step.expect ?? []) {
+      if (!text.includes(expected)) {
+        note(`'${step.line}' did not show '${expected}'. It showed: ${JSON.stringify(text)}`);
+      }
+    }
+
+    for (const unexpected of step.absent ?? []) {
+      if (text.includes(unexpected)) {
+        note(`'${step.line}' showed '${unexpected}', which it should not. It showed: ${JSON.stringify(text)}`);
+      }
+    }
+
+    if (step.fault && fault !== step.fault) {
+      note(`'${step.line}' showed fault kind ${JSON.stringify(fault)}, expected '${step.fault}'`);
+    }
+
+    if (!step.fault && fault !== null) {
+      note(`'${step.line}' failed unexpectedly (${fault}): ${JSON.stringify(text)}`);
+    }
+  }
 }
 
 /** Submits one line and returns the text of the entry it produced. */
@@ -200,14 +263,18 @@ async function main() {
   const note = message => { failures.push(message); console.error(`  FAIL  ${message}`); };
 
   try {
-    await page.goto(`http://127.0.0.1:${port}/index.html`, { waitUntil: 'domcontentloaded' });
+    const address = `http://127.0.0.1:${port}/index.html`;
+    await page.goto(address, { waitUntil: 'domcontentloaded' });
 
-    // The runtime takes a few seconds to download and start, and the page shows
-    // "restoring…" while it replays the log. Ready means the input is enabled.
-    await page.waitForSelector('#status:has-text("wasm")', { timeout: 120000 });
-    await page.waitForFunction(() => !document.getElementById('cmd').disabled, null, { timeout: 30000 });
+    const status = await boot(page);
+    console.log(`Booted at ${VIEWPORT.width}x${VIEWPORT.height}. Status: ${status}`);
 
-    console.log(`Booted at ${VIEWPORT.width}x${VIEWPORT.height}.`);
+    // A headless Chromium has IndexedDB, so a run that reports otherwise means the
+    // store failed to open, which the reload cases below would then fail on for a
+    // reason that has nothing to do with them.
+    if (status.includes('not persisted')) {
+      note('the page reports `not persisted`; the log is not reaching IndexedDB');
+    }
 
     // The chips have to be tappable. 44 pixels is the smallest target a finger hits
     // reliably, and the whole page is built for a phone.
@@ -219,31 +286,42 @@ async function main() {
       note(`a result chip is ${box ? box.height : 'not'} pixels tall; 44 is the minimum tap target`);
     }
 
-    for (const step of SCRIPT) {
-      const { text, fault } = await submit(page, step.line);
+    await runScript(page, SCRIPT, note);
+    console.log(`Ran ${SCRIPT.length} lines.`);
 
-      for (const expected of step.expect ?? []) {
-        if (!text.includes(expected)) {
-          note(`'${step.line}' did not show '${expected}'. It showed: ${JSON.stringify(text)}`);
-        }
-      }
+    // ---- Phase 2: the log survives a reload ---------------------------------
 
-      for (const unexpected of step.absent ?? []) {
-        if (text.includes(unexpected)) {
-          note(`'${step.line}' showed '${unexpected}', which it should not. It showed: ${JSON.stringify(text)}`);
-        }
-      }
+    // Start from a clean store, so what comes back after the reload is what these
+    // lines put there rather than whatever the acceptance script left behind.
+    await submit(page, 'reset');
 
-      if (step.fault && fault !== step.fault) {
-        note(`'${step.line}' showed fault kind ${JSON.stringify(fault)}, expected '${step.fault}'`);
-      }
+    await runScript(page, BEFORE_RELOAD, note);
 
-      if (!step.fault && fault !== null) {
-        note(`'${step.line}' failed unexpectedly (${fault}): ${JSON.stringify(text)}`);
-      }
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    const restored = await boot(page);
+    console.log(`Reloaded. Status: ${restored}`);
+
+    const banner = await page.locator('#banner').innerText();
+
+    if (!/Restored \d+ line/.test(banner)) {
+      note(`after a reload the page did not say what it restored. It said: ${JSON.stringify(banner)}`);
     }
 
-    console.log(`Ran ${SCRIPT.length} lines.`);
+    await runScript(page, AFTER_RELOAD, note);
+
+    // ---- Phase 2: reset is the way back -------------------------------------
+
+    const reset = await submit(page, 'reset');
+
+    if (!reset.text.includes('Reset.')) {
+      note(`'reset' did not report what it did. It showed: ${JSON.stringify(reset.text)}`);
+    }
+
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await boot(page);
+    await runScript(page, AFTER_RESET, note);
+
+    console.log(`Ran ${BEFORE_RELOAD.length + AFTER_RELOAD.length + AFTER_RESET.length} more across two reloads.`);
 
     if (consoleErrors.length > 0) {
       for (const error of consoleErrors) note(`console error: ${error}`);

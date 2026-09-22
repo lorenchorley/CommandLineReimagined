@@ -12,15 +12,44 @@ host serves `.wasm` files with the `application/wasm` content type.
 
 ## My files disappeared
 
-The filesystem lives in the tab's memory. Reloading or closing the tab discards it, and
-the seeded tree comes back. There is no persistence yet, by design: nothing is uploaded
-and nothing is written to the device.
+They should not, so it is worth reading the status line at the top of the page.
 
-## `undo` did nothing
+If it says **`not persisted`**, this browser is not keeping the log and the session
+lasted only as long as the tab. A private or incognito window is the usual reason:
+IndexedDB is unavailable there. Site-data settings that block storage for this origin
+do the same. Hover the tag to see what the browser said.
 
-It undid the previous command, which had nothing to reverse. The response names what it
-undid, so `Undone: ls` means the `ls` came off the history. Press undo again to reach
-the command that changed something.
+Otherwise, the filesystem is stored by your browser for this site, so anything that
+clears site data for it takes the filesystem with it: clearing browsing data, a
+"clear cookies and site data" setting, or some privacy extensions. There is no copy
+anywhere else, because nothing is uploaded.
+
+If the page reports that stored lines could not be read, a log was written by a
+different build of the terminal than the one loading it. The unreadable lines are
+skipped rather than stopping the page; `reset` starts over cleanly.
+
+## `undo` said there was nothing to undo
+
+Undo works on lines that changed something. A line that changed nothing, such as `ls`
+or `pwd`, is not recorded, so it is never what undo reaches for — and the filesystem
+you started with is recorded but is not yours to take back, so undo stops before it.
+
+If you have only run read-only lines in a fresh session, there is genuinely nothing to
+undo, and that is what it says.
+
+## `redo` will not go any further
+
+Redo puts back what undo took away, and stops once everything is back. It does not
+carry on and take it away again.
+
+## I want to start over
+
+```
+$ reset
+```
+
+It empties the log and seeds the filesystem again. It cannot be undone, which is why it
+is not one of the suggestion keys.
 
 ## A file name with a space is split into two arguments
 

@@ -123,11 +123,39 @@ type Session(log: ILog, options: SessionOptions, seed: Seed) =
             member _.Put content = store.PutBlob content
             member _.Get hash = store.GetBlob hash }
 
+    let blobsForSeed = blobs
+
+    /// Appends the seed, and answers how many records it created. Used both on a fresh
+    /// log and after `reset`, so the two cannot describe different starting states.
+    let applySeed () =
+        async {
+            let! events = seed blobsForSeed
+
+            if List.isEmpty events then
+                return 0
+            else
+                // Recorded and replayed like any line, and marked as nobody's to
+                // undo (decision 0018).
+                let! _ = store.CommitSystem "seed" events
+
+                return
+                    events
+                    |> List.sumBy (function
+                        | FileCreated _ -> 1
+                        | _ -> 0)
+        }
+
     let storeAccess =
         { Undo = store.Undo
           Redo = store.Redo
           History = store.History
-          Exit = options.Exit }
+          Exit = options.Exit
+          Reset =
+            fun () ->
+                async {
+                    do! store.Reset()
+                    return! applySeed ()
+                } }
 
     let commands =
         [ Commands.Files.ls
@@ -149,6 +177,7 @@ type Session(log: ILog, options: SessionOptions, seed: Seed) =
           Commands.Meta.undo storeAccess
           Commands.Meta.redo storeAccess
           Commands.Meta.history storeAccess
+          Commands.Meta.reset storeAccess
           Commands.Meta.exit storeAccess
           Commands.Meta.unknown ]
 
@@ -157,6 +186,7 @@ type Session(log: ILog, options: SessionOptions, seed: Seed) =
 
     let mutable running: CancellationTokenSource option = None
     let mutable initialised = false
+    let mutable replayed = 0
 
     new(log: ILog) = Session(log, SessionOptions.defaults, Seed.none)
     new(log: ILog, seed: Seed) = Session(log, SessionOptions.defaults, seed)
@@ -170,18 +200,21 @@ type Session(log: ILog, options: SessionOptions, seed: Seed) =
     member _.Initialize() =
         async {
             do! store.Initialize()
+            replayed <- List.length store.Transactions
 
+            // Only on an empty log, so a reload replays what was there rather than
+            // seeding a second copy over the top of it.
             if List.isEmpty store.Transactions then
-                let! events = seed blobs
-
-                if not (List.isEmpty events) then
-                    // Recorded and replayed like any line, and marked as nobody's to
-                    // undo (decision 0018).
-                    let! _ = store.CommitSystem "seed" events
-                    ()
+                let! _ = applySeed ()
+                ()
 
             initialised <- true
         }
+
+    /// How many transactions the log had when it was replayed. The page reports it, so
+    /// that a restore that silently found nothing is visible rather than looking like
+    /// a fresh session.
+    member _.ReplayedCount = replayed
 
     member _.IsInitialised = initialised
 

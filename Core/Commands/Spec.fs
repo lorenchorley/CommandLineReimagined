@@ -78,6 +78,8 @@ type StoreAccess =
     { Undo: unit -> Async<Outcome<Transaction option>>
       Redo: unit -> Async<Outcome<Transaction option>>
       History: unit -> HistoryEntry list
+      /// Empties the log and seeds it again. Not undoable; see `reset`.
+      Reset: unit -> Async<int>
       /// What shutting down means is the host's business. The browser has nothing to
       /// shut down and passes a function that does nothing.
       Exit: unit -> unit }

@@ -48,7 +48,72 @@ Asynchronous throughout, because the browser's storage is and WebAssembly is sin
 threaded, so there is nowhere to block. An implementation **must** store content by the
 hash of its text, so that storing the same text twice stores it once.
 
-`InMemoryLog` is supplied. A persistent implementation is Phase 2.
+An implementation **must** be able to reproduce the projection by replaying what it
+returns from `ReadAll`, in sequence order.
+
+`Clear` is the one operation that is not append-only. It exists for `reset` and
+**must not** be reachable from a command other than that one.
+
+`InMemoryLog` is supplied. `IndexedDbLog` in the browser client keeps the log in the
+browser's own storage.
+
+### The stored shape
+
+What a log holds is a contract between builds: what one writes, a later one reads. An
+implementation **must not** serialise the F# types directly, or renaming a union case
+would make a stored filesystem unreadable.
+
+Every document carries `"v"`, and a reader exists per version.
+
+```json
+{
+  "v": 1,
+  "seq": 2,
+  "at": "2026-09-21T12:34:56.7890000+02:00",
+  "source": "write notes.txt hello",
+  "undoable": true,
+  "compensates": null,
+  "events": [
+    { "type": "fileCreated",
+      "record": { "id": "id-1",
+                  "attributes": { "name": { "k": "text", "v": "notes.txt" } },
+                  "content": null } },
+    { "type": "contentChanged", "id": "id-1", "before": null, "after": "abc123" }
+  ]
+}
+```
+
+Event types are `fileCreated`, `fileDeleted`, `attributesChanged`, `contentChanged`,
+`variableChanged` and `locationChanged`.
+
+Values are written tagged with a kind `k`, one of `empty`, `none`, `text`, `number`,
+`boolean`, `file`, `list`, `object` or `component`. An implementation **must not**
+write a value as the nearest JSON type: an attribute whose text is `2026` has to come
+back as text, and JSON cannot tell that from a number without being told.
+
+`at` **must** be round-trip formatted, so two transactions in the same second stay
+distinguishable.
+
+Rules for a reader:
+
+- An unknown version **must** be refused with a message naming it. A log that cannot be
+  read is a filesystem that cannot be opened, and the user needs to know which it is.
+- A missing `undoable` **must** read as true. A log written before
+  [decision 0018](../decisions/0018-the-seed-is-not-a-line-anyone-typed.md) has no such
+  field, and every transaction in it was the user's to take back.
+- A host **should** skip a transaction it cannot decode rather than refusing to open the
+  session, and **should** say how many it skipped. Losing part of a history is bad;
+  refusing to start at all is worse.
+
+### Degrading without storage
+
+Storage is absent in a private window and can stop working mid-session when site data
+is cleared with the page open. An implementation **must not** let either break the
+terminal: the log falls back to memory, the session keeps working for as long as the
+tab is open, and the host reports the state so the page can say `not persisted`.
+
+A host **must** report this before the first command runs, not after: a user who finds
+out at the end of a session that nothing was kept has already lost the work.
 
 ### SessionOptions
 
@@ -81,6 +146,7 @@ The reference host-side object, shared by both web front ends.
 | --- | --- |
 | `TerminalSession(ILog? log)` | Builds a session over the log, in memory by default. Does not replay it. |
 | `InitializeAsync()` | Replays the log, and seeds it when it was empty. **Must** be awaited before any execution. |
+| `ReplayedCount` | How many transactions came back. Zero on a first visit. |
 | `Commands` | Every command as `CommandSummary`, sorted by name, excluding `UnknownCommand`. |
 | `Location` | Where the session is: a folder, and from Phase 4 possibly a view. |
 | `IsRunning` | Whether a command is in flight. |
@@ -189,6 +255,7 @@ then removed. A folder is `/` at the root, with no trailing separator.
 ```json
 { "name": "write", "description": "...", "parameters": [ { "name": "path", "optional": false } ] }
 { "kind": "folder", "text": "documents/", "start": 3 }
+{ "persistent": true, "replayed": 12, "unreadable": 0, "reason": null }
 { "name": "v", "text": "5", "items": [ { "kind": "number", "text": "5", "path": null } ] }
 ```
 
@@ -202,7 +269,7 @@ layer.
 | `Parse(source)` | Parse response, as a JSON string. Synchronous. |
 | `Execute(source, executionId)` | Execution response, as a JSON string. Asynchronous. |
 | `Cancel()` | `true` when a command was running. |
-| `Initialize()` | Replays the log. Asynchronous, and **must** be awaited before the input is enabled. |
+| `Initialize()` | Opens the store and replays the log. Asynchronous, and **must** be awaited before the input is enabled. Answers with the store's status. |
 | `Commands()` | Command summaries, as a JSON string. |
 | `Complete(text)` | Completions, as a JSON string. |
 | `Variables()` | Variable summaries, as a JSON string. |

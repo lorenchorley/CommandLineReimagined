@@ -26,6 +26,7 @@ drive. `..` and `.` work.
 | [`progress`](#progress) | Run a progress bar, to exercise long commands | no |
 | [`pwd`](#pwd) | The current directory | no |
 | [`redo`](#redo) | Put back what `undo` took away | yes |
+| [`reset`](#reset) | Empty the log and start again | yes, and cannot be undone |
 | [`rm`](#rm) | Delete a file or empty directory | yes |
 | [`save`](#save) | Create a file from a tag | yes |
 | [`set`](#set) | Bind a value to a variable | yes |
@@ -461,6 +462,35 @@ Nothing to redo.
 
 Redo is undo applied to an undo, so `undo`, `redo`, `undo` leaves you where the first
 `undo` did.
+
+---
+
+## reset
+
+Empties the log and starts again from the seeded filesystem.
+
+```
+reset
+```
+
+```
+$ reset
+Reset. 4 files restored.
+```
+
+This is the only command that cannot be undone. The lines it would have been undone
+from are the ones it threw away:
+
+```
+$ reset
+Reset. 4 files restored.
+$ undo
+Nothing to undo.
+```
+
+It is the way out of a log that cannot be read back, and the way to start a session
+over. Because it cannot be reversed, it is deliberately not one of the suggestion keys
+under the input: you have to type it.
 
 ---
 

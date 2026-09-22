@@ -135,7 +135,28 @@ the browser afterwards. Until it is ready the input stays disabled and the statu
 `starting…`. If it cannot load, the status turns red and reads `failed to load`.
 
 Once the runtime is up the page replays the session's log before enabling the input,
-showing `restoring…` while it does. It is instant today, because the log lives in
-memory for the length of the session. The wait exists so that persistence can be added
-without the page ever showing an empty filesystem that is not actually empty: an empty
-one and a lost one look identical, so the page refuses to guess.
+showing `restoring…` while it does. Nothing may run until that has finished: an empty
+filesystem and a lost one look identical, so the page refuses to show one as the other.
+
+The banner then says what happened — a first visit, or how many lines came back — and
+the status line says `wasm`, with `not persisted` beside it when the browser is not
+keeping anything. That is said before you have typed, rather than after a morning's
+work turns out not to have been saved.
+
+## Where the log is kept
+
+The log lives in this browser's IndexedDB, under the database `clr-terminal`, for this
+origin only. Two stores: `transactions`, keyed by sequence number, and `blobs`, keyed
+by content hash. Nothing is uploaded; there is no server to upload it to.
+
+A reload replays the log, so the filesystem, the variables and the folder you were in
+all come back, and `undo` reaches back across the reload because the compensation
+chain is in the log rather than in memory.
+
+Storage can be unavailable — a private window — or go away mid-session, if site data is
+cleared while the page is open. Neither breaks the terminal: the log falls back to
+memory, the status turns to `not persisted`, and the session keeps working for as long
+as the tab is open.
+
+`reset` empties the log and seeds it again. It is the only command that cannot be
+undone, which is why it is not one of the suggestion keys.

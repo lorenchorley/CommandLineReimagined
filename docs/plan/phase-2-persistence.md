@@ -23,8 +23,14 @@ the current folder come back. Nothing leaves the tab. Decision
    `Session.Initialize`, and reports how many transactions were replayed. The page
    shows `restoring…` until then.
 4. **Seeding** happens only when the replayed log is empty. The seed is one
-   transaction with `Source = "seed"` so it shows in `history` and can be undone like
-   anything else.
+   transaction with `Source = "seed"` so it shows in `history`.
+
+   This step said the seed "can be undone like anything else", which was true when the
+   plan was written and is not now:
+   [decision 0018](../decisions/0018-the-seed-is-not-a-line-anyone-typed.md), taken
+   during Phase 1, makes it recorded and replayed but not the user's to take back,
+   because `undo` as a new session's first keystroke emptied the very files that are
+   there to be looked at. The record supersedes the plan.
 5. **`reset` command** (meta): clears the log and blobs and re-seeds, after which the
    page reloads the projection. This is the escape hatch for a corrupted store. It is
    not undoable; say so in its description.

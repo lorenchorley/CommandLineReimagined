@@ -61,6 +61,15 @@ public sealed class TerminalSession
         FSharpOption<TaskCreationOptions>.None,
         FSharpOption<CancellationToken>.None);
 
+    /// <summary>
+    /// How many transactions the log held when it was replayed.
+    /// </summary>
+    /// <remarks>
+    /// Zero on a first visit. The page reports it, so that a restore which silently
+    /// found nothing is visible rather than looking like a fresh session.
+    /// </remarks>
+    public int ReplayedCount => _session.ReplayedCount;
+
     public IReadOnlyList<CommandSummary> Commands =>
         _session.Commands
                 .Select(spec => new CommandSummary(

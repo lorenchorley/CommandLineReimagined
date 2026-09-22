@@ -77,6 +77,14 @@ type ILog =
     abstract PutBlob: string -> Async<Hash>
     abstract GetBlob: Hash -> Async<string option>
 
+    /// <summary>Throws everything away.</summary>
+    /// <remarks>
+    /// The one operation that is not append-only, and the only way out of a log that
+    /// cannot be read back. It exists for `reset`; nothing else may call it, which is
+    /// why it is not reachable through the capability commands are given.
+    /// </remarks>
+    abstract Clear: unit -> Async<unit>
+
 [<RequireQualifiedAccess>]
 module Hash =
 
@@ -109,3 +117,8 @@ type InMemoryLog() =
             match blobs.TryGetValue hash with
             | true, content -> async.Return(Some content)
             | _ -> async.Return Option.None
+
+        member _.Clear() =
+            transactions.Clear()
+            blobs.Clear()
+            async.Return()

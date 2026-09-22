@@ -168,9 +168,22 @@ content. `name`, `kind` and `folder` are three attributes among them, and a fold
 simply a record whose `kind` is `folder`. `attr` shows them all and writes new ones.
 
 The whole filesystem is a projection folded from the log, so it lives wherever the log
-does — today, in memory for the length of the session. Content is stored by the hash of
-its text, so keeping the previous version of a file costs nothing and undoing a write
-is just pointing at the old hash again.
+does. In the browser that is IndexedDB, for this origin, so a reload replays it and
+everything comes back; in the desktop shell and in tests it is memory, and lasts as
+long as the process. Content is stored by the hash of its text, so keeping the previous
+version of a file costs nothing and undoing a write is just pointing at the old hash
+again.
+
+The stored shape is versioned and hand-written rather than a serialiser pointed at the
+types. What is written is read back by a later build, so renaming a case or reordering
+a field must not be able to make somebody's filesystem unreadable.
+
+**The log grows with use, and nothing compacts it.** Every line that changed something
+is kept for ever, which is what makes undo reach as far back as it does. A session used
+heavily for a long time will replay more slowly on load. Snapshotting the projection
+and keeping only the log after it is the obvious answer and is deliberately not done
+yet: it is worth doing when somebody has a log big enough to notice, and not before.
+`reset` is the blunt instrument in the meantime.
 
 ## The pieces, by project
 
