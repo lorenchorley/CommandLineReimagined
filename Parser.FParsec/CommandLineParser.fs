@@ -96,6 +96,13 @@ type CommandLineParser() =
                 match runParserOnString Grammar.identifierOnly () "command" text with
                 | Success(result, _, _) -> ok (box result :?> 'TRoot)
                 | Failure(_, error, _) -> syntaxFailure error
+            // Phase 4: a saved view is a predicate with no command line around it, so
+            // asking for an expression root parses one on its own terms rather than
+            // making the caller wrap it in a line and dig the argument back out.
+            elif typeof<'TRoot> = typeof<SemanticTree.Value> then
+                match runParserOnString Grammar.expressionOnly () "predicate" text with
+                | Success(result, _, _) -> ok (box result :?> 'TRoot)
+                | Failure(_, error, _) -> syntaxFailure error
             else
                 match runParserOnString Grammar.program () "command" text with
                 | Success(result, _, _) -> ok (box result :?> 'TRoot)

@@ -195,9 +195,13 @@ module Files =
     val pathOf   : Projection -> FileRecord -> string
 ```
 
-`Location.Folder` is the current folder. `cd <folder>` changes it. In Phase 4,
-`cd <predicate>` sets `Location.View` instead, and `ls` lists the view globally when it
-is set. New files are always created in `Location.Folder`.
+`Location.Folder` is the current folder. `cd <folder>` changes it and answers the
+folder's record. In Phase 4, `cd <predicate>` sets `Location.View` instead and answers
+the predicate; `ls` then lists every record in the store the view matches, `pwd`
+answers a `Query`, `up` puts the view down before it moves, `find <predicate>` asks the
+same question without going anywhere, and `save-view <name> <predicate>` keeps one as a
+record of kind `view` whose content is the predicate text, which `cd <name>` enters.
+New files are always created in `Location.Folder`.
 
 ### Commands
 
@@ -210,7 +214,9 @@ type Parameter =
 
 type CommandSpec =
     { Name: string; Description: string; Keywords: string list
-      Parameters: Parameter list; Meta: bool }      // Meta: no transaction (undo, redo, history, help)
+      Parameters: Parameter list
+      Meta: bool          // no transaction (undo, redo, history, help)
+      ReadOnly: bool }    // Phase 4: a live view may re-run it
 
 type IOutput =
     abstract NewLine : unit -> IOutputLine
@@ -283,6 +289,7 @@ type Seed     = IBlobs -> Async<Event list>
 type Session(log: ILog, options: SessionOptions, seed: Seed) =
     member Initialize    : unit -> Async<unit>       // replay, then seed if the log was empty
     member Execute       : source: string * executionId: int * CancellationToken -> Async<Response>
+    member Refresh       : source: string -> Async<Response>   // Phase 4: re-read, commit nothing
     member Cancel        : unit -> bool
     member Complete      : string -> Completion list
     member Commands      : CommandSpec list
@@ -321,8 +328,8 @@ carries structure:
 "view": null }`. Keep `workingDirectory` as an alias for one phase, then remove it.
 
 Bridge additions: `Initialize()` (async, replays the log), `Undo`, `Redo` become
-commands and the bridge methods are removed; `window.terminal.storeChanged(seq)` for
-live views (Phase 4).
+commands and the bridge methods are removed; `Refresh(source)` and
+`window.terminal.storeChanged(seq)` for live views (Phase 4).
 
 ## Grammar changes, by phase
 
@@ -358,6 +365,17 @@ VariableReference ::= "$" Identifier ( "." Identifier )*       -- member access,
 
 The reserved words `and or not eq ne gt ge lt le like has else try` cannot be bare
 words; quote them to pass them as text. A command may not be named after one.
+
+**Phase 4**
+
+```
+CommandName ::= Identifier ( "-" Identifier )*   -- adjacent hyphens only; `ls -l` is unchanged
+CommandExpression_CLINotation ::= CommandName <CommandArgumentList>
+FunctionExpression            ::= CommandName "(" <FunctionArgumentList> ")"
+```
+
+Decision [0022](../decisions/0022-hyphenated-command-names.md). The parser also gains
+an expression root, so a saved view's text can be read back as the predicate it was.
 
 **Phase 5**
 
@@ -396,7 +414,8 @@ grow to 44 pixels in Phase 1.
 | 0016 | Folders are records of kind `folder`; the root is implicit | 1 |
 | 0017 | `name=value` in argument position is data, `name: value` binds a parameter | 1 |
 | 0019 | Reserved words in expression positions | 3 |
-| 0022 | Function form requires an adjacent parenthesis; a spaced parenthesis is a nested pipeline | 5 |
-| 0023 | XML element text content is out of scope for the first XML release | 6 |
+| 0022 | A command's name may be several words joined by hyphens | 4 |
+| 0023 | Function form requires an adjacent parenthesis; a spaced parenthesis is a nested pipeline | 5 |
+| 0024 | XML element text content is out of scope for the first XML release | 6 |
 | 0020 | Scripts: one line per statement, `#` comments, `.clr`, `run` commits per line and stops at the first fault | 3 |
 | 0021 | One parameter may collect the remaining positional arguments | 3 |

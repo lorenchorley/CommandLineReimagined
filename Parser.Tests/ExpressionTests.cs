@@ -289,4 +289,28 @@ public class ExpressionTests
     {
         ParserHarness.AssertRoundTrips(source);
     }
+
+    // ------------------------------------------- An expression on its own
+
+    // Phase 4: a saved view is a predicate with no command line around it, so the
+    // parser has a root that reads one.
+
+    [DataTestMethod]
+    [DataRow("$row.kind eq folder")]
+    [DataRow("$row.mood eq great")]
+    [DataRow("$row.kind eq note and $row.tag eq work")]
+    [DataRow("not $row.kind eq folder")]
+    public void APredicateParsesOnItsOwn(string source)
+    {
+        var parsed = new CommandLineReimagined.Parsing.CommandLineParser().Parse<Value>(source);
+
+        Assert.IsTrue(parsed.IsT0, $"'{source}' did not parse as an expression.");
+        Assert.IsInstanceOfType<ExpressionNode>(parsed.AsT0);
+    }
+
+    [TestMethod]
+    public void APredicateRootRejectsACommandLine() =>
+        Assert.IsTrue(
+            new CommandLineReimagined.Parsing.CommandLineParser().Parse<Value>("ls | count").IsT1,
+            "A whole command line is not an expression.");
 }

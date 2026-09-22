@@ -140,6 +140,42 @@ public class CommandFormTests
         Assert.IsTrue(pipeline.OrderedCommands[2].Expression.IsT2);
     }
 
+    // Decision 0022: a command's name may be several identifiers joined by hyphens.
+
+    [TestMethod]
+    public void AHyphenJoinsTwoWordsIntoOneCommandName() =>
+        Assert.AreEqual("save-view", ParserHarness.Cli("save-view weekend").Name.Name);
+
+    [TestMethod]
+    public void AHyphenatedNameKeepsItsArguments() =>
+        Assert.AreEqual(1, ParserHarness.Cli("save-view weekend").Arguments.Arguments.Count);
+
+    [TestMethod]
+    public void AHyphenatedNameWorksInTheFunctionForm() =>
+        Assert.AreEqual("from-xml", ParserHarness.Function("from-xml(items.xml)").Id.Name);
+
+    /// A space before the hyphen ends the name, which is what keeps flags flags.
+    [TestMethod]
+    public void ASpacedHyphenIsStillAFlag()
+    {
+        var command = ParserHarness.Cli("ls -l");
+
+        Assert.AreEqual("ls", command.Name.Name);
+        Assert.IsInstanceOfType(command.Arguments.Arguments[0], typeof(CommandArgumentFlag));
+    }
+
+    /// And a negative number after one is still a number (decision 0007).
+    [TestMethod]
+    public void ASpacedHyphenBeforeADigitIsStillANumber() =>
+        Assert.AreEqual("-5", NameOf(ParserHarness.Cli("echo -5").Arguments.Arguments[0]));
+
+    [TestMethod]
+    public void AHyphenatedNameRoundTrips() => ParserHarness.AssertRoundTrips("save-view weekend");
+
+    [TestMethod]
+    public void ATrailingHyphenIsNotPartOfTheName() =>
+        Assert.AreEqual("echo", ParserHarness.Cli("echo a-").Name.Name);
+
     [TestMethod]
     public void TrailingPipeIsRejected() => ParserHarness.ParseError("command |");
 

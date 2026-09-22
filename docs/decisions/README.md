@@ -31,6 +31,7 @@ a later record, **Rejected**.
 | [0019](0019-reserved-words-in-expression-positions.md) | Reserved words are reserved everywhere, not only in expressions | Accepted |
 | [0020](0020-scripts-and-run.md) | Scripts are files of command lines, and `run` executes them one line at a time | Accepted |
 | [0021](0021-variadic-parameters.md) | A command may declare one parameter that collects the rest of the arguments | Accepted |
+| [0022](0022-hyphenated-command-names.md) | A command's name may be several words joined by hyphens | Accepted |
 
 Retrospective records document decisions taken before the log existed, so that the
 log is the one place to look. Their alternatives are the ones weighed at the time, as

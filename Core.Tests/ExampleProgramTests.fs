@@ -50,10 +50,52 @@ type ExampleProgramTests() =
           "name  description\n\
              set   Bind a value, or whatever was piped in, to a variable" ]
 
+    /// <summary>The golden results for journal.clr, in the order the script runs them.</summary>
+    /// <remarks>
+    /// Phase 4's program. It is the one that only works once a predicate is somewhere
+    /// you can be: `cd` on a question, `ls` listing it across folders, `up` putting it
+    /// down again, and the event log giving the whole thing back with `undo`.
+    /// </remarks>
+    let journalProgram =
+        [ "mkdir journal", "journal"
+          "cd journal", "journal"
+          "save <note name=monday mood=good tag=work/>", "monday"
+          "save <note name=tuesday mood=tired tag=work/>", "tuesday"
+          "save <note name=saturday mood=great tag=home/>", "saturday"
+          "echo \"Stand-up moved to ten.\" | write monday", "monday"
+          "cat monday", "Stand-up moved to ten."
+          "attr tuesday mood=better", "tuesday"
+
+          "ls",
+          "name      kind  folder    size  modified  mood    tag\n\
+             monday    note  /journal  22    *         good    work\n\
+             saturday  note  /journal  0     *         great   home\n\
+             tuesday   note  /journal  0     *         better  work"
+
+          "find $row.kind eq note and $row.tag eq work | count", "2"
+
+          "cd $row.mood eq great", "$row.mood eq great"
+
+          "ls",
+          "name      kind  folder    size  modified  mood   tag\n\
+             saturday  note  /journal  0     *         great  home"
+
+          "up", "/journal"
+          "rm tuesday", "Removed tuesday"
+          "undo", "Undone: rm tuesday"
+          "history | where $row.undone eq true | count", "1" ]
+
     /// <summary>Whether a result matches a golden one, with `*` for anything.</summary>
     /// <remarks>
     /// Matched line by line so that a timestamp in a column does not let a `*` swallow
     /// the line breaks around it, which would make a one-line answer match a table.
+    ///
+    /// A run of spaces in a golden result matches a run of spaces, of any length. A
+    /// table's columns are padded to the widest cell in them, and the widest cell in
+    /// the `modified` column is a thirty-three character timestamp that the golden
+    /// results write as `*` — so pinning the padding would be pinning the length of
+    /// something the golden deliberately does not say. What the goldens are about is
+    /// the cells and the order they come in, and that is what this holds them to.
     /// </remarks>
     let matches (expected: string) (actual: string) =
         let lines (text: string) = text.Replace("\r\n", "\n").Split '\n'
@@ -62,7 +104,11 @@ type ExampleProgramTests() =
 
         let matchesLine (pattern: string) (text: string) =
             let escaped =
-                pattern.Split '*' |> Array.map Regex.Escape |> String.concat ".*"
+                pattern.Split '*'
+                // Escaping turns each space into `\ `, so the run to loosen is written
+                // in the escaped alphabet rather than the original one.
+                |> Array.map (fun part -> Regex.Replace(Regex.Escape part, @"(\\ )+", "[ ]+"))
+                |> String.concat ".*"
 
             Regex.IsMatch(text, "^" + escaped + "$")
 
@@ -124,6 +170,45 @@ type ExampleProgramTests() =
         let expected = tablesProgram |> List.last |> snd
 
         assertMatches "run examples/tables.clr" expected (harness.Text "run examples/tables.clr")
+
+    // ------------------------------------------------------------ journal.clr
+
+    [<TestMethod>]
+    member _.JournalLineByLine() =
+        let harness = seeded ()
+
+        for source, expected in journalProgram do
+            assertMatches source expected (harness.Text source)
+
+    [<TestMethod>]
+    member _.JournalThroughRun() =
+        let byHand = seeded ()
+
+        for source, _ in journalProgram do
+            byHand.Run source |> ignore
+
+        let byScript = seeded ()
+        byScript.Run "run examples/journal.clr" |> ignore
+
+        Assert.AreEqual<Map<FileId, FileRecord>>(byHand.Projection.Files, byScript.Projection.Files)
+        Assert.AreEqual<Map<string, Value>>(byHand.Projection.Variables, byScript.Projection.Variables)
+        Assert.AreEqual<Location>(byHand.Projection.Location, byScript.Projection.Location)
+
+    /// <summary>What the program is for, stated as an assertion.</summary>
+    /// <remarks>
+    /// The plan's sentence after the golden results: "After the run, `tuesday` exists
+    /// again with `mood = better`: undo restored the record as it was, attributes
+    /// included." An undo that put the file back but lost what was written on it would
+    /// pass every line above and still be the wrong undo.
+    /// </remarks>
+    [<TestMethod>]
+    member _.UndoRestoresTheRecordWithItsAttributes() =
+        let harness = seeded ()
+        harness.Run "run examples/journal.clr" |> ignore
+
+        Assert.IsTrue(harness.Exists "/journal/tuesday", "The undone rm should have brought tuesday back.")
+        Assert.AreEqual<string>("better", harness.Attribute "/journal/tuesday" "mood")
+        Assert.AreEqual<string>("work", harness.Attribute "/journal/tuesday" "tag")
 
     // ------------------------------------------------------------------- run
 

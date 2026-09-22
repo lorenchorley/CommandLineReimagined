@@ -140,12 +140,20 @@ module Completion =
                     else
                         Files.normalise projection.Location.Folder written
 
+                // After `cd `, only the things you can be in: folders, and the saved
+                // views that are places too (decision 0013). Offering every file after
+                // a word that takes a place is offering answers that cannot be right.
+                let places =
+                    (stage.TrimStart().Split(' ', '\t') |> Array.tryHead |> Option.defaultValue "")
+                        .Equals("cd", StringComparison.OrdinalIgnoreCase)
+
                 if not (Files.folderExists projection folder) then
                     []
                 else
                     Files.inFolder projection folder
                     |> List.filter (fun record ->
-                        (Record.name record).StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+                        (not places || Record.isFolder record || Record.kind record = Value.viewKind)
+                        && (Record.name record).StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
                     |> List.sortWith (fun a b -> String.CompareOrdinal(Record.name a, Record.name b))
                     |> List.map (fun record ->
                         if Record.isFolder record then
@@ -153,6 +161,8 @@ module Completion =
                               Text = written + Record.name record + "/"
                               Start = start }
                         else
-                            { Kind = "file"
+                            // A view is a place without being a path, so it completes as
+                            // its own name: `cd weekend/` would name nothing.
+                            { Kind = (if Record.kind record = Value.viewKind then Value.viewKind else "file")
                               Text = written + Record.name record
                               Start = start })

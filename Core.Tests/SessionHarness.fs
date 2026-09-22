@@ -41,8 +41,20 @@ type Harness(?seedFiles: SeedFile list, ?httpClient: unit -> HttpClient) =
 
     member _.Location = session.Location.Folder
 
+    /// The view the session is in, if it is in one (Phase 4).
+    member _.View = session.Location.View
+
+    /// The predicate the session is in, as text, or "" when it is in a folder.
+    member _.ViewText =
+        match session.Location.View with
+        | Some expr -> Expr.display expr
+        | None -> ""
+
     /// Runs a line and returns the whole response.
     member _.Respond(line: string) = Async.RunSynchronously(session.Execute line)
+
+    /// Re-reads a line the way a live view does: no transaction, no scrollback.
+    member _.Refresh(line: string) = Async.RunSynchronously(session.Refresh line)
 
     /// Runs a line expected to succeed, and returns its value.
     member this.Run(line: string) : Value =

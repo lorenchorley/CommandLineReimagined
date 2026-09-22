@@ -37,13 +37,59 @@ type Evaluator(commands: Command list, store: Store, blobs: IBlobs) =
         |> List.filter (fun spec -> spec.Name <> "UnknownCommand")
         |> List.sortWith (fun a b -> String.CompareOrdinal(a.Name, b.Name))
 
+    /// <summary>Whether every stage of a line only ever reads (Phase 4).</summary>
+    /// <remarks>
+    /// Asked of the line before it runs, because a live refresh has to refuse a writing
+    /// line rather than discover afterwards that it wrote. A name that resolves to
+    /// nothing, and a tag standing alone — which can bind a variable — are both
+    /// answered "no": the safe answer is the one that costs a refresh, not a file.
+    /// </remarks>
+    member _.IsReadOnly(tree: Tree.Node) =
+        let reads (name: string) =
+            match find name with
+            | Some command -> command.Spec.ReadOnly
+            | None -> false
+
+        match tree with
+        | :? Tree.Empty -> true
+        | :? Tree.Pipeline as pipeline ->
+            pipeline.OrderedCommands
+            |> Seq.forall (fun expression ->
+                expression.Expression.Match(
+                    (fun (f: Tree.Function) -> reads f.Id.Name),
+                    (fun (c: Tree.Cli) -> reads c.Name.Name),
+                    (fun (_: Tree.InstanceTag) -> false)))
+        | _ -> false
+
     /// <summary>Runs a parsed line.</summary>
     /// <remarks>
     /// Never raises. A fault is a value all the way out; an unexpected exception from
     /// a command is caught here and becomes a fault of kind `Internal`, so a defect
     /// surfaces as a message rather than ending the session.
     /// </remarks>
-    member _.Execute (tree: Tree.Node) (source: string) (output: IOutput) (cancel: CancellationToken) =
+    member this.Execute (tree: Tree.Node) (source: string) (output: IOutput) (cancel: CancellationToken) =
+        this.Run tree source output cancel true
+
+    /// <summary>Re-reads a line without committing anything (Phase 4).</summary>
+    /// <remarks>
+    /// What a live view is made of: the page re-runs the listing it is showing whenever
+    /// the store changes, and that run must leave no transaction, no scrollback and no
+    /// trace in `undo`. A line that names anything but read-only commands is refused
+    /// rather than run.
+    /// </remarks>
+    member this.Refresh (tree: Tree.Node) (source: string) (output: IOutput) (cancel: CancellationToken) =
+        if this.IsReadOnly tree then
+            this.Run tree source output cancel false
+        else
+            async.Return(Error(Fault.refreshMustOnlyRead source))
+
+    member private _.Run
+        (tree: Tree.Node)
+        (source: string)
+        (output: IOutput)
+        (cancel: CancellationToken)
+        (commit: bool)
+        =
         async {
             match tree with
             | :? Tree.Empty -> return Ok { Value = Value.Empty; Committed = None }
@@ -166,6 +212,10 @@ type Evaluator(commands: Command list, store: Store, blobs: IBlobs) =
                         // Nothing is committed, so a failed line leaves no trace at all
                         // (decision 0015).
                         return Error fault
+                    | Ok value when not commit ->
+                        // A refresh reads and stops there: the events it gathered — a
+                        // read-only line has none — are dropped rather than committed.
+                        return Ok { Value = value; Committed = None }
                     | Ok value ->
                         let! committed = store.Commit source pending
 

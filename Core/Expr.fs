@@ -29,6 +29,22 @@ module Expr =
         | :? Tree.ExpressionNode -> true
         | _ -> false
 
+    /// <summary>Whether the expression asks a question rather than naming a thing.</summary>
+    /// <remarks>
+    /// The same distinction as `isExpression`, after the tree has been left behind.
+    /// `cd` is the reason it exists: one parameter that is a folder path when it is a
+    /// plain operand and a view when it has an operator in it (decision 0013).
+    /// </remarks>
+    let isPredicate (expr: Expr) =
+        match expr with
+        | Expr.Compare _
+        | Expr.And _
+        | Expr.Or _
+        | Expr.Not _ -> true
+        | Expr.Const _
+        | Expr.Variable _
+        | Expr.Nested _ -> false
+
     /// <summary>Turns a parsed argument into an expression.</summary>
     /// <remarks>
     /// Total over the nodes an operand can be, and a `Binding` fault over the ones it
@@ -251,3 +267,17 @@ module Expr =
 
     /// The display text of a predicate, for `Value.display` and for the prompt.
     let display (expr: Expr) = Value.exprText expr
+
+    /// <summary>Reads a predicate back from text.</summary>
+    /// <remarks>
+    /// A saved view is a file whose content is the predicate as it was written
+    /// (decision 0013), so entering one means parsing it again. It goes through the
+    /// same grammar the line went through, which is what makes `save-view` and `cd`
+    /// agree about what the text meant.
+    /// </remarks>
+    let parse (path: string) (text: string) : Outcome<Expr> =
+        let parsed = CommandLineReimagined.Parsing.CommandLineParser().Parse<Tree.Value> text
+
+        parsed.Match(
+            (fun (node: Tree.Value) -> ofNode node),
+            (fun _ -> Error(Fault.notAPredicate path (text.Trim()))))

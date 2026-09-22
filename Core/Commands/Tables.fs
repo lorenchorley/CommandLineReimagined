@@ -23,7 +23,11 @@ let private tableOf (invocation: Invocation) =
 
 /// A table function: it reads a table and answers a value, and changes nothing.
 let private pure' name description keywords parameters (run: Invocation -> Table -> Outcome<Value>) =
-    { Spec = CommandSpec.create name description keywords (parameters @ [ tableParameter ])
+    // Read-only by construction: `pure'` is the shape of "asks a question", so every
+    // table function a live view could re-run is marked here once (Phase 4).
+    { Spec =
+        CommandSpec.create name description keywords (parameters @ [ tableParameter ])
+        |> CommandSpec.readOnly
       Run =
         fun invocation ->
             async { return tableOf invocation |> Outcome.bind (run invocation) |> Outcome.map (fun value -> { Value = value; Events = [] }) } }

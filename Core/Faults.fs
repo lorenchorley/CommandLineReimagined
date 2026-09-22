@@ -214,6 +214,30 @@ module Fault =
     let scriptTooDeep depth =
         create Invalid (sprintf "Scripts are only allowed to run scripts %d deep." depth)
 
+    // ----------------------------------------------------------------- View errors
+
+    /// A command that only makes sense over a question says so rather than answering
+    /// an empty listing, which is what a plain word would compare to `false` and give.
+    let needsAPredicate command =
+        create Binding (
+            sprintf "'%s' needs a predicate, such as $row.kind eq note." command)
+
+    /// A view file whose content is not a predicate any more. The text is quoted
+    /// because the file is the only place it exists and the message is how you find it.
+    let notAPredicate path text =
+        create Invalid (sprintf "'%s' does not hold a predicate : %s" path text)
+        |> withPath path
+
+    /// <summary>A live refresh that would change something.</summary>
+    /// <remarks>
+    /// A refresh runs behind the user's back, outside a transaction and with nothing in
+    /// the scrollback to show for it, so a line that writes must not be one. It is
+    /// refused by what the line names rather than by what it turns out to do, because
+    /// by the time it has done it the refusal is too late.
+    /// </remarks>
+    let refreshMustOnlyRead source =
+        create Invalid (sprintf "A live refresh only re-reads : %s" source)
+
     // ------------------------------------------------------------ Session messages
 
     let alreadyRunning () = create Invalid "A command is already running. Stop it first."

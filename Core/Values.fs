@@ -136,6 +136,10 @@ module Value =
 
     let folderKind = "folder"
 
+    /// A saved query, as a file (Phase 4). Its content is the predicate text, so a view
+    /// is a record like any other and can be listed, renamed, undone and deleted.
+    let viewKind = "view"
+
     /// A number reads as a person would write it: no trailing zeros, no thousands
     /// separator, and the same on every machine.
     let formatNumber (n: float) = n.ToString("0.###", CultureInfo.InvariantCulture)

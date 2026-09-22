@@ -175,6 +175,8 @@ type Session(log: ILog, options: SessionOptions, seed: Seed) =
           Commands.Files.cd
           Commands.Files.up
           Commands.Files.pwd
+          Commands.Files.find
+          Commands.Files.saveView options.NewId options.Clock
           Commands.Files.mkdir options.NewId options.Clock
           Commands.Files.cp options.NewId options.Clock
           Commands.Files.cat
@@ -333,6 +335,46 @@ type Session(log: ILog, options: SessionOptions, seed: Seed) =
 
     member this.Execute(source: string) =
         this.Execute(source, 0, CancellationToken.None)
+
+    /// <summary>Re-runs a line that only reads, leaving no trace (Phase 4).</summary>
+    /// <remarks>
+    /// A live view's whole mechanism. The page keeps the source of the listing it is
+    /// showing and asks for it again whenever the store changes; this answers with a
+    /// fresh result and appends nothing, so the scrollback, the history and `undo` are
+    /// all exactly as they would have been. A line that would change something is
+    /// refused, by name, before it runs.
+    /// </remarks>
+    member _.Refresh(source: string) =
+        async {
+            let source = if isNull source then "" else source
+            // A refresh is nobody's line, so its output goes nowhere: a progress bar
+            // from a re-read would appear under an entry that nobody submitted.
+            let output = CapturingOutput ignore
+
+            let respond fault result =
+                { Source = source
+                  Output = output.Lines
+                  Result = result
+                  Fault = fault
+                  Location = store.Current.Location }
+
+            if not initialised then
+                return respond (Some(Fault.notInitialised ())) None
+            else
+                let parsed = parser.Parse<Tree.Node> source
+
+                match parsed.Match((fun tree -> Ok tree), (fun error -> Error(Fault.ofParseError error))) with
+                | Error fault -> return respond (Some fault) None
+                | Ok tree ->
+                    try
+                        let! result = evaluator.Refresh tree source output CancellationToken.None
+
+                        match result with
+                        | Error fault -> return respond (Some fault) None
+                        | Ok execution -> return respond None (Some execution.Value)
+                    with exn ->
+                        return respond (Some(Fault.internalError exn)) None
+        }
 
     /// Stops the command in flight, if there is one.
     member _.Cancel() =

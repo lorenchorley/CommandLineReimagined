@@ -46,6 +46,18 @@ let private isIdentifierChar (c: char) =
 /// Identifier = {IdentifierCharacter}+
 let private identifierText: P<string> = many1SatisfyL isIdentifierChar "identifier"
 
+/// <summary>A command's name: identifiers joined by single hyphens.</summary>
+/// <remarks>
+/// Decision 0022. `save-view`, and in Phase 6 `from-xml` and `to-csv`, are two words
+/// that name one command, and a shell that cannot spell them would have to run them
+/// together. The hyphen has to be adjacent on both sides, which is what keeps `ls -l`
+/// a command and a flag and `echo -5` a command and a negative number: a space before
+/// the hyphen ends the name.
+/// </remarks>
+let private commandNameText: P<string> =
+    identifierText .>>. many (attempt (pchar '-' >>. identifierText))
+    |>> fun (first, rest) -> first :: rest |> String.concat "-"
+
 // A bare word: an unquoted command argument that is not a plain identifier, such as
 // `notes.txt`, `../docs`, `C:\\Users` or `https://host/path`. The .grm sketched this as
 // the commented-out {BareStringCharacter} set and never finished it, so every file name
@@ -446,7 +458,7 @@ let private functionArgumentList: P<CommandArguments> =
             list
 
 let private functionExpression: P<FunctionExpression> =
-    attempt (identifierText .>> ws .>> pchar '(' .>> ws)
+    attempt (commandNameText .>> ws .>> pchar '(' .>> ws)
     .>>. (functionArgumentList .>> ws .>> pchar ')' .>> ws)
     |>> fun (name, arguments) -> FunctionExpression(Id = Identifier(Name = name), Arguments = arguments)
 
@@ -479,7 +491,7 @@ let private commandArgumentList: P<CommandArguments> =
 
 /// <CommandExpression_CLINotation> ::= <ID> <CommandArgumentList>
 let private cliExpression: P<CommandExpressionCli> =
-    identifierText .>> ws .>>. commandArgumentList
+    commandNameText .>> ws .>>. commandArgumentList
     |>> fun (name, arguments) -> CommandExpressionCli(Name = CommandName(Name = name), Arguments = arguments)
 
 /// <CommandExpression> ::= <FunctionExpression> | <CommandExpression_CLINotation> | <IndividualCLIValue>
@@ -513,6 +525,15 @@ let program: P<RootNode> =
     ws
     >>. ((eof >>% (EmptyCommand() :> RootNode))
          <|> (pipedCommandList .>> ws .>> eof |>> fun p -> p :> RootNode))
+
+/// <summary>An expression on its own, with nothing around it.</summary>
+/// <remarks>
+/// Phase 4: a saved view is a file whose content is the predicate text, so reading one
+/// back means parsing a predicate that was never part of a command line. The same
+/// grammar rule serves both, so a view saved from `cd $row.kind eq note` reads back as
+/// exactly the expression that was written.
+/// </remarks>
+let expressionOnly: P<Value> = ws >>. argumentExpression .>> ws .>> eof
 
 /// The identifier grammar, used to validate a name on its own.
 let identifierOnly: P<Identifier> =

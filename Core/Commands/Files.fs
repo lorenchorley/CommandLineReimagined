@@ -66,6 +66,45 @@ let private measure (blobs: IBlobs) (records: FileRecord list) =
         return fun (record: FileRecord) -> defaultArg (Map.tryFind record.Id sizes) 0.0
     }
 
+/// <summary>Everything in the store, which is the whole of what a view asks about.</summary>
+/// <remarks>
+/// A view is not a folder and is not scoped to one (decision 0013): `cd $row.tag eq
+/// work` is a question about the terminal, not about where you happen to be standing,
+/// so `ls` in one lists across folders and shows the `folder` column to say where each
+/// row came from.
+/// </remarks>
+let private everything (projection: Projection) =
+    projection.Files |> Map.toList |> List.map snd
+
+/// <summary>The records a predicate is true of, as a listing.</summary>
+/// <remarks>
+/// The predicate is evaluated against a row of the same shape `ls` produces, so
+/// `$row.kind`, `$row.folder` and any attribute a record carries all mean in a view
+/// exactly what they mean after `ls |`. The matching records are then listed on their
+/// own, rather than the whole store's table being filtered, so the columns are the
+/// attributes of what came back instead of the attributes of everything.
+/// </remarks>
+let private listMatching (invocation: Invocation) (expr: Expr) =
+    async {
+        let records = everything invocation.Projection
+        let! size = measure invocation.Blobs records
+        let candidates = Table.ofRecords size records
+
+        let judged =
+            List.zip records candidates.Rows
+            |> Outcome.traverse (fun (record, row) ->
+                // A frame of its own per row, so `$row` is local to the predicate
+                // (decision 0008).
+                let scope = invocation.Scope.Push().Bind "row" (Table.row candidates row)
+                Expr.evaluate scope expr |> Outcome.map (fun kept -> record, Expr.isTrue kept))
+
+        match judged with
+        | Error fault -> return Error fault
+        | Ok pairs ->
+            let matched = pairs |> List.filter snd |> List.map fst |> listingOrder
+            return Invocation.pure' (Value.Table(Table.ofRecords size matched))
+    }
+
 let ls =
     { Spec =
         CommandSpec.create
@@ -73,11 +112,20 @@ let ls =
             "List files and directories in a directory, the current directory by default"
             [ "show"; "list"; "dir" ]
             [ Parameter.optional "path" "Directory to list; defaults to the current one" ]
+        |> CommandSpec.readOnly
       Run =
         fun invocation ->
             async {
+                let written = Invocation.given "path" invocation
+
+                match invocation.Location.View with
+                // In a view, a listing is the view (decision 0013). Writing a path is
+                // how you look somewhere else without leaving it.
+                | Some expr when not written -> return! listMatching invocation expr
+                | _ ->
+
                 let target =
-                    if Invocation.given "path" invocation then
+                    if written then
                         Invocation.text "path" invocation
                     else
                         invocation.Location.Folder
@@ -95,44 +143,161 @@ let ls =
                     return Invocation.pure' (Value.Table(Table.ofRecords size entries))
             } }
 
+// ------------------------------------------------------------------------- find
+
+let find =
+    { Spec =
+        CommandSpec.create
+            "find"
+            "List every record a predicate is true of, wherever it is"
+            [ "search"; "query"; "look"; "everywhere" ]
+            [ Parameter.predicate "predicate" "An expression over $row, such as $row.kind eq note" ]
+        |> CommandSpec.readOnly
+      Run =
+        fun invocation ->
+            async {
+                match Invocation.predicate "predicate" invocation with
+                | Option.None -> return Error(Fault.needsAPredicate "find")
+                | Some expr when not (Expr.isPredicate expr) -> return Error(Fault.needsAPredicate "find")
+                | Some expr ->
+                    // Asking a question is not going anywhere: `find` leaves the
+                    // location alone, which is the whole difference between it and `cd`.
+                    return! listMatching invocation expr
+            } }
+
 // --------------------------------------------------------------------------- cd
 
-let private moveTo (invocation: Invocation) (target: string) =
+/// <summary>A folder as the value `cd` answers with.</summary>
+/// <remarks>
+/// The record, so the answer is a chip you can tap and pipe like any other file. The
+/// root is the exception: it is implicit and has no record (decision 0016), so there
+/// is nothing to return but its path.
+/// </remarks>
+let private folderValue (projection: Projection) (folder: string) =
+    if folder = Files.root then
+        Value.Text folder
+    else
+        let parent, name = Files.split folder
+
+        match Files.tryFindIn projection parent name with
+        | Some record -> Record.toValue record
+        | Option.None -> Value.Text folder
+
+/// Moving somewhere clears any view: a folder and a view are two answers to the same
+/// question, and holding both would leave `ls` with two things to list.
+let private enterFolder (invocation: Invocation) (target: string) =
     match Files.resolveFolder invocation.Projection invocation.Location target with
     | Error fault -> Error fault
     | Ok folder ->
-        let after = { invocation.Location with Folder = folder }
+        let after = { Folder = folder; View = Option.None }
+        let value = folderValue invocation.Projection folder
 
         if after = invocation.Location then
             // Already there: no event, so the line commits nothing and `undo` reaches
             // past it rather than having a no-op to take back.
-            Invocation.pure' (Value.Text folder)
+            Invocation.pure' value
         else
-            Invocation.withEvents
-                (Value.Text folder)
-                [ LocationChanged(invocation.Location, after) ]
+            Invocation.withEvents value [ LocationChanged(invocation.Location, after) ]
+
+/// <summary>Entering a query rather than a folder (decision 0013).</summary>
+/// <remarks>
+/// The folder is left as it was, because a view is a way of looking rather than a
+/// place to put things: new files still land in `Folder`, and `up` puts the view down
+/// and leaves you where you already were.
+/// </remarks>
+let private enterView (invocation: Invocation) (expr: Expr) =
+    let after = { invocation.Location with View = Some expr }
+
+    if after = invocation.Location then
+        Invocation.pure' (Value.Query expr)
+    else
+        Invocation.withEvents (Value.Query expr) [ LocationChanged(invocation.Location, after) ]
+
+/// <summary>Entering something named: a folder, or a saved view.</summary>
+/// <remarks>
+/// A view file is a place (decision 0013), so `cd weekend` on one enters the query it
+/// holds rather than failing because it is not a directory. Anything else is a path,
+/// and the failure is the same "Directory does not exist" it has always been.
+/// </remarks>
+let private enterNamed (invocation: Invocation) (written: string) =
+    async {
+        match Files.resolve invocation.Projection invocation.Location written with
+        | Ok record when Record.kind record = Value.viewKind ->
+            let path = Files.pathOf invocation.Projection record
+
+            let! content =
+                match record.Content with
+                | Some hash -> invocation.Blobs.Get hash
+                | Option.None -> async.Return(Some "")
+
+            match Expr.parse path (defaultArg content "") with
+            | Error fault -> return Error fault
+            | Ok expr -> return enterView invocation expr
+        | _ -> return enterFolder invocation written
+    }
 
 let cd =
     { Spec =
         CommandSpec.create
             "cd"
-            "Enter a directory"
-            [ "move"; "navigate"; "directory"; "folder" ]
-            [ Parameter.create "TargetPath" "The directory to enter" |> Parameter.piped ]
-      Run = fun invocation -> async { return moveTo invocation (Invocation.text "TargetPath" invocation) } }
+            "Enter a directory, a saved view, or a predicate written out"
+            [ "move"; "navigate"; "directory"; "folder"; "view"; "query" ]
+            [ Parameter.predicate "TargetPath" "The directory, view or predicate to enter"
+              |> Parameter.piped ]
+      Run =
+        fun invocation ->
+            async {
+                match Map.tryFind "TargetPath" invocation.Args with
+                // Written with an operator in it: a question, and therefore a view.
+                | Some(Value.Query expr) when Expr.isPredicate expr -> return enterView invocation expr
+                // Written as a plain operand, or piped in as a value: a name.
+                | Some(Value.Query expr) ->
+                    match Expr.evaluate invocation.Scope expr with
+                    | Error fault -> return Error fault
+                    | Ok value -> return! enterNamed invocation (Value.argument value)
+                | Some value -> return! enterNamed invocation (Value.argument value)
+                | Option.None -> return Error(Fault.needsArgument "cd" "TargetPath")
+            } }
 
 let up =
-    { Spec = CommandSpec.create "up" "Move up one directory" [ "move"; "parent"; "back"; "navigate" ] []
-      Run = fun invocation -> async { return moveTo invocation ".." } }
+    { Spec =
+        CommandSpec.create "up" "Leave the current view, or move up one directory"
+            [ "move"; "parent"; "back"; "navigate"; "view" ] []
+        |> CommandSpec.readOnly
+      Run =
+        fun invocation ->
+            async {
+                match invocation.Location.View with
+                // A view is put down before the folder is left: two `up`s from a view
+                // over a subfolder take you out of the question and then out of the
+                // folder, which is the order they were entered in.
+                | Some _ ->
+                    let after = { invocation.Location with View = Option.None }
+
+                    return
+                        Invocation.withEvents
+                            (Value.Text invocation.Location.Folder)
+                            [ LocationChanged(invocation.Location, after) ]
+                | Option.None -> return enterFolder invocation ".."
+            } }
 
 let pwd =
     { Spec =
         CommandSpec.create
             "pwd"
-            "The current directory"
-            [ "where"; "current"; "directory"; "path"; "location" ]
+            "Where you are: the current directory, or the view you are in"
+            [ "where"; "current"; "directory"; "path"; "location"; "view" ]
             []
-      Run = fun invocation -> async { return Invocation.pure' (Value.Text invocation.Location.Folder) } }
+        |> CommandSpec.readOnly
+      Run =
+        fun invocation ->
+            async {
+                return
+                    Invocation.pure' (
+                        match invocation.Location.View with
+                        | Some expr -> Value.Query expr
+                        | Option.None -> Value.Text invocation.Location.Folder)
+            } }
 
 // ------------------------------------------------------------------------ mkdir
 
@@ -217,6 +382,7 @@ let cat =
             "Read a file and return its text"
             [ "read"; "print"; "show"; "file"; "contents"; "type" ]
             [ Parameter.create "path" "The file to read" |> Parameter.piped ]
+        |> CommandSpec.readOnly
       Run =
         fun invocation ->
             async {
@@ -445,4 +611,53 @@ let save (newId: IdSource) (now: unit -> DateTimeOffset) =
                                 Invalid
                                 (sprintf "'save' needs a tag, not %s." (Value.kind other))
                         )
+            } }
+
+// -------------------------------------------------------------------- save-view
+
+/// <summary>Keeps a predicate as a file, so a question becomes a place.</summary>
+/// <remarks>
+/// Decision 0013's last step: a view is an ordinary record of kind `view` whose content
+/// is the predicate text. It therefore appears in `ls`, can be tapped, renamed, undone
+/// and deleted like anything else, and `cd` on it enters the query it holds. Nothing in
+/// the store knows about views except this command and `cd`.
+/// </remarks>
+let saveView (newId: IdSource) (now: unit -> DateTimeOffset) =
+    { Spec =
+        CommandSpec.create
+            "save-view"
+            "Save a predicate as a view you can enter with cd"
+            [ "view"; "save"; "query"; "bookmark"; "keep" ]
+            [ Parameter.create "name" "What to call the view"
+              Parameter.predicate "predicate" "The predicate the view stands for" ]
+      Run =
+        fun invocation ->
+            async {
+                let name = Invocation.text "name" invocation
+
+                match Invocation.predicate "predicate" invocation with
+                | Option.None -> return Error(Fault.needsAPredicate "save-view")
+                | Some expr when not (Expr.isPredicate expr) -> return Error(Fault.needsAPredicate "save-view")
+                | Some expr ->
+                    let folder = invocation.Location.Folder
+
+                    if name = "" then
+                        return Error(Fault.create Invalid "A view needs a name.")
+                    elif (Files.tryFindIn invocation.Projection folder name).IsSome then
+                        return Error(Fault.targetFileExists (Value.joinPath folder name))
+                    else
+                        // The predicate as it reads, not as it parsed: a view is a file
+                        // someone can `cat`, and the text has to be something they could
+                        // have typed.
+                        let! hash = invocation.Blobs.Put(Expr.display expr)
+
+                        let record =
+                            { Id = newId ()
+                              Attributes = baseAttributes name Value.viewKind folder (now ())
+                              Content = None }
+
+                        return
+                            Invocation.withEvents
+                                (Record.toValue { record with Content = Some hash })
+                                [ FileCreated record; ContentChanged(record.Id, None, Some hash) ]
             } }

@@ -10,6 +10,7 @@ let echo =
             "Writes its argument, or whatever was piped into it"
             [ "print"; "write"; "output" ]
             [ Parameter.create "text" "What to write" |> Parameter.piped ]
+        |> CommandSpec.readOnly
       Run = fun invocation -> async { return Invocation.pure' (Invocation.value "text" invocation) } }
 
 /// <summary>Binds a value to a name.</summary>
@@ -48,6 +49,7 @@ let set =
 let vars =
     { Spec =
         CommandSpec.create "vars" "List the variables in scope" [ "variables"; "list"; "show"; "scope" ] []
+        |> CommandSpec.readOnly
       Run =
         fun invocation ->
             async {

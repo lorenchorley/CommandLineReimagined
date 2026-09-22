@@ -164,3 +164,28 @@ type CompletionTests() =
         let harness = seeded ()
 
         assertContains "$row" (texts harness "ls | where $r")
+
+    // ------------------------------------------------------------ Places (Phase 4)
+
+    /// After `cd` the word names somewhere you can be, so a file that is not a place
+    /// is not an answer worth offering.
+    [<TestMethod>]
+    member _.CdOffersOnlyPlaces() =
+        let harness = seeded ()
+
+        Assert.AreEqual<string list>([ "documents/"; "examples/"; "projects/" ], texts harness "cd ")
+
+    [<TestMethod>]
+    member _.OtherCommandsStillOfferEveryName() =
+        let harness = seeded ()
+
+        assertContains "readme.txt" (texts harness "cat ")
+
+    /// A saved view is a place without being a path, so it completes as its own name
+    /// rather than with a separator after it.
+    [<TestMethod>]
+    member _.CdOffersASavedView() =
+        let harness = seeded ()
+        harness.Run "save-view weekend $row.kind eq folder" |> ignore
+
+        assertContains "weekend" (texts harness "cd we")

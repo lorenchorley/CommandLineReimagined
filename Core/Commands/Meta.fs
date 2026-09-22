@@ -60,6 +60,7 @@ let history (store: StoreAccess) =
     { Spec =
         CommandSpec.create "history" "The lines that changed something, oldest first" [ "history"; "log"; "past" ] []
         |> CommandSpec.meta
+        |> CommandSpec.readOnly
       Run =
         fun _ ->
             async {
@@ -94,6 +95,7 @@ let help (specs: unit -> CommandSpec list) =
             [ "help"; "commands"; "what"; "usage"; "manual" ]
             []
         |> CommandSpec.meta
+        |> CommandSpec.readOnly
       Run =
         fun _ ->
             async {

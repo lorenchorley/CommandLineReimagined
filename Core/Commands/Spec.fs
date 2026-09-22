@@ -52,7 +52,15 @@ type CommandSpec =
       /// (decision 0015). A transaction that recorded an undo would have to be undone
       /// in turn, and `history` would show the reading of itself.
       /// </remarks>
-      Meta: bool }
+      Meta: bool
+      /// <summary>Whether the command can only ever read (Phase 4).</summary>
+      /// <remarks>
+      /// Declared rather than discovered, because a live view re-runs a line behind the
+      /// user's back and has to refuse a writing one *before* it runs: by the time the
+      /// events are in hand it is too late to say no. `attr` is deliberately not marked,
+      /// because the same command reads with no assignments and writes with them.
+      /// </remarks>
+      ReadOnly: bool }
 
 /// Where a command writes while it is still running.
 ///
@@ -176,9 +184,14 @@ module CommandSpec =
           Description = description
           Keywords = keywords
           Parameters = parameters
-          Meta = false }
+          Meta = false
+          ReadOnly = false }
 
     let meta spec = { spec with Meta = true }
+
+    /// A command that answers a question and changes nothing, so a live view may
+    /// re-run it.
+    let readOnly spec = { spec with ReadOnly = true }
 
     /// The parameters positional arguments can fill: everything but the assignment
     /// collector, which is filled by a notation of its own.
