@@ -93,35 +93,28 @@ type ValueTests() =
     [<TestMethod>]
     member _.AnObjectTagReadsBackAsItself() =
         let tag =
-            { TypeName = "file"
-              Attributes = Map.ofList [ "path", Value.Text "documents/notes.txt" ]
-              Children = [] }
+            Tag.create "file" [ "path", Value.Text "documents/notes.txt" ] []
 
         Assert.AreEqual<string>("<file path=documents/notes.txt/>", Value.display (Value.Object tag))
 
     [<TestMethod>]
     member _.AComponentTagUsesBraces() =
         let tag =
-            { TypeName = "renderer"
-              Attributes = Map.ofList [ "colour", Value.Text "red" ]
-              Children = [] }
+            Tag.create "renderer" [ "colour", Value.Text "red" ] []
 
         Assert.AreEqual<string>("{renderer colour=red/}", Value.display (Value.Component tag))
 
     [<TestMethod>]
     member _.ATagWithNoAttributesHasNoSpace() =
-        let tag = { TypeName = "thing"; Attributes = Map.empty; Children = [] }
+        let tag = Tag.create "thing" [] []
 
         Assert.AreEqual<string>("<thing/>", Value.display (Value.Object tag))
 
     [<TestMethod>]
     member _.ATagWithChildrenUsesTheLongForm() =
-        let inner = { TypeName = "inner"; Attributes = Map.empty; Children = [] }
+        let inner = Tag.create "inner" [] []
 
-        let outer =
-            { TypeName = "outer"
-              Attributes = Map.empty
-              Children = [ Value.Object inner ] }
+        let outer = Tag.create "outer" [] [ Value.Object inner ]
 
         Assert.AreEqual<string>("<outer><inner/></outer>", Value.display (Value.Object outer))
 

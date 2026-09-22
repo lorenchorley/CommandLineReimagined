@@ -17,6 +17,8 @@
   <ItemGroup>
     <Compile Include="Harness.fs" />
     <Compile Include="ValueTests.fs" />
+    <Compile Include="TableTests.fs" />
+    <Compile Include="ExpressionTests.fs" />
     <Compile Include="ProjectionTests.fs" />
     <Compile Include="FilesTests.fs" />
     <Compile Include="StoreTests.fs" />

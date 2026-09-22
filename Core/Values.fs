@@ -28,7 +28,65 @@ type FileRef =
 type Tag =
     { TypeName: string
       Attributes: Map<string, Value>
+      /// <summary>The attribute names in the order they were written.</summary>
+      /// <remarks>
+      /// A map is sorted by key, and a tag is not: `<note name=monday mood=good/>` has
+      /// to read back the way it was typed, and a row built from a table has to read in
+      /// column order rather than alphabetically. The map is still what a lookup uses;
+      /// this says what order to write them in, and a name missing from it falls back to
+      /// the map's own order, so a tag built without one is not wrong, only alphabetical.
+      /// </remarks>
+      Order: string list
       Children: Value list }
+
+/// <summary>What a table's column holds.</summary>
+/// <remarks>
+/// Decision 0009: a column is typed when every cell that is not `None` agrees, and is
+/// `MixedCol` when they do not. The type is what decides whether `lt` compares numbers
+/// or text and whether `sort` orders numerically, so getting it from the data rather
+/// than from a declaration is what makes `sort qty` do the right thing on a table that
+/// was read out of an XML file.
+/// </remarks>
+and ColumnType =
+    | TextCol
+    | NumberCol
+    | BooleanCol
+    | FileCol
+    | ObjectCol
+    | MixedCol
+
+and Column = { Name: string; Type: ColumnType }
+
+/// <summary>Rows and columns, as a value.</summary>
+/// <remarks>
+/// Every row has exactly `Columns.Length` cells; a gap is `Value.None` rather than a
+/// short row, so a cell can always be addressed by its column's index.
+/// </remarks>
+and Table =
+    { Columns: Column list
+      Rows: Value list list }
+
+/// <summary>An expression: a predicate, or one operand of one.</summary>
+/// <remarks>
+/// Declared here rather than beside its module because `Value.Query` names one and
+/// values compile first, which is the same reason `FileId` is declared here.
+///
+/// This is the evaluated form: what the parser produced, with the shape of the tree
+/// kept and the parser's node types left behind. `Nested` is the exception, because a
+/// pipeline can only be run by the evaluator and there is nothing useful to translate
+/// it into until Phase 5 gives it a meaning.
+/// </remarks>
+and [<RequireQualifiedAccess>] Expr =
+    | Const of Value
+    /// `$row.size`: a variable and the members read off it, in order.
+    | Variable of name: string * members: string list
+    /// One of `eq ne gt ge lt le like has`.
+    | Compare of op: string * left: Expr * right: Expr
+    | And of Expr * Expr
+    | Or of Expr * Expr
+    | Not of Expr
+    /// A pipeline written in parentheses, still as the parser produced it.
+    | Nested of Commands.Parser.SemanticTree.PipedCommandList
 
 /// <summary>
 /// Everything a command can return or be given.
@@ -38,8 +96,8 @@ type Tag =
 /// `Option.None` everywhere this namespace is opened, and absence is spelled with an
 /// option often enough in here that the shadowing would be a standing trap.
 ///
-/// `Table` and `Query` arrive in Phases 3 and 4, and `Fault` in Phase 5 with `try`.
-/// Until a phase has a way to produce a case there is nothing that could return it.
+/// `Fault` arrives in Phase 5 with `try`. Until a phase has a way to produce a case
+/// there is nothing that could return it.
 /// </remarks>
 and [<RequireQualifiedAccess>] Value =
     /// A command that returns nothing. Distinct from `None`: this is "no answer",
@@ -53,6 +111,25 @@ and [<RequireQualifiedAccess>] Value =
     | List of Value list
     | Object of Tag
     | Component of Tag
+    | Table of Table
+    /// A predicate as a value. It is what a `Predicate` parameter is handed, and from
+    /// Phase 4 what a location's view is made of.
+    | Query of Expr
+
+[<CompilationRepresentation(CompilationRepresentationFlags.ModuleSuffix)>]
+module Tag =
+
+    /// <summary>A tag from its attributes, in the order they were given.</summary>
+    /// <remarks>
+    /// The only way a tag should be built: writing the record out by hand means
+    /// remembering to keep `Order` and `Attributes` agreeing, and this is the one place
+    /// that has to.
+    /// </remarks>
+    let create (typeName: string) (attributes: (string * Value) list) (children: Value list) =
+        { TypeName = typeName
+          Attributes = Map.ofList attributes
+          Order = attributes |> List.map fst
+          Children = children }
 
 [<CompilationRepresentation(CompilationRepresentationFlags.ModuleSuffix)>]
 module Value =
@@ -74,6 +151,22 @@ module Value =
         if folder = "/" then "/" + name
         else folder + "/" + name
 
+    /// <summary>A tag's attributes in the order they should be written.</summary>
+    /// <remarks>
+    /// `Order` first, for the names it knows, then anything the map has that it does
+    /// not, so a tag built without an order is written alphabetically rather than
+    /// incompletely.
+    /// </remarks>
+    let orderedAttributes (tag: Tag) : (string * Value) list =
+        let named =
+            tag.Order
+            |> List.choose (fun name -> tag.Attributes |> Map.tryFind name |> Option.map (fun v -> name, v))
+
+        let known = named |> List.map fst |> Set.ofList
+
+        named
+        @ (tag.Attributes |> Map.toList |> List.filter (fun (name, _) -> not (known.Contains name)))
+
     /// <summary>How the value reads to a person.</summary>
     let rec display (value: Value) : string =
         match value with
@@ -86,14 +179,15 @@ module Value =
         | Value.List items -> items |> List.map display |> String.concat " "
         | Value.Object tag -> tagText "<" ">" tag
         | Value.Component tag -> tagText "{" "}" tag
+        | Value.Table table -> tableText table
+        | Value.Query expr -> exprText expr
 
     and private tagText (opening: string) (closing: string) (tag: Tag) =
         let attributes =
             if Map.isEmpty tag.Attributes then ""
             else
                 " "
-                + (tag.Attributes
-                   |> Map.toList
+                + (orderedAttributes tag
                    |> List.map (fun (name, v) -> name + "=" + display v)
                    |> String.concat " ")
 
@@ -103,6 +197,50 @@ module Value =
             opening + tag.TypeName + attributes + closing
             + (tag.Children |> List.map display |> String.concat "")
             + opening + "/" + tag.TypeName + closing
+
+    /// <summary>A table, as aligned text.</summary>
+    /// <remarks>
+    /// The header, then a row per line, each column padded to the widest thing in it
+    /// and two spaces between. This is what the desktop shell and a test read; the
+    /// browser draws a real table from the same value. There is no trailing padding on
+    /// the last column, so a line has no invisible spaces on the end of it.
+    /// </remarks>
+    and private tableText (table: Table) =
+        let cells = table.Rows |> List.map (List.map display)
+        let headers = table.Columns |> List.map (fun column -> column.Name)
+
+        let widths =
+            headers
+            |> List.mapi (fun index header ->
+                cells
+                |> List.fold (fun widest row -> max widest (List.item index row).Length) header.Length)
+
+        let line (row: string list) =
+            List.zip row widths
+            |> List.map (fun (text, width) -> text.PadRight width)
+            |> String.concat "  "
+            |> fun text -> text.TrimEnd()
+
+        (headers :: cells) |> List.map line |> String.concat "\n"
+
+    /// <summary>An expression, written the way it was typed.</summary>
+    /// <remarks>
+    /// A query is a value, so it has to read back as something a person could type
+    /// again — which is exactly what Phase 4 needs, since a location's view is shown in
+    /// the prompt and `cd` on it has to mean the same thing twice.
+    /// </remarks>
+    and exprText (expr: Expr) : string =
+        match expr with
+        | Expr.Const value -> display value
+        | Expr.Variable(name, members) -> "$" + name + (members |> List.map (fun m -> "." + m) |> String.concat "")
+        | Expr.Compare(op, left, right) -> exprText left + " " + op + " " + exprText right
+        | Expr.And(left, right) -> exprText left + " and " + exprText right
+        | Expr.Or(left, right) -> exprText left + " or " + exprText right
+        | Expr.Not operand -> "not " + exprText operand
+        | Expr.Nested pipeline ->
+            let visitor = Isagri.Reporting.Quid.RequestFilters.SemanticTree.SerialisationVisitor()
+            pipeline.Accept visitor
+            "(" + visitor.GetResult() + ")"
 
     /// <summary>What the value means when a command is given it as an argument.</summary>
     /// <remarks>
@@ -130,6 +268,8 @@ module Value =
         | Value.List _ -> "list"
         | Value.Object _ -> "object"
         | Value.Component _ -> "component"
+        | Value.Table _ -> "table"
+        | Value.Query _ -> "query"
 
     /// <summary>
     /// A bare word that reads as a number becomes one; everything else stays text.

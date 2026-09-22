@@ -20,6 +20,16 @@ public class LogFormatTests
 {
     private static readonly DateTimeOffset At = new(2026, 9, 21, 12, 34, 56, 789, TimeSpan.FromHours(2));
 
+    /// <summary>
+    /// A tag's attributes as an ordered list, which is how a tag is built.
+    /// </summary>
+    /// <remarks>
+    /// A tag keeps the order it was written in beside the map, so building one from a
+    /// map alone would lose exactly what the order field is there to keep.
+    /// </remarks>
+    private static FSharpList<Tuple<string, Value>> Pairs(params (string Name, Value Value)[] pairs) =>
+        ListModule.OfSeq(pairs.Select(pair => Tuple.Create(pair.Name, pair.Value)));
+
     private static FSharpMap<string, Value> Attributes(params (string Name, Value Value)[] pairs) =>
         MapModule.OfSeq(pairs.Select(p => Tuple.Create(p.Name, p.Value)));
 
@@ -228,12 +238,28 @@ public class LogFormatTests
             ("boolean", Value.NewBoolean(true)),
             ("file", Value.NewFile(new FileRef("id", "notes.txt", "text", "/documents"))),
             ("list", Value.NewList(ListModule.OfSeq(new[] { Value.NewText("a"), Value.NewNumber(1) }))),
-            ("object", Value.NewObject(new Tag("measurement",
-                Attributes(("unit", Value.NewText("metres"))),
+            ("object", Value.NewObject(TagModule.create("measurement",
+                Pairs(("unit", Value.NewText("metres"))),
                 ListModule.Empty<Value>()))),
-            ("component", Value.NewComponent(new Tag("renderer",
-                Attributes(("colour", Value.NewText("red"))),
+            ("component", Value.NewComponent(TagModule.create("renderer",
+                Pairs(("colour", Value.NewText("red"))),
                 ListModule.Empty<Value>()))),
+            // A listing bound to a variable: `ls | set files` puts one of these in the
+            // log, so it has to come back as a table rather than as its text.
+            ("table", Value.NewTable(new Table(
+                ListModule.OfSeq(new[]
+                {
+                    new Column("name", ColumnType.FileCol),
+                    new Column("size", ColumnType.NumberCol),
+                }),
+                ListModule.OfSeq(new[]
+                {
+                    ListModule.OfSeq(new[]
+                    {
+                        Value.NewFile(new FileRef("id", "notes.txt", "text", "/")),
+                        Value.NewNumber(12),
+                    }),
+                })))),
         };
 
         var read = RoundTrip(Transaction(Event.NewAttributesChanged(
@@ -253,11 +279,11 @@ public class LogFormatTests
     [TestMethod]
     public void ANestedTagRoundTrips()
     {
-        var inner = Value.NewObject(new Tag("inner",
-            Attributes(("depth", Value.NewNumber(2))), ListModule.Empty<Value>()));
+        var inner = Value.NewObject(TagModule.create("inner",
+            Pairs(("depth", Value.NewNumber(2))), ListModule.Empty<Value>()));
 
-        var outer = Value.NewObject(new Tag("outer",
-            MapModule.Empty<string, Value>(), ListModule.OfSeq(new[] { inner })));
+        var outer = Value.NewObject(TagModule.create("outer",
+            Pairs(), ListModule.OfSeq(new[] { inner })));
 
         var read = RoundTrip(Transaction(Event.NewVariableChanged(
             "v", FSharpOption<Value>.None, FSharpOption<Value>.Some(outer))));

@@ -44,7 +44,15 @@ module Binder =
         | :? Tree.Identifier as identifier -> Ok((Value.ofWord identifier.Name, []), scope)
 
         | :? Tree.VariableReference as reference ->
-            lookup scope reference.Name.Name |> Outcome.map (fun v -> ((v, []), scope))
+            // `$row.size` reads a member off the value, which is the same notation
+            // inside a predicate and outside one (decision 0008).
+            lookup scope reference.Name.Name
+            |> Outcome.map (fun value ->
+                let read =
+                    reference.Members
+                    |> Seq.fold (fun current (m: Tree.MemberName) -> Expr.readMember m.Name current) value
+
+                ((read, []), scope))
 
         | :? Tree.TagValue as tag -> evalTag scope tag.Tag
 
@@ -107,10 +115,9 @@ module Binder =
             let! (pairs, attributeEvents), scope = attributeLoop scope [] [] writtenAttributes
             let! (values, childEvents), scope = childLoop scope [] attributeEvents writtenChildren
 
-            let tag =
-                { TypeName = typeName
-                  Attributes = Map.ofList pairs
-                  Children = values }
+            // Built in the order it was written, so `<note name=monday mood=good/>`
+            // reads back the way it was typed rather than alphabetically.
+            let tag = Tag.create typeName pairs values
 
             return ((tag, childEvents), scope)
         }
@@ -156,6 +163,19 @@ module Binder =
             | :? Tree.NamedArgument as named -> Ok named.Value
             | other -> Error(Fault.unsupportedArgument (other.GetType().Name))
 
+    /// <summary>Binds one written argument to one declared parameter.</summary>
+    /// <remarks>
+    /// Where the two differ is the parameter's kind. A `Predicate` parameter is handed
+    /// the expression unevaluated, because it is the command that knows what to bind
+    /// `$row` to; every other kind is evaluated here, and an argument that actually
+    /// wrote an operator is a binding fault rather than a comparison of display strings.
+    /// </remarks>
+    let private bindArgument (spec: CommandSpec) (parameter: Parameter) (scope: Scope) (node: Tree.Value) =
+        match parameter.Kind with
+        | Predicate -> Expr.ofNode node |> Outcome.map (fun expr -> ((Value.Query expr, []), scope))
+        | _ when Expr.isExpression node -> Error(Fault.takesNoExpression spec.Name parameter.Name)
+        | _ -> eval scope node
+
     /// The running state of step 1, so that four things do not have to be threaded as
     /// a tuple through every branch.
     type private Walk =
@@ -193,7 +213,7 @@ module Binder =
                     match findNamed spec name with
                     | None -> Error(Fault.noArgumentNamed spec.Name name)
                     | Some parameter ->
-                        eval state.Scope named.Value
+                        bindArgument spec parameter state.Scope named.Value
                         |> Outcome.bind (fun ((value, produced), scope) ->
                             step1
                                 { state with
@@ -213,7 +233,7 @@ module Binder =
 
                         match next with
                         | Some node ->
-                            eval state.Scope node
+                            bindArgument spec parameter state.Scope node
                             |> Outcome.bind (fun ((value, produced), scope) ->
                                 step1
                                     { state with
@@ -251,11 +271,33 @@ module Binder =
             | (parameter: Parameter) :: rest ->
                 if Map.containsKey parameter.Name args then
                     step2 state args rest
+                elif parameter.Kind = Rest then
+                    // Greedy, and never takes the pipe: on a table function the pipe is
+                    // the table, and a rest parameter that swallowed it would leave the
+                    // table unbound (decision 0021).
+                    let rec collect (state: Walk) collected remaining =
+                        match remaining with
+                        | [] -> Ok(state, List.rev collected)
+                        | argument :: rest ->
+                            writtenValue argument
+                            |> Outcome.bind (bindArgument spec parameter state.Scope)
+                            |> Outcome.bind (fun ((value, produced), scope) ->
+                                collect
+                                    { state with
+                                        Positional = []
+                                        Events = state.Events @ produced
+                                        Scope = scope }
+                                    (value :: collected)
+                                    rest)
+
+                    collect state [] state.Positional
+                    |> Outcome.bind (fun (state, collected) ->
+                        step2 state (Map.add parameter.Name (Value.List collected) args) rest)
                 else
                     match state.Positional with
                     | argument :: remaining ->
                         writtenValue argument
-                        |> Outcome.bind (eval state.Scope)
+                        |> Outcome.bind (bindArgument spec parameter state.Scope)
                         |> Outcome.bind (fun ((value, produced), scope) ->
                             step2
                                 { state with

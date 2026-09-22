@@ -164,6 +164,24 @@ public static class LogFormat
             Value.Object tag => TagNode("object", tag.Item),
             Value.Component tag => TagNode("component", tag.Item),
 
+            // A table reaches the log through `ls | set files`, so it has to be stored
+            // as a table rather than flattened: a variable holding a listing has to come
+            // back as one after a reload.
+            Value.Table table => new JsonObject
+            {
+                ["k"] = "table",
+                ["columns"] = new JsonArray(table.Item.Columns
+                    .Select(column => (JsonNode?)new JsonObject
+                    {
+                        ["name"] = column.Name,
+                        ["type"] = ColumnTypeName(column.Type),
+                    })
+                    .ToArray()),
+                ["rows"] = new JsonArray(table.Item.Rows
+                    .Select(row => (JsonNode?)new JsonArray(row.Select(ToNode).ToArray<JsonNode?>()))
+                    .ToArray()),
+            },
+
             _ => throw new NotSupportedException(
                 $"No stored shape for the value {value.GetType().Name}. Adding a value case means " +
                 "adding it here and bumping the version."),
@@ -176,7 +194,33 @@ public static class LogFormat
             ["k"] = kind,
             ["type"] = tag.TypeName,
             ["attributes"] = ToNode(tag.Attributes),
+            // The attribute map is sorted and a tag is not, so the written order is
+            // stored beside it. A log written before this field existed reads back with
+            // no order, which is alphabetical: the same as it displayed then.
+            ["order"] = new JsonArray(tag.Order.Select(name => (JsonNode?)name).ToArray()),
             ["children"] = new JsonArray(tag.Children.Select(ToNode).ToArray<JsonNode?>()),
+        };
+
+    private static string ColumnTypeName(ColumnType type) =>
+        type.Tag switch
+        {
+            ColumnType.Tags.NumberCol => "number",
+            ColumnType.Tags.BooleanCol => "boolean",
+            ColumnType.Tags.FileCol => "file",
+            ColumnType.Tags.ObjectCol => "object",
+            ColumnType.Tags.MixedCol => "mixed",
+            _ => "text",
+        };
+
+    private static ColumnType ReadColumnType(string name) =>
+        name switch
+        {
+            "number" => ColumnType.NumberCol,
+            "boolean" => ColumnType.BooleanCol,
+            "file" => ColumnType.FileCol,
+            "object" => ColumnType.ObjectCol,
+            "mixed" => ColumnType.MixedCol,
+            _ => ColumnType.TextCol,
         };
 
     // ------------------------------------------------------------------- reading
@@ -282,6 +326,13 @@ public static class LogFormat
             "object" => Value.NewObject(ReadTag(node)),
             "component" => Value.NewComponent(ReadTag(node)),
 
+            "table" => Value.NewTable(new Table(
+                ListOf(node["columns"]!.AsArray().Select(c => new Column(
+                    c!["name"]!.GetValue<string>(),
+                    ReadColumnType(c["type"]!.GetValue<string>())))),
+                ListOf(node["rows"]!.AsArray().Select(row =>
+                    ListOf(row!.AsArray().Select(cell => ReadValue(cell!.AsObject()))))))),
+
             var unknown => throw new FormatException(
                 $"A stored value is of kind '{unknown}', which this build does not know."),
         };
@@ -289,6 +340,7 @@ public static class LogFormat
     private static Tag ReadTag(JsonObject node) =>
         new(node["type"]!.GetValue<string>(),
             ReadAttributes(node["attributes"]!.AsObject()),
+            ListOf(node["order"]?.AsArray().Select(name => name!.GetValue<string>()) ?? []),
             ListOf(node["children"]!.AsArray().Select(c => ReadValue(c!.AsObject()))));
 
     private static FSharpOption<string> ReadOptionalString(JsonNode? node) =>

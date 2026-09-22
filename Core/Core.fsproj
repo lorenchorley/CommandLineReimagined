@@ -23,12 +23,13 @@
   <ItemGroup>
     <Compile Include="Values.fs" />
     <Compile Include="Faults.fs" />
-    <Compile Include="Expr.fs" />
     <Compile Include="Events.fs" />
     <Compile Include="Projection.fs" />
+    <Compile Include="Table.fs" />
     <Compile Include="Store.fs" />
     <Compile Include="Scope.fs" />
     <Compile Include="Tree.fs" />
+    <Compile Include="Expr.fs" />
     <Compile Include="Commands/Spec.fs" />
     <Compile Include="Binder.fs" />
     <Compile Include="Commands/Files.fs" />

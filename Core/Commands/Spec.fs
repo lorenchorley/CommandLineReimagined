@@ -12,8 +12,19 @@ open System.Threading
 type ParamKind =
     /// One value, positionally or by name.
     | Single
-    /// An expression evaluated per row. Phase 3.
+    /// <summary>An expression, handed over unevaluated.</summary>
+    /// <remarks>
+    /// A predicate is evaluated once per row, in a scope with `$row` bound to that row
+    /// (decision 0008), so the command runs it rather than the binder.
+    /// </remarks>
     | Predicate
+    /// <summary>Every remaining positional argument, as a `List` (decision 0021).</summary>
+    /// <remarks>
+    /// Greedy, so it must be the last parameter that can take a positional argument. A
+    /// command that declares one owns its own arity message, because "too many
+    /// arguments" can never happen to it.
+    /// </remarks>
+    | Rest
     /// Every `name=value` written on the line, in order (decision 0017).
     | Assignments
 
@@ -141,6 +152,15 @@ module Parameter =
     let assignments name description =
         { create name description with Kind = Assignments; Optional = true }
 
+    /// A parameter that takes an expression and evaluates it itself, per row.
+    let predicate name description =
+        { create name description with Kind = Predicate }
+
+    /// The one parameter that collects every remaining positional argument. It is
+    /// optional because "none left" is the empty list, not a missing argument.
+    let rest name description =
+        { create name description with Kind = Rest; Optional = true; Default = Value.List [] }
+
 [<RequireQualifiedAccess>]
 module CommandSpec =
 
@@ -160,6 +180,9 @@ module CommandSpec =
 
     let assignmentParameter (spec: CommandSpec) =
         spec.Parameters |> List.tryFind (fun p -> p.Kind = Assignments)
+
+    let takesRest (spec: CommandSpec) =
+        spec.Parameters |> List.exists (fun p -> p.Kind = Rest)
 
 [<RequireQualifiedAccess>]
 module Invocation =
@@ -182,6 +205,19 @@ module Invocation =
 
     let textOr (fallback: string) (name: string) (invocation: Invocation) =
         if given name invocation then text name invocation else fallback
+
+    /// The values a `Rest` parameter collected, or the empty list.
+    let list (name: string) (invocation: Invocation) =
+        match Map.tryFind name invocation.Args with
+        | Some(Value.List items) -> items
+        | Some value when not (Value.isAbsent value) -> [ value ]
+        | _ -> []
+
+    /// The predicate a `Predicate` parameter was handed, unevaluated.
+    let predicate (name: string) (invocation: Invocation) =
+        match Map.tryFind name invocation.Args with
+        | Some(Value.Query expr) -> Some expr
+        | _ -> None
 
     /// A flag written bare binds `true`; a flag not written at all is absent.
     let flag (name: string) (invocation: Invocation) =

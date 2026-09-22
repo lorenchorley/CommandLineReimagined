@@ -28,8 +28,9 @@ of every positional argument that the earlier parameters did not take. It is opt
 construction — no arguments left means the empty list — so a command that needs at least
 one says so itself, with a message about columns rather than about arity.
 
-A rest parameter takes the pipe like any other when nothing positional was written, so
-`ls | select` is a binding fault from `select` rather than a silent empty listing.
+A rest parameter never takes the pipe. On a table function the pipe is the table, and a
+rest parameter that swallowed it would leave the table unbound. `ls | select` therefore
+reaches `select` with no columns, and `select` says so itself.
 
 ## Consequences
 

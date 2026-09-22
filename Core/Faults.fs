@@ -92,6 +92,39 @@ module Fault =
     let unsupportedArgument node =
         create Internal (sprintf "Unsupported argument value : %s" node)
 
+    // ------------------------------------------------------------ Expression errors
+
+    /// A node that cannot be one side of a comparison. A tag is the one that happens:
+    /// `where $row.x eq <t/>` parses, and there is nothing sensible to compare against.
+    let notAnOperand node =
+        create Binding (sprintf "A %s cannot be part of an expression." node)
+
+    let unknownOperator op =
+        create Internal (sprintf "Unknown operator : %s" op)
+
+    /// Phase 5 gives a parenthesised pipeline a meaning as a value. Until then it parses
+    /// and says so, rather than being silently accepted as its own text.
+    let nestedPipelineNotAValue text =
+        create Invalid (sprintf "A pipeline in parentheses is not a value yet : %s" text)
+
+    /// An expression only means something to a parameter that asked for one, so a
+    /// command handed one it cannot use says so rather than comparing display strings.
+    let takesNoExpression command parameter =
+        create Binding (sprintf "'%s' takes a value for '%s', not an expression." command parameter)
+
+    // ---------------------------------------------------------------- Table errors
+
+    /// Decision 0009: a tag that is not table-shaped names the child that broke the
+    /// shape, because "not a table" on its own leaves you counting children by hand.
+    let notATable describe index reason =
+        create Invalid (sprintf "%s is not a table: child %d %s." describe index reason)
+
+    let needsATable command kind =
+        create Binding (sprintf "'%s' needs a table, not %s." command kind)
+
+    let noSuchColumn command name =
+        create NotFound (sprintf "'%s' has no column named '%s'." command name)
+
     // ------------------------------------------------------------ Execution errors
 
     let unknownCommand name =

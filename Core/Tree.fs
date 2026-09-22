@@ -20,7 +20,15 @@ type StringConstant = Commands.Parser.SemanticTree.StringConstant
 type Identifier = Commands.Parser.SemanticTree.Identifier
 type VariableReference = Commands.Parser.SemanticTree.VariableReference
 type VariableName = Commands.Parser.SemanticTree.VariableName
+type MemberName = Commands.Parser.SemanticTree.MemberName
 type TagValue = Commands.Parser.SemanticTree.TagValue
+
+type ExpressionNode = Commands.Parser.SemanticTree.ExpressionNode
+type ComparisonExpression = Commands.Parser.SemanticTree.ComparisonExpression
+type BooleanExpression = Commands.Parser.SemanticTree.BooleanExpression
+type NotExpression = Commands.Parser.SemanticTree.NotExpression
+type NestedPipeline = Commands.Parser.SemanticTree.NestedPipeline
+type OperatorWord = Commands.Parser.SemanticTree.OperatorWord
 
 type Tag = Commands.Parser.SemanticTree.Tag
 type TagList = Commands.Parser.SemanticTree.TagList
