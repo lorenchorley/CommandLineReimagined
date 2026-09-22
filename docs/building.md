@@ -115,6 +115,22 @@ storing the runtime several times over.
 
 The payload after this is 9.9 MB across 72 files, which is how the CI guard measures it.
 
+## Re-run the documentation's transcripts
+
+Every transcript in `docs/` is pasted from real output, never typed. To produce one,
+write the lines as `$ <command>`, one per line, with `---` wherever a fresh tab starts,
+and run them against the core:
+
+```bash
+dotnet build Web.Core.Tests/Web.Core.Tests.csproj -c Release
+dotnet fsi tools/transcript.fsx lines.txt
+```
+
+The clock is pinned to the time the documentation shows and ids count up, so the same
+input prints the same output every time, and a line that does not parse is worded the
+way the page words it. What only the page can show, such as a tap, a live listing or a
+reload, is checked by the browser check instead.
+
 ## Check the log's storage
 
 `WebClient/wwwroot/store.js` keeps the log in the browser's IndexedDB. Most of its job

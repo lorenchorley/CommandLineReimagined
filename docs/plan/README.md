@@ -1,5 +1,9 @@
 # Implementation plan: functional core, event-sourced store, attribute filesystem, tables
 
+**Status: complete.** All seven phases are built, and each phase document ends with an
+"As built" section recording where the result differs from what it planned. What
+follows is kept as the record of what was set out to do.
+
 This plan is written for an implementing agent who has this repository and nothing
 else. Read this file, then [architecture.md](architecture.md), then the phase you are
 on. Everything the owner has decided is in the [decision log](../decisions/README.md);
