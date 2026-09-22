@@ -111,6 +111,15 @@ public static class TerminalBridge
         return Describe();
     }
 
+    /// <summary>Whether the log is still reaching storage.</summary>
+    /// <remarks>
+    /// The same answer <see cref="Initialize"/> gave, asked again. Storage can stop
+    /// answering with the page open, and the log falls back to memory when it does;
+    /// the page asks after every line so it can say so while it is still worth knowing.
+    /// </remarks>
+    [JSInvokable]
+    public static string Status() => Describe();
+
     /// <summary>What the page needs to know about the restore.</summary>
     private static string Describe() =>
         JsonSerializer.Serialize(

@@ -623,6 +623,33 @@ async function main() {
 
     console.log(`Ran ${BEFORE_RELOAD.length + AFTER_RELOAD.length + AFTER_RESET.length} more across two reloads.`);
 
+    // ---- Phase 7: what a tap inserts ----------------------------------------
+
+    // A cell inserts what the line would need: a name with a space goes in quoted, or
+    // tapping it would hand the next command two arguments.
+    await submit(page, 'write "my notes.txt" hi');
+    await submit(page, 'ls');
+    await page.fill('#cmd', 'cat');
+    await page.locator('.entry').last().locator('.grid tbody td', { hasText: 'my notes.txt' }).first().click();
+    const tapped = await page.inputValue('#cmd');
+
+    if (tapped !== 'cat "/my notes.txt"') {
+      note(`tapping 'my notes.txt' in a listing made the line ${JSON.stringify(tapped)}`);
+    }
+
+    // A folder completes to its name and a slash and stops there, so the next tap can
+    // go deeper. The core calls it `folder`; the page once waited for `directory`, and
+    // added a space after every folder.
+    await page.fill('#cmd', 'cd doc');
+    await page.press('#cmd', 'Tab');
+    const completed = await page.inputValue('#cmd');
+
+    if (completed !== 'cd documents/') {
+      note(`completing 'cd doc' made the line ${JSON.stringify(completed)}`);
+    }
+
+    await page.fill('#cmd', '');
+
     if (consoleErrors.length > 0) {
       for (const error of consoleErrors) note(`console error: ${error}`);
     }

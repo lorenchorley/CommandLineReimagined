@@ -39,9 +39,10 @@ open. A line submitted twice in a row is kept once.
 ## Completions
 
 As you type, the page asks the session what the last word could become and shows up to
-twelve of the answers as chips above the suggestions. Tapping one replaces that word and
-adds a space after it. Directory completions end with a `/`; the space is added after
-those too, so delete it to keep descending.
+twelve of the answers as chips above the suggestions. Tapping one, or pressing Tab when
+there is only one, replaces that word and adds a space after it. A directory completes
+to its name and a `/` with no space, so the next completion goes on into it. A name
+that is not a bare word, such as one with a space in it, is completed in quotes.
 
 | You type | You are offered |
 | --- | --- |
@@ -84,8 +85,9 @@ A result is rendered by kind:
   and still carries its path.
 - **Paths, objects, components, numbers and booleans** become chips, and a list becomes
   a row of them. Tapping a chip appends its text to the input — for a file, its full
-  path — which is how you avoid typing a file name on a phone. The path is inserted as
-  it is, without quotes.
+  path — which is how you avoid typing a file name on a phone. A path that is not a bare
+  word, such as `/my notes.txt` or a name that is a reserved word, is inserted in
+  quotes, so it stays one argument.
 - **Text** becomes a block with a rule down its left side, so `cat` output keeps its
   line breaks.
 - **Errors** are shown in red under the command. A command you stopped shows
@@ -242,9 +244,9 @@ chain is in the log rather than in memory.
 
 Storage can be unavailable — a private window — or go away mid-session, if site data is
 cleared while the page is open. Neither breaks the terminal: the log falls back to
-memory and the session keeps working for as long as the tab is open. The status line is
-set once, when the page loads, so it says `not persisted` in the first case; in the
-second it does not change until the next load.
+memory and the session keeps working for as long as the tab is open. The status line
+says `not persisted` in the first case as soon as the page loads, and in the second
+after the first line that runs once storage has gone.
 
 `reset` empties the log and seeds it again. It is the only command that cannot be
 undone, which is why it is not one of the suggestion keys.

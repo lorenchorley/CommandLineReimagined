@@ -329,6 +329,7 @@ layer.
 | `Refresh(source)` | Execution response for a re-read, as a JSON string. Asynchronous. Commits nothing, and answers a fault for a line that is not read-only. |
 | `Cancel()` | `true` when a command was running. |
 | `Initialize()` | Opens the store and replays the log. Asynchronous, and **must** be awaited before the input is enabled. Answers with the store's status. |
+| `Status()` | The store's status again, as a JSON string. The page asks after every line, so storage that stops answering mid-session shows as `not persisted` when it happens. |
 | `Commands()` | Command summaries, as a JSON string. |
 | `Complete(text)` | Completions, as a JSON string. |
 | `Variables()` | Variable summaries, as a JSON string. |

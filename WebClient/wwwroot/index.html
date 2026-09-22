@@ -181,7 +181,7 @@
   /* Completions appear above the suggestions while typing; phones have no Tab key. */
   #complete:empty { display:none; }
   #complete .key { color:var(--fg); border-color:var(--accent); }
-  #complete .key.directory { color:var(--type); }
+  #complete .key.folder { color:var(--type); }
   #complete .key.file { color:var(--identifier); }
   #complete .key.variable { color:var(--variable); }
   #complete .key.command { color:var(--command); }
@@ -236,7 +236,9 @@ let completions = [];    // what the last word could become
 
 // ---- rendering ------------------------------------------------------------
 
-const escape = s => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+// Quotes too, because the same text goes into attributes: a name holding a double quote,
+// or a path the page has quoted to insert, would otherwise end `data-insert` early.
+const escape = s => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 
 /// Renders a token stream as spans. Each token carries the role the grammar gave it,
 /// which is what makes them individually inspectable.
@@ -300,7 +302,8 @@ function itemsHtml(items) {
       flush();
       html += caughtHtml(item);
     } else {
-      chips.push(`<button class="item ${item.kind}" data-insert="${escape(item.text)}">${escape(item.text)}</button>`);
+      const insertion = item.kind === 'file' || item.kind === 'folder' ? asWord(item.path || item.text) : item.text;
+      chips.push(`<button class="item ${item.kind}" data-insert="${escape(insertion)}">${escape(item.text)}</button>`);
     }
   }
 
@@ -351,9 +354,26 @@ function sortedRows(table) {
   inserts what it is, as it always has.
 */
 function insertionFor(column, cell) {
-  if (cell.kind === 'folder') return 'cd ' + (cell.path || cell.text);
-  if (column && column.name === 'folder' && cell.text) return 'cd ' + cell.text;
+  if (cell.kind === 'folder') return 'cd ' + asWord(cell.path || cell.text);
+  if (column && column.name === 'folder' && cell.text) return 'cd ' + asWord(cell.text);
+  if (cell.kind === 'file') return asWord(cell.path || cell.text);
   return cell.path || cell.text;
+}
+
+/*
+  A path as the line would need it written. Most names are bare words and go in as
+  they are; a name with a space, a character the grammar gives a meaning to, or one
+  that is a reserved word, is quoted, or tapping `my notes.txt` would insert two
+  arguments. The grammar's strings take as many quotes as they open with, so a name
+  holding quotes is wrapped in one more than its longest run.
+*/
+const RESERVED = new Set(['and', 'or', 'not', 'eq', 'ne', 'gt', 'ge', 'lt', 'le', 'like', 'has', 'else', 'try']);
+
+function asWord(text) {
+  if (text && /^[^\s"'|<>(){}\[\],:=$?]+$/.test(text) && !text.startsWith('-') && !RESERVED.has(text)) return text;
+  const longest = Math.max(0, ...((text || '').match(/"+/g) || []).map(run => run.length));
+  const quotes = '"'.repeat(longest + 1);
+  return quotes + (text || '') + quotes;
 }
 
 function gridHtml(id) {
@@ -542,9 +562,14 @@ function refreshCompletions() {
   }
 }
 
+// A folder completes to `documents/` and stops there, so the next tap can go deeper;
+// anything else is a whole word and gets its space. The core calls it `folder`: this
+// said `directory`, so a folder was never coloured and always got a space.
 function applyCompletion(c) {
-  const trailing = c.kind === 'directory' ? '' : ' ';
-  cmd.value = cmd.value.slice(0, c.start) + c.text + trailing;
+  const place = c.kind === 'folder' || c.kind === 'file' || c.kind === 'view';
+  const text = place ? asWord(c.text) : c.text;
+  const trailing = c.kind === 'folder' && text === c.text ? '' : ' ';
+  cmd.value = cmd.value.slice(0, c.start) + text + trailing;
   refreshMirror(); refreshCompletions(); cmd.focus();
 }
 
@@ -573,6 +598,7 @@ async function run() {
     const response = await DotNet.invokeMethodAsync('WebClient', 'Execute', text, id);
     const result = JSON.parse(response);
     finishEntry(entry, result);
+    refreshStatus();
 
     // The newest listing is the one kept live, and only when it answered a table:
     // a failed `ls` has nothing to keep up to date.
@@ -770,7 +796,7 @@ function bannerFor(store) {
     'keeps the fault to read as <b>$problem.kind</b>, and <b>??</b> gives a default for nothing. ' +
     'The newest listing stays live as the ' +
     'filesystem changes; tap <b>live</b> under it to stop. ' +
-    'Also pipes, the function form (echo(a, b)), tags (&lt;thing a=1/&gt;), ' +
+    'Also pipes, the function form (write(notes.txt, hello)), tags (&lt;thing a=1/&gt;), ' +
     'components ({renderer/}) and variables (set v 5, then $v). ' +
     'Tap a column header to re-sort what is on screen, or a cell to insert it. ' +
     '<b>clear</b> empties the screen; <b>undo</b>, <b>redo</b> and <b>history</b> are commands.';
@@ -820,6 +846,25 @@ function bannerFor(store) {
   else $('status').innerHTML = '<span style="color:var(--bad)">failed to load</span>';
 })(0);
 
+/*
+  Storage can stop answering mid-session, when site data is cleared with the page open.
+  The log falls back to memory at once; this is how the page finds out, after every
+  line, so `not persisted` appears when it becomes true rather than only at load.
+*/
+function refreshStatus() {
+  let store;
+  try { store = JSON.parse(DotNet.invokeMethod('WebClient', 'Status')); } catch { return; }
+  if (!store.persistent && !$('status').querySelector('.warn')) showStatus(store);
+}
+
+function showStatus(store) {
+  $('status').innerHTML = store.persistent
+    ? '<span style="color:var(--ok)">wasm</span>'
+    : '<span style="color:var(--ok)">wasm</span> <span class="warn" title="' +
+      escape(store.reason || 'This browser is not keeping the log.') +
+      '">not persisted</span>';
+}
+
 function finishBoot(store) {
     ready = true;
     cmd.disabled = false; runButton.disabled = false;
@@ -827,11 +872,7 @@ function finishBoot(store) {
     // `not persisted` is said up front, before anything is typed. Finding out after a
     // morning's work that none of it was being kept would be the worst moment to learn
     // it, and a private window is the common case rather than a broken one.
-    $('status').innerHTML = store.persistent
-      ? '<span style="color:var(--ok)">wasm</span>'
-      : '<span style="color:var(--ok)">wasm</span> <span class="warn" title="' +
-        escape(store.reason || 'This browser is not keeping the log.') +
-        '">not persisted</span>';
+    showStatus(store);
 
     $('banner').innerHTML = bannerFor(store);
 

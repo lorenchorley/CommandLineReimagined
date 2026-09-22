@@ -24,9 +24,9 @@ lasted only as long as the tab. A private or incognito window is the usual reaso
 IndexedDB is unavailable there. Site-data settings that block storage for this origin
 do the same. Hover the tag to see what the browser said.
 
-The status is set once, when the page loads. If storage goes away while the page is
-open, the session carries on in memory without the status changing, and the next load
-is the one that shows `not persisted` or the missing lines.
+If storage goes away while the page is open, the session carries on in memory, and the
+status changes to `not persisted` after the next line you run. What you do from then on
+is not kept, and the next load shows the files as they were when storage went.
 
 Otherwise, the filesystem is stored by your browser for this site, so anything that
 clears site data for it takes the filesystem with it: clearing browsing data, a
@@ -66,8 +66,7 @@ is not one of the suggestion keys.
 ## A file name with a space is split into two arguments
 
 Quote it: `write "my notes.txt" hello`. Unquoted words end at a space. Tapping a chip or
-a cell inserts the file's path for you, but as it is, without quotes, so a name with a
-space in it still needs quotes added around it.
+a cell inserts the file's path for you, quoted when it needs to be.
 
 ## `cd ..` shows an odd path
 
