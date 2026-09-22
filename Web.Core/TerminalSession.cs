@@ -155,8 +155,12 @@ public sealed class TerminalSession
             value is null ? null : ValueModule.display(value),
             error,
             fault,
-            Describe(response.Location));
+            Describe(response.Location),
+            Describe(response.Changes));
     }
+
+    private static LogChangesInfo Describe(LogChanges changes) =>
+        new(changes.Committed.ToList(), changes.Undone.ToList(), changes.Redone.ToList(), changes.Reset);
 
     /// <summary>
     /// Where the session is, as the prompt needs it.
@@ -325,7 +329,22 @@ public sealed record ExecutionResponse(
     string? ResultText,
     string? Error,
     FaultInfo? Fault,
-    LocationInfo Location);
+    LocationInfo Location,
+    LogChangesInfo Changes);
+
+/// <summary>What a line did to the log, by the sequence numbers of the lines involved.</summary>
+/// <remarks>
+/// What lets the page make `undo` look like taking the line back: it remembers which
+/// numbers each entry committed, hides the entry that <paramref name="Undone"/> names and
+/// shows it again when <paramref name="Redone"/> does. A number is always the line's own,
+/// never the undo's. <paramref name="Reset"/> says the numbers started again, so the ones
+/// remembered from before it name nothing.
+/// </remarks>
+public sealed record LogChangesInfo(
+    IReadOnlyList<long> Committed,
+    IReadOnlyList<long> Undone,
+    IReadOnlyList<long> Redone,
+    bool Reset);
 
 /// <summary>One thing the page draws.</summary>
 /// <remarks>

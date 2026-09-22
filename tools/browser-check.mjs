@@ -38,6 +38,8 @@ const DEVICE_SCALE_FACTOR = 3;
  *   absent   the rendered entry must not contain this text
  *   fault    the entry must show a failure with this kind
  *   caught   the entry must show a fault held as a value, with this kind (Phase 5)
+ *   hides    an undo: the entry for this line must go, and the undo leave none of its own
+ *   shows    a redo: the entry for this line must be back, and the redo leave none
  *
  * Kept in the same order as the plan, and as one session rather than one each, because
  * undo and history only mean anything against what came before them.
@@ -51,14 +53,15 @@ const SCRIPT = [
 
   { line: 'mkdir alpha', expect: ['alpha'] },
   { line: 'ls', expect: ['alpha', 'documents', 'readme.txt'] },
-  { line: 'undo', expect: ['Undone: mkdir alpha'] },
+  // Undo takes the line back rather than adding one, and redo puts it back.
+  { line: 'undo', hides: 'mkdir alpha' },
   { line: 'ls', absent: ['alpha'] },
-  { line: 'redo', expect: ['Redone: mkdir alpha'] },
+  { line: 'redo', shows: 'mkdir alpha' },
   { line: 'history', expect: ['seed', 'mkdir alpha'], absent: ['(undone)'] },
 
   { line: 'write note.txt first', expect: ['note.txt'] },
   { line: 'write note.txt second', expect: ['note.txt'] },
-  { line: 'undo', expect: ['Undone: write note.txt second'] },
+  { line: 'undo', hides: 'write note.txt second' },
   { line: 'cat note.txt', expect: ['first'] },
 
   { line: 'attr note.txt tag=work', expect: ['note.txt'] },
@@ -74,8 +77,8 @@ const SCRIPT = [
 
   { line: 'set v 1', expect: ['1'] },
   { line: 'set v 2', expect: ['2'] },
-  { line: 'undo', expect: ['Undone: set v 2'] },
-  { line: 'undo', expect: ['Undone: set v 1'] },
+  { line: 'undo', hides: 'set v 2' },
+  { line: 'undo', hides: 'set v 1' },
   { line: 'echo $v', fault: 'notfound', expect: ['Unknown variable : $v'] },
 
   { line: 'progress 3 1', expect: ['100'] },
@@ -190,6 +193,7 @@ const AFTER_RELOAD = [
   { line: 'cat kept.txt', expect: ['remembered'] },
   { line: 'echo $survivor', expect: ['yes'] },
   // Undo reaches back across the reload, because the compensation chain is in the log.
+  // The line it reverses is not on screen any more, so the undo says what it did.
   { line: 'undo', expect: ['Undone: set survivor yes'] },
 ];
 
@@ -294,7 +298,24 @@ async function boot(page) {
 /** Runs a table of lines and reports any mismatch through `note`. */
 async function runScript(page, script, note) {
   for (const step of script) {
-    const { text, fault, caught } = await submit(page, step.line);
+    const { text, fault, caught, left } = await submit(page, step.line);
+
+    for (const [reversed, visible] of [[step.hides, false], [step.shows, true]]) {
+      if (reversed === undefined) continue;
+
+      if (left) {
+        note(`'${step.line}' left an entry of its own: ${JSON.stringify(text)}`);
+      }
+
+      const shown = await page.evaluate(
+        line => [...document.querySelectorAll('.entry:not(.undone) .echo')]
+          .some(echo => echo.textContent.replace(/\u00a0/g, ' ').trim() === `$ ${line}`),
+        reversed);
+
+      if (shown !== visible) {
+        note(`after '${step.line}' the entry for '${reversed}' is ${shown ? 'still on screen' : 'not on screen'}`);
+      }
+    }
 
     for (const expected of step.expect ?? []) {
       if (!text.includes(expected)) {
@@ -326,31 +347,40 @@ async function runScript(page, script, note) {
   }
 }
 
-/** Submits one line and returns the text of the entry it produced. */
+/**
+ * Submits one line and returns the text of the entry it produced.
+ *
+ * An undo or a redo whose line is on screen produces no entry: it hides or restores
+ * that line's instead. So a line is known to be done by the run the page says it
+ * finished last, not by the number of entries, and `left` says whether it left one.
+ */
 async function submit(page, line) {
-  const before = await page.locator('.entry').count();
+  const finished = () => page.evaluate(() => Number(document.body.dataset.finished || 0));
+  const before = await finished();
 
   await page.fill('#cmd', line);
   await page.press('#cmd', 'Enter');
 
-  // The entry appears as soon as the line is submitted; it is finished when it stops
-  // being marked as running. `progress` takes a moment, so this waits rather than polls.
+  // It is finished when the page has recorded a later run than before, and nothing is
+  // still running. `progress` takes a moment, so this waits rather than polls.
   await page.waitForFunction(
-    count => document.querySelectorAll('.entry').length > count,
+    count => Number(document.body.dataset.finished || 0) > count &&
+             document.querySelectorAll('.entry.running').length === 0,
     before,
-    { timeout: 15000 });
-
-  await page.waitForFunction(
-    () => document.querySelectorAll('.entry.running').length === 0,
-    null,
     { timeout: 30000 });
 
-  const entry = page.locator('.entry').last();
+  const id = await finished();
+  const entry = page.locator(`.entry[data-id="${id}"]`);
+
+  if (await entry.count() === 0) {
+    return { text: '', fault: null, caught: null, left: false };
+  }
 
   // A failed line is the red `.err`; a fault that `try` caught is a `.caught` result
   // and not a failure at all, though both carry the same small kind tag. Telling them
   // apart is the whole of what Phase 5 changed on the page.
   return {
+    left: true,
     text: (await entry.innerText()).replace(/ /g, ' '),
     fault: await entry.locator('.err .kind').count() > 0
       ? (await entry.locator('.err .kind').first().innerText()).trim()

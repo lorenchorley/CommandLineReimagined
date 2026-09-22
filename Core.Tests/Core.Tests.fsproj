@@ -32,6 +32,7 @@
     <Compile Include="RecoveryTests.fs" />
     <Compile Include="DocumentTests.fs" />
     <Compile Include="MetaCommandTests.fs" />
+    <Compile Include="LogChangesTests.fs" />
     <Compile Include="CompletionTests.fs" />
     <Compile Include="PersistenceTests.fs" />
     <Compile Include="ExampleProgramTests.fs" />

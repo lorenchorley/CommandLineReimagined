@@ -966,6 +966,10 @@ Nothing to redo.
 Redo is undo applied to an undo, so `undo`, `redo`, `undo` leaves you where the first
 `undo` did.
 
+In the web terminal a redo leaves no entry of its own when the line it restores is on
+screen: that line's entry comes back where it was instead. See
+[Undo on screen](web-terminal.md#undo-on-screen).
+
 ---
 
 ## reset
@@ -1558,6 +1562,11 @@ Nothing to undo.
 
 Undoing does not erase history: it appends the reverse, so `redo` can reverse it in
 turn and `history` shows both.
+
+The transcripts above show what `undo` answers. In the web terminal, when the line it
+reverses is on screen, that line's entry disappears and the undo leaves no entry of its
+own, because to the person typing, undo means the line did not happen. See
+[Undo on screen](web-terminal.md#undo-on-screen).
 
 ---
 

@@ -11,6 +11,35 @@ open System.Net.Http
 open System.Threading
 open CommandLineReimagined.Parsing
 
+/// <summary>What a line did to the log, as a scrollback needs to know it.</summary>
+/// <remarks>
+/// A host that draws one entry per line can use this to make `undo` look like what
+/// the person meant by it: the line it reverses goes away, and `redo` brings it back,
+/// rather than each leaving a line of its own that describes the log underneath.
+/// Every number is the sequence number of a line someone ran, never of the
+/// compensation that reversed it, so the host only has to remember one number per line.
+/// </remarks>
+type LogChanges =
+    { /// The lines this one committed. Usually one, none for a line that only read,
+      /// and one per line of the script for `run` (decision 0020).
+      Committed: int64 list
+      /// The lines this one undid.
+      Undone: int64 list
+      /// The lines this one redid: the line the undo had reversed, not the undo.
+      Redone: int64 list
+      /// Whether `reset` emptied the log while this ran. Sequence numbers start again
+      /// after it, so every number remembered from before now names nothing.
+      Reset: bool }
+
+[<RequireQualifiedAccess>]
+module LogChanges =
+
+    let none =
+        { Committed = []
+          Undone = []
+          Redone = []
+          Reset = false }
+
 /// What executing a line produced.
 type Response =
     { Source: string
@@ -18,7 +47,8 @@ type Response =
       Output: string list
       Result: Value option
       Fault: Fault option
-      Location: Location }
+      Location: Location
+      Changes: LogChanges }
 
 /// <summary>Options a host can vary.</summary>
 /// <remarks>
@@ -241,6 +271,51 @@ type Session(log: ILog, options: SessionOptions, seed: Seed) =
     let mutable initialised = false
     let mutable replayed = 0
 
+    /// <summary>Marks where the log is, and answers what has been appended since.</summary>
+    /// <remarks>
+    /// Read from the log rather than from what the commands returned, because `undo`
+    /// and `redo` append straight away rather than returning events, and `run` commits
+    /// once per line of its script. The log is the one place all of them agree.
+    ///
+    /// The seed is left out: it is not a line anyone ran (decision 0018), and `reset`
+    /// is what appends it again.
+    /// </remarks>
+    let changesSince () =
+        let epoch = store.Epoch
+
+        let last =
+            match store.Transactions with
+            | [] -> 0L
+            | transactions -> transactions |> List.map (fun t -> t.Seq) |> List.max
+
+        fun () ->
+            let reset = store.Epoch <> epoch
+            let all = store.Transactions
+            let find seq = all |> List.tryFind (fun t -> t.Seq = seq)
+
+            let appended =
+                all |> List.filter (fun t -> t.Undoable && (reset || t.Seq > last))
+
+            let committed, undone, redone =
+                appended
+                |> List.fold
+                    (fun (committed, undone, redone) t ->
+                        match t.Compensates |> Option.map (fun target -> target, find target) with
+                        | None -> t.Seq :: committed, undone, redone
+                        // An undo compensates a line; a redo compensates that undo, and
+                        // is reported as the line the undo had reversed.
+                        | Some(target, Some reversed) when reversed.Compensates.IsNone ->
+                            committed, target :: undone, redone
+                        | Some(_, Some reversed) ->
+                            committed, undone, reversed.Compensates.Value :: redone
+                        | Some(_, None) -> committed, undone, redone)
+                    ([], [], [])
+
+            { Committed = List.rev committed
+              Undone = List.rev undone
+              Redone = List.rev redone
+              Reset = reset }
+
     new(log: ILog) = Session(log, SessionOptions.defaults, Seed.none)
     new(log: ILog, seed: Seed) = Session(log, SessionOptions.defaults, seed)
 
@@ -301,13 +376,15 @@ type Session(log: ILog, options: SessionOptions, seed: Seed) =
         async {
             let source = if isNull source then "" else source
             let output = CapturingOutput(fun lines -> outputChanged.Trigger(executionId, lines))
+            let since = changesSince ()
 
             let respond fault result =
                 { Source = source
                   Output = output.Lines
                   Result = result
                   Fault = fault
-                  Location = store.Current.Location }
+                  Location = store.Current.Location
+                  Changes = since () }
 
             if not initialised then
                 return respond (Some(Fault.notInitialised ())) None
@@ -361,7 +438,8 @@ type Session(log: ILog, options: SessionOptions, seed: Seed) =
                   Output = output.Lines
                   Result = result
                   Fault = fault
-                  Location = store.Current.Location }
+                  Location = store.Current.Location
+                  Changes = LogChanges.none }
 
             if not initialised then
                 return respond (Some(Fault.notInitialised ())) None

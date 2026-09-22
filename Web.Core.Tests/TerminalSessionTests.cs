@@ -311,6 +311,36 @@ public class TerminalSessionTests
         CollectionAssert.Contains((await Listing()).ToList(), "alpha");
     }
 
+    /// <summary>Undo and redo name the line they act on by its own number.</summary>
+    /// <remarks>
+    /// What lets the page take the entry for `mkdir alpha` off the screen on undo and
+    /// put it back on redo, instead of adding an entry for each: the number the undo
+    /// reports is the one the `mkdir` reported committing, not the compensation's.
+    /// </remarks>
+    [TestMethod]
+    public async Task UndoAndRedoNameTheLineTheyActOnByItsNumber()
+    {
+        var mkdir = await _session.ExecuteAsync("mkdir alpha");
+        var line = mkdir.Changes.Committed.Single();
+
+        var undo = await _session.ExecuteAsync("undo");
+        CollectionAssert.AreEqual(new[] { line }, undo.Changes.Undone.ToArray());
+        Assert.AreEqual(0, undo.Changes.Committed.Count);
+
+        var redo = await _session.ExecuteAsync("redo");
+        CollectionAssert.AreEqual(new[] { line }, redo.Changes.Redone.ToArray());
+        Assert.AreEqual(0, redo.Changes.Committed.Count);
+    }
+
+    [TestMethod]
+    public async Task ALineThatChangesNothingCommitsNothing()
+    {
+        var ls = await _session.ExecuteAsync("ls");
+
+        Assert.AreEqual(0, ls.Changes.Committed.Count);
+        Assert.IsFalse(ls.Changes.Reset);
+    }
+
     // The defect decision 0010 was written for: a shared command instance made the
     // second undo replay the first one's saved state and leave $v bound to 1.
     [TestMethod]

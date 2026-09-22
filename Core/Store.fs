@@ -14,6 +14,7 @@ type Store(log: ILog, clock: unit -> DateTimeOffset) =
     let mutable projection = Projection.empty
     let mutable transactions: Transaction list = []
     let mutable initialised = false
+    let mutable epoch = 0
     let changed = Event<int64>()
 
     /// <summary>Whether a later transaction reverses this one and still stands.</summary>
@@ -149,6 +150,13 @@ type Store(log: ILog, clock: unit -> DateTimeOffset) =
 
     member _.Transactions = transactions
 
+    /// <summary>How many times the log has been emptied since this store was built.</summary>
+    /// <remarks>
+    /// Sequence numbers start again from one after `reset`, so a host that remembers a
+    /// line by its number has to know when that number stopped meaning the same line.
+    /// </remarks>
+    member _.Epoch = epoch
+
     /// Raised after every append, carrying the new sequence number. Phase 4's live
     /// views listen to it.
     member _.Changed = changed.Publish
@@ -271,6 +279,7 @@ type Store(log: ILog, clock: unit -> DateTimeOffset) =
     member _.Reset() =
         async {
             do! log.Clear()
+            epoch <- epoch + 1
             transactions <- []
             projection <- Projection.empty
             changed.Trigger 0L

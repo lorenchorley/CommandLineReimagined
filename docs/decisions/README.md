@@ -39,6 +39,7 @@ a later record, **Rejected**.
 | [0027](0027-save-takes-a-tag.md) | `save` takes its attributes in the tag, not as assignments | Accepted |
 | [0028](0028-mixed-columns.md) | A column whose cells disagree is typed `mixed`, not `text` | Accepted |
 | [0029](0029-scene-editor-direction.md) | The entity component system becomes a scene the command line edits | Proposed |
+| [0030](0030-undo-takes-the-line-back-on-screen.md) | On screen, undo takes the line back rather than adding one | Accepted |
 
 Retrospective records document decisions taken before the log existed, so that the
 log is the one place to look. Their alternatives are the ones weighed at the time, as

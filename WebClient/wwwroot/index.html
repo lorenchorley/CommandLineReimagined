@@ -44,6 +44,8 @@
   }
   .entry { margin-bottom:10px; }
   .entry:last-child { margin-bottom:0; }
+  /* A line that was undone. Kept, out of sight, so that redo can put it back where it was. */
+  .entry.undone { display:none; }
   .echo { white-space:pre-wrap; word-break:break-word; }
   .echo .sigil { color:var(--dim); }
   .out { white-space:pre-wrap; word-break:break-word; color:var(--fg); opacity:.85; }
@@ -411,6 +413,7 @@ function startEntry(id, text) {
     `<div class="echo"><span class="sigil">$ </span>${echoed}</div>` +
     `<div class="live"></div><div class="tail"></div><div class="watch"></div>`);
   entry.classList.add('running');
+  entry.dataset.id = id;
   return entry;
 }
 
@@ -425,6 +428,84 @@ function finishEntry(entry, r) {
 
   entry.querySelector('.tail').innerHTML = tail;
   scroll.scrollTop = scroll.scrollHeight;
+}
+
+// ---- undo and redo --------------------------------------------------------
+
+/*
+  Undo takes a line back; it does not add one.
+
+  To the person at the prompt, `undo` means the last thing they did did not happen. So
+  the entry for that line goes away, and the undo leaves no entry of its own; `redo`
+  brings the entry back where it was. The log underneath still records the undo and
+  the redo as lines of their own, and `history` still shows them: that is the event
+  record, and it is there when you ask for it rather than on the screen as you work.
+
+  Every response says, by sequence number, which lines it committed and which it undid
+  or redid, and the number is always the line's own rather than the undo's. So each
+  entry remembers the numbers it committed, and an entry is hidden once every one of
+  them is undone. Usually that is one number; a `run` commits one per script line.
+
+  When the line it reverses is not on screen — after `clear`, after a reload, or when
+  there was nothing to undo — the undo keeps its entry, because otherwise nothing at
+  all would show that it did anything.
+*/
+const committedBy = new Map();   // sequence number → the entry that committed it
+
+function remember(entry, seq) {
+  committedBy.set(seq, entry);
+  (entry.lines ??= new Map()).set(seq, true);
+}
+
+/// Marks one line as standing or not, and hides its entry when nothing of it stands.
+/// Answers whether the line was on screen to act on.
+function standing(seq, stands) {
+  const entry = committedBy.get(seq);
+  if (!entry || !entry.isConnected) return false;
+
+  entry.lines.set(seq, stands);
+  const shown = [...entry.lines.values()].some(Boolean);
+  const wasHidden = entry.classList.contains('undone');
+  entry.classList.toggle('undone', !shown);
+
+  // Coming back where it was can be far above the prompt, so it is brought into view
+  // and flashes, the way a live table says that it changed.
+  if (shown && wasHidden) {
+    entry.scrollIntoView({ block: 'nearest' });
+    entry.classList.remove('flash');
+    void entry.offsetWidth;
+    entry.classList.add('flash');
+  }
+
+  return true;
+}
+
+/// After `reset` the numbers start again, so what was remembered names nothing, and
+/// an entry waiting for a redo will never get one.
+function forgetLines() {
+  for (const entry of new Set(committedBy.values())) {
+    if (entry.classList.contains('undone')) { forgetTables(entry); entry.remove(); }
+  }
+  if (live && !live.entry.isConnected) live = null;
+  committedBy.clear();
+}
+
+/// Applies what a line did to the log to the entries on screen. Answers whether the
+/// line did nothing but take back or put back lines that are on screen, in which case
+/// its own entry has nothing left to say.
+function applyChanges(entry, r) {
+  const changes = r.changes || {};
+  if (changes.reset) forgetLines();
+
+  for (const seq of changes.committed || []) remember(entry, seq);
+
+  const reversed = [
+    ...(changes.undone || []).map(seq => standing(seq, false)),
+    ...(changes.redone || []).map(seq => standing(seq, true)),
+  ];
+
+  return reversed.length > 0 && reversed.every(Boolean) &&
+    !r.error && !(changes.committed || []).length && !(r.output || []).length;
 }
 
 // ---- live listings --------------------------------------------------------
@@ -585,7 +666,9 @@ async function run() {
   // rather than about the filesystem. `undo` used to be here too, and `help` until
   // Phase 3; both are real commands now, so they go through the evaluator like
   // everything else and can be piped.
-  if (text === 'clear') { scroll.innerHTML = ''; tables.clear(); live = null; afterRun(text); return; }
+  if (text === 'clear') {
+    scroll.innerHTML = ''; tables.clear(); committedBy.clear(); live = null; afterRun(text); return;
+  }
 
   const id = nextId++;
   running = { id, entry: startEntry(id, text) };
@@ -597,19 +680,29 @@ async function run() {
   try {
     const response = await DotNet.invokeMethodAsync('WebClient', 'Execute', text, id);
     const result = JSON.parse(response);
-    finishEntry(entry, result);
     refreshStatus();
 
-    // The newest listing is the one kept live, and only when it answered a table:
-    // a failed `ls` has nothing to keep up to date.
-    if (!result.error && isListing(text) && (result.result || []).some(item => item.kind === 'table')) {
-      markLive(entry, text);
+    if (applyChanges(entry, result)) {
+      // An undo or a redo that did what it was asked to the screen already: the entry
+      // it reversed has gone or come back, and it leaves nothing of its own.
+      entry.remove();
+    } else {
+      finishEntry(entry, result);
+
+      // The newest listing is the one kept live, and only when it answered a table:
+      // a failed `ls` has nothing to keep up to date.
+      if (!result.error && isListing(text) && (result.result || []).some(item => item.kind === 'table')) {
+        markLive(entry, text);
+      }
     }
   } catch (e) {
     entry.classList.remove('running');
     entry.querySelector('.tail').innerHTML = `<div class="err">${escape(String(e))}</div>`;
   } finally {
     running = null;
+    // Which run finished last. An undo can leave no entry, so this, not a count of
+    // entries, is how the browser check knows a line is done.
+    document.body.dataset.finished = id;
     runButton.textContent = 'Run'; runButton.classList.remove('stop');
     await refreshPrompt();
 

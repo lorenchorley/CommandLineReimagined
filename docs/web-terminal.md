@@ -135,6 +135,36 @@ what a scrollback is for, and say `frozen`. Underneath the live one is a badge r
 `live`; tapping it says `paused` and stops the refreshing for that listing, and tapping
 it again resumes and redraws at once. `clear` ends it along with the scrollback.
 
+## Undo on screen
+
+`undo` takes the last line back, so its entry leaves the scrollback, and the undo
+leaves no entry of its own. `redo` puts that entry back where it was, as it was, with a
+brief flash. On screen it looks as if the line was never run, and then as if it had
+been:
+
+| You run | The scrollback shows |
+| --- | --- |
+| `mkdir a`, `mkdir b`, `ls` | `mkdir a`, `mkdir b`, `ls` |
+| `undo` | `mkdir a`, `ls` |
+| `undo` | `ls` |
+| `redo` | `mkdir a`, `ls` |
+
+A line that changed nothing, such as the `ls` above, is never taken back, so it stays.
+It is a live listing, so its table still changes to match.
+
+The undo and the redo are still in the log. `history` lists them as lines of their own,
+each naming the line it acted on, because that is the record of what happened; the
+scrollback shows what you meant.
+
+The undo or redo keeps an entry of its own, saying `Undone:`, `Redone:`, `Nothing to
+undo.` or `Nothing to redo.`, when there is nothing on screen to act on. That happens
+when there was nothing to undo, when the line it reverses was cleared with `clear` or
+ran before a reload, and when the line did more than undo, such as `run` of a script
+with `undo` in it. Otherwise nothing would show that it had done anything. After
+`reset`, entries waiting for a redo are dropped, because nothing can redo them.
+
+The rule is [decision 0030](decisions/0030-undo-takes-the-line-back-on-screen.md).
+
 ## Running and stopping
 
 Submitting a line creates its scrollback entry immediately, and the entry fills in as

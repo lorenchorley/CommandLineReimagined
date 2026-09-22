@@ -28,9 +28,12 @@ A host **must not** require a command to know anything else about presentation. 
 the interface that keeps commands free of a window, a render loop or a graphics library,
 and it is why they run under WebAssembly.
 
-There is no way to withdraw what was written. Undo used to erase a command's output;
-`undo` is a line of its own now and writes its own result, so the block it reverses
-stays on screen as a record of what happened.
+There is no way to withdraw what was written. Taking a line off the screen is the
+host's business, not the command's: the execution response says which lines were undone
+and redone (see [Execution response](#execution-response)), and a host **may** hide the
+entry for an undone line and show it again on redo
+([decision 0030](../decisions/0030-undo-takes-the-line-back-on-screen.md)). The browser
+page does; the desktop shell draws `undo` as a line of its own.
 
 ### ILog
 
@@ -260,9 +263,19 @@ and the position is zero.
   "resultText": "documents",
   "error": null,
   "fault": null,
-  "location": { "folder": "/", "view": null }
+  "location": { "folder": "/", "view": null },
+  "changes": { "committed": [], "undone": [], "redone": [], "reset": false }
 }
 ```
+
+`changes` says what the line did to the log, by sequence number. `committed` lists the
+lines it committed: none for a line that changed nothing, one usually, one per script
+line for `run`. `undone` and `redone` list the lines it undid and redid, and **must**
+name the line itself, never the compensation that reversed it, so a redo names the line
+the undo had reversed rather than the undo. The seed is never listed
+([decision 0018](../decisions/0018-the-seed-is-not-a-line-anyone-typed.md)). `reset` is
+true when the log was emptied while the line ran; numbers start again after it, so a
+host **must** forget the ones it remembered. A refresh's `changes` is always empty.
 
 `result` is the value flattened for display. Kinds are `file`, `folder`, `object`,
 `component`, `number`, `boolean`, `none`, `table`, `query`, `fault` and `text`. A list flattens
