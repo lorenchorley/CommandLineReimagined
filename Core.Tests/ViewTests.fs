@@ -381,6 +381,17 @@ type ViewTests() =
 
         Assert.IsFalse(harness.Exists "/sneaky", "The refused refresh must not have created anything.")
 
+    /// `up` moves you, which is a change: it lands in `history` and `undo` takes it back.
+    /// It used to be marked read-only, which let a live refresh name it.
+    [<TestMethod>]
+    member _.RefreshRefusesUp() =
+        let harness = journal ()
+        harness.Run "cd journal" |> ignore
+
+        match (harness.Refresh "up").Fault with
+        | Some fault -> Assert.AreEqual<string>("A live refresh only re-reads : up", fault.Message)
+        | None -> Assert.Fail "A refresh of 'up' should have been refused."
+
     /// Refused for the whole line, not stage by stage: a pipeline that reads and then
     /// writes is a writing line.
     [<TestMethod>]

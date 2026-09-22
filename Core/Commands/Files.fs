@@ -266,11 +266,12 @@ let cd =
                 | Option.None -> return Error(Fault.needsArgument "cd" "TargetPath")
             } }
 
+/// Not read-only, for the same reason `cd` is not: it emits `LocationChanged`, so it
+/// is in `history` and `undo` takes it back, and a live refresh must not run it.
 let up =
     { Spec =
         CommandSpec.create "up" "Leave the current view, or move up one directory"
             [ "move"; "parent"; "back"; "navigate"; "view" ] []
-        |> CommandSpec.readOnly
       Run =
         fun invocation ->
             async {
