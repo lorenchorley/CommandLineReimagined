@@ -237,6 +237,18 @@ module Fault =
     let mustNotBeNegative parameter value =
         create Invalid (sprintf "'%s' must be zero or more, not '%s'." parameter value)
 
+    /// <summary>A switch written as a word it does not take.</summary>
+    /// <remarks>
+    /// Any word used to count as on, so `sort name asc` sorted downwards. The message
+    /// lists what the switch does take, which is the whole of what there is to know.
+    /// </remarks>
+    let notASwitchValue command parameter (allowed: string list) word =
+        match allowed with
+        | [ own ] -> create Binding (sprintf "'%s' takes '-%s' on its own, not '%s'." command own word)
+        | _ ->
+            let quoted = allowed |> List.map (sprintf "'%s'") |> String.concat " or "
+            create Binding (sprintf "'%s' takes %s for '%s', not '%s'." command quoted parameter word)
+
     let notAValidUrl text = create Invalid (sprintf "Not a valid URL : %s" text)
 
     let noContentLength () = create Invalid "The server did not report a content length."

@@ -107,6 +107,29 @@ type TableCommandTests() =
 
         Assert.AreEqual<string>("tuesday saturday monday", harness.Names "ls | sort name desc")
 
+    /// The switch written bare means the same as the word.
+    [<TestMethod>]
+    member _.SortDescendingIsAlsoASwitch() =
+        let harness = notes ()
+
+        Assert.AreEqual<string>("tuesday saturday monday", harness.Names "ls | sort name -desc")
+
+    /// Any word used to count as descending, so `asc` sorted the wrong way.
+    [<TestMethod>]
+    member _.SortAscendingIsTheWordAsc() =
+        let harness = notes ()
+
+        Assert.AreEqual<string>("monday saturday tuesday", harness.Names "ls | sort name asc")
+
+    [<TestMethod>]
+    member _.SortRefusesAnyOtherWord() =
+        let harness = notes ()
+
+        let fault = harness.Fail "ls | sort name up"
+
+        Assert.AreEqual<FaultKind>(Binding, fault.Kind)
+        Assert.AreEqual<string>("'sort' takes 'desc' or 'asc' for 'desc', not 'up'.", fault.Message)
+
     /// A number column sorts as numbers. As text, `9` comes after `100`.
     [<TestMethod>]
     member _.SortIsNumericOnNumbers() =

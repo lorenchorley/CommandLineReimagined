@@ -95,12 +95,13 @@ let toXml (newId: IdSource) (now: unit -> DateTimeOffset) =
           Parameter.optional "row" "The name of a table's row elements; 'row' by default"
           Parameter.optional "declaration" "Write '-declaration' to begin with an XML declaration" ]
         (fun invocation value ->
-            let options =
-                { Root = option "root" invocation
-                  Row = option "row" invocation
-                  Declaration = Invocation.flag "declaration" invocation }
-
-            Xml.write options value)
+            Invocation.flag "declaration" invocation
+            |> Outcome.bind (fun declaration ->
+                Xml.write
+                    { Root = option "root" invocation
+                      Row = option "row" invocation
+                      Declaration = declaration }
+                    value))
 
 // ---------------------------------------------------------------------- from-csv
 
