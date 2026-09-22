@@ -24,7 +24,9 @@ type FileRecord =
       Attributes: Map<string, Value>
       Content: Hash option }
 
-/// Where the session is. `View` is a saved query, and stays `None` until Phase 4.
+/// Where the session is: a folder, and the predicate being looked through, if any.
+/// The two are independent, because a record created inside a view still lands in the
+/// folder.
 type Location = { Folder: string; View: Expr option }
 
 /// <summary>Something that happened.</summary>

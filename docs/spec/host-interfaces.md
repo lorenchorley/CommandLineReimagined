@@ -42,6 +42,7 @@ type ILog =
     abstract ReadAll : unit -> Async<Transaction list>
     abstract PutBlob : string -> Async<Hash>
     abstract GetBlob : Hash -> Async<string option>
+    abstract Clear   : unit -> Async<unit>
 ```
 
 Asynchronous throughout, because the browser's storage is and WebAssembly is single
@@ -54,8 +55,8 @@ returns from `ReadAll`, in sequence order.
 `Clear` is the one operation that is not append-only. It exists for `reset` and
 **must not** be reachable from a command other than that one.
 
-`InMemoryLog` is supplied. `IndexedDbLog` in the browser client keeps the log in the
-browser's own storage.
+`InMemoryLog` is supplied, and is what the tests and the desktop shell use.
+`IndexedDbLog` in the browser client keeps the log in the browser's own storage.
 
 ### The stored shape
 
@@ -65,7 +66,7 @@ would make a stored filesystem unreadable.
 
 Every document carries `"v"`, and a reader exists per version. This build writes
 version 2 and reads 1 and 2. Version 2 added the `query` and `fault` value kinds, which
-a variable can hold from Phase 5 (`try cat x | set problem`); every version 1 document
+a variable can hold (`try cat x | set problem`); every version 1 document
 is a valid version 2 one, so one reader serves both, and the version exists so that a
 build which only knew version 1 refuses a log it would misread rather than failing on
 an unknown kind halfway through it.
@@ -150,6 +151,20 @@ where F# types stop.
 A host does not register commands, resolve them, or supply a service provider. The
 session holds every command, and a host that wants to add one supplies it to the
 session rather than to a container.
+
+## Hosts
+
+Three hosts build a session, and each differs only in its `SessionOptions` and its log:
+
+| Host | Log | `Exit` | Renders |
+| --- | --- | --- | --- |
+| Browser client (`WebClient`) | `IndexedDbLog`, falling back to memory | nothing | DTOs from `TerminalSession`, drawn by the page |
+| Desktop shell (`Terminal.Execution.DesktopSession`) | `InMemoryLog` | closes the window | display strings, as text blocks |
+| Tests (`Core.Tests`, `Web.Core.Tests`) | `InMemoryLog` | nothing | assertions on values and DTOs |
+
+The desktop shell keeps its log in memory, so its filesystem lives as long as the window
+does; [decision 0012](../decisions/0012-browser-first.md) keeps it out of scope beyond
+compiling and running commands.
 
 ## TerminalSession
 
