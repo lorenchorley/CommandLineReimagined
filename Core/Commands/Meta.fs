@@ -70,11 +70,21 @@ let history (store: StoreAccess) =
                         [ Value.Number(float entry.Transaction.Seq)
                           Value.Text(entry.Transaction.At.ToString "HH:mm:ss")
                           Value.Text entry.Transaction.Source
-                          Value.Boolean entry.Undone ])
+                          Value.Boolean entry.Undone
+                          // An undo or a redo carries the source of the line it
+                          // reverses, so without this `mkdir alpha; undo; redo` reads
+                          // as the same line three times.
+                          match entry.Transaction.Compensates with
+                          | Some seq -> Value.Number(float seq)
+                          | None -> Value.None ])
 
                 // A table, so `history | where $row.undone eq true | count` is a
-                // question the language can already ask.
-                return Invocation.pure' (Value.Table(Table.ofColumns [ "seq"; "at"; "source"; "undone" ] rows))
+                // question the language can already ask. `compensates` is last so the
+                // first four columns keep the places they always had.
+                return
+                    Invocation.pure' (
+                        Value.Table(Table.ofColumns [ "seq"; "at"; "source"; "undone"; "compensates" ] rows)
+                    )
             } }
 
 /// <summary>The commands, as a table.</summary>
