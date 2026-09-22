@@ -313,8 +313,15 @@ type Evaluator(commands: Command list, store: Store, blobs: IBlobs) =
                                 }),
                             // A pipeline standing as a stage is handed the pipe, so
                             // `ls | (where $row.kind eq folder | count)` means what it
-                            // would without the parentheses.
-                            (fun (nested: Tree.NestedPipeline) -> runPipeline input nested.Pipeline)
+                            // would without the parentheses. A fault from inside loses
+                            // its stage number, as one from an argument does in
+                            // `runNested`: as far as the line is concerned, the stage
+                            // that failed is the one the parentheses stand in.
+                            (fun (nested: Tree.NestedPipeline) ->
+                                async {
+                                    let! result = runPipeline input nested.Pipeline
+                                    return result |> Outcome.mapFault (fun fault -> { fault with Stage = None })
+                                })
                         )
                 }
 
