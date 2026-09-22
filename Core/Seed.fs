@@ -64,9 +64,30 @@ module Seed =
                 return events
             }
 
+    /// <summary>The example programs, read out of the assembly they travel in.</summary>
+    /// <remarks>
+    /// Embedded rather than copied beside the binary, because the browser build is a
+    /// set of assemblies downloaded into a tab and there is no "beside" to copy to.
+    /// </remarks>
+    let exampleFiles =
+        let assembly = Reflection.Assembly.GetExecutingAssembly()
+
+        assembly.GetManifestResourceNames()
+        |> Array.filter (fun name -> name.StartsWith "examples/" && name.EndsWith ".clr")
+        |> Array.sortWith (fun a b -> String.CompareOrdinal(a, b))
+        |> Array.map (fun name ->
+            use stream = assembly.GetManifestResourceStream name
+            use reader = new IO.StreamReader(stream)
+
+            { Name = name.Substring("examples/".Length)
+              Folder = "/examples"
+              Content = Some(reader.ReadToEnd()) })
+        |> List.ofArray
+
     /// The filesystem the terminal has always started with, as records.
     let standardFiles =
         [ { Name = "documents"; Folder = "/"; Content = None }
+          { Name = "examples"; Folder = "/"; Content = None }
           { Name = "projects"; Folder = "/"; Content = None }
           { Name = "readme.txt"
             Folder = "/"
@@ -74,5 +95,6 @@ module Seed =
           { Name = "notes.txt"
             Folder = "/documents"
             Content = Some "Try: ls, cd documents, mkdir scratch, echo \"hello\"" } ]
+        @ exampleFiles
 
     let standard newId now : Seed = ofFiles newId now standardFiles

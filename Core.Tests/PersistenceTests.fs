@@ -32,6 +32,20 @@ type PersistenceTests() =
         run (session.Initialize())
         session
 
+    /// The `name` column of a listing, space separated: a listing is a table from
+    /// Phase 3, and these tests are about which records came back rather than about
+    /// how they are laid out.
+    let names (session: Session) (line: string) =
+        let response = run (session.Execute line)
+
+        match response.Fault, response.Result with
+        | Some fault, _ -> failwith fault.Message
+        | None, Some(Value.Table table) ->
+            table.Rows
+            |> List.map (fun row -> Value.display (Table.cell table "name" row))
+            |> String.concat " "
+        | None, other -> failwithf "'%s' did not answer a table: %A" line other
+
     let display (session: Session) (line: string) =
         let response = run (session.Execute line)
 
@@ -60,7 +74,7 @@ type PersistenceTests() =
 
         let second = reopen log
 
-        Assert.AreEqual<string>("documents persisted projects note.txt readme.txt", display second "ls /")
+        Assert.AreEqual<string>("documents examples persisted projects note.txt readme.txt", names second "ls /")
         Assert.AreEqual<string>("hello", display second "cat /note.txt")
         Assert.AreEqual<string>("hi", display second "echo $greeting")
         Assert.AreEqual<string>("/persisted", second.Location.Folder)
@@ -90,7 +104,7 @@ type PersistenceTests() =
 
         let second = reopen log
 
-        Assert.AreEqual<string>("documents projects", display second "ls")
+        Assert.AreEqual<string>("documents examples projects", names second "ls")
 
     /// Undo survives a reload, because the compensation chain is in the log rather
     /// than in memory.
@@ -103,7 +117,7 @@ type PersistenceTests() =
         let second = reopen log
 
         Assert.AreEqual<string>("Undone: mkdir alpha", display second "undo")
-        Assert.AreEqual<string>("documents projects readme.txt", display second "ls")
+        Assert.AreEqual<string>("documents examples projects readme.txt", names second "ls")
         Assert.AreEqual<string>("Redone: mkdir alpha", display second "redo")
 
     /// Content is in the log's blob store, so a reload can still read a file written
@@ -129,8 +143,8 @@ type PersistenceTests() =
         harness.Run "mkdir alpha" |> ignore
         harness.Run "write note.txt hello" |> ignore
 
-        Assert.AreEqual<string>("Reset. 4 files restored.", harness.Text "reset")
-        Assert.AreEqual<string>("documents projects readme.txt", harness.Text "ls")
+        Assert.AreEqual<string>("Reset. 9 files restored.", harness.Text "reset")
+        Assert.AreEqual<string>("documents examples projects readme.txt", harness.Names "ls")
 
     [<TestMethod>]
     member _.ResetLeavesNothingToUndo() =
@@ -181,7 +195,7 @@ type PersistenceTests() =
 
         let second = reopen log
 
-        Assert.AreEqual<string>("documents projects readme.txt", display second "ls")
+        Assert.AreEqual<string>("documents examples projects readme.txt", names second "ls")
 
     /// A session with nothing to seed resets to genuinely nothing, and says so.
     [<TestMethod>]
@@ -190,4 +204,4 @@ type PersistenceTests() =
         harness.Run "mkdir alpha" |> ignore
 
         Assert.AreEqual<string>("Reset. The filesystem is empty.", harness.Text "reset")
-        Assert.AreEqual<string>("", harness.Text "ls")
+        Assert.AreEqual<int>(0, List.length (harness.Table "ls").Rows)

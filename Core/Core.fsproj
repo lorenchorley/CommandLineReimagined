@@ -35,11 +35,22 @@
     <Compile Include="Commands/Files.fs" />
     <Compile Include="Commands/Values.fs" />
     <Compile Include="Commands/Async.fs" />
+    <Compile Include="Commands/Tables.fs" />
     <Compile Include="Commands/Meta.fs" />
     <Compile Include="Evaluator.fs" />
     <Compile Include="Completion.fs" />
     <Compile Include="Seed.fs" />
     <Compile Include="Session.fs" />
+  </ItemGroup>
+
+  <!--
+    The four example programs travel with the core, so the hosted build seeds them into
+    /examples and can run them as they stand. They are the plan's proof that the design
+    works end to end, and a proof that only exists in the test project is one nobody can
+    try for themselves.
+  -->
+  <ItemGroup>
+    <EmbeddedResource Include="..\examples\*.clr" LogicalName="examples/%(Filename)%(Extension)" />
   </ItemGroup>
 
   <ItemGroup>

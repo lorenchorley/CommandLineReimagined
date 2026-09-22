@@ -45,6 +45,27 @@ let private listingOrder (records: FileRecord list) =
 
 // --------------------------------------------------------------------------- ls
 
+/// <summary>The length of each record's content, in characters.</summary>
+/// <remarks>
+/// `size` is not stored (decision 0013): it is the content's length, so it can never
+/// disagree with the content. Reading it means reading the blobs, which is why a
+/// listing is async and why `Table.ofRecords` is handed the measurement rather than
+/// taking the whole log to look one up.
+/// </remarks>
+let private measure (blobs: IBlobs) (records: FileRecord list) =
+    async {
+        let mutable sizes = Map.empty
+
+        for record in records do
+            match record.Content with
+            | Some hash ->
+                let! content = blobs.Get hash
+                sizes <- Map.add record.Id (float (defaultArg content "").Length) sizes
+            | None -> ()
+
+        return fun (record: FileRecord) -> defaultArg (Map.tryFind record.Id sizes) 0.0
+    }
+
 let ls =
     { Spec =
         CommandSpec.create
@@ -64,26 +85,14 @@ let ls =
                 match Files.resolveFolder invocation.Projection invocation.Location target with
                 | Error fault -> return Error fault
                 | Ok folder ->
-                    let entries =
-                        Files.inFolder invocation.Projection folder
-                        |> listingOrder
-                        |> List.map Record.toValue
+                    let entries = Files.inFolder invocation.Projection folder |> listingOrder
+                    let! size = measure invocation.Blobs entries
 
-                    // The parent entry navigates rather than naming a target, and there
-                    // is nowhere to go from the root, so it only appears below it.
-                    let parent =
-                        if folder = Files.root then
-                            []
-                        else
-                            let up, _ = Files.split folder
-
-                            [ Value.File
-                                  { Id = ""
-                                    Name = "up"
-                                    Kind = Value.parentKind
-                                    Folder = up } ]
-
-                    return Invocation.pure' (Value.List(parent @ entries))
+                    // From Phase 3 there is no parent row: a table of records has
+                    // nowhere to put one, and a row that navigates rather than naming a
+                    // record would be a row with no record behind it. The page offers
+                    // `up` in the location line instead.
+                    return Invocation.pure' (Value.Table(Table.ofRecords size entries))
             } }
 
 // --------------------------------------------------------------------------- cd
@@ -331,13 +340,14 @@ let attr (now: unit -> DateTimeOffset) =
                 | Error fault -> return Error fault
                 | Ok record ->
                     if List.isEmpty invocation.Assignments then
-                        // Reading. A table in Phase 3; a list of lines until then.
-                        let lines =
+                        // Reading: a table of name and value, so `attr x | where ...`
+                        // is a question like any other.
+                        let rows =
                             record.Attributes
                             |> Map.toList
-                            |> List.map (fun (name, value) -> Value.Text($"{name} = {Value.display value}"))
+                            |> List.map (fun (name, value) -> [ Value.Text name; value ])
 
-                        return Invocation.pure' (Value.List lines)
+                        return Invocation.pure' (Value.Table(Table.ofColumns [ "name"; "value" ] rows))
                     else
                         let invalid =
                             invocation.Assignments

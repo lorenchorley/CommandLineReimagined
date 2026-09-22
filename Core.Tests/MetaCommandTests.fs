@@ -98,12 +98,16 @@ type MetaCommandTests() =
 
         Assert.AreEqual<string list>([ "mkdir alpha" ], harness.Undone())
 
-        match harness.Run "history" with
-        | Value.List lines ->
-            let text = lines |> List.map Value.display
-            Assert.AreEqual<int>(3, text.Length)
-            Assert.IsTrue(text |> List.exists (fun line -> line.Contains "mkdir alpha" && line.Contains "(undone)"))
-        | other -> Assert.Fail(sprintf "Expected a list, got %A" other)
+        let table = harness.Table "history"
+
+        Assert.AreEqual<int>(3, List.length table.Rows)
+
+        let undone =
+            table.Rows
+            |> List.filter (fun row -> Table.cell table "undone" row = Value.Boolean true)
+            |> List.map (fun row -> Value.display (Table.cell table "source" row))
+
+        CollectionAssert.AreEqual([| "mkdir alpha" |], undone |> Array.ofList)
 
     /// After a redo the mkdir stands again, and the undo that reversed it has itself
     /// been reversed, so nothing is marked.
@@ -116,9 +120,7 @@ type MetaCommandTests() =
 
         Assert.AreEqual<string list>([], harness.Undone())
 
-        match harness.Run "history" with
-        | Value.List lines -> Assert.AreEqual<int>(4, lines.Length)
-        | other -> Assert.Fail(sprintf "Expected a list, got %A" other)
+        Assert.AreEqual<int>(4, List.length (harness.Table "history").Rows)
 
     /// <summary>The seed is recorded but is nobody's to undo (decision 0018).</summary>
     /// <remarks>
@@ -131,7 +133,7 @@ type MetaCommandTests() =
         let harness = seeded ()
 
         Assert.AreEqual<string>("Nothing to undo.", harness.Text "undo")
-        Assert.AreEqual<string>("documents projects readme.txt", harness.Text "ls")
+        Assert.AreEqual<string>("documents examples projects readme.txt", harness.Names "ls")
 
     [<TestMethod>]
     member _.TheSeedIsStillInHistory() =
@@ -148,13 +150,13 @@ type MetaCommandTests() =
 
         Assert.AreEqual<string>("Undone: mkdir alpha", harness.Text "undo")
         Assert.AreEqual<string>("Nothing to undo.", harness.Text "undo")
-        Assert.AreEqual<string>("documents projects readme.txt", harness.Text "ls")
+        Assert.AreEqual<string>("documents examples projects readme.txt", harness.Names "ls")
 
     [<TestMethod>]
-    member _.HistoryOnAFreshSessionSaysSo() =
+    member _.HistoryOnAFreshSessionIsEmpty() =
         let harness = bare ()
 
-        Assert.AreEqual<Value>(Value.Text "Nothing has happened yet.", harness.Run "history")
+        Assert.AreEqual<int>(0, List.length (harness.Table "history").Rows)
 
     /// Every line's own text is what `history` and `Undone:` name, so a user recognises
     /// what they are about to take back.

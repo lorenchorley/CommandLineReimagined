@@ -67,6 +67,25 @@ type Harness(?seedFiles: SeedFile list, ?httpClient: unit -> HttpClient) =
     /// What the line displayed as its result.
     member this.Text(line: string) = Value.display (this.Run line)
 
+    /// <summary>The table a line answered.</summary>
+    /// <remarks>
+    /// From Phase 3 a listing is a table, and `Text` on one is the whole aligned block.
+    /// A test that is about which records are there asks for a column instead.
+    /// </remarks>
+    member this.Table(line: string) : Table =
+        match this.Run line with
+        | Value.Table table -> table
+        | other -> raise (AssertFailedException(sprintf "'%s' answered %s, not a table." line (Value.kind other)))
+
+    /// One column of the table a line answered, as display text.
+    member this.Column (line: string) (column: string) =
+        let table = this.Table line
+        table.Rows |> List.map (fun row -> Value.display (Table.cell table column row))
+
+    /// The `name` column of a listing, space separated, which is how these tests read
+    /// before a listing was a table.
+    member this.Names(line: string) = this.Column line "name" |> String.concat " "
+
     /// What commands wrote while the last line ran.
     member this.Written(line: string) = (this.Respond line).Output
 

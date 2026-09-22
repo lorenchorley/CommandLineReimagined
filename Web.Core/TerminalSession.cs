@@ -206,6 +206,13 @@ public sealed class TerminalSession
             return list.Item.SelectMany(Describe).ToList();
         }
 
+        // A table keeps its shape. Flattening it into chips would throw away exactly
+        // what a table is for, and the page draws a real table from this.
+        if (value is Value.Table table)
+        {
+            return new[] { Describe(table.Item) };
+        }
+
         // A file keeps its path, so tapping the chip inserts something that resolves.
         if (value.IsFile)
         {
@@ -223,6 +230,44 @@ public sealed class TerminalSession
                 null),
         };
     }
+
+    /// <summary>
+    /// A table as one item, with its columns and its cells.
+    /// </summary>
+    /// <remarks>
+    /// Each cell is described the same way a standalone value is, so a file in a
+    /// listing is still a chip that carries its path and a number is still a number.
+    /// A cell that describes to several items — only a list does — is joined, because
+    /// a cell is one cell.
+    /// </remarks>
+    private static ResultItem Describe(Table table)
+    {
+        var columns = table.Columns
+            .Select(column => new ResultColumn(column.Name, ColumnTypeName(column.Type)))
+            .ToList();
+
+        var rows = table.Rows
+            .Select(row => (IReadOnlyList<ResultItem>)row.Select(Cell).ToList())
+            .ToList();
+
+        return new ResultItem("table", ValueModule.display(Value.NewTable(table)), null, columns, rows);
+    }
+
+    private static ResultItem Cell(Value value) =>
+        Describe(value) is [var single]
+            ? single
+            : new ResultItem(ValueModule.kind(value), ValueModule.display(value), null);
+
+    private static string ColumnTypeName(ColumnType type) =>
+        type.Tag switch
+        {
+            ColumnType.Tags.NumberCol => "number",
+            ColumnType.Tags.BooleanCol => "boolean",
+            ColumnType.Tags.FileCol => "file",
+            ColumnType.Tags.ObjectCol => "object",
+            ColumnType.Tags.MixedCol => "mixed",
+            _ => "text",
+        };
 }
 
 public sealed record ExecutionResponse(
@@ -237,7 +282,21 @@ public sealed record ExecutionResponse(
     LocationInfo Location,
     string WorkingDirectory);
 
-public sealed record ResultItem(string Kind, string Text, string? Path);
+/// <summary>One thing the page draws.</summary>
+/// <remarks>
+/// <paramref name="Columns"/> and <paramref name="Rows"/> are set only on a table, and
+/// are what lets the page draw a real one with sortable headers and tappable cells
+/// instead of a run of chips.
+/// </remarks>
+public sealed record ResultItem(
+    string Kind,
+    string Text,
+    string? Path,
+    IReadOnlyList<ResultColumn>? Columns = null,
+    IReadOnlyList<IReadOnlyList<ResultItem>>? Rows = null);
+
+/// <summary>A table's column, with the type its cells agreed on (decision 0009).</summary>
+public sealed record ResultColumn(string Name, string Type);
 
 /// <summary>What went wrong, with structure the page can act on.</summary>
 /// <remarks>

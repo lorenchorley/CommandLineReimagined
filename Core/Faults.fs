@@ -180,6 +180,16 @@ module Fault =
 
     let cannotEvaluateChild node = create Internal (sprintf "Cannot evaluate a child %s." node)
 
+    // -------------------------------------------------------------- Script errors
+
+    /// A line in a script says which script and which line, counting every line in the
+    /// file including the blank and commented ones, so the number matches an editor's.
+    let inScript path line (fault: Fault) =
+        { fault with Message = sprintf "%s line %d: %s" path line fault.Message }
+
+    let scriptTooDeep depth =
+        create Invalid (sprintf "Scripts are only allowed to run scripts %d deep." depth)
+
     // ------------------------------------------------------------ Session messages
 
     let alreadyRunning () = create Invalid "A command is already running. Stop it first."

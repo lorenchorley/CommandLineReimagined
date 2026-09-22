@@ -91,6 +91,13 @@ type StoreAccess =
       History: unit -> HistoryEntry list
       /// Empties the log and seeds it again. Not undoable; see `reset`.
       Reset: unit -> Async<int>
+      /// <summary>Runs one line as if it had been typed.</summary>
+      /// <remarks>
+      /// Decision 0020: a script's lines each commit their own transaction, so `run`
+      /// cannot run them itself — it has no store — and this is the whole of what it is
+      /// given. Only `run` is handed a `StoreAccess`, so only `run` can reach it.
+      /// </remarks>
+      RunLine: string -> IOutput -> CancellationToken -> Async<Outcome<Value>>
       /// What shutting down means is the host's business. The browser has nothing to
       /// shut down and passes a function that does nothing.
       Exit: unit -> unit }

@@ -25,23 +25,57 @@ public class TerminalSessionTests
     }
 
     /// The names a listing shows, which is the cheapest way to ask what exists.
+    /// <summary>The names in a listing.</summary>
+    /// <remarks>
+    /// A listing is one table item from Phase 3, not a run of chips, so this reads the
+    /// `name` column out of it.
+    /// </remarks>
     private async Task<IReadOnlyList<string>> Listing()
     {
         var response = await _session.ExecuteAsync("ls");
-        return response.Result!.Select(item => item.Text).ToList();
+        return Names(response.Result!.Single());
+    }
+
+    private static IReadOnlyList<string> Names(ResultItem table)
+    {
+        int index = table.Columns!.ToList().FindIndex(column => column.Name == "name");
+        return table.Rows!.Select(row => row[index].Text).ToList();
     }
 
     // ---- responses --------------------------------------------------------------
 
     [TestMethod]
-    public async Task ListingReturnsChipsForTheSeededTree()
+    public async Task ListingIsOneTableWithACellPerValue()
     {
         var response = await _session.ExecuteAsync("ls");
 
         Assert.IsNull(response.Error);
-        var kinds = response.Result!.Select(item => (item.Kind, item.Text)).ToList();
+
+        var table = response.Result!.Single();
+        Assert.AreEqual("table", table.Kind);
+        CollectionAssert.AreEqual(
+            new[] { "name", "kind", "folder", "size", "modified" },
+            table.Columns!.Select(column => column.Name).ToArray());
+
+        // Each cell is described the way a standalone value is, so a folder is still a
+        // folder and a size is still a number.
+        var kinds = table.Rows!.Select(row => (row[0].Kind, row[0].Text)).ToList();
         CollectionAssert.Contains(kinds, ("folder", "documents"));
         CollectionAssert.Contains(kinds, ("file", "readme.txt"));
+        Assert.AreEqual("number", table.Rows![0][3].Kind);
+    }
+
+    /// The column's type is the one its cells agreed on (decision 0009), which is what
+    /// the page sorts by.
+    [TestMethod]
+    public async Task AColumnCarriesItsType()
+    {
+        var response = await _session.ExecuteAsync("ls");
+        var columns = response.Result!.Single().Columns!.ToDictionary(c => c.Name, c => c.Type);
+
+        Assert.AreEqual("file", columns["name"]);
+        Assert.AreEqual("number", columns["size"]);
+        Assert.AreEqual("text", columns["kind"]);
     }
 
     /// A chip carries the path it argues, so tapping one inserts something that
@@ -50,8 +84,9 @@ public class TerminalSessionTests
     public async Task AFileChipCarriesItsPath()
     {
         var response = await _session.ExecuteAsync("ls");
+        var table = response.Result!.Single();
 
-        var readme = response.Result!.Single(item => item.Text == "readme.txt");
+        var readme = table.Rows!.Select(row => row[0]).Single(cell => cell.Text == "readme.txt");
         Assert.AreEqual("/readme.txt", readme.Path);
     }
 
@@ -423,7 +458,7 @@ public class TerminalSessionTests
     {
         var texts = _session.Complete("ls | se").Select(c => c.Text).ToList();
 
-        CollectionAssert.AreEqual(new[] { "set" }, texts);
+        CollectionAssert.AreEqual(new[] { "select", "set" }, texts);
     }
 
     [TestMethod]

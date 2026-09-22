@@ -261,13 +261,14 @@ type FileCommandTests() =
     member _.AttrWithNoAssignmentsListsTheAttributes() =
         let harness = harness ()
 
-        match harness.Run "attr notes.txt" with
-        | Value.List items ->
-            let lines = items |> List.map Value.display
-            assertContains "name = notes.txt" lines
-            assertContains "kind = text" lines
-            assertContains "folder = /" lines
-        | other -> Assert.Fail(sprintf "Expected a list, got %A" other)
+        let names = harness.Column "attr notes.txt" "name"
+        let values = harness.Column "attr notes.txt" "value"
+
+        assertContains "name" names
+        assertContains "kind" names
+        assertContains "folder" names
+        assertContains "notes.txt" values
+        assertContains "text" values
 
     /// Decision 0017: `attr` takes names it has never heard of, which is the whole
     /// reason `name=value` is data rather than parameter binding.

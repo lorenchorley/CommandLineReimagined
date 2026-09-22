@@ -18,7 +18,7 @@ type AcceptanceTests() =
     member _.AFreshSessionHasSomethingToLookAt() =
         let harness = seeded ()
 
-        Assert.AreEqual<string>("documents projects readme.txt", harness.Text "ls")
+        Assert.AreEqual<string>("documents examples projects readme.txt", harness.Names "ls")
 
     /// A failed line leaves no trace, whatever its earlier stages managed.
     [<TestMethod>]
@@ -26,16 +26,16 @@ type AcceptanceTests() =
         let harness = seeded ()
 
         Assert.AreEqual<string>("Directory does not exist : nowhere", harness.Error "mkdir a | cd nowhere")
-        Assert.AreEqual<string>("documents projects readme.txt", harness.Text "ls")
+        Assert.AreEqual<string>("documents examples projects readme.txt", harness.Names "ls")
 
     [<TestMethod>]
     member _.MkdirUndoRedoHistory() =
         let harness = seeded ()
 
         Assert.AreEqual<string>("alpha", harness.Text "mkdir alpha")
-        Assert.AreEqual<string>("alpha documents projects readme.txt", harness.Text "ls")
+        Assert.AreEqual<string>("alpha documents examples projects readme.txt", harness.Names "ls")
         Assert.AreEqual<string>("Undone: mkdir alpha", harness.Text "undo")
-        Assert.AreEqual<string>("documents projects readme.txt", harness.Text "ls")
+        Assert.AreEqual<string>("documents examples projects readme.txt", harness.Names "ls")
         Assert.AreEqual<string>("Redone: mkdir alpha", harness.Text "redo")
 
         // The `ls` lines committed nothing, so the history holds four lines and not six.
@@ -58,16 +58,15 @@ type AcceptanceTests() =
 
         Assert.AreEqual<string>("note.txt", harness.Text "attr note.txt tag=work")
 
-        match harness.Run "attr note.txt" with
-        | Value.List items ->
-            let lines = items |> List.map Value.display
-            assertContains "name = note.txt" lines
-            assertContains "kind = text" lines
-            assertContains "folder = /" lines
-            assertContains "tag = work" lines
-            Assert.IsTrue(lines |> List.exists (fun line -> line.StartsWith "created = "))
-            Assert.IsTrue(lines |> List.exists (fun line -> line.StartsWith "modified = "))
-        | other -> Assert.Fail(sprintf "Expected a list, got %A" other)
+        let names = harness.Column "attr note.txt" "name"
+        let values = harness.Column "attr note.txt" "value"
+
+        CollectionAssert.AreEqual(
+            [| "created"; "folder"; "kind"; "modified"; "name"; "tag" |], names |> Array.ofList)
+
+        assertContains "note.txt" values
+        assertContains "text" values
+        assertContains "work" values
 
     [<TestMethod>]
     member _.ATagIsSavedAsAFile() =

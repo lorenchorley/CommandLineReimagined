@@ -27,9 +27,11 @@
     <Compile Include="FileCommandTests.fs" />
     <Compile Include="VariableCommandTests.fs" />
     <Compile Include="AsyncCommandTests.fs" />
+    <Compile Include="TableCommandTests.fs" />
     <Compile Include="MetaCommandTests.fs" />
     <Compile Include="CompletionTests.fs" />
     <Compile Include="PersistenceTests.fs" />
+    <Compile Include="ExampleProgramTests.fs" />
     <Compile Include="AcceptanceTests.fs" />
   </ItemGroup>
 

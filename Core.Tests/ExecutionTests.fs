@@ -66,9 +66,7 @@ type ExecutionTests() =
     member _.NamedArgumentBindsOutOfPosition() =
         let harness = seeded ()
 
-        match harness.Run "ls -path documents" with
-        | Value.List items -> Assert.AreEqual<int>(2, items.Length, "up and notes.txt")
-        | other -> Assert.Fail(sprintf "Expected a list, got %A" other)
+        Assert.AreEqual<string>("notes.txt", harness.Names "ls -path documents")
 
     [<TestMethod>]
     member _.AFaultCarriesItsKind() =
@@ -355,12 +353,10 @@ type ExecutionTests() =
     member _.ListDirectoryReturnsEntries() =
         let harness = seeded ()
 
-        match harness.Run "ls" with
-        | Value.List items ->
-            let names = items |> List.map Value.display
-            assertContains "documents" names
-            assertContains "readme.txt" names
-        | other -> Assert.Fail(sprintf "Expected a list, got %A" other)
+        let names = harness.Column "ls" "name"
+
+        assertContains "documents" names
+        assertContains "readme.txt" names
 
     /// <summary>Folders first, then files, each by name (decision 0016).</summary>
     /// <remarks>
@@ -373,17 +369,23 @@ type ExecutionTests() =
         harness.Run "mkdir zebra" |> ignore
         harness.Run "write apple.txt a" |> ignore
 
-        Assert.AreEqual<string>("documents projects zebra apple.txt readme.txt", harness.Text "ls")
+        Assert.AreEqual<string>("documents examples projects zebra apple.txt readme.txt", harness.Names "ls")
 
-    /// There is nowhere to go from the root, so the parent entry only appears below it.
+    /// <summary>A listing is records and nothing else (Phase 3).</summary>
+    /// <remarks>
+    /// Until Phase 3 a listing below the root began with a `up` entry that navigated
+    /// rather than naming a record. A table has nowhere to put one — every row is a
+    /// record — so the page offers `up` in the location line instead, and the `up`
+    /// command is what it runs.
+    /// </remarks>
     [<TestMethod>]
-    member _.TheParentEntryAppearsOnlyBelowTheRoot() =
+    member _.AListingHasNoParentRow() =
         let harness = seeded ()
 
-        Assert.AreEqual<string>("documents projects readme.txt", harness.Text "ls")
+        Assert.AreEqual<string>("documents examples projects readme.txt", harness.Names "ls")
 
         harness.Run "cd documents" |> ignore
-        Assert.AreEqual<string>("up notes.txt", harness.Text "ls")
+        Assert.AreEqual<string>("notes.txt", harness.Names "ls")
 
     /// `ls | cd` with no quoting rule: the parent entry argues where it goes.
     [<TestMethod>]

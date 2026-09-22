@@ -63,17 +63,54 @@ let history (store: StoreAccess) =
       Run =
         fun _ ->
             async {
-                let lines =
+                let rows =
                     store.History()
                     |> List.map (fun entry ->
-                        let time = entry.Transaction.At.ToString "HH:mm:ss"
-                        let suffix = if entry.Undone then "  (undone)" else ""
-                        Value.Text($"{entry.Transaction.Seq}  {time}  {entry.Transaction.Source}{suffix}"))
+                        [ Value.Number(float entry.Transaction.Seq)
+                          Value.Text(entry.Transaction.At.ToString "HH:mm:ss")
+                          Value.Text entry.Transaction.Source
+                          Value.Boolean entry.Undone ])
 
-                if List.isEmpty lines then
-                    return Invocation.pure' (Value.Text "Nothing has happened yet.")
-                else
-                    return Invocation.pure' (Value.List lines)
+                // A table, so `history | where $row.undone eq true | count` is a
+                // question the language can already ask.
+                return Invocation.pure' (Value.Table(Table.ofColumns [ "seq"; "at"; "source"; "undone" ] rows))
+            } }
+
+/// <summary>The commands, as a table.</summary>
+/// <remarks>
+/// `help` used to be a word the page intercepted and answered itself, which meant the
+/// desktop shell had no help at all and neither could pipe it. It is a command now, so
+/// `help | where $row.name eq set` is an ordinary question. It is `Meta` because
+/// reading the command list changes nothing and should leave no transaction.
+///
+/// The specs arrive as a function rather than a list because the list includes this
+/// command, and a value cannot contain itself.
+/// </remarks>
+let help (specs: unit -> CommandSpec list) =
+    { Spec =
+        CommandSpec.create
+            "help"
+            "The commands, with their parameters and what they do"
+            [ "help"; "commands"; "what"; "usage"; "manual" ]
+            []
+        |> CommandSpec.meta
+      Run =
+        fun _ ->
+            async {
+                let written (parameter: Parameter) =
+                    match parameter.Kind with
+                    | Rest -> sprintf "%s..." parameter.Name
+                    | _ when parameter.Optional -> sprintf "[%s]" parameter.Name
+                    | _ -> sprintf "<%s>" parameter.Name
+
+                let rows =
+                    specs ()
+                    |> List.map (fun spec ->
+                        [ Value.Text spec.Name
+                          Value.Text(spec.Parameters |> List.map written |> String.concat " ")
+                          Value.Text spec.Description ])
+
+                return Invocation.pure' (Value.Table(Table.ofColumns [ "name"; "parameters"; "description" ] rows))
             } }
 
 /// <summary>Empties the log and starts again from the seeded filesystem.</summary>
@@ -115,6 +152,90 @@ let exit (store: StoreAccess) =
             async {
                 store.Exit()
                 return Invocation.pure' Value.Empty
+            } }
+
+/// How deep a script may run another script. Eight is well past anything sensible and
+/// short enough that a cycle says so rather than filling the stack.
+let private maximumDepth = 8
+
+/// <summary>Runs a script: one command line per line (decision 0020).</summary>
+/// <remarks>
+/// Meta, and that is the point: `run` commits nothing of its own, which is what lets
+/// each line it runs commit its own transaction. Undo after a script therefore steps
+/// back a line at a time, rather than taking the whole file away in one go.
+///
+/// The depth counter is a cell in the command rather than a field on the invocation
+/// because there is one `run` per session and a line runs at a time; a script that
+/// runs itself is caught before the stack is.
+/// </remarks>
+let run (store: StoreAccess) =
+    let mutable depth = 0
+
+    { Spec =
+        CommandSpec.create
+            "run"
+            "Run a script: every line in it, as if it had been typed"
+            [ "script"; "execute"; "play"; "batch" ]
+            [ Parameter.create "path" "The script to run" |> Parameter.piped ]
+        |> CommandSpec.meta
+      Run =
+        fun invocation ->
+            async {
+                let written = Invocation.text "path" invocation
+
+                match Files.resolve invocation.Projection invocation.Location written with
+                | Error fault -> return Error fault
+                | Ok record when Record.isFolder record ->
+                    return Error(Fault.isADirectory (Files.normalise invocation.Location.Folder written))
+                | Ok record when depth >= maximumDepth -> return Error(Fault.scriptTooDeep maximumDepth)
+                | Ok record ->
+                    let path = Files.pathOf invocation.Projection record
+
+                    let! content =
+                        match record.Content with
+                        | Some hash -> invocation.Blobs.Get hash
+                        | Option.None -> async.Return(Some "")
+
+                    let lines =
+                        (defaultArg content "").Replace("\r\n", "\n").Split '\n' |> List.ofArray
+
+                    let rec loop number remaining (last: Value) =
+                        async {
+                            match remaining with
+                            | [] -> return Ok last
+                            | (line: string) :: rest ->
+                                let written = line.Trim()
+
+                                // Blank and commented lines are skipped and still
+                                // counted, so the number in a message is the one an
+                                // editor shows.
+                                if written = "" || written.StartsWith "#" then
+                                    return! loop (number + 1) rest last
+                                elif invocation.Cancel.IsCancellationRequested then
+                                    return Error(Fault.cancelled ())
+                                else
+                                    invocation.Output.NewLine().Write("> " + written) |> ignore
+
+                                    let! result = store.RunLine written invocation.Output invocation.Cancel
+
+                                    match result with
+                                    | Error fault -> return Error(Fault.inScript path number fault)
+                                    | Ok value ->
+                                        let text = Value.display value
+
+                                        if text <> "" then
+                                            invocation.Output.NewLine().Write text |> ignore
+
+                                        return! loop (number + 1) rest value
+                        }
+
+                    depth <- depth + 1
+
+                    try
+                        let! result = loop 1 lines Value.Empty
+                        return result |> Outcome.map (fun value -> { Value = value; Events = [] })
+                    finally
+                        depth <- depth - 1
             } }
 
 /// <summary>Reports a name that resolved to nothing.</summary>

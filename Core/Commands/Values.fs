@@ -53,12 +53,13 @@ let vars =
             async {
                 let variables = invocation.Scope.All()
 
+                // Empty still answers a table, so `vars | count` is 0 rather than a
+                // fault. The hint is written beside it, because an empty table on its
+                // own does not say what to do next.
                 if List.isEmpty variables then
                     invocation.Output.NewLine().Write("No variables. Try: set greeting hello") |> ignore
-                    return Invocation.pure' Value.Empty
-                else
-                    for name, value in variables do
-                        invocation.Output.NewLine().Write($"${name} = {Value.display value}") |> ignore
 
-                    return Invocation.pure' (Value.List(variables |> List.map snd))
+                let rows = variables |> List.map (fun (name, value) -> [ Value.Text name; value ])
+
+                return Invocation.pure' (Value.Table(Table.ofColumns [ "name"; "value" ] rows))
             } }

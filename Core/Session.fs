@@ -145,11 +145,24 @@ type Session(log: ILog, options: SessionOptions, seed: Seed) =
                         | _ -> 0)
         }
 
+    /// <summary>Running one line, and the whole command list, before either exists.</summary>
+    /// <remarks>
+    /// `run` needs the evaluator and `help` needs the command list, and both are
+    /// commands, so both are in the list the evaluator is built from. These are filled
+    /// in immediately after it is, which is the smallest knot that ties: a command
+    /// holds a function, not a session.
+    /// </remarks>
+    let mutable runLine: string -> IOutput -> CancellationToken -> Async<Outcome<Value>> =
+        fun _ _ _ -> async.Return(Error(Fault.notInitialised ()))
+
+    let mutable specs: CommandSpec list = []
+
     let storeAccess =
         { Undo = store.Undo
           Redo = store.Redo
           History = store.History
           Exit = options.Exit
+          RunLine = fun source output cancel -> runLine source output cancel
           Reset =
             fun () ->
                 async {
@@ -174,15 +187,48 @@ type Session(log: ILog, options: SessionOptions, seed: Seed) =
           Commands.Values.vars
           Commands.Async.progress
           Commands.Async.download options.HttpClient options.NewId options.Clock
+          Commands.Tables.where
+          Commands.Tables.select
+          Commands.Tables.sort
+          Commands.Tables.take
+          Commands.Tables.skip
+          Commands.Tables.first
+          Commands.Tables.last
+          Commands.Tables.count
+          Commands.Tables.distinct
+          Commands.Tables.group
+          Commands.Tables.columns
+          Commands.Tables.rows
+          Commands.Tables.table
           Commands.Meta.undo storeAccess
           Commands.Meta.redo storeAccess
           Commands.Meta.history storeAccess
           Commands.Meta.reset storeAccess
+          Commands.Meta.run storeAccess
+          Commands.Meta.help (fun () -> specs)
           Commands.Meta.exit storeAccess
           Commands.Meta.unknown ]
 
     let evaluator = Evaluator(commands, store, blobs)
     let outputChanged = Event<int * string list>()
+
+    /// The two knots tied. A line that `run` executes goes through the evaluator like
+    /// any other, so it commits its own transaction (decision 0020) and a fault in it
+    /// is an ordinary fault with the script's name added.
+    do
+        specs <- evaluator.Specs
+
+        runLine <-
+            fun source output cancel ->
+                async {
+                    let parsed = parser.Parse<Tree.Node> source
+
+                    match parsed.Match((fun tree -> Ok tree), (fun _ -> Error(Fault.couldNotParse ()))) with
+                    | Error fault -> return Error fault
+                    | Ok tree ->
+                        let! result = evaluator.Execute tree source output cancel
+                        return result |> Outcome.map (fun execution -> execution.Value)
+                }
 
     let mutable running: CancellationTokenSource option = None
     let mutable initialised = false

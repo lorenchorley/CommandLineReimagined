@@ -27,8 +27,8 @@ type VariableCommandTests() =
         harness.Run "ls | set files" |> ignore
 
         match harness.Variable "files" with
-        | Some(Value.List _) -> ()
-        | other -> Assert.Fail(sprintf "Expected a list, got %A" other)
+        | Some(Value.Table _) -> ()
+        | other -> Assert.Fail(sprintf "Expected a table, got %A" other)
 
     [<TestMethod>]
     member _.SetVariableCanBeReadBack() =
@@ -107,15 +107,13 @@ type VariableCommandTests() =
         StringAssert.Contains(harness.Error "echo $v", "Unknown variable")
 
     [<TestMethod>]
-    member _.VarsListsEveryVariableOnItsOwnLine() =
+    member _.VarsIsATableOfNamesAndValues() =
         let harness = seeded ()
         harness.Run "set a 1" |> ignore
         harness.Run "set b two" |> ignore
 
-        let written = harness.Written "vars"
-
-        assertContains "$a = 1" written
-        assertContains "$b = two" written
+        CollectionAssert.AreEqual([| "a"; "b" |], harness.Column "vars" "name" |> Array.ofList)
+        CollectionAssert.AreEqual([| "1"; "two" |], harness.Column "vars" "value" |> Array.ofList)
 
     [<TestMethod>]
     member _.VarsReturnsTheValues() =
@@ -123,15 +121,15 @@ type VariableCommandTests() =
         harness.Run "set a 1" |> ignore
         harness.Run "set b two" |> ignore
 
-        match harness.Run "vars" with
-        | Value.List items -> Assert.AreEqual<int>(2, items.Length)
-        | other -> Assert.Fail(sprintf "Expected a list, got %A" other)
+        Assert.AreEqual<int>(2, List.length (harness.Table "vars").Rows)
 
     [<TestMethod>]
     member _.VarsWithNothingBoundSaysSo() =
         let harness = seeded ()
 
-        Assert.AreEqual<Value>(Value.Empty, harness.Run "vars")
+        // Still a table, so `vars | count` is 0 rather than a fault. The hint is
+        // written beside it, because an empty table does not say what to do next.
+        Assert.AreEqual<int>(0, List.length (harness.Table "vars").Rows)
         Assert.IsTrue(harness.Written "vars" |> List.exists (fun line -> line.Contains "No variables"))
 
     /// A variable survives a reload, because the binding is in the log rather than in

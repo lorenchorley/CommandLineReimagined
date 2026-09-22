@@ -132,6 +132,24 @@ module Expr =
             tag.Attributes |> Map.exists (fun _ each -> Value.display each = wanted)
         | other -> (Value.display other).Contains(wanted, StringComparison.Ordinal)
 
+    /// <summary>Which of two values comes first.</summary>
+    /// <remarks>
+    /// The one ordering the language has: numbers numerically when both sides read as
+    /// numbers, display strings ordinally otherwise. `sort` uses it and so does every
+    /// comparison, so a column that sorts with `9` before `100` compares that way too.
+    /// An absent value comes before everything, which puts a table's gaps at the top of
+    /// an ascending sort rather than scattered through it.
+    /// </remarks>
+    let order (left: Value) (right: Value) : int =
+        match Value.isAbsent left, Value.isAbsent right with
+        | true, true -> 0
+        | true, false -> -1
+        | false, true -> 1
+        | false, false ->
+            match asNumber left, asNumber right with
+            | Some a, Some b -> compare a b
+            | _ -> String.CompareOrdinal(Value.display left, Value.display right)
+
     /// <summary>Compares two values with one of the eight comparison words.</summary>
     /// <remarks>
     /// Numbers compare numerically when both sides are numbers — including text that
@@ -149,10 +167,7 @@ module Expr =
         if absent then
             Ok(Value.Boolean(op = "eq" && Value.isAbsent left && Value.isAbsent right))
         else
-            let ordering () =
-                match asNumber left, asNumber right with
-                | Some a, Some b -> compare a b
-                | _ -> String.CompareOrdinal(Value.display left, Value.display right)
+            let ordering () = order left right
 
             match op with
             | "eq" -> Ok(Value.Boolean(ordering () = 0))
