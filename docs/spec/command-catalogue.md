@@ -1,30 +1,119 @@
 # Command catalogue
 
-The normative contract of each built-in command: its parameters, its result, what it
-writes, what it reverses and how it fails. The
-[user-facing reference](../commands.md) covers the same ground with examples.
+The normative contract of each built-in command: its parameters, its result, the
+events it emits and how it fails. The [user-facing reference](../commands.md) covers
+the same ground with examples. How a line is parsed, bound, run and committed is the
+[execution model](execution-model.md); this document assumes it.
 
-A parameter marked *piped* has `AcceptsPipedInput`. A parameter marked *optional* is an
-`OptionalCommandParameter`. Parameters are listed in declaration order, which is the
-order positional arguments fill them.
+## Reading an entry
 
-Every path argument is resolved against the current directory unless it is rooted.
-Messages quote the resolved path except where noted.
+Each entry has a table:
+
+| Field | Meaning |
+| --- | --- |
+| Parameters | The declared parameters, in declaration order, which is the order positional arguments fill them. |
+| Returns | The value handed to the next stage. |
+| Events | What the command emits. "None" means a line of it alone commits nothing and leaves nothing for `undo`. |
+| Marks | `ReadOnly`, `Meta`, both or neither (see [The command model](execution-model.md#the-command-model)). |
+
+A parameter is annotated with how it binds:
+
+| Annotation | Declared as |
+| --- | --- |
+| *piped* | `AcceptsPipe`: takes the previous stage's value when nothing was written for it. |
+| *optional* | `Optional`, with its default in parentheses when it is not `Empty`. |
+| *predicate* | Kind `Predicate`: arrives unevaluated as a `Query`, and the command evaluates it. |
+| *rest* | Kind `Rest`: collects every remaining positional argument as a `List` ([decision 0021](../decisions/0021-variadic-parameters.md)). |
+| *assignments* | Kind `Assignments`: collects every `name=value` written on the line, in order ([decision 0017](../decisions/0017-assignment-arguments.md)). |
+
+A parameter can also be bound by name, `name: value`, or by flag, `-name` or
+`-name value`; both match the parameter's name case-insensitively, and the flag also
+matches a declared `Flag`. Errors are written as the message, then the fault kind in
+parentheses.
+
+## Rules every command follows
+
+These hold for every entry below, and an entry does not repeat them.
+
+**Commands describe; the store applies.** A command reads the working projection and
+returns a value and a list of events. It **must not** change anything itself. The
+evaluator folds a line's events into one transaction and commits it only when the whole
+line succeeds ([decision 0015](../decisions/0015-atomic-lines.md)), so a failed stage
+leaves no trace. There is no per-command undo: reversing a line appends its events
+inverted ([decision 0010](../decisions/0010-undo-by-event-sourcing.md)), so what an
+`undo` does is a consequence of the events an entry lists.
+
+**Binding faults.** These come from the binder, not the command, and apply to every
+entry ([Argument binding](execution-model.md#argument-binding)):
+
+- `'<command>' needs an argument for '<parameter>'.` (`Binding`) for a missing required
+  parameter. A piped `Empty` or `None` does not count as an argument.
+- `'<command>' takes N argument(s), but M were given.` (`Binding`) for leftovers.
+- `'<command>' has no argument named '<name>'.` (`Binding`) for an unknown `name:` or
+  `-name`.
+- `'<command>' does not take '<name>=' assignments.` (`Binding`) for an assignment
+  written to a command with no *assignments* parameter.
+- `'<command>' takes a value for '<parameter>', not an expression.` (`Binding`) for an
+  operator written where a parameter is not a *predicate*.
+
+**Paths.** The filesystem is the store's projection, not a disk
+([decision 0013](../decisions/0013-attribute-filesystem.md)). A path is resolved
+against the current folder, `Location.Folder`, unless it begins with `/`, and is
+normalised as text: `.` is dropped, and `..` removes a segment, staying at `/` at the
+root. A `File` value given as a path means its absolute path, so a file piped from one
+command names the same record in the next. Names are compared ordinally and are
+case-sensitive; command names are resolved case-insensitively.
+
+Messages quote the resolved, absolute path, except `Directory does not exist : <path>`
+raised by `ls` and `cd`, which quotes the path as written.
+
+**Records.** A folder is a record of kind `folder` with no content, and the root `/` is
+implicit: it is not a record, has no attributes and cannot be deleted
+([decision 0016](../decisions/0016-folders-as-records.md)). Every record a command
+creates carries `name`, `kind`, `folder` (its parent's path), `created` and `modified`,
+the last two as ISO 8601 round-trip timestamps from the session's clock. `size` is never
+stored; it is the content's length, computed when listed. A file created without a kind
+is given one from its extension, case-insensitively:
+
+| Extension | `kind` |
+| --- | --- |
+| `.xml` | `xml` |
+| `.csv` | `csv` |
+| `.json` | `json` |
+| `.clr` | `script` |
+| `.md` | `markdown` |
+| anything else, or none | `text` |
+
+**Store validation.** Before committing, the store checks every `FileCreated` against
+the state it lands on. A record with an empty name is refused with
+`A file must have a name.` (`Invalid`), which is how `mkdir ""`, `mkdir /` and
+`write "" x` fail; a name already used in the folder, by a file or a folder, is refused
+with `Target file already exists : <path>` (`Conflict`).
 
 ## Registration
 
-A host chooses which commands to register. The browser terminal registers every
-command below. `UnknownCommand` **must** be registered by any host that wants an
-unrecognised name reported as a normal failure; see
-[Resolving a command](execution-model.md#resolving-a-command).
+The session registers every command in this document, and a host adds none. There are
+no host-specific commands: `debug`, which needed the entity component system, was
+dropped when the command layer moved to the F# core.
 
-There are no host-specific commands. `debug`, which required the entity component
-system, was dropped when the command layer moved to the core; a host that wants it
-supplies it.
+| Group | Commands |
+| --- | --- |
+| [Navigation](#navigation) | `ls`, `cd`, `up`, `pwd`, `find`, `save-view` |
+| [Files](#files) | `cat`, `write`, `rm`, `cp`, `mkdir` |
+| [Attributes](#attributes) | `attr`, `save` |
+| [Values](#values) | `echo`, `set`, `vars`, `is-fault` |
+| [Long-running commands](#long-running-commands) | `progress`, `download` |
+| [Table functions](#table-functions) | `where`, `select`, `sort`, `take`, `skip`, `first`, `last`, `count`, `distinct`, `group`, `columns`, `rows`, `table` |
+| [Documents](#documents) | `from-xml`, `to-xml`, `from-csv`, `to-csv` |
+| [The log and the session](#the-log-and-the-session) | `undo`, `redo`, `history`, `reset`, `run`, `help`, `exit`, `UnknownCommand` |
 
-Every command below returns events rather than changing anything. The `Undo` rows say
-what reversing the line does, which is a consequence of the events, not a method the
-command implements.
+A command's name is one or more identifiers joined by hyphens with nothing either side
+of each hyphen ([decision 0022](../decisions/0022-hyphenated-command-names.md)).
+
+`UnknownCommand` **must** be registered by any session that wants an unrecognised name
+reported as a normal failure; see
+[Resolving a command](execution-model.md#resolving-a-command). It is not listed by
+`help` or offered by completion.
 
 ## Navigation
 
@@ -32,118 +121,129 @@ command implements.
 
 | Field | Value |
 | --- | --- |
-| Name | `ls` |
-| Parameters | `path` (optional, flag `path`) |
+| Parameters | `path` (*optional*) |
 | Returns | `Table` |
-| Undo | none |
+| Events | None |
+| Marks | `ReadOnly` |
 
 Lists `path`; or, when a view is set and no path is written, every record in the store
 the view matches; or the current folder. The rows **must** be ordered: folders, then
-files, each group ordered by name with an ordinal comparison.
+files, each group ordered by name with an ordinal comparison. A folder's listing holds
+only the records directly inside it.
 
 A view's listing **must** be built from the matching records alone, so its columns are
-their attributes rather than every attribute in the store. Writing a path **must**
-list that folder and **must not** clear the view.
-
-This ordering is normative. It previously said entry order "follows the filesystem",
-which meant it was whatever the host happened to return and could not be tested at all.
+their attributes rather than every attribute in the store. The view's predicate is
+evaluated once per record, with `$row` bound to that record's row, as for `find`.
+Writing a path **must** list that folder and **must not** clear the view.
 
 The columns **must** be `name`, `kind`, `folder`, `size` and `modified`, followed by
 every other attribute any listed record carries, ordered by name with an ordinal
 comparison. `created` **must not** be a column. The `name` cell **must** be the record
-as a `File`, so it carries the path it argues; `size` **must** be the length of the
-record's content in characters, computed rather than stored, and 0 where there is none.
+as a `File`, so it carries the path it argues; `size` **must** be a `Number`, the length
+of the record's content in characters, and 0 where there is none. A record that lacks
+one of the extra attributes has `None` in that cell.
 
 A listing **must not** contain a parent entry. Every row of a table of records is a
-record, and navigating upwards is the host's affordance and the `up` command.
+record; moving upwards is `up`, and the host's affordance for it.
 
-Errors: `Directory does not exist : <path>`.
+Errors: `Directory does not exist : <path>` (`NotFound`), quoting `path` as written,
+also when it names a file.
 
 ### cd
 
 | Field | Value |
 | --- | --- |
-| Name | `cd` |
-| Parameters | `TargetPath` (piped, kind `Predicate`) |
-| Returns | `File` of the folder entered, `Text` of `/` for the root, or `Query` of the view entered |
-| Undo | returns to the previous location, view included |
+| Parameters | `TargetPath` (*piped*, *predicate*) |
+| Returns | `File` of the folder entered, `Text` `/` for the root, or `Query` of the view entered |
+| Events | `LocationChanged`, or none when the location does not change |
+| Marks | none |
 
-The parameter's kind is `Predicate`, so the argument arrives unevaluated and `cd`
-decides what it is:
+The parameter is a *predicate*, so the argument arrives unevaluated and `cd` decides
+what it is:
 
 - An argument that used an operator is a **view**. `Location.View` **must** be set to
-  it and `Location.Folder` **must** be left unchanged.
+  it and `Location.Folder` **must** be left unchanged, so new files still land in the
+  folder.
 - An argument that is a plain operand, or a piped value, is a **name**. It is evaluated
   and resolved. A record of kind `view` **must** be entered as the view its content
   parses to; anything else **must** be resolved as a folder path.
 - Entering a folder **must** clear `Location.View`.
 
 The target **must** be normalised, so `cd ..` yields the parent's real path. Entering
-the location already held **must** emit no event.
+the location already held, folder and view together, **must** emit no event, so the
+line commits nothing and `undo` reaches past it. Reversing a `cd` restores the previous
+location, view included.
 
-Errors: `Directory does not exist : <target>`, quoting the target as written;
-`'<path>' does not hold a predicate : <text>` for a view file whose content is not an
-expression.
+Errors: `Directory does not exist : <target>` (`NotFound`), quoting the target as
+written, also when it names a file; `'<path>' does not hold a predicate : <text>`
+(`Invalid`) for a view record whose content does not parse, quoting the content trimmed.
 
 ### up
 
 | Field | Value |
 | --- | --- |
-| Name | `up` |
 | Parameters | none |
-| Returns | `Text` of the current folder's path |
-| Undo | returns to the previous location, view included |
+| Returns | With a view set, `Text` of the current folder's path. Otherwise as `cd ..`: `File` of the parent folder, or `Text` `/` at the root |
+| Events | `LocationChanged`, or none at the root with no view |
+| Marks | `ReadOnly` |
 
 With a view set, `up` **must** clear `Location.View` and **must** leave
-`Location.Folder` unchanged. Without one it moves to the parent.
+`Location.Folder` unchanged. Without one it moves to the parent, exactly as `cd ..`.
+Two `up`s from a view over a subfolder therefore leave the view, then the folder.
 
-At the filesystem root, moving up **must** leave the current directory unchanged and
-**must not** fail. The directory a session starts in is not a boundary: a user may
-navigate above it, and what is reachable from there is the host's filesystem, which
-under WebAssembly is the page's in-memory one.
+At the root, moving up **must** leave the location unchanged, emit nothing and **must
+not** fail.
+
+`up` is declared `ReadOnly` although it emits an event; see
+[Known deviations](#known-deviations).
 
 ### pwd
 
 | Field | Value |
 | --- | --- |
-| Name | `pwd` |
 | Parameters | none |
 | Returns | `Query` of the view when one is set, otherwise `Text` of the current folder's path |
-| Undo | none |
+| Events | None |
+| Marks | `ReadOnly` |
 
 ### find
 
 | Field | Value |
 | --- | --- |
-| Name | `find` |
-| Parameters | `predicate` (kind `Predicate`) |
+| Parameters | `predicate` (*predicate*) |
 | Returns | `Table` |
-| Undo | none |
+| Events | None |
+| Marks | `ReadOnly` |
 
 Lists every record in the store the predicate is true of, in the same shape `ls`
 produces and with the same ordering. It **must not** change the location.
 
-The predicate is evaluated once per candidate record, in a scope with `$row` bound to
-that record's row, exactly as `where` binds it
-([execution model](execution-model.md#predicates)).
+The predicate is evaluated once per record, in a child scope with `$row` bound to that
+record's row, exactly as `where` binds it
+([execution model](execution-model.md#predicates)). A record is kept only where the
+answer is `Boolean true`.
 
-Errors: `'find' needs a predicate, such as $row.kind eq note.` when the argument used
-no operator.
+Errors: `'find' needs a predicate, such as $row.kind eq note.` (`Binding`) when the
+argument used no operator; any fault the predicate raises for a row.
 
 ### save-view
 
 | Field | Value |
 | --- | --- |
-| Name | `save-view` |
-| Parameters | `name`, `predicate` (kind `Predicate`) |
+| Parameters | `name`, `predicate` (*predicate*) |
 | Returns | `File` of the record created |
-| Undo | deletes the view |
+| Events | `FileCreated`, `ContentChanged` |
+| Marks | none |
 
-Creates a record in the current folder with `kind` of `view` and content equal to the
-predicate's display text. A view is an ordinary record in every other respect.
+Creates a record in the current folder with `kind` `view` and content equal to the
+predicate's display text, which is something a person could have typed. A view is an
+ordinary record in every other respect: it appears in `ls`, and can be read with `cat`,
+renamed with `attr`, deleted with `rm` and entered with `cd`. Reversing the line
+deletes it.
 
-Errors: `'save-view' needs a predicate, such as $row.kind eq note.`;
-`Target file already exists : <path>`; `A view needs a name.`
+Errors: `'save-view' needs a predicate, such as $row.kind eq note.` (`Binding`);
+`A view needs a name.` (`Invalid`) for empty text; `Target file already exists : <path>`
+(`Conflict`).
 
 ## Files
 
@@ -151,70 +251,91 @@ Errors: `'save-view' needs a predicate, such as $row.kind eq note.`;
 
 | Field | Value |
 | --- | --- |
-| Name | `cat` |
-| Parameters | `path` (piped) |
-| Returns | `TextValue` of the file's contents |
-| Undo | none |
+| Parameters | `path` (*piped*) |
+| Returns | `Text` of the file's content |
+| Events | None |
+| Marks | `ReadOnly` |
 
-Errors: `That is a directory, not a file : <path>`, `File does not exist : <path>`.
+A record that has never had content, such as one made by `save`, **must** read as empty
+text rather than failing.
+
+Errors: `That is a directory, not a file : <path>` (`Invalid`) for a folder or `/`;
+`File does not exist : <path>` (`NotFound`).
 
 ### write
 
 | Field | Value |
 | --- | --- |
-| Name | `write` |
-| Parameters | `path`, `text` (piped) |
+| Parameters | `path`, `text` (*piped*) |
 | Returns | `File` |
-| Undo | restores the previous contents, or deletes a file that did not exist |
+| Events | New file: `FileCreated`, `ContentChanged`. Existing file: `ContentChanged`, then `AttributesChanged` updating `modified` |
+| Marks | none |
 
-The text written is the value's **display** string, so writing a list writes what the
-list reads as.
+The text written is the value's **display** string, so writing a table writes the table
+as it reads on screen. A new file's kind is inferred from its name; an existing file
+keeps the kind it has. Reversing the line restores the previous content and `modified`,
+or deletes a file that did not exist.
 
-Errors: `That is a directory, not a file : <path>`,
-`Directory does not exist : <parent>`. Creating missing parents is **not** permitted.
+Errors: `That is a directory, not a file : <path>` (`Invalid`);
+`Directory does not exist : <parent>` (`NotFound`). Creating missing parents is **not**
+permitted.
 
 ### rm
 
 | Field | Value |
 | --- | --- |
-| Name | `rm` |
-| Parameters | `path` (piped) |
-| Returns | `TextValue`, `Removed <name>` |
-| Undo | restores the file with its contents, or recreates the directory |
+| Parameters | `path` (*piped*) |
+| Returns | `Text` `Removed <name>` |
+| Events | `FileDeleted`, carrying the whole record |
+| Marks | none |
 
-A directory **must** be empty to be deleted, and the current directory **must not** be
-deletable. Recursive deletion is deliberately absent: it cannot be undone from a
-snapshot of one entry.
+A folder **must** be empty to be deleted, and neither the current folder nor any folder
+above it **must** be deletable. Recursive deletion is deliberately absent. Because the
+event carries the record, reversing the line restores it with its attributes and
+content.
 
-Errors: `Directory is not empty : <path>`, `Cannot delete the current directory.`,
-`Nothing exists at : <path>`.
+Errors, checked in this order: `Cannot delete the current directory.` (`Invalid`) for
+`/`; `Nothing exists at : <path>` (`NotFound`); `Directory is not empty : <path>`
+(`Invalid`); `Cannot delete the current directory.` (`Invalid`) for the current folder
+or one of its ancestors.
 
 ### cp
 
 | Field | Value |
 | --- | --- |
-| Name | `cp` |
 | Parameters | `sourcePathAndFile`, `targetPath` |
-| Returns | `File` |
-| Undo | deletes the copy |
+| Returns | `File` of the copy |
+| Events | `FileCreated` |
+| Marks | none |
 
-The copy keeps the source's file name. Overwriting is refused.
+Copies a record into a folder. The copy **must** keep the source's name and every
+attribute, with `folder` set to the target and `created` and `modified` set to now, and
+shares the source's content, so a copy costs no content. Overwriting is refused.
+Reversing the line deletes the copy.
 
-Errors: `File does not exist : <source>`,
-`Target directory does not exist : <target>`, `Target file already exists : <path>`.
+A folder given as the source is copied as one record, without its contents; see
+[Known deviations](#known-deviations).
+
+Errors: `File does not exist : <source>` (`NotFound`);
+`Target directory does not exist : <target>` (`NotFound`), also when the target is a
+file; `Target file already exists : <path>` (`Conflict`).
 
 ### mkdir
 
 | Field | Value |
 | --- | --- |
-| Name | `mkdir` |
 | Parameters | `FolderName` |
 | Returns | `File` of the new folder |
-| Undo | deletes it |
+| Events | `FileCreated` of a record with `kind` `folder` |
+| Marks | none |
 
-Errors: `Target directory already exists : <path>`, including when the name is taken by
-a file, since names are unique within a folder across files and folders together
-([decision 0016](../decisions/0016-folders-as-records.md)).
+`FolderName` may be a path, but its parent **must** already exist. Reversing the line
+deletes the folder.
+
+Errors: `Directory does not exist : <parent>` (`NotFound`);
+`Target directory already exists : <path>` (`Conflict`), including when the name is
+taken by a file, since names are unique within a folder across files and folders
+together ([decision 0016](../decisions/0016-folders-as-records.md)).
 
 ## Attributes
 
@@ -222,37 +343,51 @@ a file, since names are unique within a folder across files and folders together
 
 | Field | Value |
 | --- | --- |
-| Name | `attr` |
-| Parameters | `path` (piped), `assignments` (kind `Assignments`) |
-| Returns | `Table` of `name` and `value` with no assignments, otherwise the `File` |
-| Undo | restores every attribute the record had |
+| Parameters | `path` (*piped*), `assignments` (*assignments*) |
+| Returns | `Table` of `name` and `value` with no assignments, otherwise the updated `File` |
+| Events | None with no assignments; otherwise `AttributesChanged` |
+| Marks | none |
 
 With no assignments it **must** return a table with columns `name` and `value`, one row
-per attribute the record carries, ordered by name, `created` included. With assignments
-it emits `AttributesChanged` and returns the file.
+per attribute the record carries, ordered by name with an ordinal comparison, `created`
+included.
 
-`name` and `kind` may be written and **must** be validated: renaming onto a name
-already used in the folder is a `Conflict`. `folder`, `created` and `modified` are the
-runtime's and **must** be refused.
+With assignments it applies them in the order written, a later one for the same name
+winning, sets `modified`, emits one `AttributesChanged` carrying the whole attribute map
+before and after, and returns the file. An assignment's value is evaluated like any
+argument, so `n=5` stores a `Number`. Any attribute name may be written without quoting
+([decision 0017](../decisions/0017-assignment-arguments.md)). Reversing the line
+restores every attribute the record had.
 
-Errors: `File does not exist : <path>`, `'<name>' is set by the terminal and cannot be
-written.`, `Target file already exists : <path>`.
+`name` and `kind` may be written. Renaming onto a name already used in the folder
+**must** be refused. `folder`, `created` and `modified` are the runtime's and **must**
+be refused.
+
+`attr` is deliberately not `ReadOnly`, because it writes when given assignments.
+
+Errors: `File does not exist : <path>` (`NotFound`);
+`That is a directory, not a file : /` (`Invalid`) for the root;
+`'<name>' is set by the terminal and cannot be written.` (`Invalid`);
+`Target file already exists : <path>` (`Conflict`).
 
 ### save
 
 | Field | Value |
 | --- | --- |
-| Name | `save` |
-| Parameters | `tag` (piped) |
+| Parameters | `tag` (*piped*) |
 | Returns | `File` |
-| Undo | deletes the record |
+| Events | `FileCreated` |
+| Marks | none |
 
-Creates a record from an object tag. The tag's type name becomes `kind`, its `name`
-attribute becomes `name`, and every other attribute is copied across. The record has no
-content, so `cat` on it **must** return empty text rather than failing.
+Creates a record in the current folder from an object tag. The tag's type name becomes
+`kind`, its `name` attribute's display text becomes `name`, and every other attribute is
+copied across; `folder`, `created` and `modified` are then the runtime's. The record has
+no content, so `cat` on it **must** return empty text rather than failing. A tag of type
+`folder` therefore makes a folder. Reversing the line deletes the record.
 
-Errors: `A saved tag needs a 'name' attribute.`, `Target file already exists : <path>`,
-`'save' needs a tag, not <kind>.`
+Errors: `A saved tag needs a 'name' attribute.` (`Invalid`), also for an empty name;
+`Target file already exists : <path>` (`Conflict`); `'save' needs a tag, not <kind>.`
+(`Invalid`) for anything but an object tag, a component tag included.
 
 ## Values
 
@@ -260,10 +395,10 @@ Errors: `A saved tag needs a 'name' attribute.`, `Target file already exists : <
 
 | Field | Value |
 | --- | --- |
-| Name | `echo` |
-| Parameters | `text` (piped) |
+| Parameters | `text` (*piped*) |
 | Returns | the value it was given, unchanged |
-| Undo | none |
+| Events | None |
+| Marks | `ReadOnly` |
 
 `echo` **must not** convert its argument. A number stays a number and a list stays a
 list; this is how a test or a user inspects what a pipe carries.
@@ -272,151 +407,188 @@ list; this is how a test or a user inspects what a pipe carries.
 
 | Field | Value |
 | --- | --- |
-| Name | `set` |
-| Parameters | `name`, `value` (piped) |
+| Parameters | `name`, `value` (*piped*) |
 | Returns | the bound value |
-| Undo | restores the previous binding, or unbinds a new name |
+| Events | `VariableChanged`, carrying the previous binding |
+| Marks | none |
 
-The name **must** consist of letters, digits and underscore. Returning the value lets
-`set` sit mid-pipeline.
+The name **must** be one or more letters, digits and underscores, written without the
+`$`. Returning the value lets `set` sit mid-pipeline. Reversing the line restores the
+previous binding, or unbinds a new name; two `set`s of one name undone in turn leave it
+unbound.
 
-Errors: `'<name>' is not a valid variable name.`, `'set' needs a value for '<name>'.`
+Errors: `'<name>' is not a valid variable name.` (`Invalid`);
+`'set' needs a value for '<name>'.` (`Binding`) when the value is `Empty` or `None`.
 
 ### vars
 
 | Field | Value |
 | --- | --- |
-| Name | `vars` |
 | Parameters | none |
 | Returns | `Table` of `name` and `value` |
-| Undo | none |
+| Events | None |
+| Marks | `ReadOnly` |
 
 One row per variable in scope, ordered by name. With nothing bound it **must** still
-return a table, so that `vars | count` is 0 rather than a fault, and **should** write
-one output line inviting the user to bind something.
+return a table, so that `vars | count` is 0 rather than a fault, and writes one output
+line, `No variables. Try: set greeting hello`.
 
 ### is-fault
 
 | Field | Value |
 | --- | --- |
-| Name | `is-fault` |
-| Parameters | `value` (optional, piped) |
+| Parameters | `value` (*optional*, *piped*) |
 | Returns | `Boolean`: whether the value is a `Fault` |
-| Undo | none |
-| ReadOnly | yes |
+| Events | None |
+| Marks | `ReadOnly` |
 
 A script that branches on whether something worked needs a question it can ask
-without knowing what success would have looked like. Given nothing at all, the answer
-**must** be `false`.
+without knowing what success would have looked like. A `Fault` value exists only where
+`try` made one ([Recovery](execution-model.md#recovery)). Given nothing at all, the
+answer **must** be `false`.
 
 ## Long-running commands
 
-Both are `CommandActionAsync`. Both **must** observe the invocation's cancellation
-token.
+Both write to the invocation's output while they run and update what they wrote in
+place. Both **must** observe the invocation's cancellation token and, when cancelled,
+fail with `Stopped.` (`Cancelled`), which neither `try` nor `else` recovers from
+([decision 0024](../decisions/0024-stop-is-not-recoverable.md)). A cancelled line
+commits nothing.
 
 ### progress
 
 | Field | Value |
 | --- | --- |
-| Name | `progress` |
-| Parameters | `steps` (optional, default 100), `delay` (optional, default 100 ms) |
-| Returns | `NumberValue`, the percentage reached |
-| Undo | writes `Progress test undone` |
+| Parameters | `steps` (*optional*, 100 when not written), `delay` (*optional*, 100 ms when not written) |
+| Returns | `Number`, the percentage reached |
+| Events | None |
+| Marks | none |
 
-Writes two output lines and updates them in place: a percentage and a bar. On success
-it writes `Progress test finished`; on cancellation `Cancelled at N%`; on failure
-`Progress test failed : <reason>`.
-
-Errors: `'steps' must be at least 1.`,
-`'steps' must be a whole number, not '<value>'.`
+Writes two output lines, a percentage and a bar of one `=` per four percent followed by
+`>`, then takes `steps` steps `delay` milliseconds apart, updating both after each. It
+checks the token before every step. On completion it writes `Progress test finished`;
+on cancellation it writes `Cancelled at N%` and fails with `Stopped.`.
 
 This command exists to exercise the asynchronous path. It **must not** touch the
-filesystem.
+store.
+
+Errors: `'steps' must be at least 1.` (`Invalid`);
+`'steps' must be a whole number, not '<value>'.` (`Invalid`), raised for a `steps` or a
+`delay` that is not a whole number, including a bare `-steps` flag, which binds `true`.
 
 ### download
 
 | Field | Value |
 | --- | --- |
-| Name | `download` |
-| Parameters | `url` (optional), `into` (optional, default the current directory) |
+| Parameters | `url` (*optional*, a small file in this repository when not written), `into` (*optional*, the current folder when not written) |
 | Returns | `File` |
-| Undo | deletes the file |
+| Events | New file: `FileCreated`, `ContentChanged`. Existing file: `ContentChanged` |
+| Marks | none |
 
-Writes three output lines and updates them in place: a percentage, a bar and a rate in
-MB/s. An existing file at the destination is deleted before the transfer starts.
+Fetches `url` over the session's `HttpClient` into a file in `into`, named by the last
+segment of the URL's path, with its kind inferred from that name. An existing file of
+that name has its content replaced; reversing the line restores it, or deletes a file
+that did not exist.
 
-The implementation **must** stream to disk rather than buffering the response, and
-**must** fail rather than loop when the server closes early.
+The response body is read whole and written in one step, so a cancelled or failed
+download leaves no partial file ([decision 0015](../decisions/0015-atomic-lines.md)).
+It writes three output lines, a percentage, a bar and the size in MB, and updates them
+once the body has arrived, then writes `Downloaded to <path>`.
 
-Errors: `Not a valid URL : <text>`, `Target directory does not exist : <path>`,
-`The server did not report a content length.`,
-`The transfer ended before all bytes arrived.` A failure is also written as
-`Download failed : <reason>`.
+Errors: `Not a valid URL : <text>` (`Invalid`), also for a URL whose path has no last
+segment; `Target directory does not exist : <path>` (`NotFound`);
+`The server did not report a content length.` (`Invalid`);
+`That is a directory, not a file : <path>` (`Invalid`) when a folder has the name;
+`Download failed : <reason>` (`Invalid`) for any other failure of the transfer.
 
 ## Table functions
 
 Thirteen commands over tables. Each one **must**:
 
-- declare an optional piped parameter, last, that carries the table;
+- declare an optional *piped* parameter `table`, last, that carries the table, so the
+  function's own arguments are filled positionally and the table arrives through the
+  pipe;
 - coerce whatever it is given per
-  [Reading a tag as a table](execution-model.md#reading-a-tag-as-a-table), and raise
-  `'<command>' needs a table, not <kind>.` when it cannot;
-- raise `'<command>' has no column named '<name>'.` for a column it was asked for and
-  the table does not have;
-- emit no events.
+  [Reading a tag as a table](execution-model.md#reading-a-tag-as-a-table)
+  ([decision 0009](../decisions/0009-table-coercion.md)), raising
+  `'<command>' needs a table, not <kind>.` (`Binding`) when the value is not a table, a
+  tag or a list, and `<describe> is not a table: child <n> <reason>.` (`Invalid`) when
+  a tag or list is not table-shaped;
+- match a column name case-insensitively, and raise
+  `'<command>' has no column named '<name>'.` (`NotFound`) for a column it was asked for
+  and the table does not have;
+- be `ReadOnly` and emit no events.
 
-| Name | Parameters | Returns |
+| Name | Parameters before `table` | Returns |
 | --- | --- | --- |
-| `where` | `predicate` (kind `Predicate`) | the rows the predicate answered `Boolean true` for |
-| `select` | `columns` (kind `Rest`) | those columns, in the order named |
-| `sort` | `column`, `desc` (optional, flag `desc`) | the rows ordered by the column |
+| `where` | `predicate` (*predicate*) | the rows the predicate answered `Boolean true` for |
+| `select` | `columns` (*rest*) | those columns, in the order named |
+| `sort` | `column`, `desc` (*optional*, flag `desc`) | the rows ordered by the column |
 | `take` | `count` | the first `count` rows |
 | `skip` | `count` | every row after the first `count` |
 | `first` | none | the first row as an `Object` of type `row`, or `None` |
 | `last` | none | the last row as an `Object` of type `row`, or `None` |
 | `count` | none | a `Number` |
-| `distinct` | `column` (optional) | unique rows, or that column's unique values as a one-column table |
+| `distinct` | `column` (*optional*) | unique rows, or that column's unique values as a one-column table |
 | `group` | `column` | a table of `key` and `rows`, one row per distinct value |
 | `columns` | none | a table of `name` and `type` |
-| `rows` | none | a `List` of `Object` rows |
+| `rows` | none | a `List` of `Object` rows of type `row` |
 | `table` | none | the table itself |
 
 `where` **must** evaluate its predicate in a child scope with `$row` bound to the row
-as an `Object` of type `row`, and keep the row only where the answer is `Boolean true`.
+as an `Object` of type `row` ([decision 0008](../decisions/0008-explicit-row-variable.md)),
+and keep the row only where the answer is `Boolean true`, preserving order. A variable
+named `row` outside the predicate is left alone. Unlike `find`, `where` does not refuse
+an operand with no operator; it is evaluated for each row like any predicate.
+
+`select` with no columns **must** raise `'select' needs at least one column.`
+(`Binding`) rather than answering an empty table. The *rest* parameter never takes the
+pipe, so `ls | select` reaches this message. A column named twice appears twice.
 
 `sort` **must** be stable in both directions: rows that compare equal keep the order
 they arrived in, so an implementation **must not** reverse an ascending sort to
-descend.
-
-`select` with no columns **must** raise `'select' needs at least one column.` rather
-than answering an empty table.
+descend. Cells compare by the [comparison](execution-model.md#comparison) rules, so a
+number column sorts numerically. `desc` is written as a word after the column,
+`sort name desc`, or as the flag `-desc`; any value bound to it sorts descending.
 
 `take` and `skip` beyond the end of the table **must** answer everything and nothing
-respectively, not a fault. A count that is not a whole number at least zero is
-`'count' must be a whole number, not '<value>'.`
+respectively, not a fault. A count that is not a whole number at least zero raises
+`'count' must be a whole number, not '<value>'.` (`Invalid`).
 
-`group` **must** put a whole table in each `rows` cell, and preserve the order in which
-the distinct values first appeared.
+`distinct` compares rows, or the one column's cells, by their display text, and keeps
+the first of each. The one-column table's column is named as written.
 
-A row built for `first`, `last`, `rows` or `group` **must** carry the columns in the
-table's order and **must** omit a cell that is `None`.
+`group` groups by the display text of the column's cells, so a number and the text of
+that number are one group. Each `key` is the first grouped row's cell; each `rows` cell
+**must** be a whole table with the input's columns; and the groups **must** be in the
+order their values first appeared.
+
+`columns` names each column's type as one of `text`, `number`, `boolean`, `file`,
+`object` and `mixed`.
+
+A row built for `first`, `last` or `rows`, or bound to `$row` by `where`, **must** carry
+the columns in the table's order and **must** omit a cell that is `None` or `Empty`.
 
 ## Documents
 
-Four commands over XML and CSV files (decision
-[0011](../decisions/0011-real-xml-files.md)). The readers **must** resolve and read
-their file exactly as `cat` does, raise the same faults for a missing path or a folder,
-and emit no events. The writers **must** emit exactly the events `write` would for the
-text they serialise, so that undo, redo and history treat a document like any other
-file; a file they create **must** have kind `xml` or `csv` whatever its extension, and
-a file they overwrite keeps its kind.
+Four commands over XML and CSV files ([decision 0011](../decisions/0011-real-xml-files.md)).
+The readers **must** resolve and read their file exactly as `cat` does, raise the same
+faults for a missing path or a folder, be `ReadOnly` and emit no events. The writers
+**must** emit exactly the events `write` would for the text they serialise, so that
+undo, redo and history treat a document like any other file; a file they create **must**
+have kind `xml` or `csv` whatever its extension, and a file they overwrite keeps its
+kind. A writer's value is serialised before anything is written, so a value it cannot
+write leaves nothing behind.
 
-| Name | Parameters | Returns |
-| --- | --- | --- |
-| `from-xml` | `path` (piped) | the root element as an `Object` |
-| `to-xml` | `path`, `value` (piped), `root` (optional), `row` (optional), `declaration` (optional) | `File` |
-| `from-csv` | `path` (piped), `delimiter` (optional, default `,`) | `Table` |
-| `to-csv` | `path`, `value` (piped), `delimiter` (optional, default `,`) | `File` |
+| Name | Parameters | Returns | Marks |
+| --- | --- | --- | --- |
+| `from-xml` | `path` (*piped*) | the root element as an `Object` | `ReadOnly` |
+| `to-xml` | `path`, `value` (*piped*), `root` (*optional*), `row` (*optional*), `declaration` (*optional*) | `File` | none |
+| `from-csv` | `path` (*piped*), `delimiter` (*optional*, `,`) | `Table` | `ReadOnly` |
+| `to-csv` | `path`, `value` (*piped*), `delimiter` (*optional*, `,`) | `File` | none |
+
+The writers' options are reached by flag in practice: `to-xml out.xml -root listing
+-row entry -declaration`. `declaration` is a switch: the bare flag turns it on.
 
 ### Reading XML
 
@@ -426,16 +598,18 @@ a file they overwrite keeps its kind.
 - each attribute, as written with any prefix and including namespace declarations, is
   an attribute, in document order, its value read by the number-or-text rule a bare
   word is read by;
-- the element's own text nodes that are not only whitespace, trimmed and joined with
-  one space, are an attribute `text`, typed by the same rule, replacing any XML
-  attribute of that name (decision [0025](../decisions/0025-xml-text-content.md));
+- the element's own text nodes, CDATA included, that are not only whitespace, trimmed
+  and joined with one space, are an attribute `text`, typed by the same rule, replacing
+  any XML attribute of that name
+  ([decision 0025](../decisions/0025-xml-text-content.md));
 - child elements are the children, in document order.
 
 Comments and processing instructions **must** be dropped. A document with a DTD
-**must** be refused. A document that does not parse **must** raise `Not well-formed XML
-: <path> line <n>, position <m>` (`Invalid`), with the parser's line and position, at
-least 1; the parser's own sentence **must not** be part of the message, since it differs
-between hosts.
+**must** be refused. A document that does not parse, the empty file and a document with
+a DTD included, **must** raise
+`Not well-formed XML : <path> line <n>, position <m>` (`Invalid`), with the parser's
+line and position, at least 1; the parser's own sentence **must not** be part of the
+message, since it differs between hosts.
 
 ### Writing XML
 
@@ -483,9 +657,9 @@ table.
 ### Writing CSV
 
 `to-csv` **must** coerce its value as a table function does, raising `'to-csv' needs a
-table, not <kind>.`. It writes the header, then a record per row, each line ending in
-`\n`, the last included. A cell that is `None` or `Empty` is an empty field. A field
-**must** be quoted, with `"` doubled, when it contains the delimiter, `"`, `\n` or
+table, not <kind>.` (`Binding`). It writes the header, then a record per row, each line
+ending in `\n`, the last included. A cell that is `None` or `Empty` is an empty field. A
+field **must** be quoted, with `"` doubled, when it contains the delimiter, `"`, `\n` or
 `\r`, or is empty text, and **must not** be quoted otherwise. Values are written by
 their file text, as for XML. A table with no columns is the empty file.
 
@@ -493,118 +667,163 @@ A `delimiter` is one character other than `"`, `\n` and `\r`, or the word `tab`;
 anything else raises `'delimiter' must be one character, or 'tab', not '<text>'.`
 (`Invalid`).
 
-### help
+## The log and the session
 
-| Field | Value |
-| --- | --- |
-| Name | `help` |
-| Parameters | none |
-| Returns | `Table` of `name`, `parameters` and `description` |
-| Meta | yes |
-
-One row per command, excluding `UnknownCommand`, ordered by name with an ordinal
-comparison. `parameters` **must** be the declared parameters in order, each written
-`<name>` when required, `[name]` when optional and `name...` when it collects the rest.
-
-### run
-
-| Field | Value |
-| --- | --- |
-| Name | `run` |
-| Parameters | `path` (piped) |
-| Returns | the value of the last line executed |
-| Meta | yes |
-
-Reads the file as text and splits it on line breaks. A line that is empty after
-trimming, or whose first non-space character is `#`, **must** be skipped and **must**
-still be counted.
-
-Each remaining line **must** be parsed and executed exactly as if typed, committing its
-own transaction, with `Transaction.Source` set to the line's trimmed text. `run` itself
-**must** emit no events.
-
-Each line **must** be written to the output as `> <line>` before it runs, followed by
-the display string of its result when that is not empty.
-
-Execution **must** stop at the first fault, and the fault **must** be re-raised with
-the message `<path> line <n>: <message>`, keeping its kind, where `n` counts every line
-in the file. Cancellation **must** be observed between lines. A `run` nested more than
-eight deep is `Scripts are only allowed to run scripts 8 deep.`
-
-Errors: `File does not exist : <path>`, `That is a directory, not a file : <path>`.
-
-## Host commands
-
-### exit
-
-| Field | Value |
-| --- | --- |
-| Name | `exit` |
-| Parameters | none |
-| Returns | `Empty` |
-| Undo | none |
-
-Calls `IApplicationLifetime.Shutdown`. A command **must not** reach a window or a
-process directly; what shutting down means is the host's decision, and a host with
-nothing to close **may** do nothing.
-
-### UnknownCommand
-
-| Field | Value |
-| --- | --- |
-| Name | `UnknownCommand` |
-| Parameters | `name` |
-| Returns | never returns |
-
-Raises `Unknown command : <name>`. It is not offered in listings or completion.
+These commands are `Meta`: they run outside the line's transaction, and any events they
+returned would not be committed. `undo`, `redo`, `reset` and `run` reach the store
+through a `StoreAccess` capability that no other command is given; `help` is handed the
+command list instead.
 
 ### undo
 
 | Field | Value |
 | --- | --- |
-| Name | `undo` |
 | Parameters | none |
-| Returns | `Text` naming the line it reversed, or `Nothing to undo.` |
-| Meta | yes |
+| Returns | `Text` `Undone: <source>`, or `Nothing to undo.` |
+| Events | None; appends a compensating transaction through `StoreAccess` |
+| Marks | `Meta` |
 
-Reverses the latest undoable, uncompensated line. Having nothing to undo **must not**
-be a fault.
+Reverses the latest undoable, uncompensated line that is not itself a compensation
+([Undo](execution-model.md#undo)). A line that moved the location, such as `cd` or
+`up`, is a line like any other. The seed is not undoable
+([decision 0018](../decisions/0018-the-seed-is-not-a-line-anyone-typed.md)), so `undo`
+in a fresh session answers `Nothing to undo.` Having nothing to undo **must not** be a
+fault.
 
 ### redo
 
 | Field | Value |
 | --- | --- |
-| Name | `redo` |
 | Parameters | none |
-| Returns | `Text` naming the line it restored, or `Nothing to redo.` |
-| Meta | yes |
+| Returns | `Text` `Redone: <source>`, or `Nothing to redo.` |
+| Events | None; appends a compensating transaction through `StoreAccess` |
+| Marks | `Meta` |
 
 Reverses the latest undo that has not itself been reversed, and **must** name the
 original line rather than the undo. Having nothing to redo **must not** be a fault.
-
-### reset
-
-| Field | Value |
-| --- | --- |
-| Name | `reset` |
-| Parameters | none |
-| Returns | `Text` naming how many files were restored |
-| Meta | yes |
-
-Empties the log and seeds it again. It is the only operation that removes anything
-from the log, and it **must not** be undoable: the transactions that would have been
-reversed are the ones it threw away. The description **must** say so, so `help` warns
-before rather than after.
 
 ### history
 
 | Field | Value |
 | --- | --- |
-| Name | `history` |
 | Parameters | none |
-| Returns | `Table` of `seq`, `at`, `source` and `undone` |
-| Meta | yes |
+| Returns | `Table` of `seq`, `at`, `source`, `undone` and `compensates` |
+| Events | None |
+| Marks | `Meta`, `ReadOnly` |
 
-One row per transaction, oldest first. `seq` is a `Number`, `at` the time as
-`HH:mm:ss`, `source` the line as it was written, and `undone` a `Boolean` that is true
-where the line's effect is not currently in force.
+One row per transaction in the log, oldest first, the seed included. `seq` is a
+`Number`, `at` the time as `HH:mm:ss`, `source` the line as it was written, and `undone`
+a `Boolean` that is true where the line's effect is not currently in force, and
+`compensates` the `seq`, as a `Number`, of the transaction a compensating transaction
+reverses, or `None` for an ordinary line. An undo or redo is a row in its own right,
+whose `source` is the line it reversed and whose `compensates` names the row it
+reversed: an undo names the original line, and a redo names the undo. A compensating
+row is never itself marked undone. Lines that failed, lines that changed nothing and
+meta commands leave no row.
+
+### reset
+
+| Field | Value |
+| --- | --- |
+| Parameters | none |
+| Returns | `Text`: `Reset. <n> files restored.`, `Reset. 1 file restored.`, or `Reset. The filesystem is empty.` |
+| Events | None; empties the log and seeds it again through `StoreAccess` |
+| Marks | `Meta` |
+
+`n` counts every record the seed creates, folders included. `reset` is the only
+operation that removes anything from the log, and it **must not** be undoable: the
+transactions that would have been reversed are the ones it threw away, and `undo`
+straight after it answers `Nothing to undo.` Its description **must** say so, so `help`
+warns before rather than after
+([Starting and starting over](execution-model.md#starting-and-starting-over)).
+
+### run
+
+| Field | Value |
+| --- | --- |
+| Parameters | `path` (*piped*) |
+| Returns | the value of the last line executed, or `Empty` when none ran |
+| Events | None of its own; each line commits its own transaction |
+| Marks | `Meta` |
+
+Runs a script ([decision 0020](../decisions/0020-scripts-and-run.md)). Reads the file
+as text, treats `\r\n` as `\n`, and splits it into lines. A line that is empty after
+trimming, or whose first non-space character is `#`, **must** be skipped and **must**
+still be counted.
+
+Each remaining line **must** be parsed and executed exactly as if typed, committing its
+own transaction, with `Transaction.Source` set to the line's trimmed text, so `undo`
+after a script reverses its last line. `run` itself **must** emit no events.
+
+Each line **must** be written to the output as `> <line>` before it runs, followed by
+the display string of its result when that is not empty.
+
+Execution **must** stop at the first fault, and the fault **must** be re-raised with
+the message `<path> line <n>: <message>`, keeping its kind, where `path` is the script's
+absolute path and `n` counts every line in the file. A fault from a nested script
+carries each script's prefix, outermost first. Cancellation **must** be observed between
+lines. Running a script while eight are already running is
+`Scripts are only allowed to run scripts 8 deep.` (`Invalid`).
+
+Errors: `File does not exist : <path>` (`NotFound`);
+`That is a directory, not a file : <path>` (`Invalid`).
+
+### help
+
+| Field | Value |
+| --- | --- |
+| Parameters | none |
+| Returns | `Table` of `name`, `parameters` and `description` |
+| Events | None |
+| Marks | `Meta`, `ReadOnly` |
+
+One row per registered command except `UnknownCommand`, ordered by name with an ordinal
+comparison. `parameters` **must** be the declared parameters in order, separated by one
+space, each written `name...` when it is *rest*, `[name]` when it is optional and
+`<name>` otherwise; a table function's `[table]` and `attr`'s `[assignments]` are
+listed like any other.
+
+### exit
+
+| Field | Value |
+| --- | --- |
+| Parameters | none |
+| Returns | `Empty` |
+| Events | None |
+| Marks | `Meta` |
+
+Calls the session's `Exit` function, which the host supplies. A command **must not**
+reach a window or a process directly; what shutting down means is the host's decision,
+and a host with nothing to close **may** do nothing, as the browser does.
+
+### UnknownCommand
+
+| Field | Value |
+| --- | --- |
+| Parameters | `name` (*optional*) |
+| Returns | never returns |
+| Events | None |
+| Marks | `Meta` |
+
+Raises `Unknown command : <name>` (`UnknownCommand`). The evaluator runs it with the
+name that did not resolve bound to `name`. It is not listed by `help` or offered by
+completion.
+
+## Known deviations
+
+Places where the implementation does something this catalogue does not hold it to, or
+that a decision record does not support. Each is described as the code behaves today.
+
+| Command | Behaviour | Against |
+| --- | --- | --- |
+| `up` | Declared `ReadOnly` although it emits `LocationChanged`. A refresh commits nothing, so re-running it is harmless, but `cd`, which emits the same event, is not declared. | [The command model](execution-model.md#the-command-model): `ReadOnly` is a command that can only ever read. |
+| `attr` | `name` is checked only for a clash: an empty name and a name containing `/` are accepted. `kind` is not checked at all, so `kind=folder` turns a file into a folder and `kind=text` turns a folder into a file. | [Decision 0016](../decisions/0016-folders-as-records.md); the store's own `A file must have a name.` |
+| `attr` | Renaming or re-kinding a folder leaves its contents' `folder` attribute naming the old path, so they vanish from every listing but `find`; renaming the current folder leaves the location naming a folder that no longer exists. | [Decision 0016](../decisions/0016-folders-as-records.md): a folder's path is its parent's path plus its name. |
+| `attr` | `size=<n>` is accepted and stored, so `ls` shows two columns named `size`. | [Decision 0013](../decisions/0013-attribute-filesystem.md): `size` is computed, not stored. |
+| `save` | Declares no *assignments* parameter, so `save note name=x` is a `Binding` fault; a name containing `/` is accepted. | [Decision 0017](../decisions/0017-assignment-arguments.md), which says `attr` and `save` take any attribute name. |
+| `cp` | A folder as the source copies the folder record alone, making an empty folder with the source's attributes. | The command's description, "Copy a file into a directory". |
+| `cd` | A record of kind `view` whose content parses but has no operator is entered as a view, which then matches nothing. | `find` and `save-view`, which refuse such an expression. |
+| `progress` | A `delay` that is not whole is reported as `'steps' must be a whole number …`; a `delay` below -1 raises an `Internal` fault from the runtime. | The fault catalogue: a user's mistake is never `Internal`. |
+| `sort` | Any value for `desc` sorts descending, so `sort name asc` descends. | The parameter's description, "Write 'desc' to order downwards". |
+| `download` | Replacing an existing file does not update its `modified`, where `write` does. | [Documents](#documents): writers emit what `write` would. |
+| `UnknownCommand` | Resolvable by name, so typing `UnknownCommand` answers `Unknown command : ` with an empty name. | It is meant to be reachable only through resolution. |
