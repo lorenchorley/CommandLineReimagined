@@ -480,6 +480,11 @@ let cp (newId: IdSource) (now: unit -> DateTimeOffset) =
 
                 match Files.resolve invocation.Projection invocation.Location sourceWritten with
                 | Error fault -> return Error fault
+                // Copying the folder's record alone made an empty folder that read as a
+                // copy. A recursive copy is a tree of records in one line, which is what
+                // `rm` declines to delete for the same reason.
+                | Ok source when Record.isFolder source ->
+                    return Error(Fault.cannotCopyADirectory (Files.pathOf invocation.Projection source))
                 | Ok source ->
                     match Files.resolveFolder invocation.Projection invocation.Location targetWritten with
                     | Error _ ->

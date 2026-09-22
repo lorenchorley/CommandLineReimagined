@@ -263,6 +263,16 @@ type FileCommandTests() =
 
         StringAssert.Contains(harness.Error "cp notes.txt documents", "Target file already exists")
 
+    /// Copying a folder used to copy its record alone, which made an empty folder that
+    /// read as a copy of a full one.
+    [<TestMethod>]
+    member _.CpRefusesAFolder() =
+        let harness = harness ()
+        harness.Run "write documents/a.txt x" |> ignore
+
+        Assert.AreEqual<string>("'cp' copies files, and /documents is a directory.", harness.Error "cp documents empty")
+        Assert.AreEqual<string>("", harness.Names "ls empty")
+
     // ------------------------------------------------------------------------ attr
 
     [<TestMethod>]

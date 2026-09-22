@@ -268,6 +268,11 @@ module Fault =
         create Invalid (sprintf "A file with content cannot become a directory : %s" path)
         |> withPath path
 
+    /// `cp` copies one record. Copying a folder's record without what is in it made an
+    /// empty folder that looked like a copy and was not one.
+    let cannotCopyADirectory path =
+        create Invalid (sprintf "'cp' copies files, and %s is a directory." path) |> withPath path
+
     // ----------------------------------------------------------- Evaluation errors
 
     let cannotEvaluate node = create Internal (sprintf "Cannot evaluate a %s." node)
