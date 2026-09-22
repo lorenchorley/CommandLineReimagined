@@ -30,7 +30,7 @@ test methods; data-driven methods expand to more cases at run time.
 | Round-trip serialisation | `Parser.Tests/SerialisationTests` | 7 |
 | Word operators, precedence, member access, reserved words, nested pipelines | `Parser.Tests/ExpressionTests` | 19 |
 | Agreement with the retained GOLD parser | `Parser.Tests/ParserEquivalenceTests` | 4 |
-| The two string forms of every value, and number formatting | `Core.Tests/ValueTests` | 17 |
+| The two string forms of every value, and number formatting | `Core.Tests/ValueTests` | 16 |
 | The Table value: coercion, columns, types, gaps, rows, display | `Core.Tests/TableTests` | 23 |
 | Evaluating a predicate: members, comparison, gaps, boolean words | `Core.Tests/ExpressionTests` | 21 |
 | Folding events, and that every event inverts back to where it started | `Core.Tests/ProjectionTests` | 13 |
@@ -48,7 +48,7 @@ test methods; data-driven methods expand to more cases at run time.
 | Replaying a log, seeding once, and `reset` | `Core.Tests/PersistenceTests` | 13 |
 | The stored shape of a transaction, every event and value case, versioning | `Web.Core.Tests/LogFormatTests` | 21 |
 | The browser's IndexedDB module, including a browser without it | `tools/store-check.mjs` | 20 |
-| DTO shapes, streaming, cancellation, completion, tokens | `Web.Core.Tests/TerminalSessionTests` | 36 |
+| DTO shapes including tables, streaming, cancellation, completion, tokens | `Web.Core.Tests/TerminalSessionTests` | 38 |
 | Path and naming helpers | `Terminal.Tests/ValidCommandTests` | 2 |
 | The published page, in a browser at phone size | `tools/browser-check.mjs` | 1 session |
 
@@ -57,8 +57,8 @@ Cases actually run, which is what the suite reports:
 | Project | Cases |
 | --- | --- |
 | `Parser.Tests` | 281 |
-| `Core.Tests` | 370 |
-| `Web.Core.Tests` | 58 |
+| `Core.Tests` | 369 |
+| `Web.Core.Tests` | 59 |
 | `Terminal.Tests` | 32 |
 | Total | 741 |
 

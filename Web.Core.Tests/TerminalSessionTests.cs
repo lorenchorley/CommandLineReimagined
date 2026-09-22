@@ -405,6 +405,32 @@ public class TerminalSessionTests
         Assert.AreEqual("tag", parse.Tokens.First(t => t.Kind == "attribute").Text);
     }
 
+    /// <summary>
+    /// The operator words and a member get kinds of their own, so the page can colour
+    /// them as what they are.
+    /// </summary>
+    /// <remarks>
+    /// A member carries its own stop, so the whole of `.kind` is tagged `member` rather
+    /// than the stop falling through to punctuation inside a variable — the same way
+    /// `$row` is two `variable` tokens rather than a sigil and a name of different
+    /// kinds.
+    /// </remarks>
+    [TestMethod]
+    public void OperatorsAndMembersAreTokenisedAsThemselves()
+    {
+        var parse = new CommandLineReimagined.Web.Parsing.CommandParseService()
+            .Parse("ls | where $row.kind eq folder");
+
+        string ofKind(string kind) =>
+            string.Concat(parse.Tokens.Where(token => token.Kind == kind).Select(token => token.Text));
+
+        Assert.IsNull(parse.Error);
+        Assert.AreEqual("ls | where $row.kind eq folder", parse.Reserialised);
+        Assert.AreEqual("eq", ofKind("operator"));
+        Assert.AreEqual(".kind", ofKind("member"));
+        Assert.AreEqual("$row", ofKind("variable"));
+    }
+
     // ---- completion -------------------------------------------------------------
 
     [TestMethod]
