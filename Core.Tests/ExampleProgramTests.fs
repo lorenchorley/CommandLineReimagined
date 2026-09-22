@@ -111,6 +111,39 @@ type ExampleProgramTests() =
              readme.txt  text    /       41    *\n\
              today.txt   text    /       14    *" ]
 
+    /// <summary>The golden results for inventory.clr, in the order the script runs them.</summary>
+    /// <remarks>
+    /// Phase 6's program: a tag becomes a file of XML, the file reads back as a table
+    /// with its number columns numeric, and a question asked of it is written out as CSV
+    /// and read back again. Decision 0026 added `sort qty` to the sixth line, which the
+    /// golden result for `cat reorder.csv` had always assumed.
+    /// </remarks>
+    let inventoryProgram =
+        [ "mkdir stock", "stock"
+          "cd stock", "stock"
+
+          "<items><item sku=A1 name=bolts qty=120 min=50/><item sku=B2 name=nuts qty=12 min=40/><item sku=C3 name=washers qty=0 min=20/></items> | to-xml items.xml",
+          "items.xml"
+
+          "from-xml items.xml | count", "3"
+
+          "from-xml items.xml | where $row.qty lt $row.min | sort qty | select sku name qty min",
+          "sku  name     qty  min\n\
+             C3   washers  0    20\n\
+             B2   nuts     12   40"
+
+          "from-xml items.xml | where $row.qty lt $row.min | sort qty | select sku qty | to-csv reorder.csv",
+          "reorder.csv"
+
+          "from-csv reorder.csv | count", "2"
+
+          "cat reorder.csv",
+          "sku,qty\n\
+             C3,0\n\
+             B2,12"
+
+          "from-xml items.xml | sort qty desc | first", "<row sku=A1 name=bolts qty=120 min=50/>" ]
+
     /// <summary>Whether a result matches a golden one, with `*` for anything.</summary>
     /// <remarks>
     /// Matched line by line so that a timestamp in a column does not let a `*` swallow
@@ -123,10 +156,15 @@ type ExampleProgramTests() =
     /// something the golden deliberately does not say. What the goldens are about is
     /// the cells and the order they come in, and that is what this holds them to.
     /// </remarks>
+    ///
+    /// One line break at the very end of an answer is not a line of it. A golden result
+    /// is written as the lines a person sees, and a file's text — which is what `cat`
+    /// answers — ends in one, as every line of a CSV does; the exact text is pinned
+    /// separately, where it is the point.
     let matches (expected: string) (actual: string) =
         let lines (text: string) = text.Replace("\r\n", "\n").Split '\n'
         let expectedLines = lines expected
-        let actualLines = lines actual
+        let actualLines = lines (if actual.EndsWith "\n" then actual.Substring(0, actual.Length - 1) else actual)
 
         let matchesLine (pattern: string) (text: string) =
             let escaped =
@@ -289,6 +327,60 @@ type ExampleProgramTests() =
 
         Assert.IsFalse(harness.Exists "/today", "The mkdir on the failed side of else was committed.")
         Assert.IsTrue(harness.Exists "/today.txt")
+
+    // ---------------------------------------------------------- inventory.clr
+
+    [<TestMethod>]
+    member _.InventoryLineByLine() =
+        let harness = seeded ()
+
+        for source, expected in inventoryProgram do
+            assertMatches source expected (harness.Text source)
+
+    [<TestMethod>]
+    member _.InventoryThroughRun() =
+        let byHand = seeded ()
+
+        for source, _ in inventoryProgram do
+            byHand.Run source |> ignore
+
+        let byScript = seeded ()
+        byScript.Run "run examples/inventory.clr" |> ignore
+
+        Assert.AreEqual<Map<FileId, FileRecord>>(byHand.Projection.Files, byScript.Projection.Files)
+        Assert.AreEqual<Map<string, Value>>(byHand.Projection.Variables, byScript.Projection.Variables)
+        Assert.AreEqual<Location>(byHand.Projection.Location, byScript.Projection.Location)
+
+    /// <summary>The CSV text exactly, terminal line break included.</summary>
+    /// <remarks>
+    /// The plan asks for "the exact CSV text", and the line-by-line golden cannot show
+    /// the line break that ends the last record; this can.
+    /// </remarks>
+    [<TestMethod>]
+    member _.TheReorderFileIsExactlyTheGoldenCsv() =
+        let harness = seeded ()
+        harness.Run "run examples/inventory.clr" |> ignore
+
+        Assert.AreEqual<string>("sku,qty\nC3,0\nB2,12\n", harness.Content "/stock/reorder.csv")
+        Assert.AreEqual<string>("csv", harness.Attribute "/stock/reorder.csv" "kind")
+        Assert.AreEqual<string>("xml", harness.Attribute "/stock/items.xml" "kind")
+
+    /// <summary>What the program is for, stated as an assertion.</summary>
+    /// <remarks>
+    /// The plan's sentence after the golden results: `qty` and `min` are number columns
+    /// because every value parses as a number, which is what makes `lt` and `sort qty`
+    /// numeric. Textually, "120" sorts before "12" and "0" is less than nothing useful.
+    /// </remarks>
+    [<TestMethod>]
+    member _.TheDocumentsNumberColumnsAreNumbers() =
+        let harness = seeded ()
+        harness.Run "run examples/inventory.clr" |> ignore
+
+        Assert.AreEqual<string>(
+            "name  type\nsku   text\nname  text\nqty   number\nmin   number",
+            harness.Text "from-xml items.xml | columns")
+
+        Assert.AreEqual<string>("name  type\nsku   text\nqty   number", harness.Text "from-csv reorder.csv | columns")
 
     // ------------------------------------------------------------------- run
 

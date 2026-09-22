@@ -27,6 +27,8 @@
     <Compile Include="Events.fs" />
     <Compile Include="Projection.fs" />
     <Compile Include="Table.fs" />
+    <Compile Include="Xml.fs" />
+    <Compile Include="Csv.fs" />
     <Compile Include="Store.fs" />
     <Compile Include="Scope.fs" />
     <Compile Include="Tree.fs" />
@@ -37,6 +39,7 @@
     <Compile Include="Commands/Values.fs" />
     <Compile Include="Commands/Async.fs" />
     <Compile Include="Commands/Tables.fs" />
+    <Compile Include="Commands/Documents.fs" />
     <Compile Include="Commands/Meta.fs" />
     <Compile Include="Evaluator.fs" />
     <Compile Include="Completion.fs" />

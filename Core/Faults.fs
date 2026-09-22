@@ -276,6 +276,48 @@ module Fault =
     let refreshMustOnlyRead source =
         create Invalid (sprintf "A live refresh only re-reads : %s" source)
 
+    // ------------------------------------------------------------ Document errors
+
+    /// <summary>A file that `from-xml` could not read as XML.</summary>
+    /// <remarks>
+    /// The line and position are the parser's, which is where to look; the parser's own
+    /// sentence is left out, because it is a resource the browser build does not carry
+    /// and a message that reads differently on two hosts cannot be tested on either.
+    /// </remarks>
+    let notWellFormedXml path line position =
+        create Invalid (sprintf "Not well-formed XML : %s line %d, position %d" path line position)
+        |> withPath path
+
+    /// XML is stricter about names than the notation is, and a table's columns can come
+    /// from a CSV header that has spaces in it.
+    let notAnXmlName name =
+        create Invalid (sprintf "'%s' is not a name XML allows." name)
+
+    let cannotWriteAsXml kind =
+        create Binding (sprintf "'to-xml' needs a tag, a table or a list of tags, not %s." kind)
+
+    /// A CSV record with more or fewer fields than the header: a table has one width.
+    let csvFieldCount path line found expected =
+        create Invalid (sprintf "%s line %d has %d fields where the header has %d." path line found expected)
+        |> withPath path
+
+    let csvUnclosedQuote path line =
+        create Invalid (sprintf "%s line %d: a quoted field is never closed." path line)
+        |> withPath path
+
+    let csvTextAfterQuote path line =
+        create Invalid (sprintf "%s line %d: a closing quote is followed by more text." path line)
+        |> withPath path
+
+    let csvDuplicateColumn path name =
+        create Invalid (sprintf "%s has two columns named '%s'." path name) |> withPath path
+
+    let csvUnnamedColumn path index =
+        create Invalid (sprintf "%s column %d has no name." path index) |> withPath path
+
+    let badDelimiter text =
+        create Invalid (sprintf "'delimiter' must be one character, or 'tab', not '%s'." text)
+
     // ------------------------------------------------------------ Session messages
 
     let alreadyRunning () = create Invalid "A command is already running. Stop it first."

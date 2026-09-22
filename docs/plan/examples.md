@@ -200,7 +200,7 @@ from-xml items.xml | where $row.qty lt $row.min | sort qty | select sku name qty
   C3   washers  0    20
   B2   nuts     12   40
 
-from-xml items.xml | where $row.qty lt $row.min | select sku qty | to-csv reorder.csv
+from-xml items.xml | where $row.qty lt $row.min | sort qty | select sku qty | to-csv reorder.csv
   reorder.csv
 
 from-csv reorder.csv | count                      2
@@ -216,3 +216,8 @@ from-xml items.xml | sort qty desc | first
 
 `qty` and `min` are number columns because every value parses as a number, which is
 what makes `lt` numeric and `sort qty` numeric rather than textual.
+
+The sixth line's `sort qty` was added in Phase 6 by decision
+[0026](../decisions/0026-inventory-sorts-its-reorder-list.md): without it the line keeps
+the document's order and the reorder file could never have read as its golden result
+does.

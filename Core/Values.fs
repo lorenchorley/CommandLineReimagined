@@ -274,6 +274,19 @@ module Value =
         | Value.File file -> joinPath file.Folder file.Name
         | other -> display other
 
+    /// <summary>What a value is as text inside a file.</summary>
+    /// <remarks>
+    /// Not `display`: a person reading a table wants `3.142`, and a file that is read
+    /// back wants every digit it was given, or writing a table out and reading it in
+    /// again would change it. A number is written in its shortest exact form; a file
+    /// is its name, as it is in a listing's `name` column; everything else reads as it
+    /// displays.
+    /// </remarks>
+    let dataText (value: Value) : string =
+        match value with
+        | Value.Number n -> n.ToString(CultureInfo.InvariantCulture)
+        | other -> display other
+
     /// The tag a DTO carries, so the page can draw a folder differently from a file.
     let kind (value: Value) : string =
         match value with

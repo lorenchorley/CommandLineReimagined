@@ -30,6 +30,7 @@
     <Compile Include="TableCommandTests.fs" />
     <Compile Include="ViewTests.fs" />
     <Compile Include="RecoveryTests.fs" />
+    <Compile Include="DocumentTests.fs" />
     <Compile Include="MetaCommandTests.fs" />
     <Compile Include="CompletionTests.fs" />
     <Compile Include="PersistenceTests.fs" />
