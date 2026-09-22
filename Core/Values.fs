@@ -130,8 +130,11 @@ module Tag =
     /// </remarks>
     let create (typeName: string) (attributes: (string * Value) list) (children: Value list) =
         { TypeName = typeName
+          // A name written twice keeps the later value, which is what the map does, and
+          // its first position, which is where a reader looks for it. Kept twice in
+          // `Order`, `<t a=1 a=2/>` read back as `<t a=2 a=2/>`.
           Attributes = Map.ofList attributes
-          Order = attributes |> List.map fst
+          Order = attributes |> List.map fst |> List.distinct
           Children = children }
 
 [<CompilationRepresentation(CompilationRepresentationFlags.ModuleSuffix)>]

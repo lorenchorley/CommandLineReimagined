@@ -100,6 +100,13 @@ type ValueTests() =
 
         Assert.AreEqual<string>("<thing/>", Value.display (Value.Object tag))
 
+    /// The later value wins and the name is written once, where it first appeared.
+    [<TestMethod>]
+    member _.AnAttributeWrittenTwiceReadsBackOnce() =
+        let tag = Tag.create "t" [ "a", Value.Number 1.0; "b", Value.Number 3.0; "a", Value.Number 2.0 ] []
+
+        Assert.AreEqual<string>("<t a=2 b=3/>", Value.display (Value.Object tag))
+
     [<TestMethod>]
     member _.ATagWithChildrenUsesTheLongForm() =
         let inner = Tag.create "inner" [] []
