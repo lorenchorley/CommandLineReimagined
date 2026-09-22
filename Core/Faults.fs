@@ -227,14 +227,19 @@ module Fault =
 
     let stepsMustBePositive () = create Invalid "'steps' must be at least 1."
 
+    /// Names the parameter it is about, because `progress` has two numbers and a
+    /// message that always said `steps` sent you to the wrong one.
+    let mustBeWhole parameter value =
+        create Invalid (sprintf "'%s' must be a whole number, not '%s'." parameter value)
+
+    /// A wait cannot be shorter than none, and `-1` to the runtime means "for ever",
+    /// which is not what anybody typing it meant.
+    let mustNotBeNegative parameter value =
+        create Invalid (sprintf "'%s' must be zero or more, not '%s'." parameter value)
+
     let notAValidUrl text = create Invalid (sprintf "Not a valid URL : %s" text)
 
     let noContentLength () = create Invalid "The server did not report a content length."
-
-    let stepsMustBeWhole value =
-        create Invalid (sprintf "'steps' must be a whole number, not '%s'." value)
-
-    let transferEndedEarly () = create Invalid "The transfer ended before all bytes arrived."
 
     // ------------------------------------------------------------- Record errors
 

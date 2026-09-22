@@ -58,6 +58,32 @@ type AsyncCommandTests() =
 
         StringAssert.Contains(harness.Error "progress -steps", "must be a whole number")
 
+    /// There are two numbers, and the message used to blame `steps` for either.
+    [<TestMethod>]
+    member _.ProgressNamesTheParameterThatIsNotWhole() =
+        let harness = bare ()
+
+        Assert.AreEqual<string>("'delay' must be a whole number, not '1.5'.", harness.Error "progress 2 1.5")
+
+    /// A negative delay used to reach the runtime, which threw on most of them — an
+    /// `Internal` fault for a user's mistake — and waited for ever on -1.
+    [<DataTestMethod>]
+    [<DataRow("-5")>]
+    [<DataRow("-1")>]
+    member _.ProgressRefusesANegativeDelay(delay: string) =
+        let harness = bare ()
+
+        let fault = harness.Fail $"progress 2 {delay}"
+
+        Assert.AreEqual<FaultKind>(Invalid, fault.Kind)
+        Assert.AreEqual<string>($"'delay' must be zero or more, not '{delay}'.", fault.Message)
+
+    [<TestMethod>]
+    member _.ProgressRefusesNegativeSteps() =
+        let harness = bare ()
+
+        StringAssert.Contains(harness.Error "progress -3 1", "at least 1")
+
     [<TestMethod>]
     member _.ProgressCanBeCancelledAndSaysWhereItStopped() =
         let harness = bare ()
@@ -129,3 +155,28 @@ type AsyncCommandTests() =
 
         harness.Run "undo" |> ignore
         Assert.IsFalse(harness.Exists "file.txt")
+
+    /// A download over an existing file is a write, and emits what `write` emits: new
+    /// content and a touched `modified`. It used to change the content alone.
+    [<TestMethod>]
+    member _.DownloadOverAFileChangesWhatWriteChanges() =
+        let harness =
+            Harness(Seed.standardFiles, (fun () -> new HttpClient(new StubHandler("downloaded body"))))
+
+        let kinds () =
+            harness.Session.History()
+            |> List.last
+            |> fun entry -> entry.Transaction.Events
+            |> List.map (fun event ->
+                match event with
+                | ContentChanged _ -> "content"
+                | AttributesChanged _ -> "attributes"
+                | other -> sprintf "%A" other)
+
+        harness.Run "write readme.txt written" |> ignore
+        let written = kinds ()
+        harness.Run "download https://example.com/readme.txt" |> ignore
+
+        Assert.AreEqual<string list>([ "content"; "attributes" ], written)
+        Assert.AreEqual<string list>(written, kinds ())
+        Assert.AreEqual<string>("downloaded body", harness.Content "readme.txt")
