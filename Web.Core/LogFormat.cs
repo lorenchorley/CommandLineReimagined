@@ -25,7 +25,13 @@ namespace CommandLineReimagined.Web.Persistence;
 public static class LogFormat
 {
     /// <summary>The version this build writes. Readers exist for this and every earlier one.</summary>
-    public const int Version = 1;
+    /// <remarks>
+    /// Version 2 is Phase 5's: a variable can hold a fault (<c>try cat x | set problem</c>)
+    /// and a query (<c>pwd | set here</c> inside a view), and a build that only knew
+    /// version 1 would fail on either as an unknown kind. Every version 1 document is a
+    /// valid version 2 one, so the one reader serves both.
+    /// </remarks>
+    public const int Version = 2;
 
     private static readonly JsonSerializerOptions Compact = new() { WriteIndented = false };
 
@@ -190,10 +196,52 @@ public static class LogFormat
                     .ToArray()),
             },
 
+            // A predicate is stored as its text, as a location's view is, and read back
+            // by the grammar.
+            Value.Query query => new JsonObject
+            {
+                ["k"] = "query",
+                ["v"] = ExprModule.display(query.Item),
+            },
+
+            Value.Fault fault => FaultNode(fault.Item),
+
             _ => throw new NotSupportedException(
                 $"No stored shape for the value {value.GetType().Name}. Adding a value case means " +
                 "adding it here and bumping the version."),
         };
+    }
+
+    /// <summary>A fault held as a value, with everything <c>$problem.kind</c> and its siblings read.</summary>
+    /// <remarks>
+    /// The kind is written as its word, the one a script compares against, so a renamed
+    /// union case cannot change what a stored variable says.
+    /// </remarks>
+    private static JsonObject FaultNode(Fault fault) =>
+        new()
+        {
+            ["k"] = "fault",
+            ["kind"] = FaultKindModule.name(fault.Kind),
+            ["message"] = fault.Message,
+            ["stage"] = fault.Stage is { } stage ? JsonValue.Create(stage.Value) : null,
+            ["path"] = fault.Path is { } path ? JsonValue.Create(path.Value) : null,
+            ["cause"] = fault.Cause is { } cause ? FaultNode(cause.Value) : null,
+        };
+
+    private static Fault ReadFault(JsonObject node)
+    {
+        string kind = node["kind"]!.GetValue<string>();
+
+        return new Fault(
+            FaultKindModule.tryParse(kind) is { } known
+                ? known.Value
+                : throw new FormatException($"A stored fault is of kind '{kind}', which this build does not know."),
+            node["message"]!.GetValue<string>(),
+            node["stage"] is { } stage ? FSharpOption<int>.Some(stage.GetValue<int>()) : FSharpOption<int>.None,
+            ReadOptionalString(node["path"]),
+            node["cause"] is { } cause
+                ? FSharpOption<Fault>.Some(ReadFault(cause.AsObject()))
+                : FSharpOption<Fault>.None);
     }
 
     private static JsonObject TagNode(string kind, Tag tag) =>
@@ -251,13 +299,13 @@ public static class LogFormat
 
         return version switch
         {
-            1 => ReadVersion1(node),
+            1 or 2 => ReadTransaction(node),
             _ => throw new FormatException(
                 $"A stored transaction is version {version}; this build reads up to {Version}."),
         };
     }
 
-    private static Transaction ReadVersion1(JsonObject node) =>
+    private static Transaction ReadTransaction(JsonObject node) =>
         new(
             node["seq"]!.GetValue<long>(),
             DateTimeOffset.Parse(node["at"]!.GetValue<string>(), CultureInfo.InvariantCulture,
@@ -330,6 +378,15 @@ public static class LogFormat
         return new(folder, FSharpOption<Expr>.Some(parsed.ResultValue));
     }
 
+    private static Expr ReadQuery(string text)
+    {
+        var parsed = ExprModule.parse("a stored query", text);
+
+        return parsed.IsError
+            ? throw new FormatException($"A stored query holds a predicate this build cannot read: {text}")
+            : parsed.ResultValue;
+    }
+
     private static FSharpMap<string, Value> ReadAttributes(JsonObject node) =>
         MapModule.OfSeq(node.Select(pair =>
             Tuple.Create(pair.Key, ReadValue(pair.Value!.AsObject()))));
@@ -360,6 +417,9 @@ public static class LogFormat
                     ReadColumnType(c["type"]!.GetValue<string>())))),
                 ListOf(node["rows"]!.AsArray().Select(row =>
                     ListOf(row!.AsArray().Select(cell => ReadValue(cell!.AsObject()))))))),
+
+            "query" => Value.NewQuery(ReadQuery(node["v"]!.GetValue<string>())),
+            "fault" => Value.NewFault(ReadFault(node)),
 
             var unknown => throw new FormatException(
                 $"A stored value is of kind '{unknown}', which this build does not know."),

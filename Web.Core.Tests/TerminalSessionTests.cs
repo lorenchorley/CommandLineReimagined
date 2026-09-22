@@ -494,6 +494,39 @@ public class TerminalSessionTests
         Assert.AreEqual("$row", ofKind("variable"));
     }
 
+    /// <summary>
+    /// Phase 5: <c>try</c> and <c>else</c> are keywords, <c>??</c> is an operator, and a
+    /// nested pipeline's command is a command like any other.
+    /// </summary>
+    [TestMethod]
+    public void RecoveryWordsAreTokenisedAsThemselves()
+    {
+        const string source = "try cat x | set p else first (ls) ?? none";
+        var parse = new CommandLineReimagined.Web.Parsing.CommandParseService().Parse(source);
+
+        string[] ofKind(string kind) =>
+            parse.Tokens.Where(token => token.Kind == kind).Select(token => token.Text).ToArray();
+
+        Assert.IsNull(parse.Error);
+        Assert.AreEqual(source, parse.Reserialised);
+        CollectionAssert.AreEqual(new[] { "try", "else" }, ofKind("keyword"));
+        CollectionAssert.AreEqual(new[] { "??" }, ofKind("operator"));
+        CollectionAssert.AreEqual(new[] { "cat", "set", "first", "ls" }, ofKind("command"));
+    }
+
+    /// <summary>A fault that <c>try</c> caught is a result item of kind <c>fault</c>, with its kind beside it.</summary>
+    [TestMethod]
+    public async Task ACaughtFaultIsAResultNotAnError()
+    {
+        var response = await _session.ExecuteAsync("try cat nowhere.txt");
+
+        Assert.IsNull(response.Error);
+        var item = response.Result!.Single();
+        Assert.AreEqual("fault", item.Kind);
+        Assert.AreEqual("NotFound", item.FaultKind);
+        Assert.AreEqual("File does not exist : /nowhere.txt", item.Text);
+    }
+
     // ---- completion -------------------------------------------------------------
 
     [TestMethod]

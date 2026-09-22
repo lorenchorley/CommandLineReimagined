@@ -33,6 +33,9 @@ public sealed class TokenStreamVisitor : VisitorBase
         public const string Attribute = "attribute";
         /// One of the word operators: `eq`, `and`, `not` and the rest (decision 0007).
         public const string Operator = "operator";
+        /// `try` and `else`: words that shape the line rather than being part of an
+        /// argument (decision 0014).
+        public const string Keyword = "keyword";
         /// The `.size` of `$row.size`, dot included.
         public const string Member = "member";
         public const string Punctuation = "punctuation";
@@ -111,6 +114,17 @@ public sealed class TokenStreamVisitor : VisitorBase
     public override void VisitMemberName(MemberName memberName)
     {
         using (Using(Kinds.Member)) base.VisitMemberName(memberName);
+    }
+
+    protected override void AppendKeyword(string word)
+    {
+        using (Using(Kinds.Keyword)) Append(word);
+    }
+
+    /// <summary><c>??</c> is an operator, the same colour as <c>eq</c>.</summary>
+    protected override void AppendOperator(string symbol)
+    {
+        using (Using(Kinds.Operator)) Append(symbol);
     }
 
     public override void VisitOperatorWord(OperatorWord operatorWord)

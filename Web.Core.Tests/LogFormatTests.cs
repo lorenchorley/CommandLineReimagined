@@ -300,6 +300,44 @@ public class LogFormatTests
         }
     }
 
+    /// <summary>A fault that <c>try</c> caught round-trips with everything a script can read off it.</summary>
+    /// <remarks>
+    /// Phase 5: <c>try cat nowhere.txt | set problem</c> puts a fault in a variable, and a
+    /// variable is in the log, so a reload has to bring back <c>$problem.kind</c> as well
+    /// as its message.
+    /// </remarks>
+    [TestMethod]
+    public void AFaultValueRoundTrips()
+    {
+        var cause = new Fault(FaultKind.Invalid, "inner", FSharpOption<int>.None,
+            FSharpOption<string>.None, FSharpOption<Fault>.None);
+        var fault = new Fault(FaultKind.NotFound, "File does not exist : /nowhere.txt",
+            FSharpOption<int>.Some(1), FSharpOption<string>.Some("/nowhere.txt"), FSharpOption<Fault>.Some(cause));
+
+        var read = RoundTrip(Transaction(Event.NewVariableChanged(
+            "problem", FSharpOption<Value>.None, FSharpOption<Value>.Some(Value.NewFault(fault)))));
+
+        var after = ((Event.VariableChanged)read.Events.Single()).after!.Value;
+
+        Assert.AreEqual(fault, ((Value.Fault)after).Item);
+        Assert.AreEqual("File does not exist : /nowhere.txt", ValueModule.display(after));
+    }
+
+    /// <summary>A predicate held in a variable round-trips as the predicate it was.</summary>
+    [TestMethod]
+    public void AQueryValueRoundTrips()
+    {
+        var expr = ((Value.Query)Value.NewQuery(ExprModule.parse("test", "$row.kind eq note").ResultValue)).Item;
+
+        var read = RoundTrip(Transaction(Event.NewVariableChanged(
+            "here", FSharpOption<Value>.None, FSharpOption<Value>.Some(Value.NewQuery(expr)))));
+
+        var after = ((Event.VariableChanged)read.Events.Single()).after!.Value;
+
+        Assert.AreEqual("query", ValueModule.kind(after));
+        Assert.AreEqual("$row.kind eq note", ValueModule.display(after));
+    }
+
     [TestMethod]
     public void ANestedTagRoundTrips()
     {
@@ -323,7 +361,8 @@ public class LogFormatTests
     {
         var node = JsonNode.Parse(LogFormat.Write(Transaction(Event.NewFileCreated(Record()))))!.AsObject();
 
-        Assert.AreEqual(1, node["v"]!.GetValue<int>());
+        Assert.AreEqual(LogFormat.Version, node["v"]!.GetValue<int>());
+        Assert.AreEqual(2, LogFormat.Version);
     }
 
     /// <summary>A version this build does not know is refused, by name.</summary>
@@ -341,7 +380,7 @@ public class LogFormatTests
         var error = Assert.ThrowsExactly<FormatException>(() => LogFormat.Read(node.ToJsonString()));
 
         StringAssert.Contains(error.Message, "version 99");
-        StringAssert.Contains(error.Message, "reads up to 1");
+        StringAssert.Contains(error.Message, "reads up to 2");
     }
 
     [TestMethod]

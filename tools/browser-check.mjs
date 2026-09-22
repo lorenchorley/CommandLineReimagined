@@ -37,6 +37,7 @@ const DEVICE_SCALE_FACTOR = 3;
  *   expect   the rendered entry must contain this text
  *   absent   the rendered entry must not contain this text
  *   fault    the entry must show a failure with this kind
+ *   caught   the entry must show a fault held as a value, with this kind (Phase 5)
  *
  * Kept in the same order as the plan, and as one session rather than one each, because
  * undo and history only mean anything against what came before them.
@@ -132,6 +133,26 @@ const PHASE_4 = [
   { line: 'cd weekend', expect: ['$row.mood eq great'] },
   { line: 'ls', expect: ['saturday'], absent: ['monday'] },
   { line: 'up', expect: ['/'] },
+];
+
+/**
+ * Phase 5: failure is a value.
+ *
+ * Run from a fresh store. The example program first, then the plan's four lines, each
+ * as its own entry so the page's two ways of drawing a fault are both seen: `else`
+ * never shows one at all, and `try` shows one as a result rather than as a failed line.
+ */
+const PHASE_5 = [
+  { line: 'run examples/resilient.clr',
+    expect: ['> try cat nowhere.txt | set problem', '> mkdir today | cd nowhere else echo', 'today.txt'] },
+  // The program's point: the folder on the failed side of its last `else` never existed.
+  { line: 'find $row.name eq today | count', expect: ['0'] },
+
+  { line: 'cat missing.txt else echo "none"', expect: ['none'] },
+  { line: 'try cat missing.txt | set r', caught: 'NotFound', expect: ['File does not exist : /missing.txt'] },
+  { line: 'echo $r.kind', expect: ['NotFound'] },
+  { line: 'first (ls | where $row.kind eq note) ?? "no notes"', expect: ['no notes'] },
+  { line: 'is-fault $r', expect: ['true'] },
 ];
 
 /**
@@ -256,7 +277,7 @@ async function boot(page) {
 /** Runs a table of lines and reports any mismatch through `note`. */
 async function runScript(page, script, note) {
   for (const step of script) {
-    const { text, fault } = await submit(page, step.line);
+    const { text, fault, caught } = await submit(page, step.line);
 
     for (const expected of step.expect ?? []) {
       if (!text.includes(expected)) {
@@ -268,6 +289,14 @@ async function runScript(page, script, note) {
       if (text.includes(unexpected)) {
         note(`'${step.line}' showed '${unexpected}', which it should not. It showed: ${JSON.stringify(text)}`);
       }
+    }
+
+    if (step.caught && caught !== step.caught) {
+      note(`'${step.line}' showed a caught fault of kind ${JSON.stringify(caught)}, expected '${step.caught}'`);
+    }
+
+    if (!step.caught && caught !== null) {
+      note(`'${step.line}' showed a caught fault (${caught}) it should not have: ${JSON.stringify(text)}`);
     }
 
     if (step.fault && fault !== step.fault) {
@@ -300,10 +329,17 @@ async function submit(page, line) {
     { timeout: 30000 });
 
   const entry = page.locator('.entry').last();
+
+  // A failed line is the red `.err`; a fault that `try` caught is a `.caught` result
+  // and not a failure at all, though both carry the same small kind tag. Telling them
+  // apart is the whole of what Phase 5 changed on the page.
   return {
     text: (await entry.innerText()).replace(/ /g, ' '),
-    fault: await entry.locator('.kind').count() > 0
-      ? (await entry.locator('.kind').first().innerText()).trim()
+    fault: await entry.locator('.err .kind').count() > 0
+      ? (await entry.locator('.err .kind').first().innerText()).trim()
+      : null,
+    caught: await entry.locator('.caught').count() > 0
+      ? await entry.locator('.caught').first().getAttribute('data-fault-kind')
       : null,
   };
 }
@@ -498,6 +534,22 @@ async function main() {
     if (await listed.locator('.grid tbody tr').count() !== frozenAt) {
       note('a paused listing refreshed anyway');
     }
+
+    // ---- Phase 5: else, try, ?? and nested pipelines -------------------------
+
+    await submit(page, 'reset');
+    await runScript(page, PHASE_5, note);
+    console.log(`Ran ${PHASE_5.length} more for Phase 5.`);
+
+    // The keywords are coloured as keywords as they are typed, not as arguments.
+    await page.fill('#cmd', 'try cat x else echo y');
+    try {
+      await page.waitForFunction(
+        () => document.querySelectorAll('#mirror .t.keyword').length === 2, null, { timeout: 10000 });
+    } catch {
+      note('`try` and `else` are not coloured as keywords in the input');
+    }
+    await page.fill('#cmd', '');
 
     // ---- Phase 2: the log survives a reload ---------------------------------
 

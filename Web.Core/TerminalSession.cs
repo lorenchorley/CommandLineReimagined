@@ -229,7 +229,7 @@ public sealed class TerminalSession
     // An F# option is a reference whose None is null, so the null-conditional reads
     // the two optional fields without a helper.
     private static FaultInfo Describe(Fault fault) =>
-        new(fault.Kind.ToString(), fault.Message, fault.Stage?.Value, fault.Path?.Value);
+        new(FaultKindModule.name(fault.Kind), fault.Message, fault.Stage?.Value, fault.Path?.Value);
 
     /// <summary>
     /// Flattens a value into items the page can draw.
@@ -264,6 +264,17 @@ public sealed class TerminalSession
             return new[]
             {
                 new ResultItem(ValueModule.kind(value), ValueModule.display(value), ValueModule.argument(value)),
+            };
+        }
+
+        // A fault that `try` caught is a value, not an error, and the page draws it as
+        // one; its kind travels beside the message so the page can label it.
+        if (value is Value.Fault fault)
+        {
+            return new[]
+            {
+                new ResultItem("fault", fault.Item.Message, fault.Item.Path?.Value,
+                    FaultKind: FaultKindModule.name(fault.Item.Kind)),
             };
         }
 
@@ -331,14 +342,16 @@ public sealed record ExecutionResponse(
 /// <remarks>
 /// <paramref name="Columns"/> and <paramref name="Rows"/> are set only on a table, and
 /// are what lets the page draw a real one with sortable headers and tappable cells
-/// instead of a run of chips.
+/// instead of a run of chips. <paramref name="FaultKind"/> is set only on a fault that
+/// <c>try</c> or <c>else</c> made into a value (Phase 5).
 /// </remarks>
 public sealed record ResultItem(
     string Kind,
     string Text,
     string? Path,
     IReadOnlyList<ResultColumn>? Columns = null,
-    IReadOnlyList<IReadOnlyList<ResultItem>>? Rows = null);
+    IReadOnlyList<IReadOnlyList<ResultItem>>? Rows = null,
+    string? FaultKind = null);
 
 /// <summary>A table's column, with the type its cells agreed on (decision 0009).</summary>
 public sealed record ResultColumn(string Name, string Type);
