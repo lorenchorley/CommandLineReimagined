@@ -18,7 +18,7 @@ a later record, **Rejected**.
 | [0006](0006-functional-core-in-fsharp.md) | The execution layer moves to F#, with Result and Option as the error model | Accepted |
 | [0007](0007-notation-conflicts.md) | Notation conflicts: lookahead delimiters plus word operators | Accepted |
 | [0008](0008-explicit-row-variable.md) | Predicates name the row explicitly | Accepted |
-| [0009](0009-table-coercion.md) | Table-shaped tags become tables implicitly, missing cells are None | Accepted |
+| [0009](0009-table-coercion.md) | Table-shaped tags become tables implicitly, missing cells are None | Accepted; one sentence superseded by 0028 |
 | [0010](0010-undo-by-event-sourcing.md) | Undo and persistence through an event-sourced store | Accepted |
 | [0011](0011-real-xml-files.md) | XML is read and written as real files | Accepted |
 | [0012](0012-browser-first.md) | The desktop shell stays out of scope | Accepted |
@@ -37,6 +37,7 @@ a later record, **Rejected**.
 | [0025](0025-xml-text-content.md) | XML element text content is read as a `text` attribute | Accepted |
 | [0026](0026-inventory-sorts-its-reorder-list.md) | The inventory program sorts its reorder list before writing it | Accepted |
 | [0027](0027-save-takes-a-tag.md) | `save` takes its attributes in the tag, not as assignments | Accepted |
+| [0028](0028-mixed-columns.md) | A column whose cells disagree is typed `mixed`, not `text` | Accepted |
 
 Retrospective records document decisions taken before the log existed, so that the
 log is the one place to look. Their alternatives are the ones weighed at the time, as
