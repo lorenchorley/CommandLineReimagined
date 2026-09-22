@@ -47,10 +47,11 @@ you type leaves the page, and your files are kept in the browser between visits.
 - **[Documentation index](docs/README.md)** — start here.
 - [Getting started](docs/getting-started.md) — open a terminal and run something.
 - [Worked examples](docs/examples.md) — complete sessions to copy.
+- [Tables and predicates](docs/tables.md) — filter, sort, count and group a listing; keep a table in XML or CSV.
 - [The filesystem](docs/filesystem.md) — files as attribute records, queries as places.
 - [The command language](docs/language.md) — every syntax the parser accepts.
 - [Command reference](docs/commands.md) — one entry per command.
-- [How it works](docs/concepts.md) — parse, bind, evaluate, render, undo.
+- [How it works](docs/concepts.md) — parse, bind, evaluate, commit, project.
 - [Specification](docs/spec/README.md) — the normative definition.
 
 ## Building
@@ -60,6 +61,7 @@ desktop shell needs Windows; everything else builds anywhere.
 
 ```bash
 dotnet publish WebClient/WebClient.csproj -c Release -o publish
+tools/postprocess-publish.sh publish/wwwroot
 cd publish/wwwroot && python3 -m http.server 8080
 ```
 

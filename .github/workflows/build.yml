@@ -115,10 +115,31 @@ jobs:
           # EmbeddedResource, the browser download balloons and this catches it.
           [ "$bytes" -lt 20971520 ] || { echo "payload over 20 MB; is the search data embedded in Terminal.dll again?"; exit 1; }
 
+      # Handed to the browser job as it was measured, rather than published twice:
+      # the page that is checked is the one whose size was just checked.
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wasm-publish
+          path: wasm-publish/wwwroot
+          retention-days: 1
+
+  browser:
+    name: Browser check (Linux)
+    needs: wasm
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: wasm-publish
+          path: wasm-publish/wwwroot
+
       # The test suites prove the core; this proves the page. It is the only check
       # that runs the published client in a browser, so it is the only one that can
       # catch a stale interop name, a renderer that drops a field, a console error
-      # nobody sees, or a chip too small to tap.
+      # nobody sees, or a chip too small to tap. It runs all four example programs
+      # against their golden results, and reloads to prove the log came back.
       - uses: actions/setup-node@v4
         with:
           node-version: 22

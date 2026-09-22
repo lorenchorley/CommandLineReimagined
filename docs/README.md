@@ -1,11 +1,12 @@
 # CommandLineReimagined documentation
 
 A command line where the text you type is a tree, not a string. Every word knows what
-it is, every command returns a value instead of printing one, and every command can be
-undone.
+it is, every command returns a value instead of printing one, and every line that
+changed something can be undone.
 
 The terminal runs in a browser tab. The parser, the commands and the filesystem are
-.NET compiled to WebAssembly, so nothing you type leaves the page.
+.NET compiled to WebAssembly, so nothing you type leaves the page, and the browser keeps
+your files between visits.
 
 ## Start here
 
@@ -28,9 +29,10 @@ The terminal runs in a browser tab. The parser, the commands and the filesystem 
 The [decision log](decisions/README.md) records every architecture decision, the
 options that were on the table and the one chosen.
 
-The [implementation plan](plan/README.md) is the work in progress: an F# core with
-failure as a value, an event-sourced store, an attribute filesystem, tables and
-queries. It is written so that an agent with only this repository can execute it.
+The [implementation plan](plan/README.md) took the project to an F# core with failure
+as a value, an event-sourced store, an attribute filesystem, tables, queries and XML.
+Every phase is built, and each ends with an "As built" section recording where the
+result differs from what was planned.
 
 The [specification](spec/README.md) defines the language and the runtime normatively:
 grammar, semantic tree, execution model, command contracts and the host interfaces.
@@ -53,5 +55,6 @@ parsed a second time to be filtered.
 
 Because the parse is a tree, the screen can show what the parser decided. Tap any word
 in the scrollback and the terminal tells you whether it was a command, a flag, a string,
-a variable, a type or punctuation. Because every command returns a value and knows how
-to reverse itself, the last command can always be taken back.
+a variable, a type or punctuation. Because a command only describes its change and the
+whole line is committed at once, the last line can always be taken back, and put back
+again.
