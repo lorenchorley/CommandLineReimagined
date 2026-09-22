@@ -3,8 +3,10 @@
 Complete sessions you can type line by line. Output is what the terminal shows; result
 chips are written as plain words.
 
-Each example starts from a fresh tab, except that examples 1, 2 and 8 run in sequence:
-the second uses the directory the first made, and the last clears up after both.
+Each example starts from a fresh tab, except that examples 1, 2, 3 and 8 run in
+sequence: the second uses the directory the first made, the third lists it, and the
+last clears up after them. The [programs](#programs) at the end each start from a fresh
+tab too.
 
 ## 1. Edit a file and take it back
 
@@ -136,7 +138,7 @@ Run it again and press Stop after a moment:
 ```
 $ progress
 9%
-====>
+==>
 Cancelled at 9%
 Stopped.
 ```
@@ -166,7 +168,7 @@ $ <a></b>
 Closing tag 'b' does not match opening tag 'a'
 
 $ echo --double
-Syntax error at column 5: expected argument, end of input, ", "", """, $, <, <$, {, |.
+Syntax error at column 5: expected argument, end of input, identifier, ", "", """, $, (, <, <$, ??, else, not, {, |.
 ```
 
 The column is a zero-based offset into the line, and the list is what the grammar could
@@ -225,7 +227,7 @@ $ mkdir journal
 journal
 
 $ cd journal
-/journal
+journal
 
 $ save <note name=monday mood=good tag=work/>
 monday
@@ -320,7 +322,8 @@ Undone: set answer 42
 ```
 
 `cat examples/tables.clr` shows the program. `journal.clr`, `resilient.clr` and
-`inventory.clr` run too, and are the subjects of examples 11, 12 and 13.
+`inventory.clr` run too: [Programs](#programs) has all four, and examples 11, 12 and 13
+take the ideas in the last three a line at a time.
 
 ## 11. A question is somewhere you can be
 
@@ -565,8 +568,8 @@ $ from-xml items.xml | sort qty desc | first
 
 $ ls
 name         kind  folder  size  modified
-items.xml    xml   /stock  168   2026-09-22T20:29:03.0152650+00:00
-reorder.csv  csv   /stock  19    2026-09-22T20:29:03.0832217+00:00
+items.xml    xml   /stock  168   2026-09-22T09:30:00.0000000+00:00
+reorder.csv  csv   /stock  19    2026-09-22T09:30:00.0000000+00:00
 ```
 
 Both files have the kind of what is in them. Writing one is a line like any other, so
@@ -585,3 +588,217 @@ Redone: from-xml items.xml | where $row.qty lt $row.min | sort qty | select sku 
 
 [Reading and writing files](tables.md#reading-and-writing-files) is the guide, and
 `run examples/inventory.clr` is the same program in one go.
+
+## Programs
+
+Four programs are seeded into `/examples`, one for each pillar of the design. Each is
+one screen long and is also an acceptance test: the
+[implementation plan](plan/examples.md) states what every line must answer, and the
+test suite and the browser check hold the terminal to it. `cat` shows a program and
+`run` executes it. Each output below is from a fresh tab.
+
+`run` echoes each line with `> ` in front of it, then that line's result. Every line
+commits its own transaction, so `undo` afterwards steps back through a program a line
+at a time. The last line's result appears twice: once while the program runs, and once
+more as the result of `run` itself. Blank lines and lines starting with `#` are
+skipped.
+
+### tables.clr
+
+Every listing is a table, and a table can be filtered, counted, sorted and cut down
+without leaving the line. The program also binds two variables and asks `help` a
+question, because `vars` and `help` are tables too.
+
+```
+# Tables from the filesystem: every listing is a table, every table can be queried.
+# Needs Phase 3.
+ls
+ls | where $row.kind eq folder | count
+ls | sort name desc | first
+ls | select name kind | take 2
+set greeting hello
+set answer 42
+vars
+help | where $row.name eq set | select name description
+```
+
+Its output is in [example 10](#10-run-an-example-program), which runs it and then
+steps back with `undo`.
+
+### journal.clr
+
+A journal kept as attribute records. `save` turns a tag into a file, so `mood` and
+`tag` become columns. `attr` changes one of them, `find` and `cd` ask a question across
+directories, and `undo` restores a deleted record with its attributes, which `history`
+then counts as undone. [Example 11](#11-a-question-is-somewhere-you-can-be) takes views
+more slowly.
+
+```
+# A journal kept as attribute records, queried as views, protected by the event log.
+# Needs Phase 4.
+mkdir journal
+cd journal
+save <note name=monday mood=good tag=work/>
+save <note name=tuesday mood=tired tag=work/>
+save <note name=saturday mood=great tag=home/>
+echo "Stand-up moved to ten." | write monday
+cat monday
+attr tuesday mood=better
+ls
+find $row.kind eq note and $row.tag eq work | count
+cd $row.mood eq great
+ls
+up
+rm tuesday
+undo
+history | where $row.undone eq true | count
+```
+
+```
+$ run examples/journal.clr
+> mkdir journal
+journal
+> cd journal
+journal
+> save <note name=monday mood=good tag=work/>
+monday
+> save <note name=tuesday mood=tired tag=work/>
+tuesday
+> save <note name=saturday mood=great tag=home/>
+saturday
+> echo "Stand-up moved to ten." | write monday
+monday
+> cat monday
+Stand-up moved to ten.
+> attr tuesday mood=better
+tuesday
+> ls
+name      kind  folder    size  modified                           mood    tag
+monday    note  /journal  22    2026-09-22T09:30:00.0000000+00:00  good    work
+saturday  note  /journal  0     2026-09-22T09:30:00.0000000+00:00  great   home
+tuesday   note  /journal  0     2026-09-22T09:30:00.0000000+00:00  better  work
+> find $row.kind eq note and $row.tag eq work | count
+2
+> cd $row.mood eq great
+$row.mood eq great
+> ls
+name      kind  folder    size  modified                           mood   tag
+saturday  note  /journal  0     2026-09-22T09:30:00.0000000+00:00  great  home
+> up
+/journal
+> rm tuesday
+Removed tuesday
+> undo
+Undone: rm tuesday
+> history | where $row.undone eq true | count
+1
+1
+```
+
+### resilient.clr
+
+Failure as a value: `else` recovers, `try` keeps a fault to read later, `??` gives a
+default for nothing, and a pipeline in parentheses answers a value. The last lines show
+that a failed branch leaves nothing behind. [Example 12](#12-recover-without-leaving-the-line)
+walks through it a line at a time.
+
+```
+# Failure is a value: recover with else, inspect with try, default with ??.
+# Needs Phase 5.
+cat notes-from-yesterday.txt else echo "starting fresh"
+cat notes-from-yesterday.txt else echo "starting fresh" | write today.txt
+cat today.txt
+try cat nowhere.txt | set problem
+echo $problem.kind
+echo $problem.message
+first (ls | where $row.kind eq view) ?? "no views yet"
+first (ls | where $row.kind eq view) ?? "no views yet" | set latest
+echo $latest
+mkdir today | cd nowhere else echo "the whole line was rolled back"
+ls
+```
+
+```
+$ run examples/resilient.clr
+> cat notes-from-yesterday.txt else echo "starting fresh"
+starting fresh
+> cat notes-from-yesterday.txt else echo "starting fresh" | write today.txt
+today.txt
+> cat today.txt
+starting fresh
+> try cat nowhere.txt | set problem
+File does not exist : /nowhere.txt
+> echo $problem.kind
+NotFound
+> echo $problem.message
+File does not exist : /nowhere.txt
+> first (ls | where $row.kind eq view) ?? "no views yet"
+no views yet
+> first (ls | where $row.kind eq view) ?? "no views yet" | set latest
+no views yet
+> echo $latest
+no views yet
+> mkdir today | cd nowhere else echo "the whole line was rolled back"
+the whole line was rolled back
+> ls
+name        kind    folder  size  modified
+documents   folder  /       0     2026-09-22T09:30:00.0000000+00:00
+examples    folder  /       0     2026-09-22T09:30:00.0000000+00:00
+projects    folder  /       0     2026-09-22T09:30:00.0000000+00:00
+readme.txt  text    /       41    2026-09-22T09:30:00.0000000+00:00
+today.txt   text    /       14    2026-09-22T09:30:00.0000000+00:00
+name        kind    folder  size  modified
+documents   folder  /       0     2026-09-22T09:30:00.0000000+00:00
+examples    folder  /       0     2026-09-22T09:30:00.0000000+00:00
+projects    folder  /       0     2026-09-22T09:30:00.0000000+00:00
+readme.txt  text    /       41    2026-09-22T09:30:00.0000000+00:00
+today.txt   text    /       14    2026-09-22T09:30:00.0000000+00:00
+```
+
+### inventory.clr
+
+A tag whose children share a type is a table. The program writes one out as an XML
+file, reads it back, asks which items are below their minimum, and exports the answer
+as CSV. [Example 13](#13-keep-a-table-in-a-file) walks through it a line at a time.
+
+```
+# Stock levels as a table: built from a tag, saved as XML, queried, exported as CSV.
+# Needs Phase 6.
+mkdir stock
+cd stock
+<items><item sku=A1 name=bolts qty=120 min=50/><item sku=B2 name=nuts qty=12 min=40/><item sku=C3 name=washers qty=0 min=20/></items> | to-xml items.xml
+from-xml items.xml | count
+from-xml items.xml | where $row.qty lt $row.min | sort qty | select sku name qty min
+from-xml items.xml | where $row.qty lt $row.min | sort qty | select sku qty | to-csv reorder.csv
+from-csv reorder.csv | count
+cat reorder.csv
+from-xml items.xml | sort qty desc | first
+```
+
+```
+$ run examples/inventory.clr
+> mkdir stock
+stock
+> cd stock
+stock
+> <items><item sku=A1 name=bolts qty=120 min=50/><item sku=B2 name=nuts qty=12 min=40/><item sku=C3 name=washers qty=0 min=20/></items> | to-xml items.xml
+items.xml
+> from-xml items.xml | count
+3
+> from-xml items.xml | where $row.qty lt $row.min | sort qty | select sku name qty min
+sku  name     qty  min
+C3   washers  0    20
+B2   nuts     12   40
+> from-xml items.xml | where $row.qty lt $row.min | sort qty | select sku qty | to-csv reorder.csv
+reorder.csv
+> from-csv reorder.csv | count
+2
+> cat reorder.csv
+sku,qty
+C3,0
+B2,12
+
+> from-xml items.xml | sort qty desc | first
+<row sku=A1 name=bolts qty=120 min=50/>
+<row sku=A1 name=bolts qty=120 min=50/>
+```
