@@ -10,7 +10,7 @@ the page's rather than the language's.
 | Title bar | The project name, and a status that reads `wasm` in green once the runtime has loaded. |
 | Scrollback | Every command you have run, with its live output, errors and results. |
 | Token inspector | One line above the input, naming the role of the word you last tapped. |
-| Location line | Where you are: a directory as its path, or a view as the question it is. Anywhere but the root, an `up` button comes before it. |
+| Location line | Where you are: a directory as its path, or a view as the question it is. Undo (↶) and redo (↷) buttons always come before it, and anywhere but the root an `up` button too. |
 | Input | A transparent text field over a coloured mirror of what you type. |
 | Run button | Runs the line. It becomes a red Stop button while a command is running. |
 | Completion row | Appears while you type, offering commands, variables, columns, operators, keywords and paths. |
@@ -116,6 +116,12 @@ At the root with no view there is nowhere to go up to, and no button. Anywhere e
 one thing at a time: the view first, then the directory. It is the page's answer to a
 listing having nowhere to put a parent row — every row of a table is a record, and
 `up` is not one.
+
+Before them both are two buttons that are always there: ↶ runs
+[`undo`](commands.md#undo) and ↷ runs [`redo`](commands.md#redo). They do exactly what
+typing the command does — the entry the undo takes back leaves the screen, and redo
+puts it back where it was — and they leave anything you were halfway through typing in
+the input. The `up` button does the same.
 
 ## Live listings
 

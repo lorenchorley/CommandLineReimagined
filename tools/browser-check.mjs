@@ -514,7 +514,7 @@ async function main() {
       await page.waitForSelector('#prompt .up', { timeout: 10000 });
       await page.locator('#prompt .up').click();
       await page.waitForFunction(
-        () => document.getElementById('prompt').innerText.trim() === '/', null, { timeout: 10000 });
+        () => document.getElementById('where').innerText.trim() === '/', null, { timeout: 10000 });
     } catch {
       note('below the root the location line does not offer a working `up`');
       await submit(page, 'up');
@@ -522,6 +522,38 @@ async function main() {
 
     await runScript(page, SCRIPT, note);
     console.log(`Ran ${SCRIPT.length} lines.`);
+
+    // Undo and redo sit beside `up`, at the root too. A tap is the line it stands for,
+    // so the entry it takes back goes and comes back, and what was being typed stays.
+    await submit(page, 'mkdir tapped');
+    await page.fill('#cmd', 'half typed');
+
+    const tap = async id => {
+      const before = await page.evaluate(() => Number(document.body.dataset.finished || 0));
+      await page.locator(`#prompt #${id}`).click();
+      await page.waitForFunction(
+        count => Number(document.body.dataset.finished || 0) > count &&
+                 document.querySelectorAll('.entry.running').length === 0,
+        before, { timeout: 10000 });
+    };
+
+    const standing = () => page.evaluate(() =>
+      [...document.querySelectorAll('.entry:not(.undone) .echo')]
+        .some(echo => echo.innerText.includes('mkdir tapped')));
+
+    try {
+      await tap('undo');
+      if (await standing()) note('tapping the undo button left `mkdir tapped` on screen');
+      await tap('redo');
+      if (!await standing()) note('tapping the redo button did not bring `mkdir tapped` back');
+
+      const kept = await page.inputValue('#cmd');
+      if (kept !== 'half typed') note(`tapping undo and redo left the input as ${JSON.stringify(kept)}`);
+    } catch {
+      note('the location line does not offer working undo and redo buttons');
+    }
+
+    await page.fill('#cmd', '');
 
     // ---- Phase 3: tables, predicates and the example program -----------------
 
@@ -537,7 +569,7 @@ async function main() {
 
     // The location line says which of the two ways of being somewhere this is.
     await submit(page, 'cd $row.kind eq folder');
-    const viewing = (await page.locator('#prompt').innerText()).trim();
+    const viewing = (await page.locator('#where').innerText()).trim();
 
     if (!viewing.includes('view:') || !viewing.includes('$row.kind eq folder')) {
       note(`in a view the location line reads ${JSON.stringify(viewing)}`);
@@ -545,7 +577,7 @@ async function main() {
 
     await page.locator('#prompt .up').click();
     await page.waitForFunction(
-      () => document.getElementById('prompt').innerText.trim() === '/', null, { timeout: 10000 });
+      () => document.getElementById('where').innerText.trim() === '/', null, { timeout: 10000 });
 
     // A listing keeps itself up to date: `mkdir` in the next entry adds a row to the
     // table above it, without that entry being re-run by hand.

@@ -149,10 +149,12 @@
   #detail { font-size:11px; color:var(--dim); min-height:16px; margin-bottom:4px; }
   #prompt { font-size:11px; color:var(--dim); margin-bottom:4px; word-break:break-all;
             display:flex; align-items:center; gap:6px; min-height:22px; }
-  #prompt .up {
+  #prompt .up, #prompt .step {
     font:11px ui-monospace,monospace; padding:3px 9px; border-radius:6px; background:var(--panel);
     color:var(--type); border:1px solid var(--line); font-weight:600;
   }
+  /* Undo and redo are the arrows alone, so they are drawn a size up to read as glyphs. */
+  #prompt .step { font:600 17px/16px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; padding:2px 10px; color:var(--fg); }
   /* A view reads as the question it is, with the folder it was entered from behind it. */
   #prompt .viewing { color:var(--operator); font-weight:600; }
   #prompt .predicate { color:var(--member); }
@@ -727,7 +729,7 @@ function afterRun(text) {
 }
 
 /*
-  Where you are, and the one way out of it.
+  Where you are, the one way out of it, and the two ways back through what you did.
 
   A listing is a table of records from Phase 3, and a table has nowhere to put the `up`
   entry that used to head one: every row is a record, and `up` is not. It lives here
@@ -737,6 +739,10 @@ function afterRun(text) {
   view reads as the question it is, with the folder it was entered from behind it,
   because that is still where a new file would land. `up` leaves the view first and the
   folder second, in the order they were entered.
+
+  Undo and redo sit before it and are there everywhere, the root included: there is
+  always a last line to take back. They run the `undo` and `redo` commands, so what
+  they do is exactly what typing them does, entry hidden and brought back included.
 */
 async function refreshPrompt() {
   if (!ready) return;
@@ -749,11 +755,25 @@ async function refreshPrompt() {
 
   const canGoUp = !!location.view || location.folder !== '/';
 
-  $('prompt').innerHTML = canGoUp
-    ? `<button class="up" id="up">up</button> ${where}`
-    : where;
+  $('prompt').innerHTML =
+    '<button class="step" id="undo" title="undo" aria-label="undo">\u21B6</button>' +
+    '<button class="step" id="redo" title="redo" aria-label="redo">\u21B7</button>' +
+    (canGoUp ? '<button class="up" id="up">up</button> ' : ' ') +
+    `<span id="where">${where}</span>`;
 
-  if (canGoUp) $('up').onclick = () => { cmd.value = 'up'; run(); };
+  $('undo').onclick = () => press('undo');
+  $('redo').onclick = () => press('redo');
+  if (canGoUp) $('up').onclick = () => press('up');
+}
+
+/// Runs a button as the line it stands for, and puts back whatever was being typed:
+/// tapping undo half way through writing a line should not cost you the line.
+async function press(line) {
+  if (running || !ready) return;
+  const typed = cmd.value;
+  cmd.value = line;
+  await run();
+  if (!cmd.value && typed) { cmd.value = typed; refreshMirror(); refreshCompletions(); }
 }
 
 // ---- input handling -------------------------------------------------------

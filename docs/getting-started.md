@@ -110,7 +110,7 @@ readme.txt  text    /       41    2026-09-22T09:30:00.0000000+00:00
 That is a table, not a block of text: on the page it is drawn as one, and tapping a
 cell inserts it into the input, which saves typing a path on a phone. Tapping a column
 header re-sorts what is on screen. Below the root the location line offers an `up`
-button.
+button, and it always has ↶ and ↷ for undo and redo.
 
 A listing is a value you can question:
 
