@@ -102,3 +102,19 @@ jobs:
           # rather than embedded in it. If it ever goes back to being an
           # EmbeddedResource, the browser download balloons and this catches it.
           [ "$bytes" -lt 20971520 ] || { echo "payload over 20 MB; is the search data embedded in Terminal.dll again?"; exit 1; }
+
+      # The test suites prove the core; this proves the page. It is the only check
+      # that runs the published client in a browser, so it is the only one that can
+      # catch a stale interop name, a renderer that drops a field, a console error
+      # nobody sees, or a chip too small to tap.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install Playwright
+        run: |
+          npm install --no-save playwright
+          npx playwright install --with-deps chromium
+
+      - name: Check the page in a browser
+        run: node tools/browser-check.mjs wasm-publish/wwwroot

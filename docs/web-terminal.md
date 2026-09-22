@@ -33,7 +33,7 @@ parse, and the mirror shows plain text rather than complaining.
 | Tab | Apply the only completion, or extend to the common prefix of several. |
 | Escape | Stop a running command. |
 
-History keeps what you actually submitted, including `help`, `clear` and `undo`.
+History keeps what you actually submitted, including `help` and `clear`.
 
 ## Completions
 
@@ -80,17 +80,32 @@ Stopping is cooperative: the command is asked to cancel, writes whatever it want
 say about being interrupted, and the terminal adds `Stopped.` So a stopped `progress`
 shows both its own `Cancelled at 9%` and the terminal's `Stopped.`
 
+## How a failure looks
+
+A failed line shows its message in red, with a small tag before it naming what sort of
+failure it was: `notfound`, `conflict`, `binding` and so on. The message is the sentence
+that has always been there; the tag is what lets you tell a missing file from a name
+already taken at a glance. The [error reference](errors.md) lists every kind.
+
+Nothing the line did survives. A line is one transaction, so `mkdir a | cd nowhere`
+leaves no folder behind.
+
 ## Words the page handles itself
 
-Three words never reach the evaluator:
+Two words never reach the evaluator, because both are about the screen rather than
+about the filesystem:
 
 | Word | Effect |
 | --- | --- |
-| `help` | Lists every command with its parameters and description, generated from the command definitions. |
-| `clear` | Empties the scrollback. It does not touch the filesystem, the variables or the undo history. |
-| `undo` | Reverses the last command and reports which one it was. |
+| `help` | Lists every command with its parameters and description, generated from the command specifications. |
+| `clear` | Empties the scrollback. It does not touch the filesystem, the variables or the log. |
 
 They also appear in completions, so typing `cl` offers `clear` alongside real commands.
+
+`undo` used to be a third. It is a real command now, along with `redo` and `history`,
+so it goes through the evaluator like everything else and can be piped. That also means
+the desktop shell and the browser get the same three, rather than each having its own
+half of the feature.
 
 ## Tapping a word
 
@@ -118,3 +133,9 @@ fetch over the network and is therefore subject to the remote host's CORS policy
 The runtime is about 15 MB across 121 files on a first visit, and is cached by
 the browser afterwards. Until it is ready the input stays disabled and the status reads
 `starting…`. If it cannot load, the status turns red and reads `failed to load`.
+
+Once the runtime is up the page replays the session's log before enabling the input,
+showing `restoring…` while it does. It is instant today, because the log lives in
+memory for the length of the session. The wait exists so that persistence can be added
+without the page ever showing an empty filesystem that is not actually empty: an empty
+one and a lost one look identical, so the page refuses to guess.

@@ -18,8 +18,13 @@ command below. `UnknownCommand` **must** be registered by any host that wants an
 unrecognised name reported as a normal failure; see
 [Resolving a command](execution-model.md#resolving-a-command).
 
-`debug` requires the entity component system and **must not** be registered by a host
-without one.
+There are no host-specific commands. `debug`, which required the entity component
+system, was dropped when the command layer moved to the core; a host that wants it
+supplies it.
+
+Every command below returns events rather than changing anything. The `Undo` rows say
+what reversing the line does, which is a consequence of the events, not a method the
+command implements.
 
 ## Navigation
 
@@ -29,12 +34,15 @@ without one.
 | --- | --- |
 | Name | `ls` |
 | Parameters | `path` (optional, flag `path`) |
-| Returns | `ListValue` of `PathValue` |
+| Returns | `List` of `File` |
 | Undo | none |
 
-Lists `path`, or the current directory. The list **must** be ordered: the parent entry
-first when the current directory is not the filesystem root, then directories, then
-files. Entry order within each group follows the filesystem.
+Lists `path`, or the current folder. The list **must** be ordered: the parent entry
+first when the folder being listed is not the root, then folders, then files, each
+group ordered by name with an ordinal comparison.
+
+This ordering is normative. It previously said entry order "follows the filesystem",
+which meant it was whatever the host happened to return and could not be tested at all.
 
 Errors: `Directory does not exist : <path>`.
 
@@ -44,7 +52,7 @@ Errors: `Directory does not exist : <path>`.
 | --- | --- |
 | Name | `cd` |
 | Parameters | `TargetPath` (piped) |
-| Returns | `PathValue` of the new current directory |
+| Returns | `Text` of the new current folder's path |
 | Undo | returns to the previous directory |
 
 The target **must** be normalised, so `cd ..` yields the parent's real path.
@@ -57,7 +65,7 @@ Errors: `Directory does not exist : <target>`, quoting the target as written.
 | --- | --- |
 | Name | `up` |
 | Parameters | none |
-| Returns | `PathValue` of the new current directory |
+| Returns | `Text` of the new current folder's path |
 | Undo | returns to the previous directory |
 
 At the filesystem root, moving up **must** leave the current directory unchanged and
@@ -71,7 +79,7 @@ under WebAssembly is the page's in-memory one.
 | --- | --- |
 | Name | `pwd` |
 | Parameters | none |
-| Returns | `PathValue` of the current directory |
+| Returns | `Text` of the current folder's path |
 | Undo | none |
 
 ## Files
@@ -93,7 +101,7 @@ Errors: `That is a directory, not a file : <path>`, `File does not exist : <path
 | --- | --- |
 | Name | `write` |
 | Parameters | `path`, `text` (piped) |
-| Returns | `PathValue` of the file |
+| Returns | `File` |
 | Undo | restores the previous contents, or deletes a file that did not exist |
 
 The text written is the value's **display** string, so writing a list writes what the
@@ -124,7 +132,7 @@ Errors: `Directory is not empty : <path>`, `Cannot delete the current directory.
 | --- | --- |
 | Name | `cp` |
 | Parameters | `sourcePathAndFile`, `targetPath` |
-| Returns | `PathValue` of the new file |
+| Returns | `File` |
 | Undo | deletes the copy |
 
 The copy keeps the source's file name. Overwriting is refused.
@@ -138,10 +146,49 @@ Errors: `File does not exist : <source>`,
 | --- | --- |
 | Name | `mkdir` |
 | Parameters | `FolderName` |
-| Returns | `PathValue` of the new directory |
+| Returns | `File` of the new folder |
 | Undo | deletes it |
 
-Errors: `Target directory already exists : <path>`.
+Errors: `Target directory already exists : <path>`, including when the name is taken by
+a file, since names are unique within a folder across files and folders together
+([decision 0016](../decisions/0016-folders-as-records.md)).
+
+## Attributes
+
+### attr
+
+| Field | Value |
+| --- | --- |
+| Name | `attr` |
+| Parameters | `path` (piped), `assignments` (kind `Assignments`) |
+| Returns | `List` of `Text` with no assignments, otherwise the `File` |
+| Undo | restores every attribute the record had |
+
+With no assignments it **must** return one `Text` per attribute, formatted
+`name = value`. With assignments it emits `AttributesChanged` and returns the file.
+
+`name` and `kind` may be written and **must** be validated: renaming onto a name
+already used in the folder is a `Conflict`. `folder`, `created` and `modified` are the
+runtime's and **must** be refused.
+
+Errors: `File does not exist : <path>`, `'<name>' is set by the terminal and cannot be
+written.`, `Target file already exists : <path>`.
+
+### save
+
+| Field | Value |
+| --- | --- |
+| Name | `save` |
+| Parameters | `tag` (piped) |
+| Returns | `File` |
+| Undo | deletes the record |
+
+Creates a record from an object tag. The tag's type name becomes `kind`, its `name`
+attribute becomes `name`, and every other attribute is copied across. The record has no
+content, so `cat` on it **must** return empty text rather than failing.
+
+Errors: `A saved tag needs a 'name' attribute.`, `Target file already exists : <path>`,
+`'save' needs a tag, not <kind>.`
 
 ## Values
 
@@ -213,7 +260,7 @@ filesystem.
 | --- | --- |
 | Name | `download` |
 | Parameters | `url` (optional), `into` (optional, default the current directory) |
-| Returns | `PathValue` of the downloaded file |
+| Returns | `File` |
 | Undo | deletes the file |
 
 Writes three output lines and updates them in place: a percentage, a bar and a rate in
@@ -252,7 +299,38 @@ nothing to close **may** do nothing.
 
 Raises `Unknown command : <name>`. It is not offered in listings or completion.
 
-### debug
+### undo
 
-Desktop shell only. Writes the entity and component tree to a file, and can open it.
-Parameters: `open` (optional).
+| Field | Value |
+| --- | --- |
+| Name | `undo` |
+| Parameters | none |
+| Returns | `Text` naming the line it reversed, or `Nothing to undo.` |
+| Meta | yes |
+
+Reverses the latest undoable, uncompensated line. Having nothing to undo **must not**
+be a fault.
+
+### redo
+
+| Field | Value |
+| --- | --- |
+| Name | `redo` |
+| Parameters | none |
+| Returns | `Text` naming the line it restored, or `Nothing to redo.` |
+| Meta | yes |
+
+Reverses the latest undo that has not itself been reversed, and **must** name the
+original line rather than the undo. Having nothing to redo **must not** be a fault.
+
+### history
+
+| Field | Value |
+| --- | --- |
+| Name | `history` |
+| Parameters | none |
+| Returns | `List` of `Text`, or `Text "Nothing has happened yet."` |
+| Meta | yes |
+
+One line per transaction, oldest first, formatted `<seq>  <HH:mm:ss>  <source>`, with
+`  (undone)` appended where the line's effect is not currently in force.

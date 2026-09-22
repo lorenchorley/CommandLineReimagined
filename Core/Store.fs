@@ -39,10 +39,26 @@ type Store(log: ILog, clock: unit -> DateTimeOffset) =
         |> List.sortByDescending (fun t -> t.Seq)
         |> List.tryHead
 
+    /// <summary>Whether a transaction is an undo, as opposed to a redo.</summary>
+    /// <remarks>
+    /// Both are compensations; what tells them apart is what they compensate. An undo
+    /// reverses a line someone ran, a redo reverses an undo. Without the distinction
+    /// `redo` would find the redo it just appended and reverse that, so pressing it
+    /// twice would put the change back and then take it away again, for ever.
+    /// </remarks>
+    let isUndo (transaction: Transaction) =
+        match transaction.Compensates with
+        | Option.None -> false
+        | Some target ->
+            transactions
+            |> List.tryFind (fun candidate -> candidate.Seq = target)
+            |> Option.map (fun candidate -> not (isCompensation candidate))
+            |> Option.defaultValue false
+
     /// The latest undo that has not itself been undone.
     let redoTarget () =
         transactions
-        |> List.filter (fun t -> t.Undoable && isCompensation t && not (isCompensated transactions t))
+        |> List.filter (fun t -> t.Undoable && isUndo t && not (isCompensated transactions t))
         |> List.sortByDescending (fun t -> t.Seq)
         |> List.tryHead
 

@@ -9,14 +9,23 @@ behaviour that would otherwise look arbitrary.
 ```
 text ──▶ parser ──▶ semantic tree ──┬──▶ tokens ──▶ coloured on screen
                                     │
-                                    └──▶ evaluator ──▶ runtime value ──▶ rendered result
-                                              │
-                                              ├──▶ output sink (live lines)
-                                              └──▶ history (undo)
+                                    └──▶ evaluator ──▶ value ──▶ rendered result
+                                              │          events
+                                              │            │
+                                              │            ▼
+                                              │          store ──▶ log ──▶ projection
+                                              │                              │
+                                              └──▶ output sink (live lines)  └──▶ files,
+                                                                                 variables,
+                                                                                 where you are
 ```
 
 The text is parsed once. Everything afterwards works on the tree or on values, never on
 the text again.
+
+A command does not change anything. It reads the projection, returns a value and a list
+of events, and the evaluator commits them. The filesystem is what those events add up
+to.
 
 ## Parsing
 
@@ -44,21 +53,22 @@ every run of characters on screen knows what it is.
 
 ## Values, not text
 
-A command returns a `RuntimeValue`. The kinds are:
+A command returns a `Value`. The kinds are:
 
 | Value | Produced by | Displays as |
 | --- | --- | --- |
 | Empty | a command with no result | nothing |
+| None | an answer that is "there is nothing" | nothing |
 | Text | `cat`, `echo "x"` | the text |
 | Number | `echo 42`, `progress` | the number |
 | Boolean | a flag with no value | `true` or `false` |
-| Path | `ls`, `cd`, `mkdir`, `write` | the entry's name |
-| List | `ls`, `vars` | its items, space separated |
+| File | `ls`, `mkdir`, `write`, `attr`, `save` | the record's name |
+| List | `ls`, `vars`, `history` | its items, space separated |
 | Object | `<thing a=1/>` | the tag as written |
 | Component | `{renderer/}` | the tag as written |
 
 Every value answers two questions: how it should read to a human, and what it means as
-an argument to another command. A path displays as `documents` and argues as
+an argument to another command. A file displays as `documents` and argues as
 `/home/terminal/documents`. That single distinction is what makes `ls | cd` work
 without any quoting rules.
 
@@ -101,21 +111,45 @@ tested headlessly. It is also why long-running commands work in WebAssembly at a
 In the browser the event is coalesced to about one update every 40 milliseconds and
 pushed into the page, which is what you see moving while a command runs.
 
+## Events, and what a line is
+
+A command returns *events*: what it did, described. `mkdir alpha` returns "a record was
+created"; `write note.txt hello` returns "a record was created" and "its content
+changed from nothing to this hash". Nothing has happened yet when the command returns.
+
+The evaluator runs a line's stages left to right, accumulating events into a working
+copy of the projection so that a later stage sees an earlier one's effect — which is
+what makes `mkdir scratch | cd` land in the new folder. If every stage succeeds, the
+accumulated events are appended to the log as **one transaction**, named by the line
+you typed. If any stage fails, nothing is appended at all.
+
+That is the rule worth remembering: **a line is all or nothing**. `mkdir a | cd nowhere`
+leaves no folder `a` behind. You do not have to know how many stages ran before the
+failure in order to clean up, because nothing ran, as far as the store is concerned.
+
+A line that produces no events commits nothing. `ls` and `pwd` leave no transaction.
+
 ## Undo
 
-Every executed command is pushed onto a history stack together with its invocation: the
-arguments it bound, the scope it ran in and the output it wrote. Undo pops one entry and
-asks that command to reverse itself.
+The log only grows. Undoing does not remove a transaction: it appends a new one whose
+events are the originals inverted and reversed, marked as compensating the one it
+reverses. Redo compensates the compensation.
 
-Three consequences are worth knowing:
+Every event carries both sides of its change — a content change carries the old hash
+and the new one — so inverting is exact and needs nothing but the event itself.
 
-- **Undo is one command at a time, not one change at a time.** Read-only commands are on
-  the stack too, so undoing after `ls` undoes the `ls`, which correctly changes nothing.
-  The terminal names what it undid so this is visible.
-- **Each execution has its own undo state.** A command instance is created per
-  execution, so undoing `set v 1` then `set v 2` unwinds both bindings in turn.
-- **A long-running command undoes in two steps.** The first undo cancels it and leaves
-  its output on screen; a second undo clears that output.
+What follows from this:
+
+- **Undo is one line at a time, not one command at a time.** `undo` reverses the last
+  line that changed something, and names it: `Undone: write note.txt second`.
+- **A line that changed nothing is not in the way.** After `mkdir alpha` then `ls`,
+  `undo` reverses the `mkdir`. The `ls` left no transaction to step over.
+- **Redo is not a second mechanism.** It is undo applied to an undo, which is why
+  `undo`, `redo`, `undo` leaves you where the first `undo` did.
+- **`history` shows the lines that changed something**, oldest first, with `(undone)`
+  against any whose effect is not currently in force.
+- **The seed cannot be undone.** What the session started with is recorded and shown,
+  but it is not a line you typed, so `undo` stops before it.
 
 ## Scope
 
@@ -123,13 +157,20 @@ Variables live in a scope, which can nest and shadow. Today the terminal uses on
 scope for a session, and `vars` lists everything visible from it. The mechanism exists
 for nested scopes; the shell does not yet create them.
 
+A binding is an event like any other, which is why undoing `set` restores what was
+bound before, and why `set v 1`, `set v 2`, undo, undo leaves `$v` unbound rather than
+back at 1.
+
 ## Where the filesystem comes from
 
-The commands use ordinary .NET file APIs. Under WebAssembly those calls land on
-Emscripten's in-memory filesystem, which lives in the tab, so `mkdir` really does create
-a directory in a real tree that a later `ls` reads back. It disappears when the tab does.
+There is no disk. A file is a record: a set of typed attributes, and optionally some
+content. `name`, `kind` and `folder` are three attributes among them, and a folder is
+simply a record whose `kind` is `folder`. `attr` shows them all and writes new ones.
 
-The desktop shell and the tests use the same commands against the real disk.
+The whole filesystem is a projection folded from the log, so it lives wherever the log
+does — today, in memory for the length of the session. Content is stored by the hash of
+its text, so keeping the previous version of a file costs nothing and undoing a write
+is just pointing at the old hash again.
 
 ## The pieces, by project
 
@@ -137,12 +178,13 @@ The desktop shell and the tests use the same commands against the real disk.
 | --- | --- |
 | `Parser.FParsec` | The grammar and the parser (F#). |
 | `Parser.Tree` | The semantic tree, the visitors and parser errors. |
-| `CommandLine` (assembly `Terminal`) | Execution: values, binder, evaluator, history, scope, output interfaces. |
-| `Commands` | The command implementations. |
-| `Web.Core` | A terminal session, parse service and tokeniser shared by both web front ends. |
+| `Core` (assembly `CommandLineReimagined.Core`) | Everything the language means, in F#: values, faults, events, the store, the binder, the evaluator, every command, the session. |
+| `CommandLine` (assembly `Terminal`) | The desktop shell over the entity component system. |
+| `Web.Core` | The adapter from the core to JSON, plus the parse service and tokeniser shared by both web front ends. |
 | `WebClient` | The WebAssembly client and its JavaScript bridge. |
 | `Web` | An ASP.NET host serving the client, `/api/parse` and a WebSocket. |
 | `CommandLineReimagined` | The Windows desktop shell, built on the entity component system. |
 
-The layering rule is that execution depends on interfaces, not on a user interface. That
-is what lets the same commands run in a window, in a browser tab and in a test.
+The layering rule is that the core depends on the parser and on nothing else. It knows
+nothing about the entity component system, rendering, WPF, Blazor or JavaScript, and it
+is what lets the same semantics run in a window, in a browser tab and in a test.

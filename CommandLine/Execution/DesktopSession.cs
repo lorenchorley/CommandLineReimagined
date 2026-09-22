@@ -1,6 +1,5 @@
 using System.Net.Http;
 using CommandLineReimagined.Core;
-using Microsoft.FSharp.Core;
 
 namespace Terminal.Execution;
 
@@ -23,15 +22,14 @@ public static class DesktopSession
 
     public static Session Create(IApplicationLifetime lifetime)
     {
-        var options = new SessionOptions(
-            clock: FuncConvert.FromFunc<DateTimeOffset>(() => DateTimeOffset.UtcNow),
-            newId: FuncConvert.FromFunc(() => Guid.NewGuid().ToString().ToLowerInvariant()),
-            httpClient: FuncConvert.FromFunc(() => HttpClient),
-            exit: FuncConvert.FromAction(lifetime.Shutdown));
+        // Plain delegates; the core converts them. See the note in the browser adapter
+        // on why FuncConvert is not used here.
+        var options = SessionOptionsModule.ofDelegates(
+            () => DateTimeOffset.UtcNow,
+            () => Guid.NewGuid().ToString().ToLowerInvariant(),
+            () => HttpClient,
+            lifetime.Shutdown);
 
-        return new Session(
-            new InMemoryLog(),
-            options,
-            SeedModule.standard(options.NewId, options.Clock));
+        return new Session(new InMemoryLog(), options, SessionOptionsModule.standardSeed(options));
     }
 }

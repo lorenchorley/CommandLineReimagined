@@ -3,53 +3,58 @@
 Normative semantics: the value model, how arguments bind, how a pipeline runs, how tags
 evaluate, and what undo and cancellation guarantee.
 
-Reference implementation: `CommandLine/Execution` (assembly `Terminal`).
+Reference implementation: `Core` (assembly `CommandLineReimagined.Core`).
 
-## Runtime values
+## Values
 
-A command returns a `RuntimeValue`. Every value answers two questions: how it reads to
-a person, and what it means as an argument to another command.
+A command returns a `Value`. Every value answers two questions: how it reads to a
+person, and what it means as an argument to another command.
 
 | Value | Carries | Display string | Argument string |
 | --- | --- | --- | --- |
-| `EmptyValue` | nothing | empty | empty |
-| `TextValue` | `Text` | the text | the text |
-| `NumberValue` | `Number` (double) | `0.###`, invariant culture | same |
-| `BooleanValue` | `Boolean` | `true` or `false` | same |
-| `PathValue` | `Path`, `Kind` | the entry name, plus `\` for a directory | the full path |
-| `ListValue` | `Items` | items' display strings, space separated | same |
-| `ObjectValue` | `TypeName`, `Attributes`, `Children` | the tag as written | same |
-| `ComponentValue` | `TypeName`, `Attributes`, `Children` | the tag as written | same |
+| `Empty` | nothing | empty | empty |
+| `None` | nothing | empty | empty |
+| `Text` | the text | the text | the text |
+| `Number` (double) | the number | `0.###`, invariant culture | same |
+| `Boolean` | the flag | `true` or `false` | same |
+| `File` | `Id`, `Name`, `Kind`, `Folder` | the name | the full path, `folder/name` |
+| `List` | items | items' display strings, space separated | same |
+| `Object` | `TypeName`, `Attributes`, `Children` | the tag as written | same |
+| `Component` | `TypeName`, `Attributes`, `Children` | the tag as written | same |
 
-`PathKind` is `File`, `Directory` or `Parent`. A `Parent` path displays as `up`.
+`Empty` means "this command returns nothing"; `None` means "the answer is that there is
+nothing". They read alike and are distinct, and an implementation **must** keep them so.
 
-The two string forms **must** differ for paths: display gives the entry's name, and the
+A `File` whose `Kind` is `parent` is the entry `ls` puts at the head of a listing below
+the root. It displays as `up` and **must** argue the folder it points at, not a path
+built from its name.
+
+The two string forms **must** differ for files: display gives the name, and the
 argument form gives the full path. This is what makes `ls | cd` work with no quoting
 rule. Implementations **must not** collapse them.
-
-`ObjectValue.Attributes` and `ComponentValue.Attributes` are keyed case-insensitively.
-`ObjectValue.Children` holds objects; `ComponentValue.Children` holds any value.
-
-`RuntimeValue.Empty` is a shared `EmptyValue`. A command with nothing to return
-**must** return it rather than null.
 
 ## The command model
 
 | Type | Purpose |
 | --- | --- |
-| `CommandDefinition` | `Name`, `Description`, `KeyWords`, `Parameters`, `CommandActionType`. |
-| `CommandParameter` | `Name`, `Description`, `IsOptional`, `AcceptsPipedInput`. |
-| `OptionalCommandParameter` | Adds `Flag` and `Default`; `IsOptional` is true. |
-| `CommandActionSync` | `Invoke(CommandInvocation) → RuntimeValue`, `InvokeUndo(CommandInvocation)`. |
-| `CommandActionAsync` | `BeginInvoke → Task<RuntimeValue>`, `EndInvoke`, `FailedInvoke`, `BeginInvokeUndo`. |
-| `CommandInvocation` | `Definition`, `Arguments`, `Input`, `Output`, `Scope`, `Cancellation`. |
-| `CommandParameterValue` | A parameter paired with the bound value; `Text` is the value's argument string. |
+| `CommandSpec` | `Name`, `Description`, `Keywords`, `Parameters`, `Meta`. |
+| `Parameter` | `Name`, `Description`, `Optional`, `Flag`, `Default`, `AcceptsPipe`, `Kind`. |
+| `ParamKind` | `Single`, `Predicate` (Phase 3), `Assignments`. |
+| `Invocation` | `Spec`, `Args`, `Assignments`, `Input`, `Output`, `Scope`, `Projection`, `Location`, `Blobs`, `Cancel`. |
+| `CommandResult` | `Value` for the next stage, and `Events` describing what changed. |
+| `Command` | A `CommandSpec` and `Run: Invocation -> Async<Outcome<CommandResult>>`. |
 
 A command **must** declare its parameters in the order positional arguments fill them.
 
-An implementation **must** create a command instance per execution. Commands keep undo
-state in their own fields, so a shared instance makes the second undo of the same
-command replay the first one's saved state.
+**A command does not change anything.** It reads `Projection` and `Location`, returns a
+value and a list of events, and the evaluator commits them. An implementation **must
+not** give a command a way to append to the log. Because of this, running a command
+twice against the same projection **must** produce the same result, and there is no
+per-command undo state for a second invocation to replay.
+
+`Meta` marks a command as being about the log rather than about the world. `undo`,
+`redo`, `history` and `exit` are meta; they run outside the transaction and receive a
+`StoreAccess` capability that no other command can reach.
 
 ## Resolving a command
 
@@ -133,28 +138,41 @@ A stage is one of:
 - a command line expression, executed as a command;
 - an instance tag, evaluated to a value without calling a command.
 
+### A line is one transaction
+
+The stages of a line share a **working projection**: the committed projection with the
+events produced so far in this line folded into it. Each stage reads that, so a later
+stage sees an earlier one's effect and `mkdir scratch | cd` lands in the new folder.
+
+Nothing is appended to the log until the whole line has succeeded. Then the accumulated
+events are appended as a single transaction whose source is the line as it was written.
+
+An implementation **must**:
+
+- append nothing when any stage fails, so a failed line leaves no trace;
+- append nothing when the accumulated events are empty, so a read-only line leaves no
+  transaction and `undo` reaches past it;
+- keep meta commands out of the transaction, since their business is the log itself.
+
 ### Executing one command
 
 ```
-definition = resolve(name)
-bound      = bind(arguments, definition, input, scope)
-action     = service provider resolves definition.CommandActionType
-invocation = new CommandInvocation(definition, bound, input, output, scope, cancellation)
+spec       = resolve(name)
+bound      = bind(arguments, spec, input, scope)
+invocation = { spec, bound, input, output, scope, working projection, location, blobs, token }
+result     = await spec.Run(invocation)
 ```
 
-For a synchronous action: register the invocation on the history, then `Invoke`.
+An implementation **must** fold the events produced by evaluating the arguments into
+the working projection before running the command, so a tag that bound a variable is
+visible to it.
 
-For an asynchronous action: register the invocation, create a cancellation source
-linked to the pipeline's token, call `BeginInvoke` and await it. On success call
-`EndInvoke` and return the value. If the task cancels or faults, call `FailedInvoke`
-and rethrow. Clear the source and the task afterwards either way.
+An implementation **must** await a command before the next stage, so a pipe carries a
+finished value. Keeping a user interface responsive is the host's problem, not the
+evaluator's.
 
-An implementation **must** register the invocation before running it, so a command that
-fails part-way can still be undone.
-
-An implementation **must** await an asynchronous command before the next stage, so a
-pipe carries a finished value. Keeping a user interface responsive is the host's
-problem, not the evaluator's.
+An implementation **must** convert an unexpected exception from a command into a fault
+of kind `Internal` rather than letting it escape.
 
 ## Evaluating tags
 
@@ -172,8 +190,9 @@ Rules:
   **must** be evaluated, for their variable bindings, and are not attached to the
   object. Any other child raises `Cannot evaluate a child <node>.`
 - A component's children **must** be instance tags; anything else raises the same error.
-- A tag that names a variable binds it in the scope after the value is built. The name
-  is not part of the value.
+- A tag that names a variable binds it after the value is built, and **must** do so by
+  producing a `VariableChanged` event rather than by mutating a scope, so the binding is
+  committed and undone with the rest of the line. The name is not part of the value.
 
 Property assignments parse but do not evaluate. An implementation **must** raise
 `Cannot evaluate a child PropertyAssignment.` rather than ignoring one.
@@ -190,45 +209,90 @@ everything visible with the innermost binding winning.
 The terminal uses one global scope per session. Nested scopes are supported by the
 model and not yet created by any host.
 
+## The store
+
+The filesystem, the variables and the current location are a projection folded from an
+append-only log of transactions. An implementation **must** be able to reach the same
+projection by replaying the same log into a fresh store.
+
+Every event carries both sides of its change, so `invert` needs nothing but the event
+and is its own inverse. A transaction's inverse is its events inverted **and reversed**,
+because a later event can depend on an earlier one having happened.
+
+| Event | Inverse |
+| --- | --- |
+| `FileCreated r` | `FileDeleted r` |
+| `FileDeleted r` | `FileCreated r` |
+| `AttributesChanged (id, b, a)` | `AttributesChanged (id, a, b)` |
+| `ContentChanged (id, b, a)` | `ContentChanged (id, a, b)` |
+| `VariableChanged (n, b, a)` | `VariableChanged (n, a, b)` |
+| `LocationChanged (b, a)` | `LocationChanged (a, b)` |
+
+The identity holds for events that describe a change that happened: an event's `before`
+side **must** be what the projection holds. Commands build events by reading the
+projection, so they cannot produce anything else.
+
+Before appending, an implementation **must** validate the events against the state they
+will land on, and **must** reject a `FileCreated` whose name is already used in its
+folder with a fault of kind `Conflict`.
+
 ## Undo
 
-Every executed command is pushed onto a history stack with its invocation. Undo pops
-one entry and reverses it, and **must** return the name of the command it reversed, or
-nothing when the stack is empty.
+The log only grows. Undo **must not** remove a transaction; it appends one whose events
+are the target's inverted and reversed, marked as compensating the target.
 
-| Action kind | First undo | Second undo |
+A transaction is **compensated** when some later transaction compensates it and is not
+itself compensated. That recursion is what makes undo, redo, undo behave.
+
+| Operation | Target | Result |
 | --- | --- | --- |
-| Synchronous | `InvokeUndo`, then clear the command's output | — |
-| Asynchronous, still running | Cancel it, then `BeginInvokeUndo`; the entry stays on the stack | Clear the command's output |
-| Asynchronous, finished | `BeginInvokeUndo`; the entry stays on the stack | Clear the command's output |
+| `undo` | The latest undoable, non-compensating, uncompensated transaction | Names the line it reversed |
+| `redo` | The latest uncompensated **undo** | Names the line the undo had reversed |
 
-Clearing output applies only when the output sink can withdraw what it wrote.
+A redo is itself a compensation, so "the latest compensation" is the wrong rule for
+redo: it finds the redo just appended and reverses it, and pressing redo twice puts a
+change back and then takes it away again. An implementation **must** distinguish an
+undo, which compensates a line someone ran, from a redo, which compensates an undo.
 
-Guarantees an implementation **must** provide:
+Neither is a failure when there is nothing to do: an implementation **must** return a
+plain result saying so, not a fault, because nothing went wrong.
 
-- Undo is per invocation. Undoing two invocations of one command unwinds both.
-- Undo is one command at a time. Commands that changed nothing are on the stack and
-  undoing one **must** succeed and change nothing.
-- A command's undo sees the arguments, scope and output of the invocation being
-  reversed.
+A transaction may be marked not undoable. The seeded filesystem is
+([decision 0018](../decisions/0018-the-seed-is-not-a-line-anyone-typed.md)): it is
+recorded and replayed so the store stays a pure fold of its log, and `undo` **must**
+skip it while `history` still shows it.
 
-Commands **should** reverse only what they did: restore previous file contents, recreate
-a deleted entry, return to the previous directory, restore a previous binding, or unbind
-a name that was new.
+`history` is the transactions oldest first, each with a derived `Undone`. A compensation
+**must not** itself be marked undone.
 
 ## Cancellation
 
 Cancellation is cooperative. A long-running command **must** observe its invocation's
 token and **should** check it at least once per step.
 
-A host cancels by cancelling the token it passed in. A cancelled command's task is
-cancelled, `FailedInvoke` runs, and the exception propagates to the caller, which
-**should** report it as a stop rather than as a failure.
+A host cancels by cancelling the token it passed in. A cancelled command **must** return
+a fault of kind `Cancelled` with the message `Stopped.`, and the line commits nothing,
+like any other failed line.
 
-## Errors
+Cancellation **must** also be observed between stages.
 
-A command reports a problem by raising `ConsoleError` with a message for the user. The
-evaluator does not catch it; the host does, at the boundary where it builds a response.
+## Faults
 
-An implementation **must not** let a command failure end the session, and **should**
-report an unexpected exception with its type so a defect is visible rather than silent.
+Failure is a value. A command returns `Error fault`; no command raises, and no exception
+crosses a module boundary.
+
+```
+Fault = { Kind; Message; Stage; Path; Cause }
+Kind  = Syntax | Binding | UnknownCommand | NotFound | Conflict | Invalid | Cancelled | Internal
+```
+
+Every message in the [error reference](../errors.md) is preserved word for word as
+`Message`. The kind is additional and **must not** replace it.
+
+The evaluator **must** stamp `Stage` with the one-based position of the failing stage,
+and **must not** overwrite a stage already set, so the innermost failure keeps its own
+position.
+
+An implementation **must not** let a failure end the session. `Session.Execute` **must
+not** raise: a parse failure is `Syntax`, a cancellation is `Cancelled` with the message
+`Stopped.`, and an unexpected exception is `Internal` naming the exception's type.

@@ -472,8 +472,12 @@ runButton.onclick = run;
     // in Phase 2 it reads IndexedDB, and the wait is already in the right place.
     $('status').innerHTML = '<span style="color:var(--dim)">restoring…</span>';
 
-    DotNet.invokeMethodAsync('WebClient', 'Initialize').then(finishBoot).catch(() => {
+    DotNet.invokeMethodAsync('WebClient', 'Initialize').then(finishBoot).catch(e => {
+      // The message matters: a session that cannot restore is showing the user an
+      // empty filesystem that may not be empty, and "failed" alone says nothing about
+      // whether their files are gone or the code is broken.
       $('status').innerHTML = '<span style="color:var(--bad)">failed to restore</span>';
+      addEntry(`<div class="err">Could not restore the session: ${escape(String(e && e.message || e))}</div>`);
     });
     return;
   }

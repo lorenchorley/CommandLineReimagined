@@ -22,34 +22,48 @@ test methods; data-driven methods expand to more cases at run time.
 | Requirement | Test class | Methods |
 | --- | --- | --- |
 | Lexical rules: identifiers, accents, flags, string forms, variables | `Parser.Tests/LexicalTests` | 15 |
-| Bare words in argument positions, and their exclusion from attributes | `Parser.Tests/BareWordTests` | 9 |
+| Bare words, in arguments and in tag attributes; assignments; negative numbers | `Parser.Tests/BareWordTests` | 18 |
 | The three command forms, arguments, pipes | `Parser.Tests/CommandFormTests` | 19 |
 | Object and component tags, nesting, closing forms, variable tags | `Parser.Tests/ObjectInstanceTests` | 17 |
 | Productions the original grammar never implemented | `Parser.Tests/CompletedGrammarTests` | 17 |
 | Error positions and expected symbols | `Parser.Tests/SyntaxErrorTests` | 5 |
 | Round-trip serialisation | `Parser.Tests/SerialisationTests` | 7 |
 | Agreement with the retained GOLD parser | `Parser.Tests/ParserEquivalenceTests` | 4 |
-| Binding, pipes, command forms, variables, tags, undo | `Execution.Tests/ExecutionTests` | 36 |
-| File and variable commands, and their undo | `Execution.Tests/FileAndVariableCommandTests` | 26 |
-| Asynchronous commands, live output, cancellation | `Execution.Tests/AsyncCommandTests` | 7 |
-| Session responses, streaming, cancellation, completion, undo, tokens | `Web.Core.Tests/TerminalSessionTests` | 25 |
+| The two string forms of every value, and number formatting | `Core.Tests/ValueTests` | 17 |
+| Folding events, and that every event inverts back to where it started | `Core.Tests/ProjectionTests` | 13 |
+| Path resolution over the projection, and kind inference | `Core.Tests/FilesTests` | 16 |
+| Committing, undo, redo, history, replay determinism, blobs | `Core.Tests/StoreTests` | 26 |
+| Binding, pipes, command forms, variables, tags, atomic lines | `Core.Tests/ExecutionTests` | 42 |
+| File commands, attributes, saving tags, and their undo | `Core.Tests/FileCommandTests` | 42 |
+| Variables and their undo | `Core.Tests/VariableCommandTests` | 14 |
+| Asynchronous commands, live output, cancellation | `Core.Tests/AsyncCommandTests` | 10 |
+| `undo`, `redo` and `history` as commands | `Core.Tests/MetaCommandTests` | 16 |
+| Completion over the projection | `Core.Tests/CompletionTests` | 12 |
+| The phase's acceptance list, from a fresh session | `Core.Tests/AcceptanceTests` | 10 |
+| DTO shapes, streaming, cancellation, completion, tokens | `Web.Core.Tests/TerminalSessionTests` | 36 |
 | Path and naming helpers | `Terminal.Tests/ValidCommandTests` | 2 |
+| The published page, in a browser at phone size | `tools/browser-check.mjs` | 1 session |
 
 Cases actually run, which is what the suite reports:
 
-| Project | Methods | Cases |
-| --- | --- | --- |
-| `Parser.Tests` | 93 | 199 |
-| `Execution.Tests` | 69 | 69 |
-| `Web.Core.Tests` | 25 | 25 |
-| `Terminal.Tests` | 2 | 32 |
-| Total | 189 | 325 |
+| Project | Cases |
+| --- | --- |
+| `Parser.Tests` | 228 |
+| `Core.Tests` | 256 |
+| `Web.Core.Tests` | 36 |
+| `Terminal.Tests` | 32 |
+| Total | 552 |
 
 Run them with:
 
 ```bash
-for p in $(find . -name '*.Tests.csproj' | sort); do dotnet test "$p" -c Release; done
+for p in $(find . \( -name '*.Tests.csproj' -o -name '*.Tests.fsproj' \) | sort); do
+  dotnet test "$p" -c Release
+done
 ```
+
+`Core.Tests` absorbed `Execution.Tests`, which is now deleted. Every case it had is
+here, asserting on the projection rather than on a temporary directory.
 
 ## Checklist for a new implementation
 

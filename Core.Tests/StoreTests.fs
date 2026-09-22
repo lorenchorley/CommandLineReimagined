@@ -175,6 +175,39 @@ type StoreTests() =
 
         Assert.IsTrue((run (store.Redo()) |> expectOk).IsNone)
 
+    /// <summary>Redo stops when there is nothing left that was undone.</summary>
+    /// <remarks>
+    /// A redo is itself a compensation, so a rule that looked only for "the latest
+    /// compensation" found the redo it had just appended and reversed that. Pressing
+    /// redo twice then put the change back and took it away again, and would have done
+    /// so for as long as anyone kept pressing.
+    /// </remarks>
+    [<TestMethod>]
+    member _.RedoingTwiceDoesNotUndo() =
+        let store = initialised ()
+        commit store "mkdir alpha" [ mkdir "alpha" "/" ] |> ignore
+        run (store.Undo()) |> ignore
+        run (store.Redo()) |> ignore
+
+        Assert.IsTrue((run (store.Redo()) |> expectOk).IsNone, "There was nothing left to redo.")
+        Assert.AreEqual<int>(1, store.Current.Files.Count, "The folder should still be there.")
+
+    /// Two undos, then two redos, put both back in the order they were taken away.
+    [<TestMethod>]
+    member _.RedoWalksForwardThroughSeveralUndos() =
+        let store = initialised ()
+        commit store "mkdir a" [ mkdir "a" "/" ] |> ignore
+        commit store "mkdir b" [ mkdir "b" "/" ] |> ignore
+
+        run (store.Undo()) |> ignore
+        run (store.Undo()) |> ignore
+        Assert.AreEqual<int>(0, store.Current.Files.Count)
+
+        Assert.AreEqual<string>("mkdir a", (run (store.Redo()) |> expectOk).Value.Source)
+        Assert.AreEqual<string>("mkdir b", (run (store.Redo()) |> expectOk).Value.Source)
+        Assert.AreEqual<int>(2, store.Current.Files.Count)
+        Assert.IsTrue((run (store.Redo()) |> expectOk).IsNone)
+
     /// Undo, redo, undo: the mkdir is gone again. A redo does not exhaust the undo.
     [<TestMethod>]
     member _.UndoRedoUndoLeavesItUndone() =

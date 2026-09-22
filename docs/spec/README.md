@@ -37,9 +37,9 @@ normatively; the same words in ordinary prose carry their ordinary meaning.
 | Field | Value |
 | --- | --- |
 | Status | Implemented, and matching the code at the time of writing |
-| Applies to | The `Parser.FParsec`, `Parser.Tree`, `Terminal`, `Commands`, `Web.Core` and `WebClient` assemblies |
+| Applies to | The `Parser.FParsec`, `Parser.Tree`, `CommandLineReimagined.Core`, `Terminal`, `Web.Core` and `WebClient` assemblies |
 | Reference implementation | This repository |
-| Conformance suite | `Parser.Tests` (199), `Execution.Tests` (63), `Web.Core.Tests` (25), `Terminal.Tests` (32) |
+| Conformance suite | `Parser.Tests` (228), `Core.Tests` (256), `Web.Core.Tests` (36), `Terminal.Tests` (32) |
 
 Where the specification and the implementation disagree, one of them is wrong; the
 [conformance](conformance.md) document names the test that decides. Why the design is

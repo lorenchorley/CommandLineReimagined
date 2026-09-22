@@ -3,8 +3,24 @@
 Every message the terminal can show, what it means, and what to do. Messages are
 grouped by where they come from.
 
-Errors never stop the session. The command that failed changed nothing beyond what it
-had already done, and the next line runs normally.
+Errors never stop the session, and a failed line changes nothing at all: the whole line
+is one transaction, so a failure discards everything its earlier stages described. The
+next line runs normally.
+
+Every message carries a **kind** as well as its wording. The wording is what you read;
+the kind is what tells a missing file apart from a name already taken without having to
+parse the sentence, and it is what `try` will let a program match on.
+
+| Kind | Meaning |
+| --- | --- |
+| `syntax` | The line could not be turned into a tree. |
+| `binding` | What was written does not fit what the command declared. |
+| `unknowncommand` | No command by that name. |
+| `notfound` | A path, a variable or a record that is not there. |
+| `conflict` | Something is already there. |
+| `invalid` | Understood, and not allowed. |
+| `cancelled` | You stopped it. |
+| `internal` | A defect. Not your mistake; worth reporting. |
 
 ## Parse errors
 
@@ -95,6 +111,18 @@ Run `help` to see the parameters a command actually takes.
 A `$name` that is not bound. Check `vars` for what is bound, and remember that `set $x`
 reads `$x` rather than naming it.
 
+### `'<command>' does not take '<name>=' assignments.`
+
+A `name=value` argument given to a command that collects none. `attr` and `save` take
+them; the rest do not, and say so rather than ignoring what you wrote.
+
+```
+$ progress steps=20
+'progress' does not take 'steps=' assignments.
+```
+
+To bind a declared parameter by name, use a colon: `progress steps: 20`.
+
 ### `Unsupported argument value : <node>`
 
 The parser produced a value the binder does not know how to evaluate. Strings, words,
@@ -122,6 +150,10 @@ resolved against the current directory.
 | `'set' needs a value for '<name>'.` | `set` was given a name but an empty value. |
 | `'steps' must be at least 1.` | `progress` was given zero or a negative count. |
 | `'steps' must be a whole number, not '<value>'.` | `progress` was given something that is not a number, such as a bare `-steps` flag. |
+| `'<name>' is set by the terminal and cannot be written.` | `attr` was asked to write `folder`, `created` or `modified`. |
+| `A saved tag needs a 'name' attribute.` | `save` was given a tag with no name for the file. |
+| `'save' needs a tag, not <kind>.` | `save` was given text or a number. |
+| `A file must have a name.` | Internal: an event named no file. |
 | `Not a valid URL : <text>` | `download` needs an absolute URL. |
 | `The server did not report a content length.` | `download` cannot show progress without one. |
 | `The transfer ended before all bytes arrived.` | The connection closed early. |
@@ -144,8 +176,11 @@ Not errors from the language, but from the session.
 | --- | --- |
 | `A command is already running. Stop it first.` | One command at a time. Press Stop. |
 | `Stopped.` | You cancelled the command. It may have written its own note as well, such as `Cancelled at 9%`. |
-| `Nothing to undo.` | The history is empty. |
-| `Undone: <command>` | Undo reversed that command. Read-only commands are on the history too. |
+| `Nothing to undo.` | No line has changed anything yet. Not an error: nothing went wrong. |
+| `Nothing to redo.` | Nothing has been undone. Not an error either. |
+| `Undone: <line>` | Undo reversed that line. Lines that changed nothing are not recorded, so they are never what it names. |
+| `Redone: <line>` | Redo put that line back. It names the original line, not the undo. |
+| `The session has not been initialised. Call Initialize first.` | A host executed a line before replaying the log. A defect in the host, not in what you typed. |
 
 ## Reading a path in a message
 

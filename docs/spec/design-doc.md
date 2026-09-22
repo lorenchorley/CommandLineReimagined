@@ -86,7 +86,7 @@ scene are out of scope.
    on the piped value and on defaults. See
    [Execution model](execution-model.md#argument-binding).
 4. **Evaluate.** `CommandEvaluator` folds the pipeline, resolving each expression to a
-   `RuntimeValue`. Tags build values without calling a command.
+   `Value`. Tags build values without calling a command.
 5. **Record.** Each execution is pushed onto `CommandHistory` with its invocation, which
    is what undo replays.
 6. **Render.** The front end turns the value into its own presentation: entities and
@@ -173,7 +173,7 @@ down means rather than a command reaching for a window.
 
 ### Failure handling
 
-A command failure is a `ConsoleError` carrying a message for the user; the session
+A command failure is a `Fault` carrying a kind and a message for the user; the session
 catches it and returns it as the response's error. Unexpected exceptions are caught at
 the same boundary and reported with their type, so a defect surfaces as a message
 rather than a dead terminal. A failed command leaves the session usable.

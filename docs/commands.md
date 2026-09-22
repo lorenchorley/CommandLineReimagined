@@ -11,26 +11,88 @@ drive. `..` and `.` work.
 
 ## Summary
 
-| Command | Purpose | Undo |
+| Command | Purpose | Changes anything? |
 | --- | --- | --- |
-| [`cat`](#cat) | Read a file as text | nothing to reverse |
-| [`cd`](#cd) | Enter a directory | returns to the previous directory |
-| [`cp`](#cp) | Copy a file into a directory | deletes the copy |
-| [`download`](#download) | Download a file, with progress | deletes the file |
-| [`echo`](#echo) | Return an argument or the piped value | nothing to reverse |
-| [`exit`](#exit) | Ask the host to close | nothing to reverse |
-| [`ls`](#ls) | List a directory | nothing to reverse |
-| [`mkdir`](#mkdir) | Create a directory | deletes it |
-| [`progress`](#progress) | Run a progress bar, to exercise long commands | writes a note |
-| [`pwd`](#pwd) | The current directory | nothing to reverse |
-| [`rm`](#rm) | Delete a file or empty directory | puts it back |
-| [`set`](#set) | Bind a value to a variable | restores the previous binding |
-| [`up`](#up) | Move up one directory | returns to the previous directory |
-| [`vars`](#vars) | List the variables in scope | nothing to reverse |
-| [`write`](#write) | Write text to a file | restores the previous contents |
+| [`attr`](#attr) | Show a file's attributes, or set them | only when given `name=value` |
+| [`cat`](#cat) | Read a file as text | no |
+| [`cd`](#cd) | Enter a directory | yes, where you are |
+| [`cp`](#cp) | Copy a file into a directory | yes |
+| [`download`](#download) | Download a file, with progress | yes |
+| [`echo`](#echo) | Return an argument or the piped value | no |
+| [`exit`](#exit) | Ask the host to close | no |
+| [`history`](#history) | The lines that changed something | no |
+| [`ls`](#ls) | List a directory | no |
+| [`mkdir`](#mkdir) | Create a directory | yes |
+| [`progress`](#progress) | Run a progress bar, to exercise long commands | no |
+| [`pwd`](#pwd) | The current directory | no |
+| [`redo`](#redo) | Put back what `undo` took away | yes |
+| [`rm`](#rm) | Delete a file or empty directory | yes |
+| [`save`](#save) | Create a file from a tag | yes |
+| [`set`](#set) | Bind a value to a variable | yes |
+| [`undo`](#undo) | Reverse the last line that changed something | yes |
+| [`up`](#up) | Move up one directory | yes, where you are |
+| [`vars`](#vars) | List the variables in scope | no |
+| [`write`](#write) | Write text to a file | yes |
 
-`help`, `clear` and `undo` are handled by the page rather than by a command. See
+The column says whether the command produces events. A line made only of commands that
+change nothing leaves no trace at all, which is why `undo` after `ls` reverses the line
+before the `ls` rather than the `ls` itself. See
+[How it works](concepts.md#events-and-what-a-line-is).
+
+`help` and `clear` are handled by the page rather than by a command. See
 [The web terminal](web-terminal.md#words-the-page-handles-itself).
+
+---
+
+## attr
+
+Shows a file's attributes, or writes new ones.
+
+```
+attr <path> [name=value ...]
+```
+
+| Parameter | Required | Meaning |
+| --- | --- | --- |
+| `path` | yes, or piped | The file |
+| `name=value` | no | Attributes to set, written with no spaces around the `=` |
+
+With no assignments it lists every attribute the record carries:
+
+```
+$ attr readme.txt
+created = 2026-09-21T09:00:00.0000000+00:00
+folder = /
+kind = text
+modified = 2026-09-21T09:00:00.0000000+00:00
+name = readme.txt
+```
+
+With assignments it writes them and returns the file. The names are yours: a file can
+carry any attribute you like, which is the point of an attribute filesystem.
+
+```
+$ attr readme.txt tag=work due=2026-10-01
+readme.txt
+```
+
+`name` and `kind` may be set, and renaming to a name already used in the folder is an
+error. `folder`, `created` and `modified` are the terminal's and are refused:
+
+```
+$ attr readme.txt modified=yesterday
+'modified' is set by the terminal and cannot be written.
+```
+
+Assignments are data, not named parameters. A command that does not collect them says
+so rather than ignoring them:
+
+```
+$ progress steps=20
+'progress' does not take 'steps=' assignments.
+```
+
+Undo restores every attribute the record had.
 
 ---
 
@@ -217,6 +279,41 @@ In the desktop shell it closes the window.
 
 ---
 
+## history
+
+The lines that changed something, oldest first.
+
+```
+history
+```
+
+```
+$ history
+1  09:00:00  seed
+2  09:01:12  mkdir alpha
+3  09:01:20  write note.txt hello
+```
+
+Each line shows its sequence number, the time, and the line exactly as it was typed. A
+line whose effect has been reversed is marked:
+
+```
+$ undo
+Undone: write note.txt hello
+$ history
+1  09:00:00  seed
+2  09:01:12  mkdir alpha
+3  09:01:20  write note.txt hello  (undone)
+4  09:01:31  write note.txt hello
+```
+
+The fourth entry is the undo itself, which is a line in its own right. Lines that
+changed nothing, such as `ls`, never appear, because they were never recorded.
+
+`seed` is the filesystem the session started with. It is shown, and it cannot be undone.
+
+---
+
 ## ls
 
 Lists a directory: the parent entry first, then directories, then files.
@@ -338,6 +435,35 @@ The line above the input shows the same thing as a full path, at all times.
 
 ---
 
+## redo
+
+Puts back what `undo` took away, and names the line it restored.
+
+```
+redo
+```
+
+```
+$ mkdir alpha
+alpha
+$ undo
+Undone: mkdir alpha
+$ redo
+Redone: mkdir alpha
+```
+
+With nothing undone it says so, and that is not an error:
+
+```
+$ redo
+Nothing to redo.
+```
+
+Redo is undo applied to an undo, so `undo`, `redo`, `undo` leaves you where the first
+`undo` did.
+
+---
+
 ## rm
 
 Deletes a file, or a directory that is empty.
@@ -368,6 +494,37 @@ first.
 | `Nothing exists at : <path>` | No such file or directory. |
 | `Directory is not empty : <path>` | Delete the contents first. |
 | `Cannot delete the current directory.` | Move out of it first. |
+
+---
+
+## save
+
+Creates a file from a tag. The tag's type becomes the file's `kind`, its `name`
+attribute becomes the name, and everything else is carried across.
+
+```
+save <tag/>
+```
+
+```
+$ save <note name=todo due=2026-10-01/>
+todo
+$ attr todo
+created = 2026-09-21T09:00:00.0000000+00:00
+due = 2026-10-01
+folder = /
+kind = note
+modified = 2026-09-21T09:00:00.0000000+00:00
+name = todo
+```
+
+A tag with attributes is exactly what a file record is, which is why this is one word
+rather than a `write` followed by several `attr` calls.
+
+The tag can be piped in: `echo <note name=todo/> | save`.
+
+The `name` attribute is required, and a name already used in the folder is an error.
+The file has no content, so `cat` on it returns empty text; `write` gives it some.
 
 ---
 
@@ -403,6 +560,46 @@ hello
 | `'set' needs an argument for 'value'.` | No value written and nothing piped in. |
 | `'<name>' is not a valid variable name.` | Names take letters, digits and underscore. |
 | `Unknown variable : $<name>` | You wrote `set $x 1`; `$x` reads the variable rather than naming it. |
+
+---
+
+## undo
+
+Reverses the last line that changed something, and names it.
+
+```
+undo
+```
+
+```
+$ write note.txt second
+note.txt
+$ undo
+Undone: write note.txt second
+$ cat note.txt
+first
+```
+
+It works on lines, not on commands. A line that changed nothing is not in the way:
+
+```
+$ mkdir alpha
+alpha
+$ ls
+alpha documents projects readme.txt
+$ undo
+Undone: mkdir alpha
+```
+
+With nothing to undo it says so, and that is not an error:
+
+```
+$ undo
+Nothing to undo.
+```
+
+Undoing does not erase history: it appends the reverse, so `redo` can reverse it in
+turn and `history` shows both.
 
 ---
 
@@ -478,5 +675,7 @@ note.txt
 
 ## Commands only in the desktop shell
 
-`debug` writes the entity and component tree to a file and can open it. It needs the
-scene, so it is not registered in the browser.
+None at present. `debug`, which wrote the entity and component tree to a file, was
+dropped when the command layer moved to F#: it reaches into the entity component
+system, which the core knows nothing about. It can come back as a host-supplied
+command if it is wanted.

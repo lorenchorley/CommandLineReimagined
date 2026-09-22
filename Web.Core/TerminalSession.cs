@@ -25,18 +25,19 @@ public sealed class TerminalSession
 
     public TerminalSession(ILog? log = null)
     {
-        var options = new SessionOptions(
-            clock: FuncConvert.FromFunc<DateTimeOffset>(() => DateTimeOffset.UtcNow),
-            newId: FuncConvert.FromFunc(() => Guid.NewGuid().ToString().ToLowerInvariant()),
-            httpClient: FuncConvert.FromFunc(() => _httpClient),
+        // Plain delegates: the core converts them. Building F# functions here with
+        // FuncConvert put F# types in the adapter and, worse, compiled fine and then
+        // failed in the browser, because the WebAssembly trimmer removes its generic
+        // overloads.
+        var options = SessionOptionsModule.ofDelegates(
+            () => DateTimeOffset.UtcNow,
+            () => Guid.NewGuid().ToString().ToLowerInvariant(),
+            () => _httpClient,
             // The browser tab has nothing to close, so `exit` does nothing here. The
             // desktop host passes its own shutdown.
-            exit: FuncConvert.FromAction(() => { }));
+            () => { });
 
-        _session = new Session(
-            log ?? new InMemoryLog(),
-            options,
-            SeedModule.standard(options.NewId, options.Clock));
+        _session = new Session(log ?? new InMemoryLog(), options, SessionOptionsModule.standardSeed(options));
 
         _session.OutputChanged.AddHandler(
             new FSharpHandler<Tuple<int, FSharpList<string>>>((_, args) =>

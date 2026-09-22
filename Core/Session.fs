@@ -42,6 +42,25 @@ module SessionOptions =
           HttpClient = fun () -> new HttpClient()
           Exit = ignore }
 
+    /// <summary>Builds options from plain .NET delegates.</summary>
+    /// <remarks>
+    /// So that a C# host never has to construct an F# function. `FuncConvert` is the
+    /// obvious way to do it from the other side and is the wrong one twice over: it
+    /// puts F# types in the adapter, which the architecture says stop at the boundary,
+    /// and the WebAssembly trimmer removes its generic overloads, so a host that used
+    /// it compiled and then failed at runtime with a missing method.
+    /// </remarks>
+    let ofDelegates (clock: Func<DateTimeOffset>) (newId: Func<string>) (client: Func<HttpClient>) (exit: Action) =
+        { Clock = clock.Invoke
+          NewId = newId.Invoke
+          HttpClient = client.Invoke
+          Exit = exit.Invoke }
+
+    /// The filesystem a fresh session starts with, built from these options, so a host
+    /// does not have to take them apart to pass the two functions back in.
+    let standardSeed (options: SessionOptions) : Seed =
+        Seed.ofFiles options.NewId options.Clock Seed.standardFiles
+
 /// A written run of text that a command can keep changing, for a progress figure.
 type CapturedText(initial: string, changed: unit -> unit) =
     let mutable text = initial

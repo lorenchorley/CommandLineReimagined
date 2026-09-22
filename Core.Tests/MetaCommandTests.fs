@@ -44,6 +44,18 @@ type MetaCommandTests() =
         Assert.IsTrue(response.Fault.IsNone)
         Assert.AreEqual<Value option>(Some(Value.Text "Nothing to undo."), response.Result)
 
+    /// Pressing redo again, once everything is back, says there is nothing to do
+    /// rather than taking it away again.
+    [<TestMethod>]
+    member _.RedoStopsWhenThereIsNothingLeftToPutBack() =
+        let harness = seeded ()
+        harness.Run "mkdir alpha" |> ignore
+        harness.Run "undo" |> ignore
+        harness.Run "redo" |> ignore
+
+        Assert.AreEqual<string>("Nothing to redo.", harness.Text "redo")
+        Assert.IsTrue(harness.Exists "alpha")
+
     [<TestMethod>]
     member _.NothingToRedoIsNotAFailure() =
         let harness = bare ()
