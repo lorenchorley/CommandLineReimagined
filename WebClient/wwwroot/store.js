@@ -111,8 +111,16 @@ window.clrStore = {
 
   /// Appends one transaction. `json` is the stored shape, which the .NET side owns;
   /// this only needs the sequence number to key it by.
+  ///
+  /// Answers `true`, not the key IndexedDB hands back. A write is a command: the
+  /// caller asked for it to be stored, not for its key, and leaking the key made the
+  /// .NET side try to read a hash string as a boolean and conclude that storage was
+  /// unavailable.
   appendTransaction(seq, json) {
-    return attempt(() => within(TRANSACTIONS, 'readwrite', store => request(store.put({ seq, json }))));
+    return attempt(async () => {
+      await within(TRANSACTIONS, 'readwrite', store => request(store.put({ seq, json })));
+      return true;
+    });
   },
 
   /// Every transaction, oldest first. IndexedDB returns keys in ascending order, and
@@ -125,7 +133,10 @@ window.clrStore = {
   },
 
   putBlob(hash, text) {
-    return attempt(() => within(BLOBS, 'readwrite', store => request(store.put({ hash, text }))));
+    return attempt(async () => {
+      await within(BLOBS, 'readwrite', store => request(store.put({ hash, text })));
+      return true;
+    });
   },
 
   getBlob(hash) {

@@ -48,6 +48,12 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!--
+      The shell itself. This was reached through the Commands project until the core
+      absorbed it; with that project gone, the reference has to be direct or the WPF
+      markup pass cannot see Terminal.Execution and the whole host stops compiling.
+    -->
+    <ProjectReference Include="..\CommandLine\Terminal.csproj" />
     <ProjectReference Include="..\Controller\Controller.csproj" />
     <ProjectReference Include="..\EntityComponentSystem\EntityComponentSystem.csproj" />
     <ProjectReference Include="..\InteractionLogic\Interaction.csproj" />

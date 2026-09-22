@@ -7,15 +7,22 @@
  * acceptance list says. Those are exactly the failures a unit test cannot have —
  * a missing interop name, a renderer that drops a field, a console error nobody reads.
  *
- *   node tools/browser-check.mjs publish/wwwroot
+ *   node tools/browser-check.mjs publish/wwwroot          a local folder, served here
+ *   node tools/browser-check.mjs https://host/path/       a deployed site, as it is
+ *
+ * The second form is what the pages workflow runs after deploying: the same session,
+ * against the real thing, over the real network. A deployment that builds and uploads
+ * but does not run is not a deployment.
  *
  * Set PLAYWRIGHT_CHROMIUM to an executable to use a specific browser; otherwise
  * Playwright's own is used.
  */
 
 import { spawn } from 'node:child_process';
-import { existsSync, renameSync, readdirSync, readFileSync, writeFileSync, statSync } from 'node:fs';
-import { join } from 'node:path';
+import { existsSync, renameSync, readdirSync, readFileSync, writeFileSync, statSync,
+         mkdtempSync, symlinkSync } from 'node:fs';
+import { join, resolve } from 'node:path';
+import { tmpdir } from 'node:os';
 import { chromium } from 'playwright';
 
 // A phone. The whole page is designed for this, so checking it anywhere else would be
@@ -137,16 +144,41 @@ function prepare(root) {
   console.log('Renamed _framework to framework, as the deployment does.');
 }
 
+/**
+ * The path the build expects to be served under, from its own base href.
+ *
+ * A build prepared for a project site on GitHub Pages carries
+ * `<base href="/CommandLineReimagined/">`, so serving it at the root would ask for
+ * every asset one directory too high and answer 404. Mounting it where it thinks it
+ * is means the local check runs against exactly the bytes that get deployed.
+ */
+function basePathOf(root) {
+  const page = readFileSync(join(root, 'index.html'), 'utf8');
+  const href = page.match(/<base href="([^"]*)"/)?.[1] ?? '/';
+  return href.replace(/^\/+|\/+$/g, '');
+}
+
 /** Starts a static server on a free-ish port and waits for it to answer. */
-async function serve(root, port) {
+async function serve(root, port, basePath) {
+  let directory = root;
+
+  if (basePath) {
+    // A symlink rather than a copy: the same 8 MB, and nothing to clean up that
+    // matters if this exits badly.
+    directory = mkdtempSync(join(tmpdir(), 'clr-check-'));
+    symlinkSync(resolve(root), join(directory, basePath));
+  }
+
   const server = spawn('python3', ['-m', 'http.server', String(port), '--bind', '127.0.0.1'], {
-    cwd: root,
+    cwd: directory,
     stdio: 'ignore',
   });
 
+  const address = `http://127.0.0.1:${port}/${basePath ? basePath + '/' : ''}index.html`;
+
   for (let attempt = 0; attempt < 100; attempt++) {
     try {
-      const response = await fetch(`http://127.0.0.1:${port}/index.html`);
+      const response = await fetch(address);
       if (response.ok) return server;
     } catch {
       // Not up yet.
@@ -225,18 +257,27 @@ async function submit(page, line) {
 }
 
 async function main() {
-  const root = process.argv[2];
+  const target = process.argv[2];
+  const deployed = /^https?:\/\//.test(target ?? '');
 
-  if (!root || !existsSync(`${root}/index.html`)) {
-    console.error('usage: node tools/browser-check.mjs <published wwwroot>');
+  if (!target || (!deployed && !existsSync(`${target}/index.html`))) {
+    console.error('usage: node tools/browser-check.mjs (<published wwwroot> | <url>)');
     console.error('  publish it first: dotnet publish WebClient/WebClient.csproj -c Release -o publish');
     process.exit(2);
   }
 
-  prepare(root);
+  // A deployed site is already prepared and already served; there is nothing to do
+  // to it but drive it.
+  let server = null;
+  let address = target;
 
-  const port = 8000 + Math.floor(Math.random() * 1000);
-  const server = await serve(root, port);
+  if (!deployed) {
+    prepare(target);
+    const basePath = basePathOf(target);
+    const port = 8000 + Math.floor(Math.random() * 1000);
+    server = await serve(target, port, basePath);
+    address = `http://127.0.0.1:${port}/${basePath ? basePath + '/' : ''}index.html`;
+  }
 
   const browser = await chromium.launch({
     executablePath: process.env.PLAYWRIGHT_CHROMIUM || undefined,
@@ -263,8 +304,12 @@ async function main() {
   const note = message => { failures.push(message); console.error(`  FAIL  ${message}`); };
 
   try {
-    const address = `http://127.0.0.1:${port}/index.html`;
-    await page.goto(address, { waitUntil: 'domcontentloaded' });
+    console.log(`Checking ${address}`);
+    const response = await page.goto(address, { waitUntil: 'domcontentloaded' });
+
+    if (response && !response.ok()) {
+      note(`the page answered HTTP ${response.status()}`);
+    }
 
     const status = await boot(page);
     console.log(`Booted at ${VIEWPORT.width}x${VIEWPORT.height}. Status: ${status}`);
@@ -328,7 +373,7 @@ async function main() {
     }
   } finally {
     await browser.close();
-    server.kill();
+    server?.kill();
   }
 
   if (failures.length > 0) {

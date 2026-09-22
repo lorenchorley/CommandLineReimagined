@@ -1,0 +1,127 @@
+name: Pages
+
+# Publishes the browser terminal to GitHub Pages, then drives the deployed site in a
+# real browser and fails if it does not work.
+#
+# The client is a static site: the parser, the commands and the filesystem are .NET
+# compiled to WebAssembly and everything runs in the tab, so a plain file host is all
+# it needs. Nothing here needs a secret.
+#
+# Pages is enabled by the first run (configure-pages below). If that step is refused,
+# the repository owner sets Settings -> Pages -> Source to "GitHub Actions" once.
+
+on:
+  push:
+    branches: [main, 'claude/**']
+    # Documentation cannot change the application, and a deploy moves 8 MB.
+    paths-ignore:
+      - 'docs/**'
+      - 'examples/**'
+      - '**/*.md'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# One deployment at a time, and never cancel one half way: the live site would be
+# left as whatever the cancelled run had uploaded.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+env:
+  DOTNET_CLI_TELEMETRY_OPTOUT: 1
+  DOTNET_NOLOGO: 1
+
+jobs:
+  build:
+    name: Build the client
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Configure Pages
+        id: pages
+        uses: actions/configure-pages@v5
+        with:
+          enablement: true
+
+      - name: Install wasm-tools
+        run: dotnet workload install wasm-tools
+
+      - name: Publish
+        run: dotnet publish WebClient/WebClient.csproj -c Release -o publish
+
+      # Renames _framework, rewrites the loader's paths, sets <base href> to the path
+      # Pages serves the site under, and adds .nojekyll. The same script prepares a
+      # build for any other static host.
+      - name: Prepare for a static host
+        run: tools/postprocess-publish.sh publish/wwwroot "${{ steps.pages.outputs.base_path }}"
+
+      - name: Check the payload
+        run: |
+          set -euo pipefail
+          bytes=$(du -sb publish/wwwroot | cut -f1)
+          echo "payload: $((bytes / 1048576)) MB"
+          [ "$bytes" -lt 20971520 ] || { echo "payload over 20 MB"; exit 1; }
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: publish/wwwroot
+
+  deploy:
+    name: Deploy
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    outputs:
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
+
+  verify:
+    name: Check the live site
+    needs: deploy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install the check's dependencies
+        run: |
+          npm install --prefix tools --no-audit --no-fund
+          ./tools/node_modules/.bin/playwright install --with-deps chromium
+
+      # deploy-pages reports the deployment as live, but the edge can lag a moment.
+      - name: Wait for the site
+        run: |
+          set -euo pipefail
+          url="${{ needs.deploy.outputs.url }}"
+          for attempt in $(seq 1 30); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' "$url" || true)
+            echo "attempt $attempt: $code"
+            [ "$code" = "200" ] && exit 0
+            sleep 5
+          done
+          echo "the site did not answer with 200"
+          exit 1
+
+      # Runs the terminal at phone size: every command, undo and redo, faults, and a
+      # reload to prove the event log came back out of the browser's own storage.
+      - name: Run the terminal in a browser
+        run: node tools/browser-check.mjs --url "${{ needs.deploy.outputs.url }}"
+
+      - name: Say where it is
+        run: echo "### Live at ${{ needs.deploy.outputs.url }}" >> "$GITHUB_STEP_SUMMARY"

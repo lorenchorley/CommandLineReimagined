@@ -79,7 +79,7 @@ jobs:
 
       - name: Check the store module
         run: |
-          npm install --no-save fake-indexeddb
+          npm install --prefix tools --no-audit --no-fund
           node tools/store-check.mjs
 
   wasm:
@@ -125,8 +125,8 @@ jobs:
 
       - name: Install Playwright
         run: |
-          npm install --no-save playwright
-          npx playwright install --with-deps chromium
+          npm install --prefix tools --no-audit --no-fund
+          ./tools/node_modules/.bin/playwright install --with-deps chromium
 
       - name: Check the page in a browser
         run: node tools/browser-check.mjs wasm-publish/wwwroot

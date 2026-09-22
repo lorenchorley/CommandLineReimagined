@@ -157,6 +157,42 @@ the page is designed for and therefore the only size worth checking — submits 
 acceptance lines for the current phase in one session, and fails on any mismatch or any
 console error.
 
+The two checks need Node and are declared in `tools/package.json`, so
+`npm install --prefix tools` installs exactly the versions CI uses rather than
+whatever is newest that day.
+
+## Hosting it on GitHub Pages
+
+The client is a static site, so a plain file host is all it needs and there is no
+secret to configure. `.github/workflows/pages.yml` publishes it on every push to
+`main` or a `claude/**` branch:
+
+| Job | What it does |
+| --- | --- |
+| Build the client | Publishes, runs the post-processing script with the path Pages serves the site under, and refuses a payload over 20 MB. |
+| Deploy | Uploads the folder and deploys it. |
+| Check the live site | Installs Chromium and runs `tools/browser-check.mjs` against the deployed URL. A deployment that builds and uploads but does not run is not a deployment. |
+
+The site is at <https://lorenchorley.github.io/CommandLineReimagined/>.
+
+Two things a project site needs, both handled by
+[`tools/postprocess-publish.sh`](../tools/postprocess-publish.sh):
+
+- **`<base href>` must match the path.** A project site is served under
+  `/CommandLineReimagined/`, not the root, and every asset the loader asks for is
+  relative to that. The workflow passes the path that `actions/configure-pages`
+  reports, so a user site or a custom domain needs no change here.
+- **`.nojekyll`.** Without it, Pages runs the output through Jekyll, which ignores
+  every file and folder beginning with an underscore. The framework folder is renamed
+  anyway, for hosts that reserve those paths, but the marker costs nothing and removes
+  a whole class of confusing 404.
+
+Whichever branch pushes last is what the site shows, so while the work is on a branch
+the live site follows that branch. Narrow the trigger to `main` once it merges.
+
+Pages is enabled by the first run. If that is refused, the repository owner sets
+Settings, then Pages, then Source to "GitHub Actions", once.
+
 ## Continuous integration
 
 `.github/workflows/build.yml` runs three jobs on every push:

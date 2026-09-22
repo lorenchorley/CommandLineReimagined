@@ -20,6 +20,13 @@ $ undo
 Undone: write
 ```
 
+## Try it
+
+The browser terminal is published from this repository to
+<https://lorenchorley.github.io/CommandLineReimagined/>. It is a static site: the
+parser, the commands and the filesystem are .NET compiled to WebAssembly, so nothing
+you type leaves the page, and your files are kept in the browser between visits.
+
 ## Documentation
 
 - **[Documentation index](docs/README.md)** — start here.

@@ -43,7 +43,17 @@ const check = (condition, description) => {
 
   check((await store.available()).ok, 'opens');
 
-  await store.appendTransaction(2, '{"seq":2}');
+  // What a successful write answers with is part of the contract, not an
+  // implementation detail. IndexedDB's put resolves with the key, and letting that
+  // through made the .NET side read a hash string where it expected a boolean and
+  // conclude that storage was unavailable: every write went to memory, silently, and
+  // a reload lost the log. A write is a command; it answers that it worked.
+  const appended = await store.appendTransaction(2, '{"seq":2}');
+  check(appended.ok && appended.value === true, 'a stored transaction answers true, not its key');
+
+  const stored = await store.putBlob('hash-contract', 'content');
+  check(stored.ok && stored.value === true, 'stored content answers true, not its hash');
+
   await store.appendTransaction(1, '{"seq":1}');
 
   const all = await store.readAllTransactions();
