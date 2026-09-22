@@ -61,7 +61,8 @@ const SCRIPT = [
   { line: 'cat note.txt', expect: ['first'] },
 
   { line: 'attr note.txt tag=work', expect: ['note.txt'] },
-  { line: 'attr note.txt', expect: ['name = note.txt', 'kind = text', 'folder = /', 'tag = work', 'created = ', 'modified = '] },
+  // A table of name and value from Phase 3, rather than a line per attribute.
+  { line: 'attr note.txt', expect: ['name', 'note.txt', 'kind', 'text', 'folder', 'tag', 'work', 'created', 'modified'] },
 
   { line: 'save <note name=todo due=2026-10-01/>', expect: ['todo'] },
   { line: 'cat todo', expect: [] },
@@ -78,8 +79,31 @@ const SCRIPT = [
 
   { line: 'progress 3 1', expect: ['100'] },
 
-  // The page's own words, which never reach the evaluator.
-  { line: 'help', expect: ['undo', 'redo', 'history', 'attr', 'save'] },
+  // A command from Phase 3, not a word the page intercepts.
+  { line: 'help', expect: ['undo', 'redo', 'history', 'attr', 'save', 'where', 'select'] },
+];
+
+/**
+ * Phase 3: listings are tables, and a table can be questioned.
+ *
+ * Run from a fresh store, so the rows are the seeded ones and the counts are the ones
+ * in docs/plan/examples.md rather than whatever the acceptance script left behind.
+ */
+const PHASE_3 = [
+  { line: 'ls | where $row.kind eq folder | count', expect: ['3'] },
+  { line: 'ls | sort name desc | first', expect: ['<row name=readme.txt', 'kind=text'] },
+  { line: 'ls | select name kind | take 2', expect: ['documents', 'examples'], absent: ['readme.txt'] },
+  { line: 'ls | where $row.name like read | count', expect: ['1'] },
+
+  // Decision 0019: a reserved word is never an argument, and quoting is the way round it.
+  { line: 'echo eq', fault: 'syntax' },
+  { line: 'echo "eq"', expect: ['eq'] },
+
+  { line: 'help | where $row.name eq set | select name description',
+    expect: ['Bind a value, or whatever was piped in, to a variable'] },
+
+  // The example program, end to end, in the browser. Each line is echoed as it runs.
+  { line: 'run examples/tables.clr', expect: ['> ls', '> vars', 'greeting', 'hello', '42'] },
 ];
 
 /**
@@ -321,18 +345,58 @@ async function main() {
       note('the page reports `not persisted`; the log is not reaching IndexedDB');
     }
 
-    // The chips have to be tappable. 44 pixels is the smallest target a finger hits
-    // reliably, and the whole page is built for a phone.
+    // A listing is a real table from Phase 3: a header row from the columns and a cell
+    // per value, not a run of chips and not preformatted text.
     await submit(page, 'ls');
-    const chip = page.locator('.entry').last().locator('.item').first();
-    const box = await chip.boundingBox();
+    const listing = page.locator('.entry').last();
+    const headers = await listing.locator('.grid thead th').allInnerTexts();
+
+    if (headers.join(' ') !== 'name kind folder size modified') {
+      note(`a listing's header row is ${JSON.stringify(headers)}`);
+    }
+
+    // The cells have to be tappable. 44 pixels is the smallest target a finger hits
+    // reliably, and the whole page is built for a phone.
+    const cell = listing.locator('.grid tbody td').first();
+    const box = await cell.boundingBox();
 
     if (!box || box.height < 44) {
-      note(`a result chip is ${box ? box.height : 'not'} pixels tall; 44 is the minimum tap target`);
+      note(`a table cell is ${box ? box.height : 'not'} pixels tall; 44 is the minimum tap target`);
+    }
+
+    // Tapping a header re-sorts what is on screen without running anything.
+    const before = await listing.locator('.grid tbody td').first().innerText();
+    await listing.locator('.grid thead th').first().click();
+    await listing.locator('.grid thead th').first().click();
+    const after = await listing.locator('.grid tbody td').first().innerText();
+
+    if (before === after) {
+      note(`sorting a listing by its first column twice did not change the first row (${before})`);
+    }
+
+    // Below the root the page offers `up`, which is where the parent row went.
+    await submit(page, 'cd documents');
+
+    try {
+      // The prompt is refreshed after the entry finishes, so this waits rather than
+      // asking once.
+      await page.waitForSelector('#prompt .up', { timeout: 10000 });
+      await page.locator('#prompt .up').click();
+      await page.waitForFunction(
+        () => document.getElementById('prompt').innerText.trim() === '/', null, { timeout: 10000 });
+    } catch {
+      note('below the root the location line does not offer a working `up`');
+      await submit(page, 'up');
     }
 
     await runScript(page, SCRIPT, note);
     console.log(`Ran ${SCRIPT.length} lines.`);
+
+    // ---- Phase 3: tables, predicates and the example program -----------------
+
+    await submit(page, 'reset');
+    await runScript(page, PHASE_3, note);
+    console.log(`Ran ${PHASE_3.length} more for Phase 3.`);
 
     // ---- Phase 2: the log survives a reload ---------------------------------
 

@@ -12,12 +12,14 @@
     --ok:#4ade80; --bad:#f87171; --accent:#6b8afd;
     --command:#7aa2f7; --flag:#e0af68; --string:#9ece6a; --variable:#bb9af7;
     --identifier:#c0caf5; --type:#2ac3de; --attribute:#ff9e64; --punctuation:#565f89;
+    --operator:#f7768e; --member:#7dcfff;
   }
   @media (prefers-color-scheme: light) {
     :root {
       --bg:#f7f7fb; --panel:#fff; --line:#e2e3ec; --fg:#1a1b23; --dim:#63657a;
       --command:#2f5fd0; --flag:#a35a00; --string:#2d7a2d; --variable:#7132b8;
       --identifier:#1a1b23; --type:#0b6e86; --attribute:#a34a00; --punctuation:#8b8fa3;
+      --operator:#b1004a; --member:#0b5d86;
     }
   }
   * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
@@ -76,6 +78,33 @@
   /* Text results (cat, echo) read as a block, not as a chip to insert. */
   .text { white-space:pre-wrap; word-break:break-word; margin-top:4px; padding:6px 8px;
           border-left:2px solid var(--line); color:var(--fg); }
+
+  /* Tables ---------------------------------------------------------------- */
+  /*
+    A wide table scrolls sideways inside its own entry rather than widening the page:
+    at 390 pixels a listing with six columns does not fit, and a page that scrolls
+    horizontally as a whole is unusable on a phone.
+  */
+  .grid { margin-top:4px; overflow-x:auto; -webkit-overflow-scrolling:touch; }
+  .grid table { border-collapse:collapse; font:12px ui-monospace,monospace; }
+  .grid th, .grid td { text-align:left; padding:8px 10px; white-space:nowrap;
+                       border-bottom:1px solid var(--line); }
+  .grid th {
+    color:var(--dim); font-weight:600; cursor:pointer; position:sticky; top:0;
+    background:var(--panel); user-select:none; min-height:44px;
+  }
+  .grid th::after { content:''; color:var(--accent); }
+  .grid th.asc::after { content:' ▲'; }
+  .grid th.desc::after { content:' ▼'; }
+  .grid tr:last-child td { border-bottom:none; }
+  /* A cell is a tap target like a chip, so a listing stays something you drive by touch. */
+  .grid td { cursor:pointer; min-height:44px; height:44px; }
+  .grid td.folder { color:var(--type); }
+  .grid td.file { color:var(--identifier); }
+  .grid td.number, .grid td.boolean { color:var(--flag); }
+  .grid td.object, .grid td.table { color:var(--variable); }
+  .grid td.none { color:var(--punctuation); }
+  .grid td.none::before { content:'—'; }
   .running .out:last-child::after { content:''; display:inline-block; width:6px; height:11px;
           margin-left:3px; background:var(--accent); vertical-align:-1px; animation:blink 1s steps(2) infinite; }
   @keyframes blink { to { visibility:hidden; } }
@@ -86,12 +115,18 @@
   .t.command{color:var(--command)} .t.flag{color:var(--flag)} .t.string{color:var(--string)}
   .t.variable{color:var(--variable)} .t.identifier{color:var(--identifier)}
   .t.type{color:var(--type)} .t.attribute{color:var(--attribute)} .t.punctuation{color:var(--punctuation)}
+  .t.operator{color:var(--operator);font-weight:600} .t.member{color:var(--member)}
   .t.sel { background:rgba(107,138,253,.25); }
 
   /* Input ----------------------------------------------------------------- */
   #bar { flex:none; margin-top:8px; }
   #detail { font-size:11px; color:var(--dim); min-height:16px; margin-bottom:4px; }
-  #prompt { font-size:11px; color:var(--dim); margin-bottom:4px; word-break:break-all; }
+  #prompt { font-size:11px; color:var(--dim); margin-bottom:4px; word-break:break-all;
+            display:flex; align-items:center; gap:6px; min-height:22px; }
+  #prompt .up {
+    font:11px ui-monospace,monospace; padding:3px 9px; border-radius:6px; background:var(--panel);
+    color:var(--type); border:1px solid var(--line); font-weight:600;
+  }
   .inputrow { display:flex; gap:6px; align-items:stretch; }
   /* A transparent input sits on a coloured mirror, so the text is tokenised while
      staying a real input the phone keyboard understands. */
@@ -121,6 +156,8 @@
   #complete .key.file { color:var(--identifier); }
   #complete .key.variable { color:var(--variable); }
   #complete .key.command { color:var(--command); }
+  #complete .key.operator { color:var(--operator); }
+  #complete .key.member { color:var(--member); }
   .keys { display:flex; gap:5px; overflow-x:auto; padding-top:6px; scrollbar-width:none; }
   .keys::-webkit-scrollbar { display:none; }
   .key {
@@ -163,7 +200,6 @@ let ready = false;
 let history = [];        // previously executed lines
 let historyIndex = -1;   // where Up/Down currently sits
 let draft = '';          // what was typed before walking into history
-let commands = [];       // command metadata, for help and completion
 let running = null;      // { id, entry } while a command executes
 let nextId = 1;
 let completions = [];    // what the last word could become
@@ -203,8 +239,9 @@ function faultHtml(r) {
   return `<div class="err">${kind}${escape(r.error)}</div>`;
 }
 
-/// Results render two ways: text-like values as a block you can read, everything with
-/// an identity (paths, objects, variables) as a chip you can tap to insert.
+/// Results render three ways: a table as a table, text-like values as a block you can
+/// read, and everything with an identity (paths, objects, variables) as a chip you can
+/// tap to insert.
 function itemsHtml(items) {
   let html = '';
   let chips = [];
@@ -214,7 +251,10 @@ function itemsHtml(items) {
   };
 
   for (const item of items || []) {
-    if (item.kind === 'text') {
+    if (item.kind === 'table') {
+      flush();
+      html += tableHtml(item);
+    } else if (item.kind === 'text') {
       flush();
       html += `<div class="text">${escape(item.text)}</div>`;
     } else {
@@ -224,6 +264,55 @@ function itemsHtml(items) {
 
   flush();
   return html;
+}
+
+// ---- tables ---------------------------------------------------------------
+
+/*
+  Every rendered table keeps its data, so tapping a header can re-sort it without
+  running the line again. This is a convenience over what is on screen and not a
+  command: `ls | sort size desc` is the one that changes what the terminal answered,
+  and this is the one that changes what you are looking at.
+*/
+const tables = new Map();
+let nextTableId = 1;
+
+function tableHtml(item) {
+  const id = nextTableId++;
+  tables.set(id, { columns: item.columns || [], rows: item.rows || [], sort: -1, desc: false });
+  return `<div class="grid" data-table="${id}">${gridHtml(id)}</div>`;
+}
+
+/// Ordered the way the core orders: numbers numerically when the column agreed on a
+/// number, everything else by the text on screen.
+function sortedRows(table) {
+  if (table.sort < 0) return table.rows;
+
+  const index = table.sort;
+  const numeric = (table.columns[index] || {}).type === 'number';
+
+  const ordered = table.rows.slice().sort((a, b) => {
+    const left = (a[index] || {}).text || '';
+    const right = (b[index] || {}).text || '';
+    return numeric ? Number(left) - Number(right) : (left < right ? -1 : left > right ? 1 : 0);
+  });
+
+  return table.desc ? ordered.reverse() : ordered;
+}
+
+function gridHtml(id) {
+  const table = tables.get(id);
+
+  const head = table.columns.map((column, index) =>
+    `<th data-column="${index}" class="${table.sort === index ? (table.desc ? 'desc' : 'asc') : ''}">` +
+    `${escape(column.name)}</th>`).join('');
+
+  const body = sortedRows(table).map(row =>
+    '<tr>' + row.map(cell =>
+      `<td class="${cell.kind}" data-insert="${escape(cell.path || cell.text)}">${escape(cell.text)}</td>`
+    ).join('') + '</tr>').join('');
+
+  return `<table><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>`;
 }
 
 /// Starts an entry the moment a command is submitted, so live output has somewhere to
@@ -321,11 +410,11 @@ async function run() {
   const text = cmd.value.trim();
   if (!ready || !text) return;
 
-  // Handled by the page rather than the evaluator, because both are about the screen
-  // rather than about the filesystem. `undo` used to be here too; it is a real command
-  // now, so it goes through the evaluator like everything else and can be piped.
-  if (text === 'help') { showHelp(); afterRun(text); return; }
-  if (text === 'clear') { scroll.innerHTML = ''; afterRun(text); return; }
+  // Handled by the page rather than the evaluator, because it is about the screen
+  // rather than about the filesystem. `undo` used to be here too, and `help` until
+  // Phase 3; both are real commands now, so they go through the evaluator like
+  // everything else and can be piped.
+  if (text === 'clear') { scroll.innerHTML = ''; tables.clear(); afterRun(text); return; }
 
   const id = nextId++;
   running = { id, entry: startEntry(id, text) };
@@ -358,29 +447,27 @@ function afterRun(text) {
   refreshMirror(); refreshCompletions();
 }
 
+/*
+  Where you are, and the one way out of it.
+
+  A listing is a table of records from Phase 3, and a table has nowhere to put the `up`
+  entry that used to head one: every row is a record, and `up` is not. It lives here
+  instead, beside the folder it would take you out of, and it runs the `up` command.
+*/
 async function refreshPrompt() {
   if (!ready) return;
   const location = JSON.parse(DotNet.invokeMethod('WebClient', 'Location'));
+
   // A location is a folder today and may be a saved query later, so the prompt reads
   // whichever one is set rather than assuming a path.
-  $('prompt').textContent = location.view || location.folder;
-}
+  const where = escape(location.view || location.folder);
+  const canGoUp = !location.view && location.folder !== '/';
 
-function showHelp() {
-  const rows = commands.map(c => {
-    const args = c.parameters.map(p => p.optional ? `[${p.name}]` : `<${p.name}>`).join(' ');
-    return `<div class="out"><span class="t command">${escape(c.name)}</span> ${escape(args)}` +
-           (c.description ? `<span class="hint"> — ${escape(c.description)}</span>` : '') + '</div>';
-  }).join('');
+  $('prompt').innerHTML = canGoUp
+    ? `<button class="up" id="up">up</button> ${where}`
+    : where;
 
-  addEntry('<div class="echo"><span class="sigil">$ </span>help</div>' + rows +
-    '<div class="out hint">Also: pipes (ls | echo), function form (echo(a, b)), ' +
-    'tags (&lt;thing a=1/&gt;), components ({renderer/}), variables (set v 5 or &lt;v|thing/&gt;, then $v). ' +
-    'Completions appear above the keys as you type. The Run button becomes Stop while a ' +
-    'command runs. clear empties the screen. undo, redo and history are commands: ' +
-    'undo reverses the last line that changed something, and a line that changed ' +
-    'nothing leaves nothing to undo. Your files are kept in this browser between ' +
-    'visits; reset empties the log and starts again, and cannot be undone.</div>');
+  if (canGoUp) $('up').onclick = () => { cmd.value = 'up'; run(); };
 }
 
 // ---- input handling -------------------------------------------------------
@@ -438,17 +525,47 @@ document.addEventListener('click', e => {
     return;
   }
 
+  // A header re-sorts what is on screen; it does not run anything.
+  const header = e.target.closest('.grid th');
+  if (header) {
+    const grid = header.closest('.grid');
+    const id = Number(grid.dataset.table);
+    const table = tables.get(id);
+    const column = Number(header.dataset.column);
+
+    if (table.sort === column) table.desc = !table.desc;
+    else { table.sort = column; table.desc = false; }
+
+    grid.innerHTML = gridHtml(id);
+    return;
+  }
+
+  const cell = e.target.closest('.grid td');
+  if (cell) {
+    insert(cell.dataset.insert);
+    return;
+  }
+
   const item = e.target.closest('.item');
   if (item) {
-    cmd.value = (cmd.value ? cmd.value.replace(/\s*$/, ' ') : '') + item.dataset.insert;
-    refreshMirror(); refreshCompletions();
-    cmd.focus();
+    insert(item.dataset.insert);
   }
 });
 
+/// Appends to the line being typed, with a space before it if something is there.
+function insert(text) {
+  if (!text) return;
+  cmd.value = (cmd.value ? cmd.value.replace(/\s*$/, ' ') : '') + text;
+  refreshMirror(); refreshCompletions();
+  cmd.focus();
+}
+
 runButton.onclick = run;
 
-[['help','help'],['ls','ls'],['cat readme.txt','cat readme.txt'],['cd documents','cd documents'],
+[['help','help'],['ls','ls'],['where','ls | where $row.kind eq folder'],
+ ['sort','ls | sort size desc'],['select','ls | select name kind'],['count','ls | count'],
+ ['first','ls | sort name | first'],['run','run examples/tables.clr'],
+ ['cat readme.txt','cat readme.txt'],['cd documents','cd documents'],
  ['mkdir scratch','mkdir scratch'],['echo hi | write note.txt','echo hi | write note.txt'],
  ['rm note.txt','rm note.txt'],['progress 20 100','progress 20 100'],['progress','progress'],
  ['set v 5','set v 5'],['ls | set files','ls | set files'],['vars','vars'],['echo $v','echo $v'],
@@ -472,7 +589,12 @@ runButton.onclick = run;
 function bannerFor(store) {
   const common =
     'The parser, the commands and the filesystem are all .NET compiled to WebAssembly. ' +
-    'Type <b>help</b> to see the commands, or tap a suggestion below.';
+    'Type <b>help</b> for the commands, or tap a suggestion below. ' +
+    'Listings are tables you can question: <b>ls | where $row.kind eq folder | count</b>. ' +
+    'Also pipes, the function form (echo(a, b)), tags (&lt;thing a=1/&gt;), ' +
+    'components ({renderer/}) and variables (set v 5, then $v). ' +
+    'Tap a column header to re-sort what is on screen, or a cell to insert it. ' +
+    '<b>clear</b> empties the screen; <b>undo</b>, <b>redo</b> and <b>history</b> are commands.';
 
   if (!store.persistent) {
     return 'A terminal running in this tab. ' + common +
@@ -531,8 +653,6 @@ function finishBoot(store) {
       : '<span style="color:var(--ok)">wasm</span> <span class="warn" title="' +
         escape(store.reason || 'This browser is not keeping the log.') +
         '">not persisted</span>';
-
-    try { commands = JSON.parse(DotNet.invokeMethod('WebClient', 'Commands')); } catch {}
 
     $('banner').innerHTML = bannerFor(store);
 

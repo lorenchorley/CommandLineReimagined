@@ -110,3 +110,57 @@ type CompletionTests() =
             Assert.AreEqual<int>(4, completion.Start)
             Assert.AreEqual<string>("file", completion.Kind)
         | other -> Assert.Fail(sprintf "Expected one completion, got %A" other)
+
+    // ------------------------------------------------------- expressions (Phase 3)
+
+    /// <summary>Operators are offered where an expression is plainly being written.</summary>
+    /// <remarks>
+    /// The test is a `$` earlier in the stage. A predicate names its row, so one is
+    /// always there, and without it `cat no` would offer `not` beside `notes.txt`.
+    /// </remarks>
+    [<TestMethod>]
+    member _.AnOperatorIsOfferedAfterAnOperand() =
+        let harness = seeded ()
+
+        Assert.AreEqual<string list>([ "eq" ], texts harness "ls | where $row.kind e")
+
+    [<TestMethod>]
+    member _.AnOperatorIsOfferedAfterACompleteComparison() =
+        let harness = seeded ()
+
+        assertContains "and" (texts harness "ls | where $row.kind eq folder a")
+
+    [<TestMethod>]
+    member _.NoOperatorIsOfferedWhereAPathIsBeingWritten() =
+        let harness = seeded ()
+        harness.Run "cd documents" |> ignore
+
+        Assert.AreEqual<string list>([ "notes.txt" ], texts harness "cat no")
+
+    [<TestMethod>]
+    member _.TwoOperatorsInARowAreNotOffered() =
+        let harness = seeded ()
+
+        Assert.AreEqual<int>(0, (texts harness "ls | where $row.kind eq n").Length)
+
+    /// A member reads a column, so what follows the stop is a column name.
+    [<TestMethod>]
+    member _.AMemberCompletesToAColumn() =
+        let harness = seeded ()
+
+        Assert.AreEqual<string list>([ "$row.kind" ], texts harness "ls | where $row.ki")
+
+    [<TestMethod>]
+    member _.AMemberOffersTheAttributesThingsHereCarry() =
+        let harness = seeded ()
+        harness.Run "attr readme.txt mood=good" |> ignore
+
+        assertContains "$row.mood" (texts harness "ls | where $row.m")
+
+    /// `row` is never in the projection: it exists only while a predicate is running,
+    /// and it is the one variable a user writes without having bound it.
+    [<TestMethod>]
+    member _.RowIsOfferedAlthoughNothingBoundIt() =
+        let harness = seeded ()
+
+        assertContains "$row" (texts harness "ls | where $r")
