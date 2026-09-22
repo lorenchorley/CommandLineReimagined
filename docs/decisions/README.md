@@ -34,6 +34,7 @@ a later record, **Rejected**.
 | [0022](0022-hyphenated-command-names.md) | A command's name may be several words joined by hyphens | Accepted |
 | [0023](0023-adjacent-function-parenthesis.md) | The function form needs its parenthesis against the name; a spaced parenthesis is a nested pipeline | Accepted |
 | [0024](0024-stop-is-not-recoverable.md) | Stop is not a failure a line can recover from | Accepted |
+| [0025](0025-xml-text-content.md) | XML element text content is read as a `text` attribute | Accepted |
 
 Retrospective records document decisions taken before the log existed, so that the
 log is the one place to look. Their alternatives are the ones weighed at the time, as

@@ -3,10 +3,12 @@
 **Goal.** `from-xml`, `to-xml`, `from-csv`, `to-csv` read and write files in the store.
 Decision [0011](../decisions/0011-real-xml-files.md).
 
-**Record to add first.** 0020: element text content is out of scope for this release;
-elements with text content are read with a `text` attribute holding it, and written
-back the same way, so a round trip is lossless for attribute-only and text-only
-elements and documented as lossy for mixed content.
+**Record to add first.** [0025](../decisions/0025-xml-text-content.md): element text
+content is out of scope for this release; elements with text content are read with a
+`text` attribute holding it, and written back the same way, so a round trip is lossless
+for attribute-only and text-only elements and documented as lossy for mixed content.
+(This document first numbered it 0020, which Phase 3 took for scripts; records are
+numbered in the order they are taken.)
 
 ## Semantics
 
