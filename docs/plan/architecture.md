@@ -21,7 +21,8 @@ a phase document and this one disagree, this one is wrong and should be fixed fi
 | `CommandLineReimagined` (`Application.csproj`) | C# | WPF host | Registration updated to the `Session` |
 
 `FileId` is declared in `Values.fs` rather than `Events.fs`, because `FileRef` names
-one and values compile first.
+one and values compile before events. Faults compile before values, because from
+Phase 5 a fault is one (`Value.Fault`).
 
 `Core` depends on `Parser.Tree` and `Parser.FParsec` only. Nothing in `Core` references
 the ECS, rendering, WPF, Blazor or JavaScript.
@@ -416,6 +417,7 @@ grow to 44 pixels in Phase 1.
 | 0019 | Reserved words in expression positions | 3 |
 | 0022 | A command's name may be several words joined by hyphens | 4 |
 | 0023 | Function form requires an adjacent parenthesis; a spaced parenthesis is a nested pipeline | 5 |
-| 0024 | XML element text content is out of scope for the first XML release | 6 |
+| 0024 | Stop is not a failure a line can recover from | 5 |
+| 0025 | XML element text content is out of scope for the first XML release | 6 |
 | 0020 | Scripts: one line per statement, `#` comments, `.clr`, `run` commits per line and stops at the first fault | 3 |
 | 0021 | One parameter may collect the remaining positional arguments | 3 |
