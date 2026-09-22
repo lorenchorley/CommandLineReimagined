@@ -52,8 +52,12 @@ module Nesting =
 
 type Evaluator(commands: Command list, store: Store, blobs: IBlobs) =
 
+    /// Every command but the one that reports unknown names. That one is reached when a
+    /// name resolves to nothing, never by being typed: typed, it ran with no name and
+    /// answered `Unknown command : ` about nothing at all.
     let byName =
         commands
+        |> List.filter (fun command -> command.Spec.Name <> "UnknownCommand")
         |> List.map (fun command -> command.Spec.Name.ToLowerInvariant(), command)
         |> Map.ofList
 
