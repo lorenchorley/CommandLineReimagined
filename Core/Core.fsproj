@@ -17,12 +17,13 @@
 
   <!--
     F# compiles in the order listed, and a file may only use what came before it. The
-    order is the dependency order of the design: values, then failure, then the log,
-    then the fold over it, then the things that read the fold.
+    order is the dependency order of the design: failure, then values (a fault is one,
+    from Phase 5), then the log, then the fold over it, then the things that read the
+    fold.
   -->
   <ItemGroup>
-    <Compile Include="Values.fs" />
     <Compile Include="Faults.fs" />
+    <Compile Include="Values.fs" />
     <Compile Include="Events.fs" />
     <Compile Include="Projection.fs" />
     <Compile Include="Table.fs" />

@@ -81,10 +81,12 @@ public class BareWordTests
     public void TheCommandNameItselfIsStillAnIdentifier()
     {
         // The name stops at the dot; what follows starts a word, since `cd ..` needs a
-        // leading dot to be one. So this is `not` with two arguments, not a syntax error.
-        var cli = ParserHarness.Cli("not.a.command arg");
+        // leading dot to be one. So this is `now` with two arguments, not a syntax error.
+        // (It was `not` until Phase 5, when a reserved word stopped being able to name a
+        // command at all.)
+        var cli = ParserHarness.Cli("now.a.command arg");
 
-        Assert.AreEqual("not", cli.Name.Name);
+        Assert.AreEqual("now", cli.Name.Name);
         Assert.AreEqual(2, cli.Arguments.Arguments.Count);
         Assert.AreEqual(".a.command", ((Identifier)((CommandArgumentValue)cli.Arguments.Arguments[0]).Value).Name);
     }

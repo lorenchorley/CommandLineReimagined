@@ -41,6 +41,16 @@ module Completion =
 
         Table.recordColumns @ attributes
 
+    /// <summary>The words that shape a line rather than being part of a stage (Phase 5).</summary>
+    /// <remarks>
+    /// `try` is offered where a command would be, since that is where it is written.
+    /// `else` is offered where an argument would be, and only once two letters of it are
+    /// there, because `e` alone is far more often the start of a file name.
+    /// </remarks>
+    let private stageKeywords = [ "try" ]
+
+    let private lineKeywords = [ "else" ]
+
     let private isWordBoundary (c: char) =
         Char.IsWhiteSpace c || c = '|' || c = '(' || c = ','
 
@@ -58,8 +68,17 @@ module Completion =
         let word = text.Substring start
         let before = text.Substring(0, start)
 
-        // At the head of a line, or straight after a pipe, the word names a command.
-        let firstWord = before.Trim().Length = 0 || before.TrimEnd().EndsWith '|'
+        // At the head of a line, straight after a pipe, and — from Phase 5 — after
+        // `else`, after `try` and inside an opening parenthesis, the word names a
+        // command.
+        let firstWord =
+            let trimmed = before.TrimEnd()
+            let lastToken = trimmed.Split([| ' '; '\t'; '|'; '(' |]) |> Array.last
+
+            trimmed.Length = 0
+            || trimmed.EndsWith '|'
+            || trimmed.EndsWith '('
+            || (trimmed.Length < before.Length && (lastToken = "else" || lastToken = "try"))
 
         let startsWith (candidate: string) =
             candidate.StartsWith(word, StringComparison.OrdinalIgnoreCase)
@@ -97,6 +116,9 @@ module Completion =
                     @ (pageWords
                        |> List.filter startsWith
                        |> List.map (fun name -> { Kind = "command"; Text = name; Start = start }))
+                    @ (stageKeywords
+                       |> List.filter startsWith
+                       |> List.map (fun name -> { Kind = "keyword"; Text = name; Start = start }))
                 else
                     []
 
@@ -147,10 +169,19 @@ module Completion =
                     (stage.TrimStart().Split(' ', '\t') |> Array.tryHead |> Option.defaultValue "")
                         .Equals("cd", StringComparison.OrdinalIgnoreCase)
 
+                let keywords =
+                    if not firstWord && word.Length >= 2 && written = "" then
+                        lineKeywords
+                        |> List.filter startsWith
+                        |> List.map (fun name -> { Kind = "keyword"; Text = name; Start = start })
+                    else
+                        []
+
                 if not (Files.folderExists projection folder) then
-                    []
+                    keywords
                 else
-                    Files.inFolder projection folder
+                    keywords
+                    @ (Files.inFolder projection folder
                     |> List.filter (fun record ->
                         (not places || Record.isFolder record || Record.kind record = Value.viewKind)
                         && (Record.name record).StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
@@ -165,4 +196,4 @@ module Completion =
                             // its own name: `cd weekend/` would name nothing.
                             { Kind = (if Record.kind record = Value.viewKind then Value.viewKind else "file")
                               Text = written + Record.name record
-                              Start = start })
+                              Start = start }))

@@ -49,6 +49,32 @@ type CompletionTests() =
 
         assertContains "cat" (texts harness "ls | c")
 
+    /// Phase 5: after `else`, after `try` and inside a parenthesis, a stage starts, so
+    /// the word names a command.
+    [<TestMethod>]
+    member _.AWordThatStartsAStageIsACommand() =
+        let harness = seeded ()
+
+        for line in [ "cat x else c"; "try c"; "ls | try c"; "first (c"; "echo (ls | c" ] do
+            assertContains "cat" (texts harness line)
+
+    [<TestMethod>]
+    member _.TryIsOfferedWhereACommandIsWritten() =
+        let harness = seeded ()
+
+        assertContains "try" (texts harness "tr")
+        assertContains "try" (texts harness "ls | tr")
+        Assert.IsFalse(List.contains "try" (texts harness "echo tr"))
+
+    /// `else` needs two letters, because `e` alone is more often a file name.
+    [<TestMethod>]
+    member _.ElseIsOfferedWhereAnArgumentIsWritten() =
+        let harness = seeded ()
+
+        assertContains "else" (texts harness "cat x el")
+        Assert.IsFalse(List.contains "else" (texts harness "cat x e"))
+        Assert.IsFalse(List.contains "else" (texts harness "el"))
+
     [<TestMethod>]
     member _.ADollarCompletesAVariable() =
         let harness = seeded ()

@@ -51,7 +51,9 @@ module Expr =
     /// cannot: a tag has no meaning in a comparison, and saying so names the mistake
     /// better than evaluating it to its display string would.
     /// </remarks>
-    let rec ofNode (node: Tree.Value) : Outcome<Expr> =
+    let rec ofNodeWith (nested: Tree.NestedPipeline -> Outcome<Expr>) (node: Tree.Value) : Outcome<Expr> =
+        let ofNode = ofNodeWith nested
+
         match node with
         | null -> Ok(Expr.Const Value.Empty)
 
@@ -83,9 +85,18 @@ module Expr =
 
         | :? Tree.NotExpression as negation -> ofNode negation.Operand |> Outcome.map Expr.Not
 
-        | :? Tree.NestedPipeline as nested -> Ok(Expr.Nested nested.Pipeline)
+        | :? Tree.NestedPipeline as pipeline -> nested pipeline
 
         | other -> Error(Fault.notAnOperand (other.GetType().Name))
+
+    /// <summary>Turns a parsed argument into an expression, keeping any nested pipeline as written.</summary>
+    /// <remarks>
+    /// The evaluator runs a line's nested pipelines before binding and uses
+    /// `ofNodeWith` to put their values in; this form is for an expression with no line
+    /// around it, such as a saved view read back from its file.
+    /// </remarks>
+    let ofNode (node: Tree.Value) : Outcome<Expr> =
+        ofNodeWith (fun pipeline -> Ok(Expr.Nested pipeline.Pipeline)) node
 
     // ------------------------------------------------------------------- Members
 
@@ -110,6 +121,26 @@ module Expr =
             | "folder" -> Value.Text file.Folder
             | "path" -> Value.Text(Value.joinPath file.Folder file.Name)
             | "id" -> Value.Text file.Id
+            | _ -> Value.None
+
+        // Decision 0014: a fault held as a value can be asked what it was. `kind` is
+        // the word a script compares against, `message` the sentence a person reads.
+        | Value.Fault fault ->
+            match name with
+            | "message" -> Value.Text fault.Message
+            | "kind" -> Value.Text(FaultKind.name fault.Kind)
+            | "path" ->
+                match fault.Path with
+                | Some path -> Value.Text path
+                | Option.None -> Value.None
+            | "stage" ->
+                match fault.Stage with
+                | Some stage -> Value.Number(float stage)
+                | Option.None -> Value.None
+            | "cause" ->
+                match fault.Cause with
+                | Some cause -> Value.Fault cause
+                | Option.None -> Value.None
             | _ -> Value.None
 
         | _ -> Value.None
@@ -260,9 +291,9 @@ module Expr =
 
         | Expr.Not operand -> evaluate scope operand |> Outcome.map (fun value -> Value.Boolean(not (isTrue value)))
 
-        // A pipeline is the evaluator's to run, and an operand is evaluated without one
-        // in reach. Phase 5 gives `(...)` a meaning as a value; until then saying so is
-        // better than guessing at one.
+        // A pipeline is the evaluator's to run, and it runs a line's nested pipelines
+        // before the predicate is built, so one only survives to here from an
+        // expression that no line ran — a saved view read back from its file.
         | Expr.Nested pipeline -> Error(Fault.nestedPipelineNotAValue (Value.exprText (Expr.Nested pipeline)))
 
     /// The display text of a predicate, for `Value.display` and for the prompt.

@@ -203,10 +203,8 @@ public class ExpressionTests
     // ------------------------------------------------------ Nested pipelines
 
     /// <remarks>
-    /// The parenthesis is written after a first argument, because a name with a space
-    /// and a parenthesis after it is still the function form until decision 0022
-    /// separates the two in Phase 5. Where no name precedes it, the parenthesis can
-    /// only be an operand, and that is the case this pins.
+    /// Written after a first argument so that it pins the operand position on its own;
+    /// straight after a name with a space is decision 0023's case, in RecoveryTests.
     /// </remarks>
     [TestMethod]
     public void AParenthesisedPipelineIsAnOperand()
@@ -239,12 +237,11 @@ public class ExpressionTests
     /// The function form needs its parenthesis on the name: `first(ls)` calls `first`.
     /// </summary>
     /// <remarks>
-    /// Telling the two apart by the space is decision 0022's business, in Phase 5. Until
-    /// then the function form wins wherever a name precedes a parenthesis, which is what
-    /// this pins so that the change is visible when it is made.
+    /// Decision 0023. The spaced form is the other half of the rule and is pinned beside
+    /// the rest of Phase 5's grammar in RecoveryTests.
     /// </remarks>
     [TestMethod]
-    public void ANameBeforeAParenthesisIsStillAFunctionCall()
+    public void ANameAgainstAParenthesisIsAFunctionCall()
     {
         Assert.AreEqual("first", ParserHarness.Function("first(ls)").Id.Name);
     }

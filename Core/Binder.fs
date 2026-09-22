@@ -33,7 +33,21 @@ module Binder =
     let private lookup (scope: Scope) (name: string) : Outcome<Value> =
         scope.TryFind name |> Outcome.ofOption (Fault.unknownVariable name)
 
-    let rec private eval (scope: Scope) (node: Tree.Value) : Outcome<Step> =
+    /// <summary>What a nested pipeline produced, looked up by the node that wrote it.</summary>
+    /// <remarks>
+    /// Running a pipeline is asynchronous and belongs to the evaluator, and binding is
+    /// neither, so the evaluator runs a stage's nested pipelines first and hands the
+    /// binder their values through this (decision 0023).
+    /// </remarks>
+    type Nested = Tree.NestedPipeline -> Outcome<Value>
+
+    /// For a line that has no nested pipelines, or none that were run.
+    let noNested: Nested =
+        fun pipeline -> Error(Fault.nestedPipelineNotAValue (Value.exprText (Expr.Nested pipeline.Pipeline)))
+
+    let rec private eval (nested: Nested) (scope: Scope) (node: Tree.Value) : Outcome<Step> =
+        let evalTag = evalTag nested
+
         match node with
         | null -> Ok((Value.Empty, []), scope)
 
@@ -56,11 +70,15 @@ module Binder =
 
         | :? Tree.TagValue as tag -> evalTag scope tag.Tag
 
+        | :? Tree.NestedPipeline as pipeline -> nested pipeline |> Outcome.map (fun value -> ((value, []), scope))
+
         | :? Tree.Constant as constant -> Ok((Value.Text(string constant), []), scope)
 
         | other -> Error(Fault.unsupportedArgument (other.GetType().Name))
 
-    and private evalTag (scope: Scope) (tag: Tree.InstanceTag) : Outcome<Step> =
+    and private evalTag (nested: Nested) (scope: Scope) (tag: Tree.InstanceTag) : Outcome<Step> =
+        let buildTag = buildTag nested
+
         match tag with
         | :? Tree.ObjectInstance as instance ->
             buildTag scope instance.ObjectType.Value instance.Attributes instance.Children
@@ -79,6 +97,7 @@ module Binder =
         | other -> Error(Fault.cannotEvaluate (other.GetType().Name))
 
     and private buildTag
+        (nested: Nested)
         (scope: Scope)
         (typeName: string)
         (attributes: Tree.TagAttributeList)
@@ -95,7 +114,7 @@ module Binder =
             match remaining with
             | [] -> Ok((List.rev acc, events), scope)
             | (attribute: Tree.TagAttribute) :: rest ->
-                match eval scope attribute.Value with
+                match eval nested scope attribute.Value with
                 | Error fault -> Error fault
                 | Ok((value, produced), scope) ->
                     attributeLoop scope ((attribute.Name.Name, value) :: acc) (events @ produced) rest
@@ -105,8 +124,8 @@ module Binder =
             | [] -> Ok((List.rev acc, events), scope)
             | (child: Tree.Tag) :: rest ->
                 match child with
-                | :? Tree.InstanceTag as nested ->
-                    match evalTag scope nested with
+                | :? Tree.InstanceTag as child ->
+                    match evalTag nested scope child with
                     | Error fault -> Error fault
                     | Ok((value, produced), scope) -> childLoop scope (value :: acc) (events @ produced) rest
                 | other -> Error(Fault.cannotEvaluateChild (other.GetType().Name))
@@ -131,12 +150,15 @@ module Binder =
             ((value, events @ [ VariableChanged(name.Name, before, Some value) ]), scope.Bind name.Name value)
 
     /// Evaluates one written value against a scope.
-    let evaluate (scope: Scope) (node: Tree.Value) : Outcome<Value * Event list> =
-        eval scope node |> Outcome.map fst
+    let evaluateWith (nested: Nested) (scope: Scope) (node: Tree.Value) : Outcome<Value * Event list> =
+        eval nested scope node |> Outcome.map fst
+
+    /// Evaluates one written value against a scope, where no nested pipeline has run.
+    let evaluate (scope: Scope) (node: Tree.Value) = evaluateWith noNested scope node
 
     /// Evaluates a tag standing alone as a pipeline stage.
     let evaluateTag (scope: Scope) (tag: Tree.InstanceTag) : Outcome<Value * Event list> =
-        evalTag scope tag |> Outcome.map fst
+        evalTag noNested scope tag |> Outcome.map fst
 
     // --------------------------------------------------------------------- Binding
 
@@ -170,11 +192,15 @@ module Binder =
     /// `$row` to; every other kind is evaluated here, and an argument that actually
     /// wrote an operator is a binding fault rather than a comparison of display strings.
     /// </remarks>
-    let private bindArgument (spec: CommandSpec) (parameter: Parameter) (scope: Scope) (node: Tree.Value) =
+    let private bindArgument (nested: Nested) (spec: CommandSpec) (parameter: Parameter) (scope: Scope) (node: Tree.Value) =
         match parameter.Kind with
-        | Predicate -> Expr.ofNode node |> Outcome.map (fun expr -> ((Value.Query expr, []), scope))
+        | Predicate ->
+            // A nested pipeline in a predicate ran once, before binding, so the
+            // predicate compares every row against the one value it produced.
+            let constant (pipeline: Tree.NestedPipeline) = nested pipeline |> Outcome.map Expr.Const
+            Expr.ofNodeWith constant node |> Outcome.map (fun expr -> ((Value.Query expr, []), scope))
         | _ when Expr.isExpression node -> Error(Fault.takesNoExpression spec.Name parameter.Name)
-        | _ -> eval scope node
+        | _ -> eval nested scope node
 
     /// The running state of step 1, so that four things do not have to be threaded as
     /// a tuple through every branch.
@@ -191,7 +217,9 @@ module Binder =
     /// can produce events, so the scope and the events are threaded through rather
     /// than a dictionary being filled in place.
     /// </remarks>
-    let bind (arguments: Tree.Arguments) (spec: CommandSpec) (input: Value) (scope: Scope) : Outcome<Bound> =
+    let bindWith (nested: Nested) (arguments: Tree.Arguments) (spec: CommandSpec) (input: Value) (scope: Scope) : Outcome<Bound> =
+        let bindArgument = bindArgument nested
+        let eval = eval nested
 
         let written =
             if isNull (box arguments) then [||] else Array.ofSeq arguments.Arguments
@@ -337,3 +365,7 @@ module Binder =
                       Assignments = state.Assignments
                       Events = state.Events }
         }
+
+    /// Binds a command's arguments where no nested pipeline has run.
+    let bind (arguments: Tree.Arguments) (spec: CommandSpec) (input: Value) (scope: Scope) : Outcome<Bound> =
+        bindWith noNested arguments spec input scope

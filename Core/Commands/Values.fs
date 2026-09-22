@@ -1,4 +1,4 @@
-/// The value commands: echo, set and vars.
+/// The value commands: echo, set, vars and is-fault.
 module CommandLineReimagined.Core.Commands.Values
 
 open CommandLineReimagined.Core
@@ -64,4 +64,30 @@ let vars =
                 let rows = variables |> List.map (fun (name, value) -> [ Value.Text name; value ])
 
                 return Invocation.pure' (Value.Table(Table.ofColumns [ "name"; "value" ] rows))
+            } }
+
+/// <summary>Whether a value is a fault (Phase 5).</summary>
+/// <remarks>
+/// `try` makes a failure into a value, and a value can be anything, so a script that
+/// wants to branch on "did that work" needs a question it can ask without knowing what
+/// the success would have looked like. Given nothing at all it answers `false`: nothing
+/// is not a failure.
+/// </remarks>
+let isFault =
+    { Spec =
+        CommandSpec.create
+            "is-fault"
+            "Whether a value, or whatever was piped in, is a fault that try caught"
+            [ "fault"; "failed"; "error"; "check"; "try" ]
+            [ Parameter.optional "value" "The value to ask about" |> Parameter.piped ]
+        |> CommandSpec.readOnly
+      Run =
+        fun invocation ->
+            async {
+                let answer =
+                    match Invocation.value "value" invocation with
+                    | Value.Fault _ -> true
+                    | _ -> false
+
+                return Invocation.pure' (Value.Boolean answer)
             } }

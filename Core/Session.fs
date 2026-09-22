@@ -187,6 +187,7 @@ type Session(log: ILog, options: SessionOptions, seed: Seed) =
           Commands.Values.echo
           Commands.Values.set
           Commands.Values.vars
+          Commands.Values.isFault
           Commands.Async.progress
           Commands.Async.download options.HttpClient options.NewId options.Clock
           Commands.Tables.where

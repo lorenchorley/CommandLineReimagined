@@ -29,6 +29,7 @@
     <Compile Include="AsyncCommandTests.fs" />
     <Compile Include="TableCommandTests.fs" />
     <Compile Include="ViewTests.fs" />
+    <Compile Include="RecoveryTests.fs" />
     <Compile Include="MetaCommandTests.fs" />
     <Compile Include="CompletionTests.fs" />
     <Compile Include="PersistenceTests.fs" />

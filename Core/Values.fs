@@ -96,8 +96,9 @@ and [<RequireQualifiedAccess>] Expr =
 /// `Option.None` everywhere this namespace is opened, and absence is spelled with an
 /// option often enough in here that the shadowing would be a standing trap.
 ///
-/// `Fault` arrives in Phase 5 with `try`. Until a phase has a way to produce a case
-/// there is nothing that could return it.
+/// `Fault` is Phase 5's: `try` turns a failure into one, and `else` hands one to the
+/// pipeline that recovers. It is an ordinary value from then on, so a variable can
+/// hold it and `$problem.kind` can read it.
 /// </remarks>
 and [<RequireQualifiedAccess>] Value =
     /// A command that returns nothing. Distinct from `None`: this is "no answer",
@@ -115,6 +116,8 @@ and [<RequireQualifiedAccess>] Value =
     /// A predicate as a value. It is what a `Predicate` parameter is handed, and from
     /// Phase 4 what a location's view is made of.
     | Query of Expr
+    /// A failure, held as a value rather than stopping the line (decision 0014).
+    | Fault of Fault
 
 [<CompilationRepresentation(CompilationRepresentationFlags.ModuleSuffix)>]
 module Tag =
@@ -180,6 +183,9 @@ module Value =
         | Value.Component tag -> tagText "{" "}" tag
         | Value.Table table -> tableText table
         | Value.Query expr -> exprText expr
+        // A fault reads as the sentence it would have been on the red line. What makes
+        // it a value is that the line went on.
+        | Value.Fault fault -> fault.Message
 
     and private tagText (opening: string) (closing: string) (tag: Tag) =
         let attributes =
@@ -283,6 +289,7 @@ module Value =
         | Value.Component _ -> "component"
         | Value.Table _ -> "table"
         | Value.Query _ -> "query"
+        | Value.Fault _ -> "fault"
 
     /// <summary>
     /// A bare word that reads as a number becomes one; everything else stays text.
