@@ -59,7 +59,7 @@ argument:
 $ first(ls)
 'first' needs a table, not text.
 $ first (ls | sort name desc)
-<row name=readme.txt kind=text folder=/ size=41 modified=2026-09-22T19:42:19.4818044+00:00/>
+<row name=readme.txt kind=text folder=/ size=41 modified=2026-09-22T09:30:00.0000000+00:00/>
 ```
 
 The first line calls `first` with the word `ls`; the second runs `ls | sort name desc`
@@ -81,7 +81,7 @@ $ <measurement unit=metres value=3/>
 
 An unquoted word may contain letters, digits and underscore, plus `. \ / : ~ + @ % -`
 after the first character. The first character must be a letter, digit, underscore, or
-one of `. \ / ~`, or a `-` with a digit after it. That covers the things a shell needs
+one of `. \ / ~ *`, or a `-` with a digit after it. That covers the things a shell needs
 to write without ceremony:
 
 ```
@@ -133,18 +133,18 @@ that says how to write it as text instead:
 
 ```
 $ echo eq
-'eq' is an operator; write "eq" to pass it as text
+Column 5: 'eq' is an operator; write "eq" to pass it as text
 $ echo "eq"
 eq
 ```
 
-The match is exact and case-sensitive, so `equals`, `eq.txt` and `Eq` are ordinary
-words. No command is named after a reserved word, and none may be; writing one where a
+The message names the column the word starts in, counted from zero. The match is exact
+and case-sensitive, so `equals`, `eq.txt` and `Eq` are ordinary words. No command is named after a reserved word, and none may be; writing one where a
 command belongs says so:
 
 ```
 $ else echo x
-'else' is a reserved word and cannot name a command
+Column 0: 'else' is a reserved word and cannot name a command
 ```
 
 ### Assignments
@@ -154,7 +154,7 @@ name carrying a piece of data. Commands that take arbitrary named data, such as 
 and `save`, collect them:
 
 ```
-$ attr notes.txt tag=work due=2026-10-01
+$ attr documents/notes.txt tag=work due=2026-10-01
 notes.txt
 ```
 
@@ -178,8 +178,9 @@ $ echo v2
 v2
 ```
 
-Numbers use a point as the decimal separator regardless of your locale. Commands that
-want a number, such as `progress`, accept either a number or a word that looks like one.
+Numbers use a point as the decimal separator regardless of your locale. A command that
+wants a number, such as `progress`, wants one written as a number: `progress 20` is
+twenty steps, and `progress "20"` is text and is refused.
 
 ### Quoted strings
 
@@ -211,7 +212,8 @@ A flag takes the next plain value as its value:
 
 ```
 $ ls -path documents
-up  notes.txt
+name       kind  folder      size  modified
+notes.txt  text  /documents  50    2026-09-22T09:30:00.0000000+00:00
 ```
 
 A flag with nothing after it is a switch and binds `true`:
@@ -322,7 +324,7 @@ value it answered:
 ```
 $ ls | where $row.size gt (ls | count)
 name        kind  folder  size  modified
-readme.txt  text  /       41    2026-09-22T19:42:19.4818044+00:00
+readme.txt  text  /       41    2026-09-22T09:30:00.0000000+00:00
 ```
 
 ## How arguments reach parameters
@@ -354,7 +356,11 @@ its input. The value keeps its type: a list stays a list, a path stays a path.
 
 ```
 $ ls | set files
-up  documents  projects  readme.txt
+name        kind    folder  size  modified
+documents   folder  /       0     2026-09-22T09:30:00.0000000+00:00
+examples    folder  /       0     2026-09-22T09:30:00.0000000+00:00
+projects    folder  /       0     2026-09-22T09:30:00.0000000+00:00
+readme.txt  text    /       41    2026-09-22T09:30:00.0000000+00:00
 $ echo documents | cd
 documents
 $ cat notes.txt | write copy.txt
@@ -630,6 +636,5 @@ the scrollback names that role. The roles are: command, flag, string, variable,
 identifier, type, attribute, operator, member, keyword and punctuation. `try` and `else`
 are keywords; `??` is an operator.
 
-Because the tree is faithful, serialising it reproduces your text exactly. That
-round-trip is checked on every parse, which is what keeps colouring and structure
-honest.
+Because the tree is faithful, serialising it reproduces your text exactly. The parser's
+tests check that round trip, which is what keeps colouring and structure honest.

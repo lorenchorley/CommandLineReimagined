@@ -5,9 +5,12 @@ columns, and a table is a value like any other: you can filter it, sort it, coun
 pick a column out of it, and pipe what is left into something else.
 
 The examples below are pasted from a real session, not typed from memory. Timestamps
-are whatever the clock said at the time.
+are whatever the clock said at the time. Each section says where it starts; a fresh tab
+is one with only the seeded files in it.
 
 ## A listing is a table
+
+From a fresh tab:
 
 ```
 $ ls
@@ -88,7 +91,7 @@ $ mkdir stock
 stock
 
 $ cd stock
-/stock
+stock
 
 $ save <item name=bolts sku=A1 qty=120 min=50/>
 bolts
@@ -154,7 +157,7 @@ of them as an ordinary word is a syntax error that says so:
 
 ```
 $ echo eq
-'eq' is an operator; write "eq" to pass it as text
+Column 5: 'eq' is an operator; write "eq" to pass it as text
 
 $ echo "eq"
 eq
@@ -183,7 +186,7 @@ question, and asking a question leaves nothing to undo.
 | `rows` | — | a list of objects |
 | `table` | — | the same table, coerced explicitly |
 
-Back at the root, where the four seeded entries are:
+From a fresh tab again, where the four seeded entries are the whole of the root:
 
 ```
 $ ls | select name size
@@ -280,6 +283,8 @@ A table can live in a file, as XML or as CSV, and comes back out as the same val
 went in as. Four commands do it: `to-xml` and `to-csv` write, `from-xml` and `from-csv`
 read. A document is an ordinary file in the terminal: it shows up in `ls`, `cat` reads
 it as text, and `undo` takes a write away like any other.
+
+From a fresh tab, and continuing in the same one to the end of this section:
 
 ```
 $ mkdir stock
@@ -408,7 +413,7 @@ sort  <column> [desc] [table]  Order the rows by a column
 | `'select' has no column named 'nowhere'.` | A column name that is not in the table. `columns` lists what is. |
 | `'select' needs at least one column.` | `select` with nothing to select. The pipe is the table, not the column list. |
 | `<items> is not a table: child 2 is <other> where the first is <item>.` | A tag whose children disagree about their type, or one that has children of its own. |
-| `'eq' is an operator; write "eq" to pass it as text` | A reserved word in argument position. |
+| `Column 5: 'eq' is an operator; write "eq" to pass it as text` | A reserved word in argument position. The column is where the word starts. |
 | `'echo' takes a value for 'text', not an expression.` | A comparison was written for a command that does not take a predicate. |
 | `Not well-formed XML : /stock/broken.xml line 1, position 16` | `from-xml` was given a file that is not XML. The line and position are where the parser gave up. |
 | `'to-xml' needs a tag, a table or a list of tags, not text.` | Only something with elements in it can be written as a document. |
