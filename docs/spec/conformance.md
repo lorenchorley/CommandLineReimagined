@@ -75,8 +75,13 @@ for p in $(find . \( -name '*.Tests.csproj' -o -name '*.Tests.fsproj' \) | sort)
 done
 ```
 
-`Core.Tests` absorbed `Execution.Tests`, which is now deleted. Every case it had is
-here, asserting on the projection rather than on a temporary directory.
+`Core.Tests` absorbed `Execution.Tests`, which is deleted, as is the C# `Commands`
+project it tested. Every case it had is here, asserting on the projection rather than on
+a temporary directory.
+
+`EntityComponentSystem.Tests`, `Rendering.Tests`, `Utils.Tests` and
+`SourceGenerators.Tests` cover the desktop shell's libraries, which this specification
+does not govern. They run in CI with the rest.
 
 ## Checklist for a new implementation
 
@@ -117,14 +122,26 @@ here, asserting on the projection rather than on a temporary directory.
 - [ ] Piped input reaches only parameters that accept it and that were not written out.
 - [ ] Arity and missing-argument messages match the wording in
       [Execution model](execution-model.md#argument-binding).
-- [ ] An unknown name is reported through `UnknownCommand`.
+- [ ] An unknown name is reported as a fault of kind `UnknownCommand`.
 - [ ] A pipeline threads values and stops at the first failure.
 - [ ] Tags evaluate as values, as pipeline stages and as arguments, and bind their
       variable in every position.
-- [ ] Each execution gets its own command instance, so undo is per invocation.
-- [ ] Undo returns the name of what it reversed, and reversing a read-only command
-      succeeds.
-- [ ] An asynchronous command observes cancellation and reports through `FailedInvoke`.
+- [ ] A command returns a value and events and changes nothing itself; a later stage
+      reads a projection with the earlier stages' events folded in.
+- [ ] A line commits one transaction when it succeeds, nothing when it fails, and
+      nothing when it produced no events.
+- [ ] Every event inverts to where it started; `undo` appends the last undoable line's
+      events inverted and reversed, and names the line; `redo` compensates the
+      compensation; the seed is recorded and cannot be undone.
+- [ ] Replaying a log into an empty store arrives at exactly the projection it left.
+- [ ] Content is stored by the SHA-256 of its text, and a command reaches it only
+      through put and get.
+- [ ] An asynchronous command observes cancellation, and a cancelled line reports
+      `Stopped.` and commits nothing.
+- [ ] `else` runs its right side only when the left failed, with the fault piped in;
+      `try` makes a stage's fault its value; `??` defaults a stage that answered `None`
+      or nothing; neither `else` nor `try` catches Stop, and a failed branch leaves no
+      events.
 - [ ] A table-shaped tag reads as a table wherever one is expected, gaps are `None`,
       and a tag that is not table-shaped names the child that broke the shape.
 - [ ] Columns are typed from their cells, and a `None` cell does not make a column
@@ -160,6 +177,9 @@ here, asserting on the projection rather than on a temporary directory.
 - [ ] Wire formats match [Host interfaces](host-interfaces.md#wire-formats).
 - [ ] A stored location carries its view, so a replay comes back into the query it was
       in.
+- [ ] The stored log carries a version; an unknown version is refused by name, a
+      transaction that cannot be decoded is skipped and counted, and a host without
+      storage runs in memory and says so before the first command.
 
 ## Known deviations
 
@@ -169,10 +189,8 @@ case.
 | Deviation | Status |
 | --- | --- |
 | Property assignments parse but raise `Cannot evaluate a child PropertyAssignment.` | Intended for now. The grammar keeps them because the original did; evaluation has no meaning to give them yet. |
-| A component child of an object is evaluated but not attached to the object's children. | Intended. Its purpose is the variable binding; the entity component model does not yet exist at runtime. |
 | `<a/>` and `<a></a>` are distinct in the tree but evaluate alike. | Intended. The tree is a faithful record of what was typed. |
 | The retained GOLD parser reports column 12 where the combinator parser reports 11 on one truncated input. | Documented in `ParserEquivalenceTests`. The combinator position is correct. |
-| `pwd` at the filesystem root produces a result whose display name is empty. | Cosmetic. The path is still correct in the response and in the prompt. |
 | A pipeline in parentheses inside a predicate runs once, and the predicate keeps its value, so a view saved with one does not re-run it. | Intended. A view is a question about records, and a question that changed its own terms each time it was asked would be a different question. |
 | Suggestion and completion chips are 26 pixels tall, below the usual 44 pixel touch target. | Known. Worth raising; the input, the run button and a table's cells already meet it. |
 | `Scope` supports nesting, but no host creates a child scope outside a predicate. | Intended. The model is ahead of the shell. |
