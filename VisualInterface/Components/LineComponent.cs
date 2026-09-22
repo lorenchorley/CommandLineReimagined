@@ -6,7 +6,7 @@ namespace UIComponents.Components
     public class LineComponent : Component
     {
         [State]
-        public virtual List<LineSegmentComponent> LineSegments { get; set; }
+        public virtual List<LineSegmentComponent> LineSegments { get; set; } = null!;
 
         public override void OnInit()
         {

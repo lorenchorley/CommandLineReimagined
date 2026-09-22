@@ -20,13 +20,13 @@ namespace Terminal
         }
 
         public bool IsCommandExecutable { get; set; }
-        public UICamera Camera { get; private set; }
-        public ConsolePanel OutputPanel { get; private set; }
-        public ConsolePanel InputPanel { get; private set; }
-        public ConsoleLayout Layout { get; private set; }
-        public CursorComponent Cursor { get; private set; }
-        public MouseInputHandler MouseInputHandler { get; private set; }
-        public KeyInputHandler KeyInputHandler { get; private set; }
+        public UICamera Camera { get; private set; } = null!;
+        public ConsolePanel OutputPanel { get; private set; } = null!;
+        public ConsolePanel InputPanel { get; private set; } = null!;
+        public ConsoleLayout Layout { get; private set; } = null!;
+        public CursorComponent Cursor { get; private set; } = null!;
+        public MouseInputHandler MouseInputHandler { get; private set; } = null!;
+        public KeyInputHandler KeyInputHandler { get; private set; } = null!;
 
         public void OnInit()
         {

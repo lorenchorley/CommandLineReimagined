@@ -4,6 +4,6 @@ namespace EntityComponentSystem.EventSourcing;
 
 public interface IComponentSuppression : IComponentEvent
 {
-    ComponentIndex Component { get; set; }
-    void ApplyTo(IdentifiableList list, TreeType treeType);
+    new ComponentIndex Component { get; set; }
+    new void ApplyTo(IdentifiableList list, TreeType treeType);
 }

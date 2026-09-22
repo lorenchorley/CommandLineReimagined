@@ -6,8 +6,8 @@ namespace Commands.Parser.SemanticTree
 {
     public record FunctionExpression : IVisitable
     {
-        public Identifier Id { get; init; }
-        public CommandArguments Arguments { get; init; }
+        public Identifier Id { get; init; } = null!;
+        public CommandArguments Arguments { get; init; } = null!;
 
         public void Accept(ISemanticTreeVisitor visitor)
         {

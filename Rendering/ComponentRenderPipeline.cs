@@ -11,24 +11,12 @@ namespace Rendering;
 
 public class ComponentRenderPipeline
 {
-    private bool _debugRendering = false;
-
     private Pen _pen = new Pen(Color.White);
     private Pen _cursorPen = new Pen(Color.White);
     private Pen _buttonPen = new Pen(new SolidBrush(Color.WhiteSmoke));
     private Pen _debugPen = new Pen(new HatchBrush(HatchStyle.BackwardDiagonal, Color.White));
     private Brush _inputBackgroundBrush = new SolidBrush(Color.RoyalBlue);
     private Font _font = new Font(FontFamily.GenericMonospace, 14);
-
-    private const float marginBottomBidouille = 12; // Bidouille pour éviter que le texte ne soit coupé en bas du canvas
-    private float _leftMargin = 5;
-    private float _rightMargin = 5;
-    private float _bottomMargin = 5 + marginBottomBidouille;
-    private float _topMargin = 5;
-
-    private bool _needsCalculationRefresh = true;
-    private float _letterWidth;
-    private float _letterHeight;
 
     private readonly ECS _ecs;
     private readonly PhysicalScreenSpace _physicalScreenSpace;

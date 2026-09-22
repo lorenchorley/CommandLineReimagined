@@ -16,9 +16,9 @@ namespace Commands.Parser.SemanticTree
     /// </remarks>
     public record AssignmentArgument : CommandArgument
     {
-        public Identifier Name { get; init; }
+        public Identifier Name { get; init; } = null!;
 
-        public Value Value { get; init; }
+        public Value Value { get; init; } = null!;
 
         public override void Accept(ISemanticTreeVisitor visitor)
         {

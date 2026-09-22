@@ -13,10 +13,10 @@ public class CommandSearch
 
     private class JSONLine
     {
-        public string Word { get; set; }
-        public string Key { get; set; }
-        public string Pos { get; set; }
-        public string[] Synonyms { get; set; }
+        public string Word { get; set; } = null!;
+        public string Key { get; set; } = null!;
+        public string Pos { get; set; } = null!;
+        public string[] Synonyms { get; set; } = null!;
     }
 
     private string[] _dictionaryEnglish = new string[0];
@@ -104,7 +104,7 @@ public class CommandSearch
         }
 
         using var thesaurusReader = new StreamReader(DataPath("en_thesaurus.jsonl"));
-        string line;
+        string? line;
 
         int percent = -1;
         double lineCount = 0;
@@ -121,7 +121,7 @@ public class CommandSearch
             }
 
             // Deserialize each line into your model
-            JSONLine item = JsonConvert.DeserializeObject<JSONLine>(line);
+            JSONLine? item = JsonConvert.DeserializeObject<JSONLine>(line);
 
             if (item != null)
             {
@@ -269,7 +269,7 @@ public class CommandSearch
     private List<string> AutocompleteOfCurrentWord(string word)
     {
         var commandAutocompleteResult = 
-            CommandActionMetadataTrie.Search(word)
+            CommandActionMetadataTrie!.Search(word)
                                      .Except(_unusefullyCommonSearchTerms)
                                      .ToList();
 
@@ -281,7 +281,7 @@ public class CommandSearch
     private List<string> AutocompleteSearchOnDictionary(string word)
     {
         List<string> dictionaryAutocompleteResults = 
-            AutocompleteTrie.Search(word)
+            AutocompleteTrie!.Search(word)
                             .Except(_unusefullyCommonSearchTerms)
                             .ToList();
 
@@ -297,7 +297,7 @@ public class CommandSearch
             Debug.WriteLine($"Trying fuzzy search");
 
             dictionaryAutocompleteResults = 
-                AutocompleteTrie.FuzzySearch(word)
+                AutocompleteTrie!.FuzzySearch(word)
                                 .Except(_unusefullyCommonSearchTerms)
                                 .ToList();
 

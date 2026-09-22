@@ -8,8 +8,8 @@ namespace Terminal.Tests;
 [TestClass]
 public class ValidCommandTests
 {
-    [DataTestMethod]
-    [DynamicData(nameof(GetValidCommandData), DynamicDataSourceType.Method)]
+    [TestMethod]
+    [DynamicData(nameof(GetValidCommandData))]
     public void ParseCommand(string command, string? _)
     {
         // Arrange
@@ -33,8 +33,8 @@ public class ValidCommandTests
             );
     }
 
-    [DataTestMethod]
-    [DynamicData(nameof(GetValidCommandData), DynamicDataSourceType.Method)]
+    [TestMethod]
+    [DynamicData(nameof(GetValidCommandData))]
     public void ReserialiseCommand(string command, string? expectedReserialisation)
     {
         // Arrange
@@ -71,25 +71,25 @@ public class ValidCommandTests
         Debug.WriteLine(visitorWithIndentation.GetResult());
     }
 
-    private static IEnumerable<object[]> GetValidCommandData()
+    private static IEnumerable<object?[]> GetValidCommandData()
     {
-        yield return new object[] { @"", null };
-        yield return new object[] { @"<objInstance/>", null };
-        yield return new object[] { @"<objInstance></objInstance>", "<objInstance/>" };
-        yield return new object[] { @"<objInstance><child/></objInstance>", null };
-        yield return new object[] { @"<objInstance>[prop=""""str""""]</objInstance>", null };
-        yield return new object[] { @"<objInstance attr=value/>", null };
-        yield return new object[] { @"<variableName|objInstance></>", @"<variableName|objInstance/>" };
-        yield return new object[] { @"command", null };
-        yield return new object[] { @"command requiredParameter", null };
-        yield return new object[] { @"command -with optionalParameter", null };
-        yield return new object[] { @"command()", null };
-        yield return new object[] { @"command(requiredParameter)", null };
-        yield return new object[] { @"command(with: optionalParameter)", null };
-        yield return new object[] { @"command() | anotherCommand()", null };
-        yield return new object[] { @"<value/> | anotherCommand()", null };
+        yield return new object?[] { @"", null };
+        yield return new object?[] { @"<objInstance/>", null };
+        yield return new object?[] { @"<objInstance></objInstance>", "<objInstance/>" };
+        yield return new object?[] { @"<objInstance><child/></objInstance>", null };
+        yield return new object?[] { @"<objInstance>[prop=""""str""""]</objInstance>", null };
+        yield return new object?[] { @"<objInstance attr=value/>", null };
+        yield return new object?[] { @"<variableName|objInstance></>", @"<variableName|objInstance/>" };
+        yield return new object?[] { @"command", null };
+        yield return new object?[] { @"command requiredParameter", null };
+        yield return new object?[] { @"command -with optionalParameter", null };
+        yield return new object?[] { @"command()", null };
+        yield return new object?[] { @"command(requiredParameter)", null };
+        yield return new object?[] { @"command(with: optionalParameter)", null };
+        yield return new object?[] { @"command() | anotherCommand()", null };
+        yield return new object?[] { @"<value/> | anotherCommand()", null };
 
-        yield return new object[] { @"command | <objInstance><child/><child/><child val=$v/><child><child/></child></objInstance>", null };
+        yield return new object?[] { @"command | <objInstance><child/><child/><child val=$v/><child><child/></child></objInstance>", null };
     }
 
 

@@ -42,7 +42,7 @@ public sealed class Entity : IIdentifiable
         }
     }
 
-    internal void InternalSetParent(Entity entity)
+    internal void InternalSetParent(Entity? entity)
     {
         _parent = entity;
     }

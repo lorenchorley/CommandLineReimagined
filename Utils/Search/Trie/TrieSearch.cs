@@ -1,4 +1,6 @@
-﻿namespace Utils.Search.Trie;
+﻿using System.Diagnostics.CodeAnalysis;
+
+namespace Utils.Search.Trie;
 
 public class TrieSearch
 {
@@ -35,7 +37,8 @@ public class TrieSearch
 
     public class Node
     {
-        public string Word;
+        public string? Word;
+        [MemberNotNullWhen(true, nameof(Word))]
         public bool IsTerminal { get { return Word != null; } }
         public Dictionary<char, Node> Edges = new Dictionary<char, Node>();
     }
@@ -53,7 +56,7 @@ public class TrieSearch
                 for (int len = 1; len <= word.Length; len++)
                 {
                     var letter = word[len - 1];
-                    Node next;
+                    Node? next;
                     if (!node.Edges.TryGetValue(letter, out next))
                     {
                         next = new Node();

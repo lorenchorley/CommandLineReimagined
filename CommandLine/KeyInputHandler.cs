@@ -10,15 +10,15 @@ namespace Terminal;
 
 public class KeyInputHandler : InputComponent
 {
-    [Inject] public RayCaster RayCaster { get; set; }
-    [Inject] public LoopController LoopController { get; set; }
-    [Inject] public Prompt Prompt { get; set; }
-    [Inject] public ITextUpdateSystem TextSystem { get; set; }
-    [Inject] public Shell Shell { get; set; }
+    [Inject] public RayCaster RayCaster { get; set; } = null!;
+    [Inject] public LoopController LoopController { get; set; } = null!;
+    [Inject] public Prompt Prompt { get; set; } = null!;
+    [Inject] public ITextUpdateSystem TextSystem { get; set; } = null!;
+    [Inject] public Shell Shell { get; set; } = null!;
 
     public int SelectionStart { get; private set; }
     public int SelectionLength { get; private set; }
-    public string Text { get; private set; }
+    public string Text { get; private set; } = null!;
 
     public void SetCursorPosition(int selectionStart, int selectionLength)
     {

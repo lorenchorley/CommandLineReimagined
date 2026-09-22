@@ -13,17 +13,17 @@ public class ConsoleLayout : UILayoutComponent, IRenderableComponent
 {
     private Brush _inputBackgroundBrush = new SolidBrush(Color.RoyalBlue);
 
-    public virtual UICamera Camera { get; set; }
-    public virtual ConsolePanel Input { get; set; } // Fit horizontally, respect height
-    public virtual UITransform InputTransform { get; set; }
-    public virtual ConsolePanel Output { get; set; } // Fit horizontally, fill vertically
-    public virtual UITransform OutputTransform { get; set; }
+    public virtual UICamera Camera { get; set; } = null!;
+    public virtual ConsolePanel Input { get; set; } = null!; // Fit horizontally, respect height
+    public virtual UITransform InputTransform { get; set; } = null!;
+    public virtual ConsolePanel Output { get; set; } = null!; // Fit horizontally, fill vertically
+    public virtual UITransform OutputTransform { get; set; } = null!;
 
-    [Inject] public ECS ECS { get; init; }
-    [Inject] public ConceptualUISpace UISpace { get; init; }
-    [Inject] public PhysicalScreenSpace ScreenSpace { get; init; }
+    [Inject] public new ECS ECS { get; init; } = null!;
+    [Inject] public ConceptualUISpace UISpace { get; init; } = null!;
+    [Inject] public PhysicalScreenSpace ScreenSpace { get; init; } = null!;
 
-    public UITransform Transform { get; private set; }
+    public UITransform Transform { get; private set; } = null!;
 
     public override void OnInit()
     {

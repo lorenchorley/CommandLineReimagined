@@ -15,19 +15,19 @@ public class TestComponentTests
 
 public class TestComponent : Component
 {
-    public virtual StringBuilder StringBuilder { get; set; }
+    public virtual StringBuilder StringBuilder { get; set; } = null!;
     public virtual StringBuilder? StringBuilderP { get; set; }
     public virtual bool Highlighted { get; set; }
     public virtual bool? HighlightedP { get; set; }
     public virtual int Int { get; set; }
     public virtual int? IntP { get; set; }
-    public virtual string Text { get; set; }
+    public virtual string Text { get; set; } = null!;
     public virtual string? TextP { get; set; }
     public virtual double Double { get; set; }
     public virtual double? DoubleP { get; set; }
     public virtual float Float { get; set; }
     public virtual float? FloatP { get; set; }
-    public virtual object Object { get; set; }
+    public virtual object Object { get; set; } = null!;
     public virtual object? ObjectP { get; set; }
 
 }

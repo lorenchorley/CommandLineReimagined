@@ -44,6 +44,6 @@ public class UITokenisationVisitor : VisitorBase
 
     public override string GetResult()
     {
-        return _segments.ToString();
+        return _segments.ToString()!;
     }
 }

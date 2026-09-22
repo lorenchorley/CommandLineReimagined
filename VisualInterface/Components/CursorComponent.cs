@@ -9,9 +9,9 @@ public class CursorComponent : LineSegmentComponent, IRenderableComponent
     [State]
     public virtual int Position { get; set; }
     [State]
-    public virtual TextComponent TextComponentReference { get; set; }
+    public virtual TextComponent TextComponentReference { get; set; } = null!;
     [State]
-    public virtual string Text{ get; set; }
+    public virtual string Text{ get; set; } = null!;
 
     public override string ToText()
     {

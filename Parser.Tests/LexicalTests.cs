@@ -12,7 +12,7 @@ public class LexicalTests
     // Identifier = {IdentifierCharacter}+ where IdentifierCharacter is AlphaNumeric
     // plus underscore and a long list of accented letters.
 
-    [DataTestMethod]
+    [TestMethod]
     [DataRow("command")]
     [DataRow("Command")]
     [DataRow("cmd123")]
@@ -22,7 +22,7 @@ public class LexicalTests
     public void IdentifiersAreAccepted(string identifier) =>
         Assert.AreEqual(identifier, ParserHarness.Cli(identifier).Name.Name);
 
-    [DataTestMethod]
+    [TestMethod]
     [DataRow("café")]
     [DataRow("naïve")]
     [DataRow("größe")]

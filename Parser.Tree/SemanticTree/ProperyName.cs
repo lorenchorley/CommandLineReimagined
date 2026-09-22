@@ -4,7 +4,7 @@ namespace Commands.Parser.SemanticTree
 {
     public record ProperyName : IVisitable
     {
-        public string Name { get; init; }
+        public string Name { get; init; } = null!;
 
         public void Accept(ISemanticTreeVisitor visitor)
         {

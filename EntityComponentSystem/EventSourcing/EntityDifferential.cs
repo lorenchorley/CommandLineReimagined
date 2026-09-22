@@ -15,7 +15,7 @@ public enum ParentalModification
 public class EntityDifferential : IEvent
 {
     public EntityIndex Entity { get; set; }
-    public ECS ECS { get; init; }
+    public ECS ECS { get; init; } = null!;
 
     public ParentalModification ParentalModification { get; set; }
     public EntityIndex? NewParent { get; set; }

@@ -12,7 +12,7 @@ namespace EntityComponentSystem;
 public sealed partial class ECS
 {
 
-    public static ECS Instance { get; set; }
+    public static ECS Instance { get; set; } = null!;
 
     public static void ComponentCreationCheck(string componentType, EntityIndex Entity)
     {
@@ -222,9 +222,6 @@ public sealed partial class ECS
             c.AppliedToActive = true;
         }
     }
-
-    static int shadowCounter = 0;
-    static int activeCounter = 0;
 
     public ShadowECS TriggerMerge()
     {

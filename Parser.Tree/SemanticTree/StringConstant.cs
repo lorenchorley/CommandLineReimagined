@@ -6,9 +6,9 @@ namespace Commands.Parser.SemanticTree
     public record StringConstant : Constant
     {
         public int QuoteCount { get; private set; }
-        public string QuoteString { get; private set; }
+        public string QuoteString { get; private set; } = null!;
 
-        private string _value;
+        private string _value = null!;
         public string Value
         { 
             get

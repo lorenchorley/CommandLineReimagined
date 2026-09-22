@@ -7,7 +7,7 @@ namespace UIComponents.Components
     public class ButtonComponent : LineSegmentComponent, IRenderableComponent
     {
         [State]
-        public virtual string Text { get; set; }
+        public virtual string Text { get; set; } = null!;
         
         public override string ToText()
         {

@@ -27,7 +27,7 @@ public class ExpressionTests
 
     // ----------------------------------------------------------- Comparisons
 
-    [DataTestMethod]
+    [TestMethod]
     [DataRow("where $row.size eq 1", "eq")]
     [DataRow("where $row.size ne 1", "ne")]
     [DataRow("where $row.size gt 1", "gt")]
@@ -52,7 +52,7 @@ public class ExpressionTests
     /// parse as `eq` followed by `uals`, which is the classic way a keyword list eats
     /// the language around it.
     /// </remarks>
-    [DataTestMethod]
+    [TestMethod]
     [DataRow("echo equals")]
     [DataRow("echo notes.txt")]
     [DataRow("echo orders")]
@@ -118,7 +118,7 @@ public class ExpressionTests
     /// always did: `cd documents` has not become an expression because expressions
     /// exist.
     /// </remarks>
-    [DataTestMethod]
+    [TestMethod]
     [DataRow("cd documents")]
     [DataRow("echo 5")]
     [DataRow("echo $v")]
@@ -163,7 +163,7 @@ public class ExpressionTests
     /// <summary>
     /// Decision 0019: a reserved word is never an argument, in any position.
     /// </summary>
-    [DataTestMethod]
+    [TestMethod]
     [DataRow("echo eq")]
     [DataRow("echo and")]
     [DataRow("echo not")]
@@ -253,7 +253,7 @@ public class ExpressionTests
     /// Decision 0007's point was that a notation needing a shift key is the wrong one
     /// on a phone, and quoting every pattern would have made `like` exactly that.
     /// </remarks>
-    [DataTestMethod]
+    [TestMethod]
     [DataRow("where $row.name like *.txt")]
     [DataRow("where $row.name like *s")]
     [DataRow("where $row.name like note*")]
@@ -267,7 +267,7 @@ public class ExpressionTests
 
     // ---------------------------------------------------------- Round trips
 
-    [DataTestMethod]
+    [TestMethod]
     [DataRow("where $row.size gt 100")]
     [DataRow("where $row.kind eq folder")]
     [DataRow("where $row.name like note")]
@@ -292,7 +292,7 @@ public class ExpressionTests
     // Phase 4: a saved view is a predicate with no command line around it, so the
     // parser has a root that reads one.
 
-    [DataTestMethod]
+    [TestMethod]
     [DataRow("$row.kind eq folder")]
     [DataRow("$row.mood eq great")]
     [DataRow("$row.kind eq note and $row.tag eq work")]

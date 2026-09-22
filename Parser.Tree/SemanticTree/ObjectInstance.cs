@@ -6,8 +6,8 @@ namespace Commands.Parser.SemanticTree
     public record ObjectInstance : InstanceTag
     {
         public VariableName? VariableName { get; init; }
-        public ObjectType ObjectType { get; init; }
-        public TagAttributeList Attributes { get; init; }
+        public ObjectType ObjectType { get; init; } = null!;
+        public TagAttributeList Attributes { get; init; } = null!;
         public TagList? Children { get; set; }
 
         public bool HasChildren

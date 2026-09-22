@@ -22,7 +22,7 @@ public class Prompt : IECSSubsystem
     private RootNode? _parsedCommand = null;
     private CommandLineReimagined.Parsing.CommandLineParser _commandLineInterpreter = new();
 
-    private Entity _inputPromptEntity;
+    private Entity? _inputPromptEntity;
 
     private int _cursorPosition;
 

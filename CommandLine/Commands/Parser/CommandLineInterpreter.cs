@@ -66,13 +66,13 @@ public class CommandLineInterpreter
             switch (response)
             {
                 case ParseMessage.Reduction:
-                    parser.CurrentReduction = CreateNewObject(errors, (Reduction)parser.CurrentReduction);
+                    parser.CurrentReduction = CreateNewObject(errors, (Reduction)parser.CurrentReduction!);
                     break;
 
                 case ParseMessage.Accept:
                     // On a fini de parser, on récupère le résultat
 
-                    treeRoot = (TRoot)parser.CurrentReduction;
+                    treeRoot = (TRoot)parser.CurrentReduction!;
 
                     continueParsing = false;
                     break;
@@ -121,7 +121,7 @@ public class CommandLineInterpreter
             return new ParserResult<TRoot>(new ParserError(errors));
         }
 
-        return new ParserResult<TRoot>(treeRoot);
+        return new ParserResult<TRoot>(treeRoot!);
     }
 
     /// <summary>
@@ -145,13 +145,13 @@ public class CommandLineInterpreter
         return names;
     }
 
-    private object CreateNewObject(List<string> errors, Reduction r)
+    private object? CreateNewObject(List<string> errors, Reduction r)
     {
         ProductionIndex productionIndex = (ProductionIndex)r.Parent.TableIndex();
         return Interpret(errors, r, productionIndex);
     }
 
-    private static object Interpret(List<string> errors, Reduction reduction, ProductionIndex productionIndex)
+    private static object? Interpret(List<string> errors, Reduction reduction, ProductionIndex productionIndex)
     {
         switch (productionIndex)
         {
