@@ -12,7 +12,7 @@ public class LexicalTests
     // Identifier = {IdentifierCharacter}+ where IdentifierCharacter is AlphaNumeric
     // plus underscore and a long list of accented letters.
 
-    [DataTestMethod]
+    [TestMethod]
     [DataRow("command")]
     [DataRow("Command")]
     [DataRow("cmd123")]
@@ -22,7 +22,7 @@ public class LexicalTests
     public void IdentifiersAreAccepted(string identifier) =>
         Assert.AreEqual(identifier, ParserHarness.Cli(identifier).Name.Name);
 
-    [DataTestMethod]
+    [TestMethod]
     [DataRow("café")]
     [DataRow("naïve")]
     [DataRow("größe")]
@@ -81,16 +81,33 @@ public class LexicalTests
     public void EmptyStringIsAConstant() =>
         Assert.AreEqual(string.Empty, ((StringConstant)ValueOfFirstArgument("echo \"\"")).Value);
 
+    /// <summary>`""""` is the empty string written with doubled quotes.</summary>
+    /// <remarks>
+    /// Delimiters are matched longest first, so this is one doubled string with nothing in
+    /// it, and every delimiter carries the same value. It used to read as the text `""`,
+    /// because the node re-counted the quotes from the outside in and stopped early on a
+    /// short body; the grammar now tells it which delimiter it matched.
+    /// </remarks>
     [TestMethod]
-    public void FourQuotesAreAPairOfQuotesAsContent()
+    public void FourQuotesAreTheEmptyStringDoubled()
     {
-        // DetectAndTrimMultipleDoubleQuotes stops while the remainder is longer than the
-        // quotes it has already stripped, so `""""` yields a single stripped pair and
-        // leaves `""` as the value rather than reading as an empty doubled string.
         var text = (StringConstant)ValueOfFirstArgument("echo \"\"\"\"");
 
-        Assert.AreEqual("\"\"", text.Value);
-        Assert.AreEqual(1, text.QuoteCount);
+        Assert.AreEqual(string.Empty, text.Value);
+        Assert.AreEqual(2, text.QuoteCount);
+    }
+
+    [TestMethod]
+    [DataRow("echo \"a\"", "a", 1)]
+    [DataRow("echo \"\"a\"\"", "a", 2)]
+    [DataRow("echo \"\"\"a\"\"\"", "a", 3)]
+    [DataRow("echo \"\"\"\"\"\"", "", 3)]
+    public void EveryDelimiterCarriesTheSameValue(string source, string value, int quotes)
+    {
+        var text = (StringConstant)ValueOfFirstArgument(source);
+
+        Assert.AreEqual(value, text.Value);
+        Assert.AreEqual(quotes, text.QuoteCount);
     }
 
     [TestMethod]

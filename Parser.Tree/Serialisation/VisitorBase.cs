@@ -81,13 +81,62 @@ public abstract class VisitorBase : ISemanticTreeVisitor
         Append(' ');
     }
 
+    /// <summary>A reserved word that is part of the line's structure: <c>try</c>, <c>else</c>.</summary>
+    /// <remarks>
+    /// Not a node, because nothing about it varies; a hook, so that a visitor which tags
+    /// tokens by role can tell the word from an argument that happens to be spelled the
+    /// same way — which decision 0019 says cannot happen, and the colour is how you see
+    /// that it did not.
+    /// </remarks>
+    protected virtual void AppendKeyword(string word)
+    {
+        Append(word);
+    }
+
+    /// <summary>A symbol operator that is part of the line's structure: <c>??</c>.</summary>
+    protected virtual void AppendOperator(string symbol)
+    {
+        Append(symbol);
+    }
+
     public virtual void VisitCommandExpression(CommandExpression commandExpression)
     {
+        if (commandExpression.Try)
+        {
+            AppendKeyword("try");
+            Space();
+        }
+
         commandExpression.Expression.Switch(
             function => function.Accept(this),
             commandName => commandName.Accept(this),
-            commandExpressionCli => commandExpressionCli.Accept(this)
+            commandExpressionCli => commandExpressionCli.Accept(this),
+            nested => nested.Accept(this)
         );
+
+        if (commandExpression.Default is not null)
+        {
+            Space();
+            AppendOperator("??");
+            Space();
+            commandExpression.Default.Accept(this);
+        }
+    }
+
+    /// <summary>Pipelines joined by <c>else</c>, one space either side.</summary>
+    public virtual void VisitRecoveryLine(RecoveryLine recoveryLine)
+    {
+        for (int i = 0; i < recoveryLine.Pipelines.Count; i++)
+        {
+            if (i > 0)
+            {
+                Space();
+                AppendKeyword("else");
+                Space();
+            }
+
+            recoveryLine.Pipelines[i].Accept(this);
+        }
     }
 
     public virtual void VisitCommandExpressionCli(CommandExpressionCli commandExpressionCli)
@@ -379,9 +428,9 @@ public abstract class VisitorBase : ISemanticTreeVisitor
     }
 
     /// <summary>
-    /// A pipeline in parentheses. The parentheses are written back tight against the
-    /// pipeline, because a space before one is what tells a nested pipeline from a
-    /// function call.
+    /// A pipeline in parentheses, written back tight inside its parentheses. The space
+    /// in front of one is written by whatever came before it, and it is that space
+    /// which tells a nested pipeline from a function call (decision 0023).
     /// </summary>
     public virtual void VisitNestedPipeline(NestedPipeline nestedPipeline)
     {

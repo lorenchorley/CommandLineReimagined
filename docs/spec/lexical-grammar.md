@@ -11,7 +11,7 @@ Productions use `::=`, alternation `|`, grouping `( )`, optional `?`, zero or mo
 and one or more `+`. Terminals are in double quotes.
 
 Alternatives are **ordered**: a parser **must** try them left to right and take the
-first that succeeds. This matters in three places, all noted below.
+first that succeeds. This matters in several places, each noted below.
 
 Two lookahead operators appear in the productions below, and neither consumes input:
 `&X` requires that `X` follows, and `!X` requires that it does not. They carry the
@@ -24,14 +24,20 @@ numbers, by looking ahead rather than by making a position mean something.
 ```
 IdentifierChar ::= "a".."z" | "A".."Z" | "0".."9" | "_" | Accented
 Accented       ::= one of  éèàäëïöüùçâêîôûÇÄÅÉæÆÖÜøØƒáíóúñÑÁÂÀãÃðÐÊËÈiÍÎÏÌÓßÔÒõÕµþÞÚÛÙýÝ
-WordStart      ::= IdentifierChar | "." | "\" | "/" | "~"
-WordChar       ::= IdentifierChar | "." | "\" | "/" | ":" | "~" | "+" | "@" | "%" | "-"
+WordStart      ::= IdentifierChar | "." | "\" | "/" | "~" | "*"
+WordChar       ::= IdentifierChar | "." | "\" | "/" | ":" | "~" | "+" | "@" | "%" | "-" | "*"
 Space          ::= " " | HT
 ```
 
 An implementation **must** treat the accented set as exactly the characters listed. It
 is the set the original grammar declared, reproduced verbatim; it is idiosyncratic, and
 widening it is a language change.
+
+`*` is a word character so that `like` takes a glob without quotes:
+`where $row.name like *.txt`. Nothing else in the grammar uses it.
+
+Every other printable character — `=`, `,`, `?`, `!`, `#`, `;`, `'`, the brackets and
+the quote — is outside both sets, so a word ends in front of it.
 
 `-` is a `WordChar` but not a `WordStart`, with one exception: a `-` **must** start a
 word when a digit follows it, so `echo -5` writes minus five. `-flag` is still a flag
@@ -51,7 +57,13 @@ program is one line, and a newline reaches the end-of-input rule and fails the p
 Whitespace is insignificant between tokens and **must not** appear inside an
 identifier, a word, a flag or a multi-character delimiter such as `/>`. It **must not**
 appear inside an `Assignment` either, on either side of the `=`, and it **must not**
-appear between `<` and what follows it.
+appear between `<` and what follows it, or between a `FunctionExpression`'s name and
+its parenthesis.
+
+Whitespace is not *required* between tokens either, wherever the tokens cannot run
+together: `echo"hi"` is `echo` and a string, and `a|b` is a pipeline of two. Where two
+tokens could run together, such as a command name and a word argument, only a space
+separates them.
 
 ## Tokens
 
@@ -70,28 +82,59 @@ StringLiteral     ::= '"""' StringBody '"""'
                     | '""'  StringBody '""'
                     | '"'   StringBody '"'
 StringBody        ::= ( any character other than '"' )*
+Default           ::= "??"
 ```
+
+The productions below write `Space*` explicitly wherever whitespace may appear, and it
+may appear nowhere else.
 
 String delimiters **must** be tried longest first, so `""""` is one empty
 double-delimited string and not two single-delimited ones. This is the first ordered
-choice that matters.
+choice that matters. A literal closes only with a delimiter of its own length, and
+when the longer form cannot close the parser falls back to the shorter ones: `"""a""`
+is a syntax error, while `"""x"` is the empty string `""` followed by the string `"x"`,
+two arguments with no space between them.
 
 A string body cannot contain a double quote and there is no escape character. A string
-may contain spaces, tabs, carriage returns and line feeds.
+may contain spaces, tabs, carriage returns and line feeds; it is the only place a line
+break may appear.
 
-The three delimiters carry the same value. The delimiter count **must** be retained in
-the tree so that re-serialisation reproduces the input exactly.
+The three delimiters carry the same value, the body, so `""""` is the empty string and
+`"""ab"""` is `ab`. The delimiter count **must** be retained in the tree so that
+re-serialisation reproduces the input exactly.
 
-A `Word` **must not** be a `ReservedWord`: the thirteen words above are the operators
-and the recovery keywords, and they are reserved in every position
+A `Word` **must not** be a `ReservedWord`: the thirteen words above — eight comparison
+words, `and`, `or`, `not`, and the recovery keywords `else` and `try` — are reserved in
+every position
 ([decision 0019](../decisions/0019-reserved-words-in-expression-positions.md)). The
 match is exact and case-sensitive, so `equals`, `eq.txt` and `Eq` are ordinary words;
 only the bare word itself is taken. An implementation **must** report a `Word` that is a
-reserved word as a syntax error rather than silently accepting it, and the message
-**should** say how to write it as text: `echo "eq"`.
+reserved word as a syntax error rather than silently accepting it, at the column the
+word starts in, and the message **should** say how to write it as text. The reference
+implementation says `'eq' is an operator; write "eq" to pass it as text`, and uses the
+same sentence for `try`.
 
-Reserved words are the only keywords, and they are the only thing matched literally at
-the lexical level. Case is otherwise preserved. Command name resolution is
+Two of the words never reach that check in argument position, because the grammar reads
+them as what they are first: `not` begins a negation, and `else` ends the argument list
+(see [Lines, stages and recovery](#lines-stages-and-recovery)). `echo not` and
+`echo else` are therefore syntax errors at the end of the line, where the missing
+operand or pipeline should have been.
+A tag attribute's value is a `Word` position too, so `<t a=eq/>` **must** be refused
+as well, at the word's column and with the same message.
+
+A `CommandName` **must not** be a `ReservedWord` either, and an implementation **must**
+report one as a syntax error at the column the name starts in; the message **should**
+say that the word is reserved and cannot name a command. Before recovery existed this
+was harmless — `eq x` reached execution as an unknown command — but `else x` would read
+as a command called `else` rather than a line whose first pipeline is missing.
+
+`try` and `else`, like the operators, are matched as whole words: the next character
+**must not** be a `WordChar`, so `trying` and `elsewhere` are ordinary names and words.
+`??` is the only symbol operator; `?` is not a `WordChar`, so an argument list always
+ends in front of it.
+
+Reserved words are the only keywords, and with `??` they are the only things matched
+literally at the lexical level. Case is otherwise preserved. Command name resolution is
 case-insensitive and happens later, in
 [execution](execution-model.md#resolving-a-command).
 
@@ -110,23 +153,28 @@ parameter name — admits one.
 ## Grammar
 
 ```
-Program              ::= Space* ( EOF | PipedCommandList Space* EOF )
+Program              ::= Space* ( EOF | Line Space* EOF )
 
-PipedCommandList     ::= CommandExpression ( "|" Space* CommandExpression )*
+Line                 ::= PipedCommandList ( "else" Space* PipedCommandList )*
 
-CommandExpression    ::= FunctionExpression
-                       | CliExpression
-                       | InstanceTag
+PipedCommandList     ::= Stage ( "|" Space* Stage )*
 
-FunctionExpression   ::= CommandName Space* "(" Space* FunctionArgumentList Space* ")" Space*
+Stage                ::= ( "try" Space* )? CommandExpression ( Default Space* Operand )?
+
+CommandExpression    ::= ( FunctionExpression
+                         | CliExpression
+                         | InstanceTag
+                         | "(" Space* PipedCommandList ")" ) Space*
+
+FunctionExpression   ::= CommandName "(" Space* FunctionArgumentList Space* ")" Space*
 FunctionArgumentList ::= ( FunctionArgument ( "," Space* FunctionArgument )* )?
-FunctionArgument     ::= Identifier Space* ":" Space* Expression
-                       | Expression
+FunctionArgument     ::= ( Identifier Space* ":" Space* Expression
+                         | Expression ) Space*
 
-CliExpression        ::= CommandName Space* CommandArgument*
-CommandArgument      ::= Flag
-                       | Assignment
-                       | Expression
+CliExpression        ::= CommandName Space* ( !"else" CommandArgument )*
+CommandArgument      ::= ( Flag
+                         | Assignment
+                         | Expression ) Space*
 
 Assignment           ::= Identifier "=" ArgumentValue
 
@@ -145,7 +193,7 @@ ArgumentSimpleValue  ::= StringLiteral | VariableReference | Word
 Value                ::= InstanceTag | SimpleValue
 SimpleValue          ::= StringLiteral | VariableReference | Identifier
 
-InstanceTag          ::= VariableTag | ObjectInstance | ComponentInstance
+InstanceTag          ::= ( VariableTag | ObjectInstance | ComponentInstance ) Space*
 
 ObjectInstance       ::= "<" &TagOpener ( Identifier Space* "|" Space* )? Identifier Space* TagAttribute*
                          ( "/>" | ">" Space* Tag* ClosingObjectTag )
@@ -156,24 +204,36 @@ ComponentInstance    ::= "{" Space* ( Identifier Space* "|" Space* )? Identifier
                          ( "/}" | "}" Space* Tag* ClosingComponentTag )
 ClosingComponentTag  ::= "{/" Space* ( "}" | Identifier Space* "}" )
 
-VariableTag          ::= "<$" Identifier Space* ">"
+VariableTag          ::= "<$" Space* Identifier Space* ">"
 
 TagAttribute         ::= Identifier Space* "=" Space* ArgumentSimpleValue Space*
 
-Tag                  ::= PropertyAssignment
-                       | VariableTag
-                       | ObjectInstance
-                       | ComponentInstance
+Tag                  ::= ( PropertyAssignment
+                         | VariableTag
+                         | ObjectInstance
+                         | ComponentInstance ) Space*
 
 PropertyAssignment   ::= "[" Space* Identifier Space*
                          ( "=" Space* SimpleValue Space* "]"
                          | "]" Space* "=" Space* InstanceTag
-                         | "]" Space* Tag* "[/" ( "]" | Identifier Space* "]" ) )
+                         | "]" Space* Tag* "[/" Space* ( "]" | Identifier Space* "]" ) )
 ```
+
+`FunctionArgument` has no `Flag` and no `Assignment`: in the function form an argument
+is named with `name: value` or given positionally, and nothing else. `name: value` is
+likewise only a function-form notation; in the command line form `name:` is a word,
+because `:` is a `WordChar`.
+
+A `CommandName` may be all digits, like any identifier: `42` parses as a command named
+`42`, and fails later as an unknown command.
 
 In the tag productions the first `Identifier` before `|` is a variable name and the
 second is the type; in `TagAttribute` it is an attribute name; in `PropertyAssignment`
 it is a property name. The tree distinguishes them; the grammar does not.
+
+A closing tag's name, when written, is checked against the opening tag's after the
+production has matched; see [Errors](#errors). `[/` accepts any property name, or none,
+and does not check it.
 
 ### Where words are allowed
 
@@ -204,12 +264,49 @@ operator and `equals` is a word. This is the fourth ordered choice that matters.
 
 `and` binds tighter than `or`, and both are left associative. `not` takes the whole
 `NotExpr` after it, so `not $row.kind eq folder` negates the comparison rather than its
-left operand. There are no symbol operators and no parenthesised sub-expressions: a
-parenthesis in operand position is a nested pipeline, not a grouping.
+left operand. Expressions have no symbol operators and no parenthesised
+sub-expressions: a parenthesis in operand position is a nested pipeline, not a
+grouping.
 
 Which parameter an `Expression` reaches is [binding](execution-model.md#argument-binding),
 not grammar: an expression that wrote an operator binds only to a parameter declared
 `Predicate`.
+
+### Lines, stages and recovery
+
+`else` binds looser than `|`: each side of it is a whole `PipedCommandList`, so
+`a | b else c | d` is `(a | b) else (c | d)`. A `Line` with no `else` **must** produce
+the `PipedCommandList` itself rather than a line of one, so every tree written before
+recovery existed is unchanged. `else` is not an argument: a `CliExpression`'s argument
+list **must** end in front of it rather than reporting it as a reserved word, which is
+the fifth ordered choice that matters.
+
+`try` and the `Default` belong to one `Stage`, not to the pipeline. `try cat x | set p`
+marks `cat x` alone, and `first (ls) ?? none | set p` defaults what `first` answered.
+One `Default` per stage: `a ?? b ?? c` is a syntax error rather than a chain. The
+default is an `Operand`, not an `Expression`, so an operator after it is a syntax error
+too.
+
+A `Stage` is a command, a tag or a pipeline in parentheses, never a bare value, so a
+line cannot begin with a variable or a string: `$maybe ?? "default"` is a syntax error
+at column 0, and the stage has to be written as a command, `echo $maybe ?? "default"`.
+[Decision 0014](../decisions/0014-recovery-operator.md) shows the bare form as an
+example; the grammar has never accepted it.
+
+A `FunctionExpression`'s opening parenthesis **must** be adjacent to its `CommandName`.
+With `Space` between them the parenthesis is not a call: it begins an `Operand`, which
+is a nested pipeline, so `first(ls)` calls `first` with the word `ls` and `first (ls)`
+calls `first` with whatever the pipeline `ls` answers
+([decision 0023](../decisions/0023-adjacent-function-parenthesis.md)). A nested pipeline
+contains a `PipedCommandList`, not a `Line`: `else` inside parentheses is a syntax error.
+Nested pipelines nest: `echo (echo (ls | count))` is three pipelines deep.
+
+A pipeline in parentheses may appear in exactly three places: as a whole stage
+(`ls | (where $row.kind eq folder | count)`), as an `Operand` — an argument, either side
+of a comparison, or under `and`, `or` or `not` — and as the operand of a `Default`. A tag
+attribute and a `PropertyAssignment` take a simple value, so neither can hold one.
+
+What these mean at run time is [execution](execution-model.md#recovery), not grammar.
 
 ### Assignments
 
@@ -238,17 +335,27 @@ A failed parse **must** produce one of:
 
 | Kind | Carries | Raised when |
 | --- | --- | --- |
-| Syntax error | line, column, expected symbols | The input stopped matching. |
-| Lexical error | the same, wrapped | A character cannot begin any token. |
+| Syntax error | line, column, expected symbols, and an optional explanation | The input stopped matching. |
+| Lexical error | a syntax error, wrapped | A character cannot begin any token. |
 | Messages | a list of strings | A structural rule failed, such as a mismatched closing tag. |
+
+The explanation is a sentence the grammar supplies when it knows *why* the input is
+wrong rather than only what could have appeared: a reserved word used as an argument or
+as a command name is the case it exists for. A host **should** show the explanation in
+preference to the expected symbols when there is one.
+
+The lexical error kind is kept for parsers with a separate tokeniser. The reference
+implementation has none: an unexpected character is a syntax error at its position, and
+it never produces a lexical error.
 
 `Line` is zero-based. `Column` is the zero-based offset from the start of the input,
 not from the start of the line; for the single-line programs this grammar accepts, the
 two coincide.
 
 Expected symbols are the labels the grammar could have accepted at that position, for
-example `identifier`, `argument`, `end of input`, `"`, `<`, `<$`, `{`, `|`, `/>`, `>`.
-An implementation **should** report them; the set itself is not normative.
+example `identifier`, `argument`, `end of input`, `"`, `<`, `<$`, `{`, `(`, `|`, `/>`,
+`>`, `??`, `try`, `else`, `not` or a comparison word. An implementation **should**
+report them; the set itself is not normative.
 
 A closing tag whose type differs from its opening tag **must** fail with the message
 `Closing tag 'X' does not match opening tag 'Y'`. The empty closing forms `</>` and
@@ -263,6 +370,14 @@ A closing tag whose type differs from its opening tag **must** fail with the mes
 | `echo --double` | Syntax error at column 5 |
 | `mkdir \|` | Syntax error at column 7 |
 | `[size=3]` | Syntax error at column 0 |
+| `else echo x` | Syntax error at column 0: `'else' is a reserved word and cannot name a command` |
+| `echo a \| else` | Syntax error at column 9, with the same explanation |
+| `echo eq` | Syntax error at column 5: `'eq' is an operator; write "eq" to pass it as text` |
+| `echo not` | Syntax error at column 8, expecting an operand |
+| `cat x else` | Syntax error at column 10 |
+| `echo (a else b)` | Syntax error at column 8, expecting `)`, `??`, `\|` |
+| `first ?? a ?? b` | Syntax error at column 11, expecting `end of input`, `else`, `\|` |
+| `$maybe ?? "default"` | Syntax error at column 0 |
 | `<a></b>` | Message: `Closing tag 'b' does not match opening tag 'a'` |
 
 ## Entry points besides a program

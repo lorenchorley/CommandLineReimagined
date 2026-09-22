@@ -119,7 +119,7 @@ namespace UIComponents.Components;
 public class TextComponent : LineSegmentComponent, IRenderableComponent
 {
     [State]
-    public virtual string Text { get; set; }
+    public virtual string Text { get; set; } = null!;
     [State]
     public virtual bool Highlighted { get; set; } = false;
 

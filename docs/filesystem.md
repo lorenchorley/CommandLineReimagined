@@ -15,9 +15,16 @@ and what you can do once a query is somewhere you can stand.
 
 ## A file is a set of attributes
 
-Every file is a record. It has attributes, and optionally some content.
+Every file is a record. It has attributes, and optionally some content. The examples on
+this page are one session, started in a fresh tab:
 
 ```
+$ mkdir journal
+journal
+
+$ cd journal
+journal
+
 $ save <note name=monday mood=good tag=work/>
 monday
 
@@ -38,7 +45,7 @@ writing one down and saving it is the whole of creating a file with metadata. `a
 adds them to a file that already exists:
 
 ```
-$ attr readme.txt tag=work
+$ attr /readme.txt tag=work
 readme.txt
 ```
 
@@ -46,9 +53,15 @@ A listing shows every attribute anything in it carries, so a new attribute becom
 new column the moment something has one:
 
 ```
+$ save <note name=tuesday mood=better tag=work/>
+tuesday
+
+$ save <note name=saturday mood=great tag=home/>
+saturday
+
 $ ls
 name      kind  folder    size  modified                           mood    tag
-monday    note  /journal  22    2026-09-22T09:30:00.0000000+00:00  good    work
+monday    note  /journal  0     2026-09-22T09:30:00.0000000+00:00  good    work
 saturday  note  /journal  0     2026-09-22T09:30:00.0000000+00:00  great   home
 tuesday   note  /journal  0     2026-09-22T09:30:00.0000000+00:00  better  work
 ```
@@ -63,7 +76,7 @@ Five attributes are the runtime's. You can read all of them; you may write two.
 | Attribute | Written by | Meaning |
 | --- | --- | --- |
 | `name` | you | Unique within its folder. `attr x name=y` renames. |
-| `kind` | inferred, or you | `folder`, `text`, `xml`, `csv`, `json`, `script`, `view`, or whatever a saved tag's type was. Guessed from the extension when nothing says. |
+| `kind` | inferred, or you | `folder`, `text`, `xml`, `csv`, `json`, `markdown`, `script`, `view`, or whatever a saved tag's type was. Guessed from the extension when nothing says. |
 | `folder` | the terminal | The full path of the containing directory, `/` for the root. |
 | `created` | the terminal | When the record was made. |
 | `modified` | the terminal | When its content or attributes last changed. |
@@ -71,7 +84,7 @@ Five attributes are the runtime's. You can read all of them; you may write two.
 Writing one of the last three is refused:
 
 ```
-$ attr readme.txt folder=/elsewhere
+$ attr /readme.txt folder=/elsewhere
 'folder' is set by the terminal and cannot be written.
 ```
 
@@ -85,8 +98,8 @@ A directory is a record whose `kind` is `folder` and which has no content. That 
 whole of it — there is no second kind of thing in the store.
 
 ```
-$ mkdir journal
-journal
+$ cd /
+/
 
 $ ls | where $row.kind eq folder | count
 4
@@ -97,13 +110,17 @@ would need a `folder` attribute of its own and there is nothing above it. That i
 `cd /` answers a path where `cd journal` answers the directory's record.
 
 Names are unique within a directory, across files and directories alike, so `mkdir
-notes.txt` beside a file of that name is refused.
+readme.txt` beside the file of that name is refused with
+`Target directory already exists : /readme.txt`.
 
 ## Views
 
-A predicate over attributes is a place.
+A predicate over attributes is a place. With one more note saved at the root:
 
 ```
+$ save <note name=postcard mood=great tag=home/>
+postcard
+
 $ cd $row.mood eq great
 $row.mood eq great
 
@@ -180,9 +197,17 @@ $row.mood eq great
 A view is a record of kind `view` whose content is the predicate as it was written.
 Nothing else about it is special: it appears in `ls`, `cat` shows what it asks, `attr`
 renames it, `rm` deletes it and `undo` brings it back. The view is created in the
-current directory, which has nothing to do with what it matches.
+current directory, which has nothing to do with what it matches. Inside the view, the view
+file itself is not one of the rows, because its `mood` is not `great`; out of it, the file
+is in the directory like anything else:
 
 ```
+$ ls | where $row.kind eq view | select name
+name
+
+$ up
+/
+
 $ ls | where $row.kind eq view | select name
 name
 cheerful
@@ -201,8 +226,8 @@ a writing command is refused rather than run — so nothing appears in `history`
 `undo` is unaffected.
 
 Only the newest listing is live; the ones above it froze when you moved on, which is
-what a scrollback is for. The badge underneath it says `live`, and tapping it stops the
-refreshing for that listing.
+what a scrollback is for, and say `frozen`. The badge underneath the live one says
+`live`, and tapping it stops the refreshing for that listing.
 
 ## Paths
 

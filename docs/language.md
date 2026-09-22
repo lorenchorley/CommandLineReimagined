@@ -10,8 +10,11 @@ chips are shown as plain words here.
 ## One line, one pipeline
 
 A command line is a single line. Spaces and tabs separate words; a newline ends the
-program, so there is no line continuation and no multi-command script. There are no
-comments.
+program, so there is no line continuation. There are no comments on a line; a
+[script](commands.md#run) is a file of lines, and that is where `#` comments live.
+
+A line is one pipeline, or several joined by `else`: see
+[Errors as values](#errors-as-values).
 
 The grammar is case insensitive when matching command names, and the text you typed is
 preserved exactly in the tree.
@@ -35,8 +38,8 @@ command and a flag, and `echo -5` is a command and a negative number.
 
 ### Function form
 
-The name, then arguments in parentheses separated by commas. Use `name: value` to pick
-a parameter by name.
+The name, then arguments in parentheses separated by commas, with the parenthesis
+against the name. Use `name: value` to pick a parameter by name.
 
 ```
 $ write(note.txt, hello)
@@ -47,6 +50,20 @@ This filesystem lives in the browser tab.
 
 Function form is the only form that takes `name: value`. In command line form, name an
 argument with a flag instead: `ls -path documents`.
+
+The parenthesis has to touch the name. With a space between them it is not a call but a
+[pipeline in parentheses](#pipelines-in-parentheses), handed to the command as its
+argument:
+
+```
+$ first(ls)
+'first' needs a table, not text.
+$ first (ls | sort name desc)
+<row name=readme.txt kind=text folder=/ size=41 modified=2026-09-22T09:30:00.0000000+00:00/>
+```
+
+The first line calls `first` with the word `ls`; the second runs `ls | sort name desc`
+and gives `first` the table it answered.
 
 ### Tag form
 
@@ -64,7 +81,7 @@ $ <measurement unit=metres value=3/>
 
 An unquoted word may contain letters, digits and underscore, plus `. \ / : ~ + @ % -`
 after the first character. The first character must be a letter, digit, underscore, or
-one of `. \ / ~`, or a `-` with a digit after it. That covers the things a shell needs
+one of `. \ / ~ *`, or a `-` with a digit after it. That covers the things a shell needs
 to write without ceremony:
 
 ```
@@ -111,18 +128,24 @@ and  or  not  eq  ne  gt  ge  lt  le  like  has  else  try
 ```
 
 They are the operators of an [expression](#expressions), and `else` and `try` belong to
-error recovery. Writing one as an ordinary word is a syntax error that says how to write
-it as text instead:
+[error recovery](#errors-as-values). Writing one as an ordinary word is a syntax error
+that says how to write it as text instead:
 
 ```
 $ echo eq
-'eq' is an operator; write "eq" to pass it as text
+Column 5: 'eq' is an operator; write "eq" to pass it as text
 $ echo "eq"
 eq
 ```
 
-The match is exact and case-sensitive, so `equals`, `eq.txt` and `Eq` are ordinary
-words. No command is named after a reserved word, and none may be.
+The message names the column the word starts in, counted from zero. The match is exact
+and case-sensitive, so `equals`, `eq.txt` and `Eq` are ordinary words. No command is named after a reserved word, and none may be; writing one where a
+command belongs says so:
+
+```
+$ else echo x
+Column 0: 'else' is a reserved word and cannot name a command
+```
 
 ### Assignments
 
@@ -131,7 +154,7 @@ name carrying a piece of data. Commands that take arbitrary named data, such as 
 and `save`, collect them:
 
 ```
-$ attr notes.txt tag=work due=2026-10-01
+$ attr documents/notes.txt tag=work due=2026-10-01
 notes.txt
 ```
 
@@ -155,8 +178,9 @@ $ echo v2
 v2
 ```
 
-Numbers use a point as the decimal separator regardless of your locale. Commands that
-want a number, such as `progress`, accept either a number or a word that looks like one.
+Numbers use a point as the decimal separator regardless of your locale. A command that
+wants a number, such as `progress`, wants one written as a number: `progress 20` is
+twenty steps, and `progress "20"` is text and is refused.
 
 ### Quoted strings
 
@@ -188,7 +212,8 @@ A flag takes the next plain value as its value:
 
 ```
 $ ls -path documents
-up  notes.txt
+name       kind  folder      size  modified
+notes.txt  text  /documents  50    2026-09-22T09:30:00.0000000+00:00
 ```
 
 A flag with nothing after it is a switch and binds `true`:
@@ -292,12 +317,14 @@ What the operators mean is in [Tables and predicates](tables.md#predicates). An
 expression is also what `cd`, `find` and `save-view` take, which is how a question
 becomes somewhere you can be: see [The filesystem](filesystem.md#views).
 
-A parenthesis in operand position is a nested pipeline, not a grouping. It parses, and
-running one is not built yet:
+A parenthesis in operand position is a [nested pipeline](#pipelines-in-parentheses), not
+a grouping. It runs once, before the predicate, and every row is compared against the one
+value it answered:
 
 ```
 $ ls | where $row.size gt (ls | count)
-A pipeline in parentheses is not a value yet : (ls | count)
+name        kind  folder  size  modified
+readme.txt  text  /       41    2026-09-22T09:30:00.0000000+00:00
 ```
 
 ## How arguments reach parameters
@@ -329,7 +356,11 @@ its input. The value keeps its type: a list stays a list, a path stays a path.
 
 ```
 $ ls | set files
-up  documents  projects  readme.txt
+name        kind    folder  size  modified
+documents   folder  /       0     2026-09-22T09:30:00.0000000+00:00
+examples    folder  /       0     2026-09-22T09:30:00.0000000+00:00
+projects    folder  /       0     2026-09-22T09:30:00.0000000+00:00
+readme.txt  text    /       41    2026-09-22T09:30:00.0000000+00:00
 $ echo documents | cd
 documents
 $ cat notes.txt | write copy.txt
@@ -346,6 +377,139 @@ If a stage fails, the pipeline stops there and reports that stage's error.
 $ echo nowhere | cd
 Directory does not exist : nowhere
 ```
+
+Unless the line says what to do instead: see [Errors as values](#errors-as-values).
+
+## Pipelines in parentheses
+
+A pipeline written in parentheses, with a space before the opening one, runs on its own
+and its result is the value written there. It can stand as an argument, as one side of a
+comparison, as a [default](#defaults-with-) or as a stage of its own.
+
+```
+$ echo (ls | count)
+4
+$ ls | (where $row.kind eq folder | count)
+3
+```
+
+As an argument it is given nothing through the pipe, because the pipe belongs to the
+stage the parenthesis is in rather than to the pipeline inside it. As a stage it is given
+the pipe, the same as any other stage, so the second line means what it would without the
+parentheses.
+
+It runs once, when the line reaches the stage it is written in, and in the same
+transaction as the rest of the line: whatever it changes, a later stage sees, and `undo`
+takes back with the line. Inside a predicate, what is kept is the value it produced, so a
+view saved with one asks the question as it stood when it was saved:
+
+```
+$ save-view big $row.size gt (ls | count)
+big
+$ cd big
+$row.size gt 4
+```
+
+The parenthesis has to be separated from a command name by a space. Against the name,
+it is the [function form](#function-form).
+
+## Errors as values
+
+A failure stops the line, and a failed line changes nothing. That is the rule, and
+there are three ways for a line to say what should happen instead.
+
+### Recovering with `else`
+
+`else` joins two pipelines. The right one runs only when the left one failed, and it is
+given the failure through the pipe.
+
+```
+$ cat missing.txt else echo "none"
+none
+$ cat missing.txt else echo
+File does not exist : /missing.txt
+```
+
+`else` binds looser than `|`, so each side is a whole pipeline:
+`cat x else echo "starting fresh" | write today.txt` writes `today.txt` only when `x`
+could not be read, and `a | b else c | d` means `(a | b) else (c | d)`. Several can be
+chained; each branch runs only if the one before it failed, and is given that failure.
+
+```
+$ cat missing.txt else cat other.txt else echo "neither"
+neither
+$ cat missing.txt else cat other.txt
+File does not exist : /other.txt
+```
+
+A failed branch leaves nothing behind, exactly as a failed line does. Only the branch
+that answered commits, so after this line there is no folder called `today`:
+
+```
+$ mkdir today | cd nowhere else echo "rolled back"
+rolled back
+```
+
+### Keeping a failure with `try`
+
+`try` in front of a stage turns that stage's failure into a value, and the line goes on
+with it. What the next stage receives is the fault itself.
+
+```
+$ try cat missing.txt | set problem
+File does not exist : /missing.txt
+$ echo $problem.kind
+NotFound
+$ echo $problem.message
+File does not exist : /missing.txt
+$ echo $problem.path
+/missing.txt
+```
+
+The terminal draws a caught fault in amber rather than red, because it is a result: the
+line succeeded. A fault reads as its message, and these members can be read off it:
+
+| Member | Holds |
+| --- | --- |
+| `kind` | The fault's kind as a word: `NotFound`, `Conflict`, `Invalid`, `Binding`, `Syntax`, `UnknownCommand`, `Internal`. See [the kinds](errors.md). |
+| `message` | The sentence the red line would have shown. |
+| `path` | The path it was about, when there was one; nothing otherwise. |
+| `stage` | Which stage failed, counted from one. |
+| `cause` | The fault underneath, when there was one; nothing otherwise. |
+
+`try` covers the one stage it is written in front of. Put the part that may fail in
+parentheses to cover more than one command: `try (mkdir inside | cd nowhere) | set r`.
+Whatever the failed stage had done is discarded, so `inside` is not created.
+
+`is-fault` answers whether a value is one:
+
+```
+$ is-fault $problem
+true
+$ echo fine | is-fault
+false
+```
+
+Neither `try` nor `else` catches [Stop](web-terminal.md). A stopped line stops, whatever
+is written around the stage that was running
+([decision 0024](decisions/0024-stop-is-not-recoverable.md)).
+
+### Defaults with `??`
+
+`??` after a stage gives the value to use when that stage answered nothing — `first` of
+an empty table, for instance.
+
+```
+$ first (ls | where $row.kind eq view) ?? "no views yet"
+no views yet
+$ echo hello ?? "never used"
+hello
+```
+
+The default belongs to the stage, so it flows on down the pipe:
+`first (ls) ?? "none" | set latest` sets `$latest` either way. It is only evaluated when
+it is needed, so a default that would fail does no harm on a line that does not reach it.
+A fault is an answer, not nothing, so `try cat missing.txt ?? fine` keeps the fault.
 
 ## Variables
 
@@ -460,7 +624,7 @@ These are absent by design or not built yet. Nothing here silently half-works.
 | --- | --- |
 | Wildcards in paths, such as `cat *.txt` | Name files individually. `*` is a glob for `like` in a predicate, and nothing else. |
 | Redirection `>` and `>>` | Pipe into `write`. |
-| Several commands per line with `;` or `&&` | Run them one at a time. |
+| Several commands per line with `;` or `&&` | Run them one at a time, or put them in a [script](commands.md#run). `else` is the one way to join pipelines on a line. |
 | Escapes inside strings | Strings cannot contain a double quote at all. |
 | Background jobs | One command runs at a time; use Stop to end it. |
 | Environment variables | Use `set` and `$name`. |
@@ -469,8 +633,8 @@ These are absent by design or not built yet. Nothing here silently half-works.
 
 The terminal colours each word by the role the grammar gave it, and tapping a word in
 the scrollback names that role. The roles are: command, flag, string, variable,
-identifier, type, attribute, operator, member and punctuation.
+identifier, type, attribute, operator, member, keyword and punctuation. `try` and `else`
+are keywords; `??` is an operator.
 
-Because the tree is faithful, serialising it reproduces your text exactly. That
-round-trip is checked on every parse, which is what keeps colouring and structure
-honest.
+Because the tree is faithful, serialising it reproduces your text exactly. The parser's
+tests check that round trip, which is what keeps colouring and structure honest.

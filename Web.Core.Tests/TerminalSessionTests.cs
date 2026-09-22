@@ -208,6 +208,26 @@ public class TerminalSessionTests
         Assert.IsNull((await _session.ExecuteAsync("up")).Location.View);
     }
 
+    /// <summary>
+    /// The page reads where it is from <c>location</c> and nothing else.
+    /// </summary>
+    /// <remarks>
+    /// <c>workingDirectory</c> carried the folder alone until there were views, and was
+    /// kept as an alias while the page moved over. A second name for half of the same
+    /// fact is one a host could go on reading and be wrong inside a view.
+    /// </remarks>
+    [TestMethod]
+    public async Task TheWireFormatCarriesLocationAndNoWorkingDirectory()
+    {
+        var response = await _session.ExecuteAsync("cd documents");
+
+        var json = System.Text.Json.JsonSerializer.Serialize(
+            response, new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web));
+
+        StringAssert.Contains(json, "\"location\":{\"folder\":\"/documents\",\"view\":null}");
+        Assert.IsFalse(json.Contains("workingDirectory"), json);
+    }
+
     // ---- refreshing a live listing ----------------------------------------------
 
     [TestMethod]
@@ -438,6 +458,33 @@ public class TerminalSessionTests
 
     // ---- tokens -----------------------------------------------------------------
 
+    /// <summary>A string whose body is a space is still a string.</summary>
+    /// <remarks>
+    /// Spaces are tagged as whitespace whatever is in scope, because the serialiser writes
+    /// them from outside any node. A string's body is not one of those spaces.
+    /// </remarks>
+    [TestMethod]
+    public void AStringOfSpacesIsTokenisedAsAString()
+    {
+        var parse = new CommandLineReimagined.Web.Parsing.CommandParseService().Parse("echo \" \"");
+
+        Assert.IsNull(parse.Error);
+        Assert.AreEqual("\" \"", string.Concat(parse.Tokens.Where(t => t.Kind == "string").Select(t => t.Text)));
+    }
+
+    /// <summary>A reserved word as an attribute's value says why, where it is.</summary>
+    /// <remarks>
+    /// The whole tag header used to be attempted, so the fatal error for the word became
+    /// a backtrack to column 0 with its explanation gone.
+    /// </remarks>
+    [TestMethod]
+    public async Task AReservedWordInATagAttributeIsExplained()
+    {
+        var response = await _session.ExecuteAsync("<t a=eq/>");
+
+        Assert.AreEqual("Column 5: 'eq' is an operator; write \"eq\" to pass it as text", response.Error);
+    }
+
     [TestMethod]
     public void TheFunctionFormsNameIsTokenisedAsACommand()
     {
@@ -492,6 +539,76 @@ public class TerminalSessionTests
         Assert.AreEqual("eq", ofKind("operator"));
         Assert.AreEqual(".kind", ofKind("member"));
         Assert.AreEqual("$row", ofKind("variable"));
+    }
+
+    /// <summary>
+    /// Phase 5: <c>try</c> and <c>else</c> are keywords, <c>??</c> is an operator, and a
+    /// nested pipeline's command is a command like any other.
+    /// </summary>
+    [TestMethod]
+    public void RecoveryWordsAreTokenisedAsThemselves()
+    {
+        const string source = "try cat x | set p else first (ls) ?? none";
+        var parse = new CommandLineReimagined.Web.Parsing.CommandParseService().Parse(source);
+
+        string[] ofKind(string kind) =>
+            parse.Tokens.Where(token => token.Kind == kind).Select(token => token.Text).ToArray();
+
+        Assert.IsNull(parse.Error);
+        Assert.AreEqual(source, parse.Reserialised);
+        CollectionAssert.AreEqual(new[] { "try", "else" }, ofKind("keyword"));
+        CollectionAssert.AreEqual(new[] { "??" }, ofKind("operator"));
+        CollectionAssert.AreEqual(new[] { "cat", "set", "first", "ls" }, ofKind("command"));
+    }
+
+    /// <summary>A fault that <c>try</c> caught is a result item of kind <c>fault</c>, with its kind beside it.</summary>
+    [TestMethod]
+    public async Task ACaughtFaultIsAResultNotAnError()
+    {
+        var response = await _session.ExecuteAsync("try cat nowhere.txt");
+
+        Assert.IsNull(response.Error);
+        var item = response.Result!.Single();
+        Assert.AreEqual("fault", item.Kind);
+        Assert.AreEqual("NotFound", item.FaultKind);
+        Assert.AreEqual("File does not exist : /nowhere.txt", item.Text);
+    }
+
+    /// <summary>
+    /// A document read back is a table the page can draw, with the column types the
+    /// file's contents earned: every quantity is a number, so the column is one.
+    /// </summary>
+    [TestMethod]
+    public async Task ADocumentReadBackIsATableWithTypedColumns()
+    {
+        await _session.ExecuteAsync("<items><item sku=A1 qty=120/><item sku=B2 qty=12/></items> | to-xml items.xml");
+        await _session.ExecuteAsync("from-xml items.xml | to-csv items.csv");
+
+        foreach (var line in new[] { "from-xml items.xml | table", "from-csv items.csv" })
+        {
+            var response = await _session.ExecuteAsync(line);
+
+            Assert.IsNull(response.Error, line);
+            var table = response.Result!.Single();
+            Assert.AreEqual("table", table.Kind, line);
+            CollectionAssert.AreEqual(
+                new[] { new ResultColumn("sku", "text"), new ResultColumn("qty", "number") },
+                table.Columns!.ToArray(),
+                line);
+            Assert.AreEqual("120", table.Rows![0][1].Text, line);
+        }
+    }
+
+    /// <summary>A writer answers the file it wrote, the same as <c>write</c> does.</summary>
+    [TestMethod]
+    public async Task AWriterAnswersTheFileItWrote()
+    {
+        var response = await _session.ExecuteAsync("ls | to-csv listing.csv");
+
+        Assert.IsNull(response.Error);
+        var item = response.Result!.Single();
+        Assert.AreEqual("file", item.Kind);
+        Assert.AreEqual("/listing.csv", item.Path);
     }
 
     // ---- completion -------------------------------------------------------------

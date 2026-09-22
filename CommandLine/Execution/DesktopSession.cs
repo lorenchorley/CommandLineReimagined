@@ -12,9 +12,9 @@ namespace Terminal.Execution;
 /// options, and the core.
 ///
 /// The log is in memory, so the filesystem lives as long as the window does. Decision
-/// 0012 leaves a projection onto the real disk out of scope, and the browser is the
-/// same until Phase 2 persists its log; this is not a regression from what the desktop
-/// had, it is the same model with the disk removed.
+/// 0012 leaves a projection onto the real disk out of scope, and a file-backed log for
+/// the desktop was an optional item the plan did not take up; the browser persists its
+/// log in IndexedDB. This is the same model as the browser's with the storage removed.
 /// </remarks>
 public static class DesktopSession
 {

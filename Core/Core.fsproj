@@ -17,15 +17,18 @@
 
   <!--
     F# compiles in the order listed, and a file may only use what came before it. The
-    order is the dependency order of the design: values, then failure, then the log,
-    then the fold over it, then the things that read the fold.
+    order is the dependency order of the design: failure, then values (a fault is one,
+    from Phase 5), then the log, then the fold over it, then the things that read the
+    fold.
   -->
   <ItemGroup>
-    <Compile Include="Values.fs" />
     <Compile Include="Faults.fs" />
+    <Compile Include="Values.fs" />
     <Compile Include="Events.fs" />
     <Compile Include="Projection.fs" />
     <Compile Include="Table.fs" />
+    <Compile Include="Xml.fs" />
+    <Compile Include="Csv.fs" />
     <Compile Include="Store.fs" />
     <Compile Include="Scope.fs" />
     <Compile Include="Tree.fs" />
@@ -36,6 +39,7 @@
     <Compile Include="Commands/Values.fs" />
     <Compile Include="Commands/Async.fs" />
     <Compile Include="Commands/Tables.fs" />
+    <Compile Include="Commands/Documents.fs" />
     <Compile Include="Commands/Meta.fs" />
     <Compile Include="Evaluator.fs" />
     <Compile Include="Completion.fs" />

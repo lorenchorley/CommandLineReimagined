@@ -34,6 +34,10 @@ language means). A loop over projects has to glob `*.fsproj` as well as `*.cspro
 it silently builds everything that depends on the core without building the core's own
 tests.
 
+Every project that builds on Linux builds without a warning, and CI's logs are the
+place a new one shows up first. A nullable warning in the desktop libraries is fixed
+with an annotation, not suppressed.
+
 `CommandLineReimagined/Application.csproj` is the WPF shell and only builds on Windows.
 `WebClient/WebClient.csproj` needs the workload:
 
@@ -46,8 +50,8 @@ dotnet workload install wasm-tools
 | Project | Covers |
 | --- | --- |
 | `Parser.Tests` | The grammar, both parsers, error positions and serialisation. |
-| `Core.Tests` | Values, faults, the store, undo, binding, pipes, tags, every command, completion. |
-| `Web.Core.Tests` | The adapter: DTO shapes, streaming, cancellation, completion. |
+| `Core.Tests` | Values, faults, the store, undo, binding, pipes, tags, tables, predicates, views, recovery, XML and CSV, persistence, every command, completion, and the four example programs against their golden results. |
+| `Web.Core.Tests` | The adapter and the stored log: DTO shapes, streaming, cancellation, completion, and the versioned JSON a transaction is kept in. |
 | `Terminal.Tests` | Naming and path helpers. |
 | `Utils.Tests`, `EntityComponentSystem.Tests`, `SourceGenerators.Tests`, `Rendering.Tests` | The supporting libraries. |
 
@@ -67,10 +71,8 @@ they run without a filesystem at all.
 
 ```bash
 dotnet publish WebClient/WebClient.csproj -c Release -o publish
+tools/postprocess-publish.sh publish/wwwroot
 cd publish/wwwroot
-mv _framework framework
-grep -rl _framework --include=*.js --include=*.json --include=*.html . \
-  | xargs sed -i 's/_framework/framework/g'
 python3 -m http.server 8080
 ```
 
@@ -81,8 +83,9 @@ The rename is not optional, which this document used to imply it was by listing 
 only under deploying. The page asks for `framework/blazor.webassembly.js`, because the
 host it is deployed to refuses paths beginning with an underscore, so a folder straight
 out of `publish` 404s on its own runtime and shows a page that never starts.
-`tools/browser-check.mjs` does the rename itself, so running the check needs only the
-publish.
+`tools/postprocess-publish.sh` does the rename, deletes the precompressed copies and
+sets `<base href>`; `tools/browser-check.mjs` does the rename itself, so running the
+check needs only the publish.
 
 To run the ASP.NET host instead, which adds `/healthz`, `/api/parse` and a WebSocket
 at `/ws`:
@@ -110,7 +113,7 @@ the runtime files keep stable names. With fingerprinting on, every publish write
 fresh set of hashed names and a host that keeps what it is not told to replace ends up
 storing the runtime several times over.
 
-The payload after this is about 15 MB across 121 files.
+The payload after this is 9.9 MB across 72 files, which is how the CI guard measures it.
 
 ## Check the log's storage
 
@@ -153,9 +156,10 @@ PLAYWRIGHT_CHROMIUM=/opt/pw-browsers/chromium node tools/browser-check.mjs publi
 ```
 
 It runs the page at 390 by 844 at a device scale factor of 3 — a phone, which is what
-the page is designed for and therefore the only size worth checking — submits the
-acceptance lines for the current phase in one session, and fails on any mismatch or any
-console error.
+the page is designed for and therefore the only size worth checking — submits every
+phase's acceptance lines in one session, runs the four example programs with
+`run examples/<name>.clr` against their golden results, reloads the page to prove the log
+came back, and fails on any mismatch or any console error.
 
 The two checks need Node and are declared in `tools/package.json`, so
 `npm install --prefix tools` installs exactly the versions CI uses rather than
@@ -195,13 +199,14 @@ Settings, then Pages, then Source to "GitHub Actions", once.
 
 ## Continuous integration
 
-`.github/workflows/build.yml` runs three jobs on every push:
+`.github/workflows/build.yml` runs four jobs on every push:
 
 | Job | Runner | What it does |
 | --- | --- | --- |
 | Full solution | Windows | Builds the whole solution, including the desktop shell, and runs every test project. |
 | Libraries and tests | Linux | Builds every project except the desktop shell and the WebAssembly client, runs every test project, and checks the store module. |
-| WebAssembly client | Linux | Installs `wasm-tools`, publishes the client, fails if the payload exceeds 20 MB, and runs the browser check. |
+| WebAssembly client | Linux | Installs `wasm-tools`, publishes the client, fails if the payload exceeds 20 MB, and hands the published site to the next job. |
+| Browser check | Linux | Installs Chromium and runs `tools/browser-check.mjs` against the site the previous job published and measured. |
 
 `deploy.yml` deploys to Azure App Service and skips itself when no `AZURE_CREDENTIALS`
 secret is configured.

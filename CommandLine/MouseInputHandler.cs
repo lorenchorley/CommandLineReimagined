@@ -15,13 +15,13 @@ public class MouseInputHandler : InputComponent
 {
     private Entity? _contexteMenuEntity;
 
-    [Inject] public RayCaster RayCaster { get; set; }
-    [Inject] public LoopController LoopController { get; set; }
-    [Inject] public ITextUpdateSystem TextUpdateSystem { get; set; }
-    [Inject] public Shell Shell { get; set; }
-    [Inject] public ICanvasUpdateSystem CanvasUpdateSystem { get; set; }
+    [Inject] public RayCaster RayCaster { get; set; } = null!;
+    [Inject] public LoopController LoopController { get; set; } = null!;
+    [Inject] public ITextUpdateSystem TextUpdateSystem { get; set; } = null!;
+    [Inject] public Shell Shell { get; set; } = null!;
+    [Inject] public ICanvasUpdateSystem CanvasUpdateSystem { get; set; } = null!;
 
-    private void OnLeftClick(MouseEventInfo eventInfo)
+    private new void OnLeftClick(MouseEventInfo eventInfo)
     {
         var hit = RayCaster.CastRay(eventInfo.MousePosition, InteractableElementLayer.Navigation);
 
@@ -45,7 +45,7 @@ public class MouseInputHandler : InputComponent
         }
 
         _contexteMenuEntity = hit.Entity;
-        DoubleClickAction? action = hit.Entity.TryGetComponent<DoubleClickAction>();
+        DoubleClickAction? action = hit.Entity!.TryGetComponent<DoubleClickAction>();
 
         if (action == null)
         {
@@ -65,7 +65,7 @@ public class MouseInputHandler : InputComponent
         }
     }
 
-    private void OnRightClick(MouseEventInfo eventInfo)
+    private new void OnRightClick(MouseEventInfo eventInfo)
     {
         CastResult hit = RayCaster.CastRay(eventInfo.MousePosition, InteractableElementLayer.Navigation);
 
@@ -145,7 +145,7 @@ public class MouseInputHandler : InputComponent
     public void CopyPathAsText_FileNavigation_Click()
     {
         string path = _contexteMenuEntity!.GetComponent<PathInformation>().Path;
-        TextUpdateSystem.SetClipboardText(Path.GetDirectoryName(path));
+        TextUpdateSystem.SetClipboardText(Path.GetDirectoryName(path)!);
     }
 
     public void CopyFileNameAsText_FileNavigation_Click()

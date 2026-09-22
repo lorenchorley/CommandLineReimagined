@@ -330,6 +330,52 @@ let mkdir (newId: IdSource) (now: unit -> DateTimeOffset) =
 
 // ------------------------------------------------------------------------ write
 
+/// <summary>Writes text to a path: a new file, or new content for an existing one.</summary>
+/// <remarks>
+/// The whole of `write`, shared with `to-xml` and `to-csv` so that the three emit the
+/// same events and undo, redo and history treat a document like any other file. `kind`
+/// is what a file this creates is given, when the caller knows better than the
+/// extension; a file that already exists keeps the kind it has.
+/// </remarks>
+let writeContent
+    (newId: IdSource)
+    (now: unit -> DateTimeOffset)
+    (invocation: Invocation)
+    (written: string)
+    (kind: string option)
+    (text: string)
+    : Async<Outcome<CommandResult>> =
+    async {
+        let absolute = Files.normalise invocation.Location.Folder written
+        let folder, name = Files.split absolute
+
+        if not (Files.folderExists invocation.Projection folder) then
+            return Error(Fault.directoryDoesNotExist folder)
+        else
+            // The content goes to the blob store first and the event carries only
+            // hashes, so keeping the previous version costs nothing.
+            let! hash = invocation.Blobs.Put text
+
+            match Files.tryFindIn invocation.Projection folder name with
+            | Some existing when Record.isFolder existing -> return Error(Fault.isADirectory absolute)
+            | Some existing ->
+                let events =
+                    [ ContentChanged(existing.Id, existing.Content, Some hash)
+                      AttributesChanged(existing.Id, existing.Attributes, touch (now ()) existing.Attributes) ]
+
+                return Invocation.withEvents (Record.toValue existing) events
+            | None ->
+                let record =
+                    { Id = newId ()
+                      Attributes = baseAttributes name (defaultArg kind (Files.inferKind name)) folder (now ())
+                      Content = None }
+
+                return
+                    Invocation.withEvents
+                        (Record.toValue { record with Content = Some hash })
+                        [ FileCreated record; ContentChanged(record.Id, None, Some hash) ]
+    }
+
 let write (newId: IdSource) (now: unit -> DateTimeOffset) =
     { Spec =
         CommandSpec.create
@@ -340,40 +386,32 @@ let write (newId: IdSource) (now: unit -> DateTimeOffset) =
               Parameter.create "text" "What to write" |> Parameter.piped ]
       Run =
         fun invocation ->
-            async {
-                let written = Invocation.text "path" invocation
-                let absolute = Files.normalise invocation.Location.Folder written
-                let folder, name = Files.split absolute
-                let text = Invocation.value "text" invocation |> Value.display
-
-                if not (Files.folderExists invocation.Projection folder) then
-                    return Error(Fault.directoryDoesNotExist folder)
-                else
-                    // The content goes to the blob store first and the event carries
-                    // only hashes, so keeping the previous version costs nothing.
-                    let! hash = invocation.Blobs.Put text
-
-                    match Files.tryFindIn invocation.Projection folder name with
-                    | Some existing when Record.isFolder existing -> return Error(Fault.isADirectory absolute)
-                    | Some existing ->
-                        let events =
-                            [ ContentChanged(existing.Id, existing.Content, Some hash)
-                              AttributesChanged(existing.Id, existing.Attributes, touch (now ()) existing.Attributes) ]
-
-                        return Invocation.withEvents (Record.toValue existing) events
-                    | None ->
-                        let record =
-                            { Id = newId ()
-                              Attributes = baseAttributes name (Files.inferKind name) folder (now ())
-                              Content = None }
-
-                        return
-                            Invocation.withEvents
-                                (Record.toValue { record with Content = Some hash })
-                                [ FileCreated record; ContentChanged(record.Id, None, Some hash) ]
-            } }
+            let text = Invocation.value "text" invocation |> Value.display
+            writeContent newId now invocation (Invocation.text "path" invocation) None text }
 
 // -------------------------------------------------------------------------- cat
+
+/// <summary>A file's text, with the absolute path it was read from.</summary>
+/// <remarks>
+/// Shared with `from-xml` and `from-csv`, which need the path for their messages and
+/// the same answers to a folder or a missing file that `cat` gives.
+/// </remarks>
+let readContent (invocation: Invocation) (written: string) : Async<Outcome<string * string>> =
+    async {
+        let absolute = Files.normalise invocation.Location.Folder written
+
+        match Files.resolve invocation.Projection invocation.Location written with
+        | Error fault -> return Error fault
+        | Ok record when Record.isFolder record -> return Error(Fault.isADirectory absolute)
+        | Ok record ->
+            match record.Content with
+            // A file that has never been written has no blob. That is empty text, not a
+            // missing file: `save` makes records with attributes and no content at all.
+            | None -> return Ok(absolute, "")
+            | Some hash ->
+                let! content = invocation.Blobs.Get hash
+                return Ok(absolute, defaultArg content "")
+    }
 
 let cat =
     { Spec =
@@ -386,21 +424,8 @@ let cat =
       Run =
         fun invocation ->
             async {
-                let written = Invocation.text "path" invocation
-                let absolute = Files.normalise invocation.Location.Folder written
-
-                match Files.resolve invocation.Projection invocation.Location written with
-                | Error fault -> return Error fault
-                | Ok record when Record.isFolder record -> return Error(Fault.isADirectory absolute)
-                | Ok record ->
-                    match record.Content with
-                    // A file that has never been written has no blob. That is empty
-                    // text, not a missing file: `save` makes records with attributes
-                    // and no content at all.
-                    | None -> return Invocation.pure' (Value.Text "")
-                    | Some hash ->
-                        let! content = invocation.Blobs.Get hash
-                        return Invocation.pure' (Value.Text(defaultArg content ""))
+                let! content = readContent invocation (Invocation.text "path" invocation)
+                return content |> Outcome.map (fun (_, text) -> { Value = Value.Text text; Events = [] })
             } }
 
 // --------------------------------------------------------------------------- rm

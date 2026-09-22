@@ -169,12 +169,12 @@ public class EventSourceSerialiser
         }
     }
 
-    private string ValueToString(object value)
+    private string? ValueToString(object value)
     {
         if (value is IComponentProxy proxy)
         {
             string id = proxy.Id.ToString(IndexFormat);
-            string typeName = proxy.GetType().BaseType.Name;
+            string typeName = proxy.GetType().BaseType!.Name;
             return $"{typeName} Id={id}";
         }
         else

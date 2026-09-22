@@ -9,6 +9,7 @@ module CommandLineReimagined.Core.Tree
 type Node = Commands.Parser.SemanticTree.RootNode
 type Empty = Commands.Parser.SemanticTree.EmptyCommand
 type Pipeline = Commands.Parser.SemanticTree.PipedCommandList
+type RecoveryLine = Commands.Parser.SemanticTree.RecoveryLine
 type Expression = Commands.Parser.SemanticTree.CommandExpression
 type Cli = Commands.Parser.SemanticTree.CommandExpressionCli
 type Function = Commands.Parser.SemanticTree.FunctionExpression

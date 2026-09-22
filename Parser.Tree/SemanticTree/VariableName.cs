@@ -4,7 +4,7 @@ namespace Commands.Parser.SemanticTree
 {
     public record VariableName : IVisitable
     {
-        private string _name;
+        private string _name = null!;
         public string Name
         {
             get

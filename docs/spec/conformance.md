@@ -22,13 +22,14 @@ test methods; data-driven methods expand to more cases at run time.
 | Requirement | Test class | Methods |
 | --- | --- | --- |
 | Lexical rules: identifiers, accents, flags, string forms, variables | `Parser.Tests/LexicalTests` | 15 |
-| Bare words, in arguments and in tag attributes; assignments; negative numbers | `Parser.Tests/BareWordTests` | 18 |
+| Bare words, in arguments and in tag attributes; assignments; negative numbers | `Parser.Tests/BareWordTests` | 19 |
 | The three command forms, arguments, pipes, hyphenated command names | `Parser.Tests/CommandFormTests` | 26 |
 | Object and component tags, nesting, closing forms, variable tags | `Parser.Tests/ObjectInstanceTests` | 17 |
 | Productions the original grammar never implemented | `Parser.Tests/CompletedGrammarTests` | 17 |
 | Error positions and expected symbols | `Parser.Tests/SyntaxErrorTests` | 5 |
 | Round-trip serialisation | `Parser.Tests/SerialisationTests` | 7 |
 | Word operators, precedence, member access, reserved words, nested pipelines, the expression entry point | `Parser.Tests/ExpressionTests` | 21 |
+| `else`, `try`, `??`, pipelines in parentheses as stages and operands, the adjacent function parenthesis, reserved command names | `Parser.Tests/RecoveryTests` | 23 |
 | Agreement with the retained GOLD parser | `Parser.Tests/ParserEquivalenceTests` | 4 |
 | The two string forms of every value, and number formatting | `Core.Tests/ValueTests` | 16 |
 | The Table value: coercion, columns, types, gaps, rows, display | `Core.Tests/TableTests` | 23 |
@@ -43,13 +44,16 @@ test methods; data-driven methods expand to more cases at run time.
 | `undo`, `redo` and `history` as commands | `Core.Tests/MetaCommandTests` | 16 |
 | The table functions, as whole command lines | `Core.Tests/TableCommandTests` | 29 |
 | Views: `cd` on a predicate, `ls` across folders, `up`, `find`, `save-view`, refreshing | `Core.Tests/ViewTests` | 38 |
-| The example programs, against their golden results, and `run` | `Core.Tests/ExampleProgramTests` | 14 |
-| Completion over the projection, the operators, the columns and the places | `Core.Tests/CompletionTests` | 22 |
+| Recovery: `else`, `try`, `??`, nested pipelines, fault values and their members, `is-fault`, what a refresh refuses | `Core.Tests/RecoveryTests` | 32 |
+| XML documents: reading, text content, namespaces, refusals, writing, round trips, and the two commands | `Core.Tests/XmlTests` | 40 |
+| CSV files: RFC 4180 reading, column typing, gaps, faults naming the line, writing, round trips, and the two commands | `Core.Tests/CsvTests` | 33 |
+| The example programs, against their golden results, and `run` | `Core.Tests/ExampleProgramTests` | 22 |
+| Completion over the projection, the operators, the columns, the places and the keywords | `Core.Tests/CompletionTests` | 25 |
 | The phase's acceptance list, from a fresh session | `Core.Tests/AcceptanceTests` | 10 |
 | Replaying a log, seeding once, and `reset` | `Core.Tests/PersistenceTests` | 13 |
-| The stored shape of a transaction, every event and value case, versioning | `Web.Core.Tests/LogFormatTests` | 22 |
+| The stored shape of a transaction, every event and value case, versioning | `Web.Core.Tests/LogFormatTests` | 24 |
 | The browser's IndexedDB module, including a browser without it | `tools/store-check.mjs` | 20 |
-| DTO shapes including tables, views, refreshing, streaming, cancellation, completion, tokens | `Web.Core.Tests/TerminalSessionTests` | 43 |
+| DTO shapes including tables, views, refreshing, caught faults, documents, streaming, cancellation, completion, tokens | `Web.Core.Tests/TerminalSessionTests` | 47 |
 | Path and naming helpers | `Terminal.Tests/ValidCommandTests` | 2 |
 | The published page, in a browser at phone size | `tools/browser-check.mjs` | 1 session |
 
@@ -57,11 +61,11 @@ Cases actually run, which is what the suite reports:
 
 | Project | Cases |
 | --- | --- |
-| `Parser.Tests` | 293 |
-| `Core.Tests` | 413 |
-| `Web.Core.Tests` | 65 |
+| `Parser.Tests` | 336 |
+| `Core.Tests` | 529 |
+| `Web.Core.Tests` | 71 |
 | `Terminal.Tests` | 32 |
-| Total | 803 |
+| Total | 968 |
 
 Run them with:
 
@@ -71,8 +75,13 @@ for p in $(find . \( -name '*.Tests.csproj' -o -name '*.Tests.fsproj' \) | sort)
 done
 ```
 
-`Core.Tests` absorbed `Execution.Tests`, which is now deleted. Every case it had is
-here, asserting on the projection rather than on a temporary directory.
+`Core.Tests` absorbed `Execution.Tests`, which is deleted, as is the C# `Commands`
+project it tested. Every case it had is here, asserting on the projection rather than on
+a temporary directory.
+
+`EntityComponentSystem.Tests`, `Rendering.Tests`, `Utils.Tests` and
+`SourceGenerators.Tests` cover the desktop shell's libraries, which this specification
+does not govern. They run in CI with the rest.
 
 ## Checklist for a new implementation
 
@@ -113,14 +122,26 @@ here, asserting on the projection rather than on a temporary directory.
 - [ ] Piped input reaches only parameters that accept it and that were not written out.
 - [ ] Arity and missing-argument messages match the wording in
       [Execution model](execution-model.md#argument-binding).
-- [ ] An unknown name is reported through `UnknownCommand`.
+- [ ] An unknown name is reported as a fault of kind `UnknownCommand`.
 - [ ] A pipeline threads values and stops at the first failure.
 - [ ] Tags evaluate as values, as pipeline stages and as arguments, and bind their
       variable in every position.
-- [ ] Each execution gets its own command instance, so undo is per invocation.
-- [ ] Undo returns the name of what it reversed, and reversing a read-only command
-      succeeds.
-- [ ] An asynchronous command observes cancellation and reports through `FailedInvoke`.
+- [ ] A command returns a value and events and changes nothing itself; a later stage
+      reads a projection with the earlier stages' events folded in.
+- [ ] A line commits one transaction when it succeeds, nothing when it fails, and
+      nothing when it produced no events.
+- [ ] Every event inverts to where it started; `undo` appends the last undoable line's
+      events inverted and reversed, and names the line; `redo` compensates the
+      compensation; the seed is recorded and cannot be undone.
+- [ ] Replaying a log into an empty store arrives at exactly the projection it left.
+- [ ] Content is stored by the SHA-256 of its text, and a command reaches it only
+      through put and get.
+- [ ] An asynchronous command observes cancellation, and a cancelled line reports
+      `Stopped.` and commits nothing.
+- [ ] `else` runs its right side only when the left failed, with the fault piped in;
+      `try` makes a stage's fault its value; `??` defaults a stage that answered `None`
+      or nothing; neither `else` nor `try` catches Stop, and a failed branch leaves no
+      events.
 - [ ] A table-shaped tag reads as a table wherever one is expected, gaps are `None`,
       and a tag that is not table-shaped names the child that broke the shape.
 - [ ] Columns are typed from their cells, and a `None` cell does not make a column
@@ -138,6 +159,14 @@ here, asserting on the projection rather than on a temporary directory.
 - [ ] A record created while a view is set is created in the folder.
 - [ ] A refresh is refused, before running, unless every stage names a read-only
       command, and commits nothing when it does run.
+- [ ] `from-xml` reads an element's attributes by the number-or-text rule and its
+      text into an attribute `text`, refuses a DTD, and names the line and position of
+      a document that does not parse.
+- [ ] `from-csv` types a column as numbers only when every cell present is one, reads
+      an unquoted empty field as `None` and `""` as empty text, and names the line of
+      a record whose width differs from the header's.
+- [ ] `to-xml` and `to-csv` emit the events `write` would, set the kind of a file they
+      create, write numbers exactly, and end every line in `\n`.
 
 **Terminal**
 
@@ -148,6 +177,9 @@ here, asserting on the projection rather than on a temporary directory.
 - [ ] Wire formats match [Host interfaces](host-interfaces.md#wire-formats).
 - [ ] A stored location carries its view, so a replay comes back into the query it was
       in.
+- [ ] The stored log carries a version; an unknown version is refused by name, a
+      transaction that cannot be decoded is skipped and counted, and a host without
+      storage runs in memory and says so before the first command.
 
 ## Known deviations
 
@@ -157,14 +189,14 @@ case.
 | Deviation | Status |
 | --- | --- |
 | Property assignments parse but raise `Cannot evaluate a child PropertyAssignment.` | Intended for now. The grammar keeps them because the original did; evaluation has no meaning to give them yet. |
-| A component child of an object is evaluated but not attached to the object's children. | Intended. Its purpose is the variable binding; the entity component model does not yet exist at runtime. |
 | `<a/>` and `<a></a>` are distinct in the tree but evaluate alike. | Intended. The tree is a faithful record of what was typed. |
 | The retained GOLD parser reports column 12 where the combinator parser reports 11 on one truncated input. | Documented in `ParserEquivalenceTests`. The combinator position is correct. |
-| `pwd` at the filesystem root produces a result whose display name is empty. | Cosmetic. The path is still correct in the response and in the prompt. |
-| A pipeline in parentheses parses as an operand and evaluates to `A pipeline in parentheses is not a value yet`. | Intended for now. An operand is where it belongs, and what running one means is Phase 5's question. |
+| A pipeline in parentheses inside a predicate runs once, and the predicate keeps its value, so a view saved with one does not re-run it. | Intended. A view is a question about records, and a question that changed its own terms each time it was asked would be a different question. |
 | Suggestion and completion chips are 26 pixels tall, below the usual 44 pixel touch target. | Known. Worth raising; the input, the run button and a table's cells already meet it. |
 | `Scope` supports nesting, but no host creates a child scope outside a predicate. | Intended. The model is ahead of the shell. |
 | `attr` is not marked read-only, so a live listing cannot be an `attr`. | Intended. The same command reads with no assignments and writes with them, and a refresh is decided by name before it runs. |
+| XML element text is read as an attribute `text` and written back as content, so mixed content comes back with its text gathered before the children, trimmed; an XML attribute called `text` on an element with content is replaced by it; comments and processing instructions are dropped. | Intended for this release; see [decision 0025](../decisions/0025-xml-text-content.md). |
+| A document with a DTD is refused rather than read. | Intended. A file in the store is anyone's, and entity expansion is a way to stop a tab. |
 | Messages are English only and the client is published with invariant globalisation. | Intended for now; see [Design doc](design-doc.md#internationalisation). |
 
 ## Changing this specification

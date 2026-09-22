@@ -27,6 +27,52 @@ prerequisites.
 The status in the top right reads `wasm` in green once the .NET runtime has loaded,
 which takes a second or two on a first visit. The input is disabled until then.
 
+## Run a program first
+
+The quickest way to see what the terminal does is to let it show you. Type
+`run examples/tables.clr` and press Enter, or tap the `run` suggestion under the input:
+
+```
+$ run examples/tables.clr
+> ls
+name        kind    folder  size  modified
+documents   folder  /       0     2026-09-22T09:30:00.0000000+00:00
+examples    folder  /       0     2026-09-22T09:30:00.0000000+00:00
+projects    folder  /       0     2026-09-22T09:30:00.0000000+00:00
+readme.txt  text    /       41    2026-09-22T09:30:00.0000000+00:00
+> ls | where $row.kind eq folder | count
+3
+> ls | sort name desc | first
+<row name=readme.txt kind=text folder=/ size=41 modified=2026-09-22T09:30:00.0000000+00:00/>
+> ls | select name kind | take 2
+name       kind
+documents  folder
+examples   folder
+> set greeting hello
+hello
+> set answer 42
+42
+> vars
+name      value
+answer    42
+greeting  hello
+> help | where $row.name eq set | select name description
+name  description
+set   Bind a value, or whatever was piped in, to a variable
+name  description
+set   Bind a value, or whatever was piped in, to a variable
+```
+
+`run` executed a small program from the `examples` folder a line at a time, showing
+each line after `> ` and then its answer. The answers are values rather than text: a
+listing is a table you can filter and count, `vars` lists the variables the program
+set, and even `help` is a table you can ask a question of. The last answer appears
+twice because it is also the result of `run` itself. `cat examples/tables.clr` shows
+the program, and [Programs](examples.md#programs) has all four example programs with
+their output.
+
+The rest of this page takes the same ideas one command at a time.
+
 ## What you are looking at
 
 ```
@@ -40,7 +86,7 @@ CommandLineReimagined                    wasm      <- runtime status
 +------------------------------------+ +-----+
 | type a command...                  | | Run |    <- input and Run/Stop
 +------------------------------------+ +-----+
-  [help] [ls] [cat readme.txt] [cd documents]     <- suggestions
+  [help] [ls] [where] [sort] [select] [count]    <- suggestions
 ```
 
 The scrollback keeps every command with its output. The line above the input shows the
@@ -86,7 +132,7 @@ Move around, and notice that the working directory line changes:
 
 ```
 $ cd documents
-/documents
+documents
 $ pwd
 /documents
 $ up
@@ -146,15 +192,16 @@ name        kind    folder  size  modified
 documents   folder  /       0     2026-09-22T09:30:00.0000000+00:00
 examples    folder  /       0     2026-09-22T09:30:00.0000000+00:00
 projects    folder  /       0     2026-09-22T09:30:00.0000000+00:00
+note.txt    text    /       2     2026-09-22T09:30:00.0000000+00:00
 readme.txt  text    /       41    2026-09-22T09:30:00.0000000+00:00
 $ vars
 name      value
-files     4 rows
+files     5 rows
 greeting  hello
 ```
 
 `$files` holds the table itself, not a printed copy of it, which is why `vars` says how
-many rows it has instead of drawing it again. `echo $files | count` answers 4.
+many rows it has instead of drawing it again. `echo $files | count` answers 5.
 
 ## Run something slow and stop it
 
@@ -168,16 +215,25 @@ button. Press it, or press Escape:
 ```
 $ progress
 9%
-====>
+==>
 Cancelled at 9%
 Stopped.
 ```
 
 ## Get help
 
-Type `help` for a list of every command with its parameters and description, generated
-from the commands themselves rather than written by hand. Type `clear` to empty the
-screen. Neither is a command in the usual sense; see
+Type `help` for a table of every command with its parameters and description,
+generated from the commands themselves rather than written by hand. It is a table like
+any other, so you can ask it about one command:
+
+```
+$ help | where $row.name eq write
+name   parameters     description
+write  <path> <text>  Write text to a file, replacing its contents
+```
+
+Type `clear` to empty the screen. `clear` is not a command: the page handles it itself
+and it changes nothing but the scrollback. See
 [The web terminal](web-terminal.md#words-the-page-handles-itself).
 
 ## Where the files live
@@ -189,6 +245,11 @@ with:
 /
 ├── documents/
 │   └── notes.txt
+├── examples/
+│   ├── inventory.clr
+│   ├── journal.clr
+│   ├── resilient.clr
+│   └── tables.clr
 ├── projects/
 └── readme.txt
 ```
@@ -204,7 +265,7 @@ it, and so does `reset`:
 
 ```
 $ reset
-Reset. 4 files restored.
+Reset. 9 files restored.
 ```
 
 `reset` empties the log and starts again from the seeded files above. It is the only
@@ -256,7 +317,8 @@ really is here.
 
 ## Next
 
-- [Worked examples](examples.md) for complete sessions to copy.
+- [Worked examples](examples.md) for complete sessions to copy, and the four
+  [example programs](examples.md#programs) with their output.
 - [Tables and predicates](tables.md) for filtering, sorting and counting a listing.
 - [The filesystem](filesystem.md) for attribute records, views and `find`.
 - [The command language](language.md) for tags, components, variables and the function

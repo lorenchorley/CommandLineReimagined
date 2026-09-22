@@ -17,7 +17,12 @@ namespace Commands.Parser.SemanticTree
         /// </summary>
         public TagList? Children { get; init; }
 
-        public bool HasChildren => Children != null && Children.Tags.Count > 0;
+        /// <summary>Whether this is one of the tag forms, even with no tags in it.</summary>
+        /// <remarks>
+        /// <c>[p][/p]</c> is the list form with an empty list. Counting the tags called it
+        /// the value form, which has a value this one does not, and serialising it threw.
+        /// </remarks>
+        public bool HasChildren => Children != null;
 
         public override void Accept(ISemanticTreeVisitor visitor)
         {

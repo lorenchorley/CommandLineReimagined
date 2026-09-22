@@ -27,7 +27,7 @@ public class ExpressionTests
 
     // ----------------------------------------------------------- Comparisons
 
-    [DataTestMethod]
+    [TestMethod]
     [DataRow("where $row.size eq 1", "eq")]
     [DataRow("where $row.size ne 1", "ne")]
     [DataRow("where $row.size gt 1", "gt")]
@@ -52,7 +52,7 @@ public class ExpressionTests
     /// parse as `eq` followed by `uals`, which is the classic way a keyword list eats
     /// the language around it.
     /// </remarks>
-    [DataTestMethod]
+    [TestMethod]
     [DataRow("echo equals")]
     [DataRow("echo notes.txt")]
     [DataRow("echo orders")]
@@ -118,7 +118,7 @@ public class ExpressionTests
     /// always did: `cd documents` has not become an expression because expressions
     /// exist.
     /// </remarks>
-    [DataTestMethod]
+    [TestMethod]
     [DataRow("cd documents")]
     [DataRow("echo 5")]
     [DataRow("echo $v")]
@@ -163,7 +163,7 @@ public class ExpressionTests
     /// <summary>
     /// Decision 0019: a reserved word is never an argument, in any position.
     /// </summary>
-    [DataTestMethod]
+    [TestMethod]
     [DataRow("echo eq")]
     [DataRow("echo and")]
     [DataRow("echo not")]
@@ -203,10 +203,8 @@ public class ExpressionTests
     // ------------------------------------------------------ Nested pipelines
 
     /// <remarks>
-    /// The parenthesis is written after a first argument, because a name with a space
-    /// and a parenthesis after it is still the function form until decision 0022
-    /// separates the two in Phase 5. Where no name precedes it, the parenthesis can
-    /// only be an operand, and that is the case this pins.
+    /// Written after a first argument so that it pins the operand position on its own;
+    /// straight after a name with a space is decision 0023's case, in RecoveryTests.
     /// </remarks>
     [TestMethod]
     public void AParenthesisedPipelineIsAnOperand()
@@ -239,12 +237,11 @@ public class ExpressionTests
     /// The function form needs its parenthesis on the name: `first(ls)` calls `first`.
     /// </summary>
     /// <remarks>
-    /// Telling the two apart by the space is decision 0022's business, in Phase 5. Until
-    /// then the function form wins wherever a name precedes a parenthesis, which is what
-    /// this pins so that the change is visible when it is made.
+    /// Decision 0023. The spaced form is the other half of the rule and is pinned beside
+    /// the rest of Phase 5's grammar in RecoveryTests.
     /// </remarks>
     [TestMethod]
-    public void ANameBeforeAParenthesisIsStillAFunctionCall()
+    public void ANameAgainstAParenthesisIsAFunctionCall()
     {
         Assert.AreEqual("first", ParserHarness.Function("first(ls)").Id.Name);
     }
@@ -256,7 +253,7 @@ public class ExpressionTests
     /// Decision 0007's point was that a notation needing a shift key is the wrong one
     /// on a phone, and quoting every pattern would have made `like` exactly that.
     /// </remarks>
-    [DataTestMethod]
+    [TestMethod]
     [DataRow("where $row.name like *.txt")]
     [DataRow("where $row.name like *s")]
     [DataRow("where $row.name like note*")]
@@ -270,7 +267,7 @@ public class ExpressionTests
 
     // ---------------------------------------------------------- Round trips
 
-    [DataTestMethod]
+    [TestMethod]
     [DataRow("where $row.size gt 100")]
     [DataRow("where $row.kind eq folder")]
     [DataRow("where $row.name like note")]
@@ -295,7 +292,7 @@ public class ExpressionTests
     // Phase 4: a saved view is a predicate with no command line around it, so the
     // parser has a root that reads one.
 
-    [DataTestMethod]
+    [TestMethod]
     [DataRow("$row.kind eq folder")]
     [DataRow("$row.mood eq great")]
     [DataRow("$row.kind eq note and $row.tag eq work")]

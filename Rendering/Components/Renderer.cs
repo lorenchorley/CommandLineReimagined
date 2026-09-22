@@ -13,7 +13,7 @@ public class Renderer : Component, IComparable<Renderer>
     public virtual int ZIndex { get; set; } = 0;
     public IRenderableComponent? RenderingBehaviour { get; set; }
 
-    public UITransform UITransform { get; set; }
+    public UITransform UITransform { get; set; } = null!;
 
     public int CompareTo(Renderer? other)
     {

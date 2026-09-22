@@ -5,8 +5,8 @@ namespace Commands.Parser.SemanticTree
 {
     public record TagAttribute : IVisitable
     {
-        public TagAttributeName Name { get; init; }
-        public SimpleValue Value { get; init; }
+        public TagAttributeName Name { get; init; } = null!;
+        public SimpleValue Value { get; init; } = null!;
 
         public void Accept(ISemanticTreeVisitor visitor)
         {

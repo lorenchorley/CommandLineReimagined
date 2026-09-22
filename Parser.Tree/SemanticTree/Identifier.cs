@@ -4,7 +4,7 @@ namespace Commands.Parser.SemanticTree
 {
     public record Identifier : SimpleValue
     {
-        public string Name { get; init; }
+        public string Name { get; init; } = null!;
 
         public override void Accept(ISemanticTreeVisitor visitor)
         {

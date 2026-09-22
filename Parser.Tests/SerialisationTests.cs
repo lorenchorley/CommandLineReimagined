@@ -11,7 +11,7 @@ namespace Parser.Tests;
 [TestClass]
 public class SerialisationTests
 {
-    [DataTestMethod]
+    [TestMethod]
     // Commands
     [DataRow("")]
     [DataRow("command")]
@@ -65,6 +65,16 @@ public class SerialisationTests
     [TestMethod]
     public void VariableBoundOpenTagNormalisesToTheClosedForm() =>
         Assert.AreEqual("<handle|thing/>", ParserHarness.RoundTrip("<handle|thing></>"));
+
+    [TestMethod]
+    public void AnEmptyPropertyListRoundTrips() =>
+        // `[p][/p]` is the list form with nothing in it. It was taken for the value form,
+        // which it has no value for, and serialising it threw.
+        Assert.AreEqual("<t>[p][/p]</t>", ParserHarness.RoundTrip("<t>[p][/p]</t>"));
+
+    [TestMethod]
+    public void TripledQuotesSurviveTheRoundTrip() =>
+        Assert.AreEqual("echo \"\"\"a\"\"\"", ParserHarness.RoundTrip("echo \"\"\"a\"\"\""));
 
     [TestMethod]
     public void DoubledQuotesSurviveTheRoundTrip() =>

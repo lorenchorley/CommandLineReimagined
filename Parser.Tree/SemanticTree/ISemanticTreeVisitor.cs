@@ -19,6 +19,7 @@ namespace Isagri.Reporting.Quid.RequestFilters.SemanticTree
         void VisitObjectType(ObjectType objectType);
         void VisitOptionalCommandArgument(OptionalCommandArgument optionalCommandArgument);
         void VisitPipedCommandList(PipedCommandList pipedCommandList);
+        void VisitRecoveryLine(RecoveryLine recoveryLine);
         void VisitRequiredCommandArgument(RequiredCommandArgument requiredCommandArgument);
         //void VisitTag(Tag tag);
         void VisitTagAttribute(TagAttribute tagAttribute);

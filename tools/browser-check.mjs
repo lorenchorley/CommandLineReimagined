@@ -37,6 +37,7 @@ const DEVICE_SCALE_FACTOR = 3;
  *   expect   the rendered entry must contain this text
  *   absent   the rendered entry must not contain this text
  *   fault    the entry must show a failure with this kind
+ *   caught   the entry must show a fault held as a value, with this kind (Phase 5)
  *
  * Kept in the same order as the plan, and as one session rather than one each, because
  * undo and history only mean anything against what came before them.
@@ -132,6 +133,43 @@ const PHASE_4 = [
   { line: 'cd weekend', expect: ['$row.mood eq great'] },
   { line: 'ls', expect: ['saturday'], absent: ['monday'] },
   { line: 'up', expect: ['/'] },
+];
+
+/**
+ * Phase 5: failure is a value.
+ *
+ * Run from a fresh store. The example program first, then the plan's four lines, each
+ * as its own entry so the page's two ways of drawing a fault are both seen: `else`
+ * never shows one at all, and `try` shows one as a result rather than as a failed line.
+ */
+const PHASE_5 = [
+  { line: 'run examples/resilient.clr',
+    expect: ['> try cat nowhere.txt | set problem', '> mkdir today | cd nowhere else echo', 'today.txt'] },
+  // The program's point: the folder on the failed side of its last `else` never existed.
+  { line: 'find $row.name eq today | count', expect: ['0'] },
+
+  { line: 'cat missing.txt else echo "none"', expect: ['none'] },
+  { line: 'try cat missing.txt | set r', caught: 'NotFound', expect: ['File does not exist : /missing.txt'] },
+  { line: 'echo $r.kind', expect: ['NotFound'] },
+  { line: 'first (ls | where $row.kind eq note) ?? "no notes"', expect: ['no notes'] },
+  { line: 'is-fault $r', expect: ['true'] },
+];
+
+/**
+ * Phase 6: XML and CSV are real files.
+ *
+ * Run from a fresh store. The example program first: its last line is the bolts row,
+ * read back out of the XML file it wrote. Then the CSV it exported, as the file it is,
+ * and a document that is not XML, which has to fail as a line rather than as a page.
+ */
+const PHASE_6 = [
+  { line: 'run examples/inventory.clr',
+    expect: ['> cat reorder.csv', 'sku,qty', 'C3,0', '<row sku=A1 name=bolts qty=120 min=50/>'] },
+  { line: 'from-csv reorder.csv', expect: ['sku', 'qty', 'C3', 'B2'], absent: ['A1'] },
+  { line: 'from-xml items.xml | where $row.qty lt $row.min | count', expect: ['2'] },
+  { line: 'echo "not xml" | write broken.xml', expect: ['broken.xml'] },
+  { line: 'from-xml broken.xml', fault: 'invalid', expect: ['Not well-formed XML : /stock/broken.xml line 1'] },
+  { line: 'cd /', expect: ['/'] },
 ];
 
 /**
@@ -256,7 +294,7 @@ async function boot(page) {
 /** Runs a table of lines and reports any mismatch through `note`. */
 async function runScript(page, script, note) {
   for (const step of script) {
-    const { text, fault } = await submit(page, step.line);
+    const { text, fault, caught } = await submit(page, step.line);
 
     for (const expected of step.expect ?? []) {
       if (!text.includes(expected)) {
@@ -268,6 +306,14 @@ async function runScript(page, script, note) {
       if (text.includes(unexpected)) {
         note(`'${step.line}' showed '${unexpected}', which it should not. It showed: ${JSON.stringify(text)}`);
       }
+    }
+
+    if (step.caught && caught !== step.caught) {
+      note(`'${step.line}' showed a caught fault of kind ${JSON.stringify(caught)}, expected '${step.caught}'`);
+    }
+
+    if (!step.caught && caught !== null) {
+      note(`'${step.line}' showed a caught fault (${caught}) it should not have: ${JSON.stringify(text)}`);
     }
 
     if (step.fault && fault !== step.fault) {
@@ -300,10 +346,17 @@ async function submit(page, line) {
     { timeout: 30000 });
 
   const entry = page.locator('.entry').last();
+
+  // A failed line is the red `.err`; a fault that `try` caught is a `.caught` result
+  // and not a failure at all, though both carry the same small kind tag. Telling them
+  // apart is the whole of what Phase 5 changed on the page.
   return {
     text: (await entry.innerText()).replace(/ /g, ' '),
-    fault: await entry.locator('.kind').count() > 0
-      ? (await entry.locator('.kind').first().innerText()).trim()
+    fault: await entry.locator('.err .kind').count() > 0
+      ? (await entry.locator('.err .kind').first().innerText()).trim()
+      : null,
+    caught: await entry.locator('.caught').count() > 0
+      ? await entry.locator('.caught').first().getAttribute('data-fault-kind')
       : null,
   };
 }
@@ -499,6 +552,43 @@ async function main() {
       note('a paused listing refreshed anyway');
     }
 
+    // ---- Phase 5: else, try, ?? and nested pipelines -------------------------
+
+    await submit(page, 'reset');
+    await runScript(page, PHASE_5, note);
+    console.log(`Ran ${PHASE_5.length} more for Phase 5.`);
+
+    // The keywords are coloured as keywords as they are typed, not as arguments.
+    await page.fill('#cmd', 'try cat x else echo y');
+    try {
+      await page.waitForFunction(
+        () => document.querySelectorAll('#mirror .t.keyword').length === 2, null, { timeout: 10000 });
+    } catch {
+      note('`try` and `else` are not coloured as keywords in the input');
+    }
+    await page.fill('#cmd', '');
+
+    // ---- Phase 6: XML and CSV as real files ---------------------------------
+
+    await submit(page, 'reset');
+    await runScript(page, PHASE_6, note);
+    console.log(`Ran ${PHASE_6.length} more for Phase 6.`);
+
+    // A listing written out as XML reads back as as many rows as it had. Counted
+    // rather than pinned, so the check says what it means whatever the program left.
+    // The result is the entry's tail; the rest of the entry is the line echoed back.
+    const answer = async line => {
+      await submit(page, line);
+      return (await page.locator('.entry').last().locator('.tail').innerText()).trim();
+    };
+    const counted = await answer('ls | count');
+    await submit(page, 'ls | to-xml listing.xml');
+    const readBack = await answer('from-xml listing.xml | count');
+
+    if (!/^\d+$/.test(counted) || readBack !== counted) {
+      note(`\`ls\` counted ${JSON.stringify(counted)} rows and listing.xml read back ${JSON.stringify(readBack)}`);
+    }
+
     // ---- Phase 2: the log survives a reload ---------------------------------
 
     // Start from a clean store, so what comes back after the reload is what these
@@ -532,6 +622,33 @@ async function main() {
     await runScript(page, AFTER_RESET, note);
 
     console.log(`Ran ${BEFORE_RELOAD.length + AFTER_RELOAD.length + AFTER_RESET.length} more across two reloads.`);
+
+    // ---- Phase 7: what a tap inserts ----------------------------------------
+
+    // A cell inserts what the line would need: a name with a space goes in quoted, or
+    // tapping it would hand the next command two arguments.
+    await submit(page, 'write "my notes.txt" hi');
+    await submit(page, 'ls');
+    await page.fill('#cmd', 'cat');
+    await page.locator('.entry').last().locator('.grid tbody td', { hasText: 'my notes.txt' }).first().click();
+    const tapped = await page.inputValue('#cmd');
+
+    if (tapped !== 'cat "/my notes.txt"') {
+      note(`tapping 'my notes.txt' in a listing made the line ${JSON.stringify(tapped)}`);
+    }
+
+    // A folder completes to its name and a slash and stops there, so the next tap can
+    // go deeper. The core calls it `folder`; the page once waited for `directory`, and
+    // added a space after every folder.
+    await page.fill('#cmd', 'cd doc');
+    await page.press('#cmd', 'Tab');
+    const completed = await page.inputValue('#cmd');
+
+    if (completed !== 'cd documents/') {
+      note(`completing 'cd doc' made the line ${JSON.stringify(completed)}`);
+    }
+
+    await page.fill('#cmd', '');
 
     if (consoleErrors.length > 0) {
       for (const error of consoleErrors) note(`console error: ${error}`);

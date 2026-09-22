@@ -37,7 +37,7 @@ temporary is gone.
 
 ## Definition of done for the whole plan
 
-- Every decision record 0006 to 0020 is Accepted and implemented, or Superseded with a
+- Every decision record from 0006 on is Accepted and implemented, or Superseded with a
   reason.
 - `dotnet build` of every non-Windows project produces no warnings.
 - Every test project passes on Linux; the Windows job passes.

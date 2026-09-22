@@ -126,6 +126,28 @@ let private bareWordText: P<string> =
         else
             reply
 
+/// <summary>A command's name, unless it is a reserved word.</summary>
+/// <remarks>
+/// Decision 0019 reserves the words in every position, and a command may not be named
+/// after one. Until Phase 5 nothing enforced it in command position: `eq x` reached the
+/// evaluator as an unknown command, which was harmless. `else x` is not harmless — it
+/// would read as a command called `else` rather than a line with its first pipeline
+/// missing — so the name is refused here, at the column it starts in.
+/// </remarks>
+let private commandName: P<string> =
+    fun stream ->
+        let start = stream.Index
+        let reply = commandNameText stream
+
+        if reply.Status = Ok && reserved.Contains reply.Result then
+            stream.Seek start
+
+            Reply(
+                FatalError,
+                messageError (sprintf "'%s' is a reserved word and cannot name a command" reply.Result))
+        else
+            reply
+
 /// FlagIdentifier = '-'{IdentifierCharacter}+
 let private flagText: P<string> =
     // A single dash only: '--flag' is not a flag, which the tests pin down. A dash in
@@ -137,22 +159,22 @@ let private flagText: P<string> =
 // StringCharacter = {All Printable} - ["] + {HT} + {CR} + {LF}, so a literal's body
 // never contains a quote and the forms are told apart by their delimiters alone.
 
-let private delimited (delim: string) : P<string> =
+let private delimited (delim: string) : P<int * string> =
     attempt (
         pstring delim >>. manyChars (noneOf "\"") .>>. pstring delim
-        |>> fun (body, _) -> delim + body + delim)
+        |>> fun (body, _) -> (delim.Length, body))
 
 /// Longest delimiter first, matching the lexer's maximal munch: `""""` is a doubled
 /// empty string, not two single ones.
-let private stringLiteralText: P<string> =
+let private stringLiteralText: P<int * string> =
     choice [ delimited "\"\"\""      // StringLiteral4, unreachable in the .grm
              delimited "\"\""        // StringLiteral3
              delimited "\"" ]        // StringLiteral2
 
-// StringConstant's own setter counts and strips the quotes, so it is given the
-// literal exactly as written.
+// The delimiter is known here, so the node is told it rather than left to count the
+// quotes again from the outside, which misread a short body.
 let private constant: P<Constant> =
-    stringLiteralText |>> fun raw -> StringConstant(Value = raw) :> Constant
+    stringLiteralText |>> fun (quotes, body) -> StringConstant.Delimited(quotes, body) :> Constant
 
 // ----------------------------------------------------------------- Names
 
@@ -231,14 +253,20 @@ let private tagAttributeList: P<TagAttributeList> =
 let private tagOpen: P<unit> =
     attempt (pchar '<' >>. followedBy (satisfy (fun c -> isIdentifierChar c || c = '$' || c = '/')))
 
-/// The part shared by the closed and open forms: '<' [name '|'] type attributes
+/// <summary>The part shared by the closed and open forms: '&lt;' [name '|'] type attributes</summary>
+/// <remarks>
+/// Only the opening and the type are attempted: until the type has been read, `<$x>`
+/// or a closing tag may still be what this is. Once it has, it is a tag, and a failure
+/// in its attributes is that tag's failure. Attempting the whole header turned the
+/// fatal error for `<t a=eq/>` into a backtrack to column 0 with the explanation lost.
+/// </remarks>
 let private objectHeader: P<VariableName option * ObjectType * TagAttributeList> =
-    tagOpen
-    >>. pipe3
-            (opt (attempt (variableName .>> ws .>> pchar '|' .>> ws)))
-            (objectType .>> ws)
-            tagAttributeList
-            (fun name typ attributes -> (name, typ, attributes))
+    attempt (
+        tagOpen
+        >>. (opt (attempt (variableName .>> ws .>> pchar '|' .>> ws)))
+        .>>. (objectType .>> ws))
+    .>>. tagAttributeList
+    |>> fun ((name, typ), attributes) -> (name, typ, attributes)
 
 /// <ClosingObjectTag> ::= '<' '/' <ObjectType> '>' | '<' '/' '>'
 let private closingObjectTag: P<ObjectType option> =
@@ -246,7 +274,7 @@ let private closingObjectTag: P<ObjectType option> =
     >>. ((pchar '>' >>% None) <|> (objectType .>> ws .>> pchar '>' |>> Some))
 
 let private objectInstance: P<ObjectInstance> =
-    attempt objectHeader
+    objectHeader
     >>= fun (name, typ, attributes) ->
         // Closed form ends at '/>'; anything else is an opening tag with a body.
         (attempt (symStr "/>")
@@ -457,8 +485,18 @@ let private functionArgumentList: P<CommandArguments> =
             arguments |> List.iter list.Arguments.Add
             list
 
+/// <summary>
+/// <FunctionExpression> ::= <CommandName> '(' <FunctionArgumentList> ')', with the
+/// parenthesis against the name.
+/// </summary>
+/// <remarks>
+/// Decision 0023: `first(ls)` calls `first`, and `first (ls)` is `first` handed the
+/// result of the pipeline in parentheses. Allowing space before the parenthesis made
+/// the second one unwritable, and made `first (ls | count)` a syntax error, because the
+/// function form committed at the `(` and a pipe is not a function argument.
+/// </remarks>
 let private functionExpression: P<FunctionExpression> =
-    attempt (commandNameText .>> ws .>> pchar '(' .>> ws)
+    attempt (commandName .>> pchar '(' .>> ws)
     .>>. (functionArgumentList .>> ws .>> pchar ')' .>> ws)
     |>> fun (name, arguments) -> FunctionExpression(Id = Identifier(Name = name), Arguments = arguments)
 
@@ -482,8 +520,18 @@ let private commandArgument: P<CommandArgument> =
              argumentExpression |>> fun v -> CommandArgumentValue(Value = v) :> CommandArgument ]
     .>> ws
 
+/// <summary>`else` ends an argument list rather than being refused by it.</summary>
+/// <remarks>
+/// A reserved word in argument position is a fatal error (decision 0019), which is
+/// right for `echo eq` and wrong for `cat x else echo none`: there the word is not an
+/// argument at all, it is where the pipeline stops. So the list looks for it first and
+/// ends there, and the line grammar takes it from there.
+/// </remarks>
+let private elseKeyword: P<unit> =
+    attempt (skipString "else" .>> notFollowedBy (satisfy isWordChar)) .>> ws
+
 let private commandArgumentList: P<CommandArguments> =
-    many commandArgument
+    many (notFollowedBy elseKeyword >>. commandArgument)
     |>> fun arguments ->
             let list = CommandArguments()
             arguments |> List.iter list.Arguments.Add
@@ -491,23 +539,60 @@ let private commandArgumentList: P<CommandArguments> =
 
 /// <CommandExpression_CLINotation> ::= <ID> <CommandArgumentList>
 let private cliExpression: P<CommandExpressionCli> =
-    commandNameText .>> ws .>>. commandArgumentList
+    commandName .>> ws .>>. commandArgumentList
     |>> fun (name, arguments) -> CommandExpressionCli(Name = CommandName(Name = name), Arguments = arguments)
 
-/// <CommandExpression> ::= <FunctionExpression> | <CommandExpression_CLINotation> | <IndividualCLIValue>
-let private commandExpression: P<CommandExpression> =
+type private StageForm = OneOf.OneOf<FunctionExpression, CommandExpressionCli, InstanceTag, NestedPipeline>
+
+/// <summary>
+/// <CommandExpression> ::= <FunctionExpression> | <CommandExpression_CLINotation>
+///                       | <IndividualCLIValue> | '(' <PipedCommandList> ')'
+/// </summary>
+/// <remarks>
+/// The last alternative is Phase 5's: a pipeline in parentheses can stand as a stage,
+/// so `try (cat notes.txt) | set r` marks exactly the part that may fail.
+/// </remarks>
+let private commandExpression: P<StageForm> =
     choice
-        [ functionExpression |>> fun f -> CommandExpression(Expression = OneOf.OneOf<FunctionExpression, CommandExpressionCli, InstanceTag>.op_Implicit f)
-          cliExpression |>> fun c -> CommandExpression(Expression = OneOf.OneOf<FunctionExpression, CommandExpressionCli, InstanceTag>.op_Implicit c)
+        [ functionExpression |>> StageForm.op_Implicit
+          cliExpression |>> StageForm.op_Implicit
           // <IndividualCLIValue> ::= <InstanceTag>, which includes a variable tag. The
           // old interpreter tested for ObjectInstance specifically, so `<$name>` fell
           // through every branch and threw.
-          instanceTag |>> fun t -> CommandExpression(Expression = OneOf.OneOf<FunctionExpression, CommandExpressionCli, InstanceTag>.op_Implicit t) ]
+          instanceTag |>> StageForm.op_Implicit
+          attempt (pchar '(' >>. ws) >>. pipeline .>> pchar ')'
+          |>> fun nested -> StageForm.op_Implicit(NestedPipeline(Pipeline = nested)) ]
     .>> ws
 
-/// <PipedCommandList> ::= <PipedCommandList> '|' <CommandExpression> | <CommandExpression>
+/// The `try` in front of a stage. A whole word, so `trying` is still a command name
+/// the list does not have rather than `try` and `ing`.
+let private tryKeyword: P<unit> =
+    attempt (skipString "try" .>> notFollowedBy (satisfy isWordChar)) .>> ws
+
+/// <summary><Stage> ::= "try"? <CommandExpression> ( "??" <Operand> )?</summary>
+/// <remarks>
+/// Decision 0014. Both markers belong to one stage, not to the pipeline: `try cat x |
+/// set problem` turns `cat`'s failure into a value that `set` receives, and `first (ls)
+/// ?? "none"` defaults what `first` answered. `?` is not a word character, so an
+/// argument list always stops in front of `??` without being told to.
+/// </remarks>
+let private stage: P<CommandExpression> =
+    pipe3
+        (opt tryKeyword)
+        commandExpression
+        (opt (attempt (skipString "??") >>. ws >>. operand))
+        (fun marker form fallback ->
+            CommandExpression(
+                Expression = form,
+                Try = marker.IsSome,
+                Default =
+                    (match fallback with
+                     | Some operand -> operand
+                     | None -> null)))
+
+/// <PipedCommandList> ::= <PipedCommandList> '|' <Stage> | <Stage>
 let private pipedCommandList: P<PipedCommandList> =
-    sepBy1 commandExpression (sym '|')
+    sepBy1 stage (sym '|')
     |>> fun commands ->
             let list = PipedCommandList()
             commands |> List.iter list.OrderedCommands.Add
@@ -515,7 +600,22 @@ let private pipedCommandList: P<PipedCommandList> =
 
 pipelineRef.Value <- pipedCommandList
 
-/// <Program> ::= <PipedCommandList> | ! Empty
+/// <summary><Line> ::= <PipedCommandList> ( "else" <PipedCommandList> )*</summary>
+/// <remarks>
+/// Decision 0014: `else` binds looser than `|`, so `a | b else c | d` is `(a | b) else
+/// (c | d)`. A line with no `else` is the pipeline itself rather than a line of one, so
+/// every tree written before Phase 5 is exactly what it was.
+/// </remarks>
+let private line: P<RootNode> =
+    sepBy1 pipedCommandList elseKeyword
+    |>> function
+        | [ single ] -> single :> RootNode
+        | pipelines ->
+            let recovery = RecoveryLine()
+            pipelines |> List.iter recovery.Pipelines.Add
+            recovery :> RootNode
+
+/// <Program> ::= <Line> | ! Empty
 ///
 /// The empty alternative is decided by looking for end of input rather than by trying
 /// the command list and backtracking. Wrapping the command list in `attempt` would undo
@@ -524,7 +624,7 @@ pipelineRef.Value <- pipedCommandList
 let program: P<RootNode> =
     ws
     >>. ((eof >>% (EmptyCommand() :> RootNode))
-         <|> (pipedCommandList .>> ws .>> eof |>> fun p -> p :> RootNode))
+         <|> (line .>> ws .>> eof))
 
 /// <summary>An expression on its own, with nothing around it.</summary>
 /// <remarks>

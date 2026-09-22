@@ -10,7 +10,7 @@ namespace Parser.Tests;
 [TestClass]
 public class SyntaxErrorTests
 {
-    [DataTestMethod]
+    [TestMethod]
     [DataRow("command)")]
     [DataRow("command(")]
     [DataRow("command(value")]

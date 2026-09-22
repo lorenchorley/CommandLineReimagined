@@ -1,7 +1,7 @@
 # Design direction: a scene the command line edits
 
 **Status.** A proposed direction, not part of Phases 1 to 7. Nothing here is built, and
-nothing here is to be built until [decision 0023](../decisions/0023-scene-editor-direction.md)
+nothing here is to be built until [decision 0029](../decisions/0029-scene-editor-direction.md)
 is accepted. The command syntax below is illustrative: none of these commands exist, and
 their exact form is for the records that introduce them.
 
@@ -34,9 +34,9 @@ than entities:
 
 The language anticipated this. [The command language](../language.md#tags-objects-and-components)
 says the tag notation "mirrors an entity component system", and the
-[conformance document](../spec/conformance.md) notes that "the entity component model
-does not yet exist at runtime". Building the scene completes a design the language
-already carries.
+[execution model](../spec/execution-model.md) already has `Object` and `Component`
+values. What is missing is anything that attaches a component to an entity at run
+time. Building the scene completes a design the language already carries.
 
 A typed, undoable, queryable command line over a live scene has few precedents.
 Blender's Python console and Unity's editor scripting come closest, and in both the
@@ -175,7 +175,7 @@ Two forms, which can coexist:
 
 ## How this relates to the existing decisions
 
-| Record | Effect if 0023 is accepted |
+| Record | Effect if 0029 is accepted |
 | --- | --- |
 | [0004](../decisions/0004-dom-not-canvas.md) DOM, not canvas | Refined, not reversed. It governs the terminal; the scene viewport is the one canvas. |
 | [0010](../decisions/0010-undo-by-event-sourcing.md) Event-sourced store | Extended with scene events and a scene projection, and with the authored/simulated split. |

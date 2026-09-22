@@ -10,10 +10,10 @@ the page's rather than the language's.
 | Title bar | The project name, and a status that reads `wasm` in green once the runtime has loaded. |
 | Scrollback | Every command you have run, with its live output, errors and results. |
 | Token inspector | One line above the input, naming the role of the word you last tapped. |
-| Location line | Where you are: a directory as its path, or a view as the question it is, with an `up` button beside it. |
+| Location line | Where you are: a directory as its path, or a view as the question it is. Anywhere but the root, an `up` button comes before it. |
 | Input | A transparent text field over a coloured mirror of what you type. |
 | Run button | Runs the line. It becomes a red Stop button while a command is running. |
-| Completion row | Appears while you type, offering commands, variables and paths. |
+| Completion row | Appears while you type, offering commands, variables, columns, operators, keywords and paths. |
 | Suggestion row | Fixed examples you can tap to fill the input. |
 
 The page is laid out for a phone first: a 390 by 844 screen fits the scrollback, the
@@ -28,22 +28,25 @@ parse, and the mirror shows plain text rather than complaining.
 
 | Key | Effect |
 | --- | --- |
-| Enter | Run the line. |
+| Enter | Run the line, or stop the one that is running. |
 | Up and Down | Walk back and forward through lines you have run. |
 | Tab | Apply the only completion, or extend to the common prefix of several. |
 | Escape | Stop a running command. |
 
-History keeps what you actually submitted, including `clear`.
+History keeps what you actually submitted, including `clear`, for as long as the page is
+open. A line submitted twice in a row is kept once.
 
 ## Completions
 
-As you type, the page asks the session what the last word could become and shows the
-answers as chips above the suggestions. Tapping one replaces that word. Directory
-completions end with a separator so you can keep descending.
+As you type, the page asks the session what the last word could become and shows up to
+twelve of the answers as chips above the suggestions. Tapping one, or pressing Tab when
+there is only one, replaces that word and adds a space after it. A directory completes
+to its name and a `/` with no space, so the next completion goes on into it. A name
+that is not a bare word, such as one with a space in it, is completed in quotes.
 
 | You type | You are offered |
 | --- | --- |
-| `c` | `cat`, `cd`, `cp`, `clear`, `columns`, `count` |
+| `c` | `cat`, `cd`, `columns`, `count`, `cp`, `clear` |
 | `cat re` | `readme.txt` |
 | `cd doc` | `documents/` |
 | `cat documents/no` | `documents/notes.txt` |
@@ -51,8 +54,14 @@ completions end with a separator so you can keep descending.
 | `echo $` | every bound variable, and `$row` |
 | `ls \| where $row.` | the columns a listing here would have |
 | `ls \| where $row.kind e` | `eq` |
+| `tr` | `try` |
+| `cat x else c` | `cat`, `cd`, `columns`, `count`, `cp`, `clear` |
+| `cat x el` | `else` |
 
-The first word of the line, and the first word after a pipe, complete to command names.
+The first word of a stage completes to command names: the first word of the line, and
+the first word after a pipe, after `else`, after `try` and after an opening
+parenthesis. `try` is offered there too. `else` is offered where an argument would be,
+once two letters of it are typed.
 A word starting with `$` completes to variables — `$row` among them, although nothing
 bound it: it exists only inside a predicate, and it is the one variable you write
 without having bound it. After a full stop, a word starting with `$` completes to
@@ -73,30 +82,37 @@ A result is rendered by kind:
   screen, without running anything; tapping a cell appends it to the input. A wide
   table scrolls sideways inside its own entry rather than widening the page. Each cell
   is drawn by the rules below, so a folder in a listing is still coloured as a folder
-  and still carries the path it argues.
-- **Paths, objects, components, numbers and booleans** become chips. Tapping a chip
-  appends its text to the input, which is how you avoid typing a file name on a phone.
-- **Text** becomes an indented block, so `cat` output keeps its line breaks.
+  and still carries its path.
+- **Paths, objects, components, numbers and booleans** become chips, and a list becomes
+  a row of them. Tapping a chip appends its text to the input — for a file, its full
+  path — which is how you avoid typing a file name on a phone. A path that is not a bare
+  word, such as `/my notes.txt` or a name that is a reserved word, is inserted in
+  quotes, so it stays one argument.
+- **Text** becomes a block with a rule down its left side, so `cat` output keeps its
+  line breaks.
 - **Errors** are shown in red under the command. A command you stopped shows
   `Stopped.` in amber instead.
+- **A caught fault** is drawn in amber: see [How a failure looks](#how-a-failure-looks).
 
 Tapping a header sorts what you are looking at. `ls | sort size desc` is the one that
 changes what the terminal answered, and it is a different question.
 
 Tapping a cell that names a place writes the line that goes there rather than the path
-on its own: a directory in the `name` column, and the `folder` column of a view's
-listing, which is the column that says which directory a row came from. Every other
-cell appends what it is.
+on its own: a directory, such as one in the `name` column, becomes `cd /documents`, and
+a cell in a `folder` column, which says which directory a row came from, becomes `cd`
+and that folder. That is most useful in a view's listing, whose rows come from many
+directories. Every other cell appends what it is.
 
 Output written while a command runs appears above the result, and updates in place.
 
 ## The location line
 
 Below the scrollback and above the input, one line says where you are. A directory
-reads as its full path. A view reads as `view:` and the predicate, with the directory
-it was entered from behind it, because that is still where a new file would land.
+reads as its full path. A view reads as `view:`, the predicate, `in` and the directory
+it was entered from, because that is still where a new file would land.
 
-The `up` button beside it runs the [`up`](commands.md#up) command, which comes out of
+At the root with no view there is nowhere to go up to, and no button. Anywhere else, the
+`up` button before the location runs the [`up`](commands.md#up) command, which comes out of
 one thing at a time: the view first, then the directory. It is the page's answer to a
 listing having nowhere to put a parent row — every row of a table is a record, and
 `up` is not one.
@@ -107,25 +123,26 @@ The newest listing keeps itself up to date. A listing is a question about the
 filesystem, and the filesystem changes underneath it: `mkdir x` in the next entry makes
 the answer above it wrong.
 
-Every change is an entry in the log, so the page knows the moment one lands. It asks
-the same question again, silently, and replaces the table in place with a brief flash
-so you can see that it moved. The re-run leaves no entry in the scrollback, no
-transaction and nothing in `history`, and a line naming any command that could change
-something is refused rather than run — which is why only `ls` and `find` are kept live.
+A line is kept live when its first word is `ls` or `find` and it answered a table. Every
+change is an entry in the log, so the page knows the moment one lands. It asks the same
+question again, silently, and replaces the table in place with a brief flash so you can
+see that it moved. The re-run leaves no entry in the scrollback, no transaction and
+nothing in `history`. A line naming any command that could change something, such as
+`ls | set files`, is refused rather than re-run, and the table it drew stays as it was.
 
 Only the newest listing refreshes. The ones above it froze when you moved on, which is
-what a scrollback is for. Underneath the live one is a badge reading `live`; tapping it
-says `paused` and stops the refreshing for that listing, and tapping it again resumes
-and redraws at once.
+what a scrollback is for, and say `frozen`. Underneath the live one is a badge reading
+`live`; tapping it says `paused` and stops the refreshing for that listing, and tapping
+it again resumes and redraws at once. `clear` ends it along with the scrollback.
 
 ## Running and stopping
 
-Submitting a line creates its scrollback entry immediately, with a blinking cursor,
-and the entry fills in as the command writes. The Run button becomes **Stop** for as
-long as the command is running.
+Submitting a line creates its scrollback entry immediately, and the entry fills in as
+the command writes, with a blinking cursor after the newest line. The Run button becomes
+**Stop** for as long as the command is running.
 
-Only one command runs at a time. Submitting another while one is in flight answers
-`A command is already running. Stop it first.`
+Only one command runs at a time. While one is in flight, the Stop button, Enter and
+Escape all stop it; none of them starts another line.
 
 Stopping is cooperative: the command is asked to cancel, writes whatever it wants to
 say about being interrupted, and the terminal adds `Stopped.` So a stopped `progress`
@@ -140,6 +157,15 @@ already taken at a glance. The [error reference](errors.md) lists every kind.
 
 Nothing the line did survives. A line is one transaction, so `mkdir a | cd nowhere`
 leaves no folder behind.
+
+A fault that `try` caught, or that `else` handed on, is not a failure: the line went on
+and answered with it. The page draws it in amber, with a left rule like any other
+result and the same kind tag in front — `NotFound`, the word `$problem.kind` reads —
+so the two are told apart by colour and by the tag's place: in the red line of a
+failure, or in the body of a result. See
+[Errors as values](language.md#errors-as-values).
+
+`try` and `else` are coloured as keywords as you type them, and `??` as an operator.
 
 ## Words the page handles itself
 
@@ -166,7 +192,8 @@ the scrollback, where it is visible before anything has been typed rather than a
 Every word in the scrollback is a span tagged with the role the parser gave it. Tapping
 one highlights it and the inspector line names its role and repeats its text, for
 example `identifier` followed by `notes.txt`. This works on your input as it is echoed
-back, not just on results.
+back, not just on results. A line that did not parse is echoed as plain text, with
+nothing to tap.
 
 ## The filesystem in the tab
 
@@ -188,18 +215,22 @@ fetch over the network and is therefore subject to the remote host's CORS policy
 
 ## Loading
 
-The runtime is about 15 MB across 121 files on a first visit, and is cached by
-the browser afterwards. Until it is ready the input stays disabled and the status reads
-`starting…`. If it cannot load, the status turns red and reads `failed to load`.
+The runtime is about 10 MB across about 70 files on a first visit, and is cached by the
+browser afterwards. Until it is ready the input stays disabled and the status reads
+`starting…`. If it has not started after about forty seconds, the status turns red and
+reads `failed to load`.
 
 Once the runtime is up the page replays the session's log before enabling the input,
 showing `restoring…` while it does. Nothing may run until that has finished: an empty
 filesystem and a lost one look identical, so the page refuses to show one as the other.
+If the replay fails, the status turns red and reads `failed to restore`, the scrollback
+says `Could not restore the session:` and why, and the input stays disabled.
 
 The banner then says what happened — a first visit, or how many lines came back — and
 the status line says `wasm`, with `not persisted` beside it when the browser is not
-keeping anything. That is said before you have typed, rather than after a morning's
-work turns out not to have been saved.
+keeping anything; hover it to see the reason the browser gave. That is said before you
+have typed, rather than after a morning's work turns out not to have been saved. If some
+stored lines could not be read, a red line in the scrollback says how many were skipped.
 
 ## Where the log is kept
 
@@ -213,8 +244,9 @@ chain is in the log rather than in memory.
 
 Storage can be unavailable — a private window — or go away mid-session, if site data is
 cleared while the page is open. Neither breaks the terminal: the log falls back to
-memory, the status turns to `not persisted`, and the session keeps working for as long
-as the tab is open.
+memory and the session keeps working for as long as the tab is open. The status line
+says `not persisted` in the first case as soon as the page loads, and in the second
+after the first line that runs once storage has gone.
 
 `reset` empties the log and seeds it again. It is the only command that cannot be
 undone, which is why it is not one of the suggestion keys.

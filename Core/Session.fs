@@ -187,6 +187,7 @@ type Session(log: ILog, options: SessionOptions, seed: Seed) =
           Commands.Values.echo
           Commands.Values.set
           Commands.Values.vars
+          Commands.Values.isFault
           Commands.Async.progress
           Commands.Async.download options.HttpClient options.NewId options.Clock
           Commands.Tables.where
@@ -202,6 +203,10 @@ type Session(log: ILog, options: SessionOptions, seed: Seed) =
           Commands.Tables.columns
           Commands.Tables.rows
           Commands.Tables.table
+          Commands.Documents.fromXml
+          Commands.Documents.toXml options.NewId options.Clock
+          Commands.Documents.fromCsv
+          Commands.Documents.toCsv options.NewId options.Clock
           Commands.Meta.undo storeAccess
           Commands.Meta.redo storeAccess
           Commands.Meta.history storeAccess

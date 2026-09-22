@@ -12,14 +12,14 @@
     --ok:#4ade80; --bad:#f87171; --accent:#6b8afd;
     --command:#7aa2f7; --flag:#e0af68; --string:#9ece6a; --variable:#bb9af7;
     --identifier:#c0caf5; --type:#2ac3de; --attribute:#ff9e64; --punctuation:#565f89;
-    --operator:#f7768e; --member:#7dcfff;
+    --operator:#f7768e; --member:#7dcfff; --keyword:#ff9eb8;
   }
   @media (prefers-color-scheme: light) {
     :root {
       --bg:#f7f7fb; --panel:#fff; --line:#e2e3ec; --fg:#1a1b23; --dim:#63657a;
       --command:#2f5fd0; --flag:#a35a00; --string:#2d7a2d; --variable:#7132b8;
       --identifier:#1a1b23; --type:#0b6e86; --attribute:#a34a00; --punctuation:#8b8fa3;
-      --operator:#b1004a; --member:#0b5d86;
+      --operator:#b1004a; --member:#0b5d86; --keyword:#8a1f6b;
     }
   }
   * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
@@ -74,6 +74,14 @@
   .item.file { color:var(--identifier); }
   .item.object, .item.component, .item.variable { color:var(--variable); }
   .item.number, .item.boolean { color:var(--flag); }
+  /*
+    A fault that try or else caught. It is a value, not an error — the line went on —
+    so it is drawn in the warning colour rather than the red of a failed line, with its
+    kind as the same small tag a failure carries.
+  */
+  .caught { white-space:pre-wrap; word-break:break-word; margin-top:4px; padding:6px 8px;
+            border-left:2px solid var(--flag); color:var(--flag); }
+  .caught .kind { border-color:var(--flag); }
   /* Text results (cat, echo) read as a block, not as a chip to insert. */
   .text { white-space:pre-wrap; word-break:break-word; margin-top:4px; padding:6px 8px;
           border-left:2px solid var(--line); color:var(--fg); }
@@ -103,6 +111,7 @@
   .grid td.number, .grid td.boolean { color:var(--flag); }
   .grid td.object, .grid td.table { color:var(--variable); }
   .grid td.none { color:var(--punctuation); }
+  .grid td.fault { color:var(--flag); }
   .grid td.none::before { content:'—'; }
   /*
     A live listing. The badge says the table is being kept up to date and is the way to
@@ -130,6 +139,7 @@
   .t.variable{color:var(--variable)} .t.identifier{color:var(--identifier)}
   .t.type{color:var(--type)} .t.attribute{color:var(--attribute)} .t.punctuation{color:var(--punctuation)}
   .t.operator{color:var(--operator);font-weight:600} .t.member{color:var(--member)}
+  .t.keyword{color:var(--keyword);font-weight:600;font-style:italic}
   .t.sel { background:rgba(107,138,253,.25); }
 
   /* Input ----------------------------------------------------------------- */
@@ -171,12 +181,13 @@
   /* Completions appear above the suggestions while typing; phones have no Tab key. */
   #complete:empty { display:none; }
   #complete .key { color:var(--fg); border-color:var(--accent); }
-  #complete .key.directory { color:var(--type); }
+  #complete .key.folder { color:var(--type); }
   #complete .key.file { color:var(--identifier); }
   #complete .key.variable { color:var(--variable); }
   #complete .key.command { color:var(--command); }
   #complete .key.operator { color:var(--operator); }
   #complete .key.member { color:var(--member); }
+  #complete .key.keyword { color:var(--keyword); font-style:italic; }
   .keys { display:flex; gap:5px; overflow-x:auto; padding-top:6px; scrollbar-width:none; }
   .keys::-webkit-scrollbar { display:none; }
   .key {
@@ -225,7 +236,9 @@ let completions = [];    // what the last word could become
 
 // ---- rendering ------------------------------------------------------------
 
-const escape = s => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+// Quotes too, because the same text goes into attributes: a name holding a double quote,
+// or a path the page has quoted to insert, would otherwise end `data-insert` early.
+const escape = s => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 
 /// Renders a token stream as spans. Each token carries the role the grammar gave it,
 /// which is what makes them individually inspectable.
@@ -258,6 +271,15 @@ function faultHtml(r) {
   return `<div class="err">${kind}${escape(r.error)}</div>`;
 }
 
+/// A fault that `try` or `else` made into a value (Phase 5). It reads like the failure
+/// it was, because it is that failure, and looks unlike one, because the line did not
+/// stop: the kind is the word `$problem.kind` would read, so what is on screen is what a
+/// script would compare against.
+function caughtHtml(item) {
+  const kind = item.faultKind ? `<span class="kind">${escape(item.faultKind)}</span>` : '';
+  return `<div class="caught" data-fault-kind="${escape(item.faultKind || '')}">${kind}${escape(item.text)}</div>`;
+}
+
 /// Results render three ways: a table as a table, text-like values as a block you can
 /// read, and everything with an identity (paths, objects, variables) as a chip you can
 /// tap to insert.
@@ -276,8 +298,12 @@ function itemsHtml(items) {
     } else if (item.kind === 'text') {
       flush();
       html += `<div class="text">${escape(item.text)}</div>`;
+    } else if (item.kind === 'fault') {
+      flush();
+      html += caughtHtml(item);
     } else {
-      chips.push(`<button class="item ${item.kind}" data-insert="${escape(item.text)}">${escape(item.text)}</button>`);
+      const insertion = item.kind === 'file' || item.kind === 'folder' ? asWord(item.path || item.text) : item.text;
+      chips.push(`<button class="item ${item.kind}" data-insert="${escape(insertion)}">${escape(item.text)}</button>`);
     }
   }
 
@@ -328,9 +354,26 @@ function sortedRows(table) {
   inserts what it is, as it always has.
 */
 function insertionFor(column, cell) {
-  if (cell.kind === 'folder') return 'cd ' + (cell.path || cell.text);
-  if (column && column.name === 'folder' && cell.text) return 'cd ' + cell.text;
+  if (cell.kind === 'folder') return 'cd ' + asWord(cell.path || cell.text);
+  if (column && column.name === 'folder' && cell.text) return 'cd ' + asWord(cell.text);
+  if (cell.kind === 'file') return asWord(cell.path || cell.text);
   return cell.path || cell.text;
+}
+
+/*
+  A path as the line would need it written. Most names are bare words and go in as
+  they are; a name with a space, a character the grammar gives a meaning to, or one
+  that is a reserved word, is quoted, or tapping `my notes.txt` would insert two
+  arguments. The grammar's strings take as many quotes as they open with, so a name
+  holding quotes is wrapped in one more than its longest run.
+*/
+const RESERVED = new Set(['and', 'or', 'not', 'eq', 'ne', 'gt', 'ge', 'lt', 'le', 'like', 'has', 'else', 'try']);
+
+function asWord(text) {
+  if (text && /^[^\s"'|<>(){}\[\],:=$?]+$/.test(text) && !text.startsWith('-') && !RESERVED.has(text)) return text;
+  const longest = Math.max(0, ...((text || '').match(/"+/g) || []).map(run => run.length));
+  const quotes = '"'.repeat(longest + 1);
+  return quotes + (text || '') + quotes;
 }
 
 function gridHtml(id) {
@@ -519,9 +562,14 @@ function refreshCompletions() {
   }
 }
 
+// A folder completes to `documents/` and stops there, so the next tap can go deeper;
+// anything else is a whole word and gets its space. The core calls it `folder`: this
+// said `directory`, so a folder was never coloured and always got a space.
 function applyCompletion(c) {
-  const trailing = c.kind === 'directory' ? '' : ' ';
-  cmd.value = cmd.value.slice(0, c.start) + c.text + trailing;
+  const place = c.kind === 'folder' || c.kind === 'file' || c.kind === 'view';
+  const text = place ? asWord(c.text) : c.text;
+  const trailing = c.kind === 'folder' && text === c.text ? '' : ' ';
+  cmd.value = cmd.value.slice(0, c.start) + text + trailing;
   refreshMirror(); refreshCompletions(); cmd.focus();
 }
 
@@ -550,6 +598,7 @@ async function run() {
     const response = await DotNet.invokeMethodAsync('WebClient', 'Execute', text, id);
     const result = JSON.parse(response);
     finishEntry(entry, result);
+    refreshStatus();
 
     // The newest listing is the one kept live, and only when it answered a table:
     // a failed `ls` has nothing to keep up to date.
@@ -709,7 +758,9 @@ runButton.onclick = run;
 [['help','help'],['ls','ls'],['where','ls | where $row.kind eq folder'],
  ['sort','ls | sort size desc'],['select','ls | select name kind'],['count','ls | count'],
  ['first','ls | sort name | first'],['run','run examples/tables.clr'],
- ['run journal','run examples/journal.clr'],
+ ['run journal','run examples/journal.clr'],['run resilient','run examples/resilient.clr'],
+ ['else','cat missing.txt else echo "none"'],['try','try cat missing.txt | set problem'],
+ ['$problem.kind','echo $problem.kind'],['??','first (ls | where $row.kind eq view) ?? "no views"'],
  ['find','find $row.kind eq folder'],['cd a view','cd $row.kind eq folder'],
  ['save-view','save-view folders $row.kind eq folder'],['up','up'],
  ['cat readme.txt','cat readme.txt'],['cd documents','cd documents'],
@@ -718,7 +769,7 @@ runButton.onclick = run;
  ['set v 5','set v 5'],['ls | set files','ls | set files'],['vars','vars'],['echo $v','echo $v'],
  ['&lt;v|thing a=1/&gt;','<v|thing a=1/>'],['{renderer/}','{renderer/}'],['pwd','pwd'],
  ['download','download'],['undo','undo'],['redo','redo'],['history','history'],
- ['attr','attr readme.txt tag=work'],['save','save &lt;note name=todo/&gt;'],['clear','clear']]
+ ['attr','attr readme.txt tag=work'],['save &lt;note name=todo/&gt;','save <note name=todo/>'],['clear','clear']]
  // `reset` is deliberately absent: it is the one command that cannot be undone, and a
  // key that empties the filesystem on one tap is not one to put next to `clear`.
   .forEach(([label, value]) => {
@@ -740,9 +791,12 @@ function bannerFor(store) {
     'Listings are tables you can question: <b>ls | where $row.kind eq folder | count</b>. ' +
     'A question is also somewhere you can be: <b>cd $row.kind eq folder</b> enters it, ' +
     '<b>ls</b> lists it across folders, <b>up</b> leaves it, <b>find</b> asks it once ' +
-    'and <b>save-view</b> keeps it as a file. The newest listing stays live as the ' +
+    'and <b>save-view</b> keeps it as a file. A failure is a value too: ' +
+    '<b>cat missing.txt else echo "none"</b> recovers, <b>try cat missing.txt | set problem</b> ' +
+    'keeps the fault to read as <b>$problem.kind</b>, and <b>??</b> gives a default for nothing. ' +
+    'The newest listing stays live as the ' +
     'filesystem changes; tap <b>live</b> under it to stop. ' +
-    'Also pipes, the function form (echo(a, b)), tags (&lt;thing a=1/&gt;), ' +
+    'Also pipes, the function form (write(notes.txt, hello)), tags (&lt;thing a=1/&gt;), ' +
     'components ({renderer/}) and variables (set v 5, then $v). ' +
     'Tap a column header to re-sort what is on screen, or a cell to insert it. ' +
     '<b>clear</b> empties the screen; <b>undo</b>, <b>redo</b> and <b>history</b> are commands.';
@@ -792,6 +846,25 @@ function bannerFor(store) {
   else $('status').innerHTML = '<span style="color:var(--bad)">failed to load</span>';
 })(0);
 
+/*
+  Storage can stop answering mid-session, when site data is cleared with the page open.
+  The log falls back to memory at once; this is how the page finds out, after every
+  line, so `not persisted` appears when it becomes true rather than only at load.
+*/
+function refreshStatus() {
+  let store;
+  try { store = JSON.parse(DotNet.invokeMethod('WebClient', 'Status')); } catch { return; }
+  if (!store.persistent && !$('status').querySelector('.warn')) showStatus(store);
+}
+
+function showStatus(store) {
+  $('status').innerHTML = store.persistent
+    ? '<span style="color:var(--ok)">wasm</span>'
+    : '<span style="color:var(--ok)">wasm</span> <span class="warn" title="' +
+      escape(store.reason || 'This browser is not keeping the log.') +
+      '">not persisted</span>';
+}
+
 function finishBoot(store) {
     ready = true;
     cmd.disabled = false; runButton.disabled = false;
@@ -799,11 +872,7 @@ function finishBoot(store) {
     // `not persisted` is said up front, before anything is typed. Finding out after a
     // morning's work that none of it was being kept would be the worst moment to learn
     // it, and a private window is the common case rather than a broken one.
-    $('status').innerHTML = store.persistent
-      ? '<span style="color:var(--ok)">wasm</span>'
-      : '<span style="color:var(--ok)">wasm</span> <span class="warn" title="' +
-        escape(store.reason || 'This browser is not keeping the log.') +
-        '">not persisted</span>';
+    showStatus(store);
 
     $('banner').innerHTML = bannerFor(store);
 

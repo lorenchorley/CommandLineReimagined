@@ -24,10 +24,16 @@ Undone: cat documents/notes.txt | write backup.txt
 
 $ cd $row.kind eq folder
 $row.kind eq folder
+
+$ cat notes-from-yesterday.txt else echo "starting fresh"
+starting fresh
 ```
 
 A listing is a table, a predicate over it is a question, and a question is somewhere
-you can be: after that last line, `ls` answers the query rather than a directory.
+you can be: after the `cd`, `ls` answers the query rather than a directory. A failure
+is a value too: `else` recovers without leaving the line, and `try` keeps a fault for a
+later stage to read. And a table can be kept: `to-xml` and `to-csv` write one to a
+file, and `from-xml` and `from-csv` read it back as the same table.
 
 ## Try it
 
@@ -41,10 +47,11 @@ you type leaves the page, and your files are kept in the browser between visits.
 - **[Documentation index](docs/README.md)** — start here.
 - [Getting started](docs/getting-started.md) — open a terminal and run something.
 - [Worked examples](docs/examples.md) — complete sessions to copy.
+- [Tables and predicates](docs/tables.md) — filter, sort, count and group a listing; keep a table in XML or CSV.
 - [The filesystem](docs/filesystem.md) — files as attribute records, queries as places.
 - [The command language](docs/language.md) — every syntax the parser accepts.
 - [Command reference](docs/commands.md) — one entry per command.
-- [How it works](docs/concepts.md) — parse, bind, evaluate, render, undo.
+- [How it works](docs/concepts.md) — parse, bind, evaluate, commit, project.
 - [Specification](docs/spec/README.md) — the normative definition.
 
 ## Building
@@ -54,6 +61,7 @@ desktop shell needs Windows; everything else builds anywhere.
 
 ```bash
 dotnet publish WebClient/WebClient.csproj -c Release -o publish
+tools/postprocess-publish.sh publish/wwwroot
 cd publish/wwwroot && python3 -m http.server 8080
 ```
 

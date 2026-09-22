@@ -15,12 +15,12 @@ public class ConsolePanel : UILayoutComponent
     //[State] public virtual float Height { get; set; } = 0;
     //[State] public virtual List<LineComponent> Lines { get; set; }
 
-    [Inject] public virtual ECS ECS { get; set; }
-    [Inject] public virtual ConceptualUISpace UISpace { get; set; }
-    [Inject] public virtual PhysicalScreenSpace ScreenSpace { get; set; }
+    [Inject] public new virtual ECS ECS { get; set; } = null!;
+    [Inject] public virtual ConceptualUISpace UISpace { get; set; } = null!;
+    [Inject] public virtual PhysicalScreenSpace ScreenSpace { get; set; } = null!;
 
-    private UITransform _transform;
-    private UICamera _camera;
+    private UITransform _transform = null!;
+    private UICamera _camera = null!;
 
     public IEnumerable<LineComponent> Lines
     {

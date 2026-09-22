@@ -85,6 +85,65 @@ type ExampleProgramTests() =
           "undo", "Undone: rm tuesday"
           "history | where $row.undone eq true | count", "1" ]
 
+    /// <summary>The golden results for resilient.clr, in the order the script runs them.</summary>
+    /// <remarks>
+    /// Phase 5's program: failure as a value. `else` recovers without leaving the line,
+    /// `try` holds a fault as something a later stage can bind and read, `??` defaults
+    /// an answer of nothing, and a failed left branch leaves nothing behind.
+    /// </remarks>
+    let resilientProgram =
+        [ "cat notes-from-yesterday.txt else echo \"starting fresh\"", "starting fresh"
+          "cat notes-from-yesterday.txt else echo \"starting fresh\" | write today.txt", "today.txt"
+          "cat today.txt", "starting fresh"
+          "try cat nowhere.txt | set problem", "File does not exist : /nowhere.txt"
+          "echo $problem.kind", "NotFound"
+          "echo $problem.message", "File does not exist : /nowhere.txt"
+          "first (ls | where $row.kind eq view) ?? \"no views yet\"", "no views yet"
+          "first (ls | where $row.kind eq view) ?? \"no views yet\" | set latest", "no views yet"
+          "echo $latest", "no views yet"
+          "mkdir today | cd nowhere else echo \"the whole line was rolled back\"", "the whole line was rolled back"
+
+          "ls",
+          "name        kind    folder  size  modified\n\
+             documents   folder  /       0     *\n\
+             examples    folder  /       0     *\n\
+             projects    folder  /       0     *\n\
+             readme.txt  text    /       41    *\n\
+             today.txt   text    /       14    *" ]
+
+    /// <summary>The golden results for inventory.clr, in the order the script runs them.</summary>
+    /// <remarks>
+    /// Phase 6's program: a tag becomes a file of XML, the file reads back as a table
+    /// with its number columns numeric, and a question asked of it is written out as CSV
+    /// and read back again. Decision 0026 added `sort qty` to the sixth line, which the
+    /// golden result for `cat reorder.csv` had always assumed.
+    /// </remarks>
+    let inventoryProgram =
+        [ "mkdir stock", "stock"
+          "cd stock", "stock"
+
+          "<items><item sku=A1 name=bolts qty=120 min=50/><item sku=B2 name=nuts qty=12 min=40/><item sku=C3 name=washers qty=0 min=20/></items> | to-xml items.xml",
+          "items.xml"
+
+          "from-xml items.xml | count", "3"
+
+          "from-xml items.xml | where $row.qty lt $row.min | sort qty | select sku name qty min",
+          "sku  name     qty  min\n\
+             C3   washers  0    20\n\
+             B2   nuts     12   40"
+
+          "from-xml items.xml | where $row.qty lt $row.min | sort qty | select sku qty | to-csv reorder.csv",
+          "reorder.csv"
+
+          "from-csv reorder.csv | count", "2"
+
+          "cat reorder.csv",
+          "sku,qty\n\
+             C3,0\n\
+             B2,12"
+
+          "from-xml items.xml | sort qty desc | first", "<row sku=A1 name=bolts qty=120 min=50/>" ]
+
     /// <summary>Whether a result matches a golden one, with `*` for anything.</summary>
     /// <remarks>
     /// Matched line by line so that a timestamp in a column does not let a `*` swallow
@@ -97,10 +156,15 @@ type ExampleProgramTests() =
     /// something the golden deliberately does not say. What the goldens are about is
     /// the cells and the order they come in, and that is what this holds them to.
     /// </remarks>
+    ///
+    /// One line break at the very end of an answer is not a line of it. A golden result
+    /// is written as the lines a person sees, and a file's text — which is what `cat`
+    /// answers — ends in one, as every line of a CSV does; the exact text is pinned
+    /// separately, where it is the point.
     let matches (expected: string) (actual: string) =
         let lines (text: string) = text.Replace("\r\n", "\n").Split '\n'
         let expectedLines = lines expected
-        let actualLines = lines actual
+        let actualLines = lines (if actual.EndsWith "\n" then actual.Substring(0, actual.Length - 1) else actual)
 
         let matchesLine (pattern: string) (text: string) =
             let escaped =
@@ -209,6 +273,114 @@ type ExampleProgramTests() =
         Assert.IsTrue(harness.Exists "/journal/tuesday", "The undone rm should have brought tuesday back.")
         Assert.AreEqual<string>("better", harness.Attribute "/journal/tuesday" "mood")
         Assert.AreEqual<string>("work", harness.Attribute "/journal/tuesday" "tag")
+
+    // ---------------------------------------------------------- resilient.clr
+
+    [<TestMethod>]
+    member _.ResilientLineByLine() =
+        let harness = seeded ()
+
+        for source, expected in resilientProgram do
+            assertMatches source expected (harness.Text source)
+
+    [<TestMethod>]
+    member _.ResilientThroughRun() =
+        let byHand = seeded ()
+
+        for source, _ in resilientProgram do
+            byHand.Run source |> ignore
+
+        let byScript = seeded ()
+        byScript.Run "run examples/resilient.clr" |> ignore
+
+        Assert.AreEqual<Map<FileId, FileRecord>>(byHand.Projection.Files, byScript.Projection.Files)
+        Assert.AreEqual<Map<string, Value>>(byHand.Projection.Variables, byScript.Projection.Variables)
+        Assert.AreEqual<Location>(byHand.Projection.Location, byScript.Projection.Location)
+
+    /// <summary>`try` answered a fault value, not an error: the line succeeded.</summary>
+    /// <remarks>
+    /// The golden result for `try cat nowhere.txt | set problem` reads like an error
+    /// message and is not one, which is the whole of the point; this is the half of it
+    /// that the display string cannot show.
+    /// </remarks>
+    [<TestMethod>]
+    member _.TryAnswersAFaultValueNotAnError() =
+        let harness = seeded ()
+        let response = harness.Respond "try cat nowhere.txt | set problem"
+
+        Assert.AreEqual<Fault option>(None, response.Fault)
+
+        match response.Result with
+        | Some(Value.Fault fault) -> Assert.AreEqual<FaultKind>(NotFound, fault.Kind)
+        | other -> Assert.Fail(sprintf "Expected a fault value, got %A." other)
+
+    /// <summary>What the program is for, stated as an assertion.</summary>
+    /// <remarks>
+    /// The plan's sentence after the golden results: "No folder named `today` exists:
+    /// the left side of the `else` failed at `cd`, so the `mkdir` before it was never
+    /// committed."
+    /// </remarks>
+    [<TestMethod>]
+    member _.TheRolledBackFolderDoesNotExist() =
+        let harness = seeded ()
+        harness.Run "run examples/resilient.clr" |> ignore
+
+        Assert.IsFalse(harness.Exists "/today", "The mkdir on the failed side of else was committed.")
+        Assert.IsTrue(harness.Exists "/today.txt")
+
+    // ---------------------------------------------------------- inventory.clr
+
+    [<TestMethod>]
+    member _.InventoryLineByLine() =
+        let harness = seeded ()
+
+        for source, expected in inventoryProgram do
+            assertMatches source expected (harness.Text source)
+
+    [<TestMethod>]
+    member _.InventoryThroughRun() =
+        let byHand = seeded ()
+
+        for source, _ in inventoryProgram do
+            byHand.Run source |> ignore
+
+        let byScript = seeded ()
+        byScript.Run "run examples/inventory.clr" |> ignore
+
+        Assert.AreEqual<Map<FileId, FileRecord>>(byHand.Projection.Files, byScript.Projection.Files)
+        Assert.AreEqual<Map<string, Value>>(byHand.Projection.Variables, byScript.Projection.Variables)
+        Assert.AreEqual<Location>(byHand.Projection.Location, byScript.Projection.Location)
+
+    /// <summary>The CSV text exactly, terminal line break included.</summary>
+    /// <remarks>
+    /// The plan asks for "the exact CSV text", and the line-by-line golden cannot show
+    /// the line break that ends the last record; this can.
+    /// </remarks>
+    [<TestMethod>]
+    member _.TheReorderFileIsExactlyTheGoldenCsv() =
+        let harness = seeded ()
+        harness.Run "run examples/inventory.clr" |> ignore
+
+        Assert.AreEqual<string>("sku,qty\nC3,0\nB2,12\n", harness.Content "/stock/reorder.csv")
+        Assert.AreEqual<string>("csv", harness.Attribute "/stock/reorder.csv" "kind")
+        Assert.AreEqual<string>("xml", harness.Attribute "/stock/items.xml" "kind")
+
+    /// <summary>What the program is for, stated as an assertion.</summary>
+    /// <remarks>
+    /// The plan's sentence after the golden results: `qty` and `min` are number columns
+    /// because every value parses as a number, which is what makes `lt` and `sort qty`
+    /// numeric. Textually, "120" sorts before "12" and "0" is less than nothing useful.
+    /// </remarks>
+    [<TestMethod>]
+    member _.TheDocumentsNumberColumnsAreNumbers() =
+        let harness = seeded ()
+        harness.Run "run examples/inventory.clr" |> ignore
+
+        Assert.AreEqual<string>(
+            "name  type\nsku   text\nname  text\nqty   number\nmin   number",
+            harness.Text "from-xml items.xml | columns")
+
+        Assert.AreEqual<string>("name  type\nsku   text\nqty   number", harness.Text "from-csv reorder.csv | columns")
 
     // ------------------------------------------------------------------- run
 

@@ -42,6 +42,39 @@ type Fault =
 type Outcome<'T> = Result<'T, Fault>
 
 [<RequireQualifiedAccess>]
+module FaultKind =
+
+    /// <summary>The kind as a word, the way `$problem.kind` reads it and a DTO carries it.</summary>
+    /// <remarks>
+    /// Written out rather than left to `ToString`, because this is what a script
+    /// compares against — `where $problem.kind eq NotFound` — and a renamed case must
+    /// not be able to change what a stored script means.
+    /// </remarks>
+    let name (kind: FaultKind) =
+        match kind with
+        | Syntax -> "Syntax"
+        | Binding -> "Binding"
+        | UnknownCommand -> "UnknownCommand"
+        | NotFound -> "NotFound"
+        | Conflict -> "Conflict"
+        | Invalid -> "Invalid"
+        | Cancelled -> "Cancelled"
+        | Internal -> "Internal"
+
+    /// The kind a word names, for reading one back out of a log.
+    let tryParse (text: string) =
+        match text with
+        | "Syntax" -> Some Syntax
+        | "Binding" -> Some Binding
+        | "UnknownCommand" -> Some UnknownCommand
+        | "NotFound" -> Some NotFound
+        | "Conflict" -> Some Conflict
+        | "Invalid" -> Some Invalid
+        | "Cancelled" -> Some Cancelled
+        | "Internal" -> Some Internal
+        | _ -> None
+
+[<RequireQualifiedAccess>]
 module Fault =
 
     let create kind message =
@@ -126,10 +159,15 @@ module Fault =
     let unknownOperator op =
         create Internal (sprintf "Unknown operator : %s" op)
 
-    /// Phase 5 gives a parenthesised pipeline a meaning as a value. Until then it parses
-    /// and says so, rather than being silently accepted as its own text.
+    /// <summary>A pipeline in parentheses where no line is running to run it.</summary>
+    /// <remarks>
+    /// A nested pipeline runs once, when the line it is written in runs (decision 0023),
+    /// and its value is what the command sees. A saved view is read back from a file
+    /// with no line around it, so a pipeline inside one has nothing to run it and says
+    /// so rather than being compared as its own text.
+    /// </remarks>
     let nestedPipelineNotAValue text =
-        create Invalid (sprintf "A pipeline in parentheses is not a value yet : %s" text)
+        create Invalid (sprintf "A pipeline in parentheses only runs as part of a line : %s" text)
 
     /// An expression only means something to a parameter that asked for one, so a
     /// command handed one it cannot use says so rather than comparing display strings.
@@ -237,6 +275,48 @@ module Fault =
     /// </remarks>
     let refreshMustOnlyRead source =
         create Invalid (sprintf "A live refresh only re-reads : %s" source)
+
+    // ------------------------------------------------------------ Document errors
+
+    /// <summary>A file that `from-xml` could not read as XML.</summary>
+    /// <remarks>
+    /// The line and position are the parser's, which is where to look; the parser's own
+    /// sentence is left out, because it is a resource the browser build does not carry
+    /// and a message that reads differently on two hosts cannot be tested on either.
+    /// </remarks>
+    let notWellFormedXml path line position =
+        create Invalid (sprintf "Not well-formed XML : %s line %d, position %d" path line position)
+        |> withPath path
+
+    /// XML is stricter about names than the notation is, and a table's columns can come
+    /// from a CSV header that has spaces in it.
+    let notAnXmlName name =
+        create Invalid (sprintf "'%s' is not a name XML allows." name)
+
+    let cannotWriteAsXml kind =
+        create Binding (sprintf "'to-xml' needs a tag, a table or a list of tags, not %s." kind)
+
+    /// A CSV record with more or fewer fields than the header: a table has one width.
+    let csvFieldCount path line found expected =
+        create Invalid (sprintf "%s line %d has %d fields where the header has %d." path line found expected)
+        |> withPath path
+
+    let csvUnclosedQuote path line =
+        create Invalid (sprintf "%s line %d: a quoted field is never closed." path line)
+        |> withPath path
+
+    let csvTextAfterQuote path line =
+        create Invalid (sprintf "%s line %d: a closing quote is followed by more text." path line)
+        |> withPath path
+
+    let csvDuplicateColumn path name =
+        create Invalid (sprintf "%s has two columns named '%s'." path name) |> withPath path
+
+    let csvUnnamedColumn path index =
+        create Invalid (sprintf "%s column %d has no name." path index) |> withPath path
+
+    let badDelimiter text =
+        create Invalid (sprintf "'delimiter' must be one character, or 'tab', not '%s'." text)
 
     // ------------------------------------------------------------ Session messages
 

@@ -14,8 +14,8 @@ public class RenderLoop
 
     private readonly ComponentRenderPipeline _componentRenderPipeline;
 
-    private BitmapBuffer _buffer;
-    private Action<Bitmap, Action> _renderToScreen;
+    private BitmapBuffer _buffer = null!;
+    private Action<Bitmap, Action> _renderToScreen = null!;
 
     //private Action<Graphics, float, float> _draw;
     //private System.Timers.Timer _timer;

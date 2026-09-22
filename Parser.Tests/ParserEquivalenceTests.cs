@@ -12,6 +12,14 @@ namespace Parser.Tests;
 /// Evidence that the migration preserved the language rather than quietly redefining it.
 /// The corpus is restricted to grammar the old parser could actually build, since
 /// everything it threw on is covered by CompletedGrammarTests instead.
+///
+/// It is also restricted to inputs whose meaning the language has not changed since.
+/// The grammar grew after the migration — bare words in attributes, word operators and
+/// member access, reserved words, <c>else</c>, <c>try</c>, <c>??</c>, pipelines in
+/// parentheses, hyphenated command names — and the GOLD grammar, which is frozen, reads
+/// some of those inputs differently or not at all. Those cases live in the FParsec-only
+/// classes (BareWordTests, ExpressionTests, RecoveryTests, CommandFormTests), and a new
+/// case belongs there rather than here.
 /// </remarks>
 [TestClass]
 public class ParserEquivalenceTests
@@ -19,7 +27,7 @@ public class ParserEquivalenceTests
     private static readonly CommandLineInterpreter Gold = new();
     private static readonly CommandLineReimagined.Parsing.CommandLineParser FParsec = new();
 
-    [DataTestMethod]
+    [TestMethod]
     [DataRow("")]
     [DataRow("command")]
     [DataRow("command argument")]
@@ -60,7 +68,7 @@ public class ParserEquivalenceTests
         Assert.AreEqual(gold, fparsec, $"The two parsers disagree on '{source}'.");
     }
 
-    [DataTestMethod]
+    [TestMethod]
     [DataRow("command)")]
     [DataRow("command --flag")]
     [DataRow("echo \"unterminated")]
@@ -75,7 +83,7 @@ public class ParserEquivalenceTests
         Assert.IsTrue(FParsec.Parse<RootNode>(source).IsT1, $"FParsec accepted '{source}'.");
     }
 
-    [DataTestMethod]
+    [TestMethod]
     [DataRow("command )", 8)]
     [DataRow("command(", 8)]
     [DataRow("a | | b", 4)]

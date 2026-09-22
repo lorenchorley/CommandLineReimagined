@@ -1,4 +1,4 @@
-# 0023. The entity component system becomes a scene the command line edits
+# 0029. The entity component system becomes a scene the command line edits
 
 | Field | Value |
 | --- | --- |
@@ -22,8 +22,9 @@ files rather than entities: attribute records ([0013](0013-attribute-filesystem.
 predicates over tables ([0008](0008-explicit-row-variable.md)), queries as places, live
 views, and an event-sourced store with undo ([0010](0010-undo-by-event-sourcing.md)).
 The tag notation already distinguishes objects from components, a distinction that
-"mirrors an entity component system", and the conformance document notes that the
-entity component model "does not yet exist at runtime".
+"mirrors an entity component system"; but a component is only a value
+([execution model](../spec/execution-model.md)), and nothing attaches it to an entity at
+run time.
 
 The full reasoning, the mapping from the core's concepts to an editor's, and a first
 milestone are in the [design direction](../plan/scene-editor-direction.md).

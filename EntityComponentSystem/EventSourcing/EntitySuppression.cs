@@ -7,7 +7,7 @@ namespace EntityComponentSystem.EventSourcing;
 public class EntitySuppression : IEvent
 {
     public EntityIndex Entity { get; set; } 
-    public string Name { get; init; }
+    public string Name { get; init; } = null!;
 
     public void ApplyTo(IdentifiableList list, TreeType treeType)
     {
