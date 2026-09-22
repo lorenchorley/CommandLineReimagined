@@ -4,8 +4,10 @@
 value, and unwraps an option with a default. Decision
 [0014](../decisions/0014-recovery-operator.md).
 
-**Record to add first.** 0019: the function form requires an adjacent `(`; `name (`
-is a command with a parenthesised operand.
+**Record to add first.** [0023](../decisions/0023-adjacent-function-parenthesis.md):
+the function form requires an adjacent `(`; `name (` is a command with a parenthesised
+operand. (This document first numbered it 0019, which Phase 3 took for reserved words;
+records are numbered in the order they are taken.)
 
 ## Grammar (Phase 5 delta)
 
