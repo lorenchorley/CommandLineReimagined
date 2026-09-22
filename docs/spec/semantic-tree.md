@@ -3,8 +3,9 @@
 The tree a parse produces, the visitors over it, and the two guarantees that make the
 tree worth having: it round-trips to the source text, and every token knows its role.
 
-Types live in `Commands.Parser.SemanticTree` (project `Parser.Tree`). All nodes are
-records and implement `IVisitable`.
+Types live in `Commands.Parser.SemanticTree` (project `Parser.Tree`). Every node below
+is a record and implements `IVisitable`, except the abstract bases, which declare
+`Accept` abstract, and `ClosingTag`, noted below.
 
 ## Node catalogue
 
@@ -24,7 +25,7 @@ records and implement `IVisitable`.
 | `CommandExpression` | `Expression: OneOf<FunctionExpression, CommandExpressionCli, InstanceTag, NestedPipeline>`, `Try: bool`, `Default: Value?` | One stage of a pipeline: what it runs, whether it was written with `try`, and the operand after `??`, if any. |
 | `FunctionExpression` | `Id: Identifier`, `Arguments: CommandArguments` | `name(a, b: c)`. |
 | `CommandExpressionCli` | `Name: CommandName`, `Arguments: CommandArguments` | `name a b`. |
-| `CommandName` | `Name: string` | A command name in command line form. |
+| `CommandName` | `Name: string` | A command name in command line form, hyphens included: `save-view`. |
 
 An `InstanceTag` in `CommandExpression` is the tag form: the stage produces a value
 without calling a command. A `NestedPipeline` there is a pipeline in parentheses
@@ -38,8 +39,13 @@ standing as a stage.
 | `CommandArgument` | abstract | Base. |
 | `CommandArgumentValue` | `Value: Value` | A value in command line form. |
 | `RequiredCommandArgument` | `Value: Value` | A positional value in function form. |
-| `OptionalCommandArgument` | `Name: OneOf<CommandArgumentFlag, Identifier>`, `Value: Value` | `name: value`. |
-| `CommandArgumentFlag` | `Name: string` | `-flag`, stored without the dash. |
+| `OptionalCommandArgument` | `Name: OneOf<CommandArgumentFlag, Identifier>`, `Value: Value` | `name: value`, in function form. |
+| `CommandArgumentFlag` | `Name: string` | `-flag`. The setter strips leading dashes, so the name is stored without them. |
+| `AssignmentArgument` | `Name: Identifier`, `Value: Value` | `name=value`, in command line form: data for the command, not a parameter binding ([decision 0017](../decisions/0017-assignment-arguments.md)). |
+
+The grammar only ever builds an `OptionalCommandArgument` whose name is an
+`Identifier`; the flag alternative of the `OneOf` is kept for the tree's other
+producers and is not reachable from text.
 
 ### Values
 
@@ -47,7 +53,7 @@ standing as a stage.
 | --- | --- | --- |
 | `Value` | abstract | Base. |
 | `SimpleValue` | abstract | A value that is not a tag. |
-| `Identifier` | `Name: string` | A bare word or identifier, as written. |
+| `Identifier` | `Name: string` | A bare word or identifier, as written. Numbers are words too; what a word means is decided at [binding](execution-model.md#evaluating-a-written-value). |
 | `VariableReference` | `Name: VariableName`, `Members: List<MemberName>` | `$name`, or `$name.member`. |
 | `MemberName` | `Name: string` | The `.size` of `$row.size`. It carries its own stop. |
 | `Constant` | abstract | Base for literals. |
@@ -72,9 +78,18 @@ the operand's own node rather than a wrapper around it, so a line written before
 expressions existed parses to the tree it always did.
 
 `StringConstant.Value` is assigned the literal **as written, with its quotes**. The
-setter strips matching pairs of leading and trailing double quotes, records how many it
-removed in `QuoteCount`, and keeps the inner text as the value. This is what lets
-`""x""` round-trip as `""x""` rather than as `"x"`.
+setter strips one double quote from each end, repeatedly, while the remaining text
+starts and ends with a quote and is longer than twice the number of pairs already
+stripped. It records the number of pairs in `QuoteCount`, the delimiter itself in
+`QuoteString`, and keeps the inner text as the value. This is what lets `""x""`
+round-trip as `""x""` rather than as `"x"`. The length condition stops the stripping
+early on a short body, so `""""` reads as one pair around the value `""` and
+`"""ab"""` as two pairs around `"ab"`; the serialised text is exact either way, but the
+value differs from the body the grammar recognised (see
+[string literals](lexical-grammar.md#tokens)).
+
+`VariableName`'s setter strips a leading `$` in the same spirit, so the name never
+carries its sigil.
 
 `TagValue` exists because `InstanceTag` already descends from `Tag`, and a record
 cannot descend from `Value` as well. It is a wrapper, not a distinct concept.
@@ -92,11 +107,20 @@ cannot descend from `Value` as well. It is a wrapper, not a distinct concept.
 | `TagAttribute` | `Name: TagAttributeName`, `Value: SimpleValue` | `a=1`. |
 | `TagAttributeList` | `Attributes: List<TagAttribute>` | Attributes in order. |
 | `TagList` | `Tags: List<Tag>` | Children in order. |
-| `ClosingTag` | `TagObjectType: ObjectType?` | A closing tag; null type means the empty form. |
 
-`Children` is `null` for the self-closing form and non-null for a body, including an
-empty one. An implementation **must** keep that distinction: it is how `<a/>` and
-`<a></a>` stay distinguishable, although they evaluate alike.
+An object or component tag's `Children` is `null` when it has no children, whether it
+was written self-closing or with an empty body: `<a/>`, `<a></a>` and `<a></>` produce
+the same tree, and `HasChildren` is how a consumer asks. The empty body is a spelling,
+not a distinct value, and it serialises in the self-closing form.
+
+A `PropertyAssignment` sets `Value` for `[name=value]` and `Children` for the tag
+forms. `[name]=<tag>` and `[name]<tag>[/name]` produce the same tree, a one-element
+`Children`. `[name][/name]` produces an empty, non-null `Children` and a null `Value`.
+
+`ClosingTag` (`TagObjectType: ObjectType?`) is in the assembly but is not a node of
+this tree: it is not visitable and the grammar never builds one. It is what the
+retained GOLD interpreter reduces a closing tag to; the combinator grammar compares the
+closing name while parsing instead.
 
 `ProperyName` is spelled that way in the source. It is a typo preserved for
 compatibility; an implementation **may** correct it, and **must** then treat the two
@@ -110,8 +134,13 @@ them differently, which is the whole point of the tree.
 
 ## Visitors
 
-`ISemanticTreeVisitor` has a method per node type. `VisitorBase` implements the
-traversal and the punctuation, so a subclass overrides only the nodes it cares about.
+`ISemanticTreeVisitor` has a `Visit` method per concrete node type — the abstract bases
+have none, and dispatch goes to the concrete type through `Accept`. `VisitorBase`
+(`Parser.Tree/Serialisation`) implements the traversal and writes the punctuation,
+through four abstract members — `Append(string)`, `Append(char)`, `AppendNewLine()` and
+`GetResult()` — so a subclass supplies an output and overrides only the nodes it cares
+about. Two options, `UseIdentation` and `UseNewLineOnPipe`, lay a tree out over several
+lines for display; both are off by default, and neither is used for a round trip.
 
 Two visitors are normative.
 
@@ -119,34 +148,59 @@ Two visitors are normative.
 
 `SerialisationVisitor` flattens a tree back to text.
 
-An implementation **must** satisfy: for any input `s` that parses to tree `t`,
-serialising `t` yields `s`, up to the normalisation of whitespace between tokens to a
-single space where the grammar allows any amount.
+An implementation **must** satisfy, for any input `s` that parses to tree `t`:
+
+- serialising `t` yields text that parses to a tree equal to `t`;
+- serialising is idempotent: serialising the tree of the serialised text yields the
+  same text again;
+- when `s` is already in the normal form below, serialising `t` yields `s` exactly.
+
+The normal form is what the serialiser writes:
+
+- one space between command line arguments, on both sides of `|`, `else` and `??`,
+  after `try`, and on both sides of a word operator;
+- `, ` between function arguments and `: ` after an argument's name, with the
+  parenthesis tight against the function's name and nothing inside the parentheses of a
+  call or a nested pipeline;
+- `name=value` with no space, for both an assignment and a tag attribute;
+- inside a tag, one space between the type and the first attribute and between
+  attributes, and nothing else: children follow one another with no separator;
+- a tag with no children in the self-closing form; a closing tag with its type named,
+  so `</>` becomes `</type>` and `[/]` becomes `[/name]`; `[name]=<tag>` as
+  `[name]<tag>[/name]`; and `<$ name>` as `<$name>`;
+- a string with the delimiter it was written with.
+
+So `f( a , b )` serialises as `f(a, b)`, `a|b` as `a | b` and `echo"hi"` as `echo "hi"`.
 
 The web host runs this on every parse and returns the result alongside the tokens, so a
-lossy parse is detectable from outside. `Parser.Tests/SerialisationTests.cs` and the
-round-trip assertions elsewhere enforce it.
+lossy parse is detectable from outside. `Parser.Tests/SerialisationTests.cs`, which
+also pins the normal forms, and the round-trip assertions elsewhere enforce it.
+
+The reference implementation fails one case: a property with an empty tag body,
+`<t>[p][/p]</t>`, parses but throws when serialised, because the serialiser writes a
+property without children in the `[name=value]` form and its `Value` is null.
 
 ### Tokenisation
 
-`TokenStreamVisitor` produces an ordered list of `(Text, Kind)` pairs. Concatenating
-every `Text` **must** reproduce the serialised form.
+`TokenStreamVisitor` (`Web.Core/TokenStreamVisitor.cs`, namespace
+`CommandLineReimagined.Web.Tokenisation`) produces an ordered list of `(Text, Kind)`
+pairs. Concatenating every `Text` **must** reproduce the serialised form.
 
 | Kind | Applied to |
 | --- | --- |
 | `command` | A `CommandName`, and the `Id` of a `FunctionExpression`. |
 | `flag` | A `CommandArgumentFlag`, including its dash. |
 | `string` | A `StringConstant`, including its delimiters. |
-| `variable` | A `VariableReference`, a `VariableName`, a `VariableTag`. |
+| `variable` | A `VariableReference` including its `$`, a `VariableName`, and a `VariableTag` including its `<$` and `>`. |
 | `member` | A `MemberName`, including its leading stop. |
 | `operator` | An `OperatorWord`, and the `??` of a default. |
 | `keyword` | The `try` in front of a stage and the `else` between pipelines. |
-| `identifier` | An `Identifier` that is not a command name. |
-| `type` | An `ObjectType` or a `ComponentType`. |
-| `attribute` | A `TagAttributeName` or a `ProperyName`. |
-| `punctuation` | Everything the traversal emits itself: brackets, slashes, commas, pipes, equals. |
-| `whitespace` | A run of spaces or tabs. |
-| `newline` | A line break, inside a string. |
+| `identifier` | An `Identifier` that is not a command name, including the name of a `name: value` argument. |
+| `type` | An `ObjectType` or a `ComponentType`, in an opening tag and in a closing one. |
+| `attribute` | A `TagAttributeName`, a `ProperyName`, and the name of an `AssignmentArgument`. |
+| `punctuation` | Everything the traversal emits itself: brackets, slashes, commas, colons, pipes, equals. |
+| `whitespace` | Text that is only whitespace. |
+| `newline` | A line break the visitor writes when laying a tree out over several lines. |
 
 `try`, `else` and `??` are not nodes: nothing about them varies. `VisitorBase` writes
 them through two hooks, `AppendKeyword` and `AppendOperator`, which a tokenising
@@ -172,3 +226,16 @@ unit       attribute
 metres     identifier
 />         punctuation
 ```
+
+A token is what one write of the traversal produced, not a whole lexeme, and adjacent
+tokens are not merged. A host **must not** assume one token per lexeme: `$row.size` is
+four tokens (`$`, `row` as `variable`; `.`, `size` as `member`), `-l` is two `flag`
+tokens, a string is its opening delimiter, its body and its closing delimiter, and the
+pipe is the single `punctuation` token `| `, with the space after it.
+
+Two consequences of that rule are visible in the reference implementation. A line
+break inside a string is part of the string's body token, not a `newline` token; the
+web host never lays a tree out over several lines, so it never emits `newline`. And a
+string whose body is only whitespace has that body tagged `whitespace` rather than
+`string`, because whitespace is recognised by the text of a write rather than by the
+node that wrote it.
