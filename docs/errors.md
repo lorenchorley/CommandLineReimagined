@@ -158,6 +158,17 @@ From the table functions, and from reading a tag as a table.
 | `A <node> cannot be part of an expression.` | A tag as one side of a comparison. |
 | `A pipeline in parentheses is not a value yet : (...)` | A nested pipeline parses; running one is not built yet. |
 
+## View errors
+
+From `cd`, `find` and `save-view`. [The filesystem](filesystem.md#views) is the guide.
+
+| Message | Meaning |
+| --- | --- |
+| `'find' needs a predicate, such as $row.kind eq note.` | A plain word was written where a question belongs. `find monday` finds nothing by definition; `find $row.name eq monday` is the question. |
+| `'save-view' needs a predicate, such as $row.kind eq note.` | The same, for `save-view`. |
+| `A view needs a name.` | `save-view` was given an empty name. |
+| `'<path>' does not hold a predicate : <text>` | `cd` on a file of kind `view` whose content is not an expression any more. `cat` it to see what is in there, or `rm` it. |
+
 ## Script errors
 
 From `run`.
@@ -220,6 +231,7 @@ Not errors from the language, but from the session.
 | `Undone: <line>` | Undo reversed that line. Lines that changed nothing are not recorded, so they are never what it names. |
 | `Redone: <line>` | Redo put that line back. It names the original line, not the undo. |
 | `The session has not been initialised. Call Initialize first.` | A host executed a line before replaying the log. A defect in the host, not in what you typed. |
+| `A live refresh only re-reads : <line>` | The page tried to keep a listing up to date with a line that could change something. You will not normally see this: only `ls` and `find` are kept live. |
 
 ## Reading a path in a message
 

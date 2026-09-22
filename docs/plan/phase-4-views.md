@@ -61,5 +61,13 @@ records, views, `find`, `save-view`, live listings; `docs/commands.md`; `docs/sp
 execution model (Location) and command catalogue; the design doc's "Data storage"
 section rewritten around the log and projections.
 
-**Record to add.** None expected; 0013 covers this. If the live-view refresh rules
-change during implementation, record them as 0021.
+**Record to add.** 0013 covers the semantics, and the refresh rules were built as
+written, so nothing here needed one. One turned up from underneath:
+[0022](../decisions/0022-hyphenated-command-names.md), because `save-view` is two
+words and the grammar took a command's name as an identifier, which has never
+contained a hyphen. Phase 6's four commands need the same rule.
+
+This document said to number a refresh-rules record 0021, which was taken during
+Phase 3 by variadic parameters. Records are numbered in the order they are taken, not
+reserved in advance; the [architecture](architecture.md#expected-new-decision-records)
+table of expected numbers has been shifted to match.

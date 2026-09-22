@@ -319,6 +319,101 @@ $ undo
 Undone: set answer 42
 ```
 
-`cat examples/tables.clr` shows the program. The other three —
-`journal.clr`, `resilient.clr` and `inventory.clr` — need views, error recovery and XML,
-which are not built yet.
+`cat examples/tables.clr` shows the program. `journal.clr` runs too, and is the
+subject of the next example. The other two — `resilient.clr` and `inventory.clr` —
+need error recovery and XML, which are not built yet.
+
+## 11. A question is somewhere you can be
+
+A directory is a question the terminal keeps asking: which records say they are in it.
+Any other question works the same way. Here are three notes in two directories, and a
+question that does not care which.
+
+```
+$ mkdir journal
+journal
+
+$ cd journal
+journal
+
+$ save <note name=monday mood=good tag=work/>
+monday
+
+$ save <note name=saturday mood=great tag=home/>
+saturday
+
+$ up
+/
+
+$ save <note name=postcard mood=great tag=home/>
+postcard
+
+$ find $row.mood eq great
+name      kind  folder    size  modified                           mood   tag
+postcard  note  /         0     2026-09-22T09:30:00.0000000+00:00  great  home
+saturday  note  /journal  0     2026-09-22T09:30:00.0000000+00:00  great  home
+```
+
+`find` asked once. `cd` on the same predicate moves in, so every `ls` afterwards asks
+it again:
+
+```
+$ cd $row.mood eq great
+$row.mood eq great
+
+$ pwd
+$row.mood eq great
+
+$ ls
+name      kind  folder    size  modified                           mood   tag
+postcard  note  /         0     2026-09-22T09:30:00.0000000+00:00  great  home
+saturday  note  /journal  0     2026-09-22T09:30:00.0000000+00:00  great  home
+```
+
+The two rows are in different directories, which is the point: the question was about
+moods. A view is a way of looking rather than a place to put things, so a new
+directory made while it is set still lands in the directory underneath:
+
+```
+$ mkdir keepsakes
+keepsakes
+
+$ up
+/
+
+$ ls
+name        kind    folder  size  modified                           mood   tag
+documents   folder  /       0     2026-09-22T09:30:00.0000000+00:00
+examples    folder  /       0     2026-09-22T09:30:00.0000000+00:00
+journal     folder  /       0     2026-09-22T09:30:00.0000000+00:00
+keepsakes   folder  /       0     2026-09-22T09:30:00.0000000+00:00
+projects    folder  /       0     2026-09-22T09:30:00.0000000+00:00
+postcard    note    /       0     2026-09-22T09:30:00.0000000+00:00  great  home
+readme.txt  text    /       41    2026-09-22T09:30:00.0000000+00:00
+```
+
+`up` put the view down and left you where you already were. A question worth asking
+twice is worth keeping, and keeping one means making it a file:
+
+```
+$ save-view cheerful $row.mood eq great
+cheerful
+
+$ cd cheerful
+$row.mood eq great
+
+$ ls
+name      kind  folder    size  modified                           mood   tag
+postcard  note  /         0     2026-09-22T09:30:00.0000000+00:00  great  home
+saturday  note  /journal  0     2026-09-22T09:30:00.0000000+00:00  great  home
+
+$ up
+/
+
+$ rm cheerful
+Removed cheerful
+```
+
+A view is an ordinary record of kind `view`, so it is listed, deleted and undone like
+any other file. [The filesystem](filesystem.md) is the full guide, and
+`run examples/journal.clr` is the same ideas as a program.

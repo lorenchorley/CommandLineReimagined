@@ -10,7 +10,7 @@ the page's rather than the language's.
 | Title bar | The project name, and a status that reads `wasm` in green once the runtime has loaded. |
 | Scrollback | Every command you have run, with its live output, errors and results. |
 | Token inspector | One line above the input, naming the role of the word you last tapped. |
-| Prompt | The full current directory, with an `up` button beside it below the root. |
+| Location line | Where you are: a directory as its path, or a view as the question it is, with an `up` button beside it. |
 | Input | A transparent text field over a coloured mirror of what you type. |
 | Run button | Runs the line. It becomes a red Stop button while a command is running. |
 | Completion row | Appears while you type, offering commands, variables and paths. |
@@ -83,7 +83,40 @@ A result is rendered by kind:
 Tapping a header sorts what you are looking at. `ls | sort size desc` is the one that
 changes what the terminal answered, and it is a different question.
 
+Tapping a cell that names a place writes the line that goes there rather than the path
+on its own: a directory in the `name` column, and the `folder` column of a view's
+listing, which is the column that says which directory a row came from. Every other
+cell appends what it is.
+
 Output written while a command runs appears above the result, and updates in place.
+
+## The location line
+
+Below the scrollback and above the input, one line says where you are. A directory
+reads as its full path. A view reads as `view:` and the predicate, with the directory
+it was entered from behind it, because that is still where a new file would land.
+
+The `up` button beside it runs the [`up`](commands.md#up) command, which comes out of
+one thing at a time: the view first, then the directory. It is the page's answer to a
+listing having nowhere to put a parent row — every row of a table is a record, and
+`up` is not one.
+
+## Live listings
+
+The newest listing keeps itself up to date. A listing is a question about the
+filesystem, and the filesystem changes underneath it: `mkdir x` in the next entry makes
+the answer above it wrong.
+
+Every change is an entry in the log, so the page knows the moment one lands. It asks
+the same question again, silently, and replaces the table in place with a brief flash
+so you can see that it moved. The re-run leaves no entry in the scrollback, no
+transaction and nothing in `history`, and a line naming any command that could change
+something is refused rather than run — which is why only `ls` and `find` are kept live.
+
+Only the newest listing refreshes. The ones above it froze when you moved on, which is
+what a scrollback is for. Underneath the live one is a badge reading `live`; tapping it
+says `paused` and stops the refreshing for that listing, and tapping it again resumes
+and redraws at once.
 
 ## Running and stopping
 
@@ -141,7 +174,9 @@ The root is `/`, seeded on first use with `documents/notes.txt`, `examples/` hol
 the four example programs, `projects/` and `readme.txt`. It is not a disk and not
 Emscripten's filesystem: it is a projection folded from the log, so `mkdir`, `cp` and
 `write` describe changes and the store applies them, and `cd ..` at the root stays at
-the root.
+the root. Files are attribute records rather than entries in a tree, and a query over
+their attributes is somewhere you can be: [The filesystem](filesystem.md) is the
+guide.
 
 The log is kept in this browser between visits, so a reload replays it and the files
 come back. `reset` empties it and seeds again, and is the one command that cannot be

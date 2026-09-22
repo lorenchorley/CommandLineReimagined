@@ -15,29 +15,31 @@ drive. `..` and `.` work.
 | --- | --- | --- |
 | [`attr`](#attr) | Show a file's attributes, or set them | only when given `name=value` |
 | [`cat`](#cat) | Read a file as text | no |
-| [`cd`](#cd) | Enter a directory | yes, where you are |
+| [`cd`](#cd) | Enter a directory, a saved view, or a predicate | yes, where you are |
 | [`columns`](#columns) | A table's columns and their types | no |
 | [`count`](#count) | How many rows a table has | no |
 | [`cp`](#cp) | Copy a file into a directory | yes |
 | [`distinct`](#distinct) | Unique rows, or a column's unique values | no |
 | [`download`](#download) | Download a file, with progress | yes |
 | [`echo`](#echo) | Return an argument or the piped value | no |
+| [`find`](#find) | List every record a predicate is true of | no |
 | [`exit`](#exit) | Ask the host to close | no |
 | [`first`](#first) | The first row of a table | no |
 | [`group`](#group) | Gather the rows that share a value | no |
 | [`help`](#help) | The commands, as a table | no |
 | [`history`](#history) | The lines that changed something | no |
 | [`last`](#last) | The last row of a table | no |
-| [`ls`](#ls) | List a directory | no |
+| [`ls`](#ls) | List a directory, or the view you are in | no |
 | [`mkdir`](#mkdir) | Create a directory | yes |
 | [`progress`](#progress) | Run a progress bar, to exercise long commands | no |
-| [`pwd`](#pwd) | The current directory | no |
+| [`pwd`](#pwd) | Where you are: a directory, or a view | no |
 | [`redo`](#redo) | Put back what `undo` took away | yes |
 | [`reset`](#reset) | Empty the log and start again | yes, and cannot be undone |
 | [`rm`](#rm) | Delete a file or empty directory | yes |
 | [`rows`](#rows) | A table's rows, as objects | no |
 | [`run`](#run) | Run a script, a line at a time | whatever its lines change |
 | [`save`](#save) | Create a file from a tag | yes |
+| [`save-view`](#save-view) | Keep a predicate as a file you can enter | yes |
 | [`select`](#select) | Keep only the named columns | no |
 | [`set`](#set) | Bind a value to a variable | yes |
 | [`skip`](#skip) | Drop the first rows | no |
@@ -45,7 +47,7 @@ drive. `..` and `.` work.
 | [`table`](#table) | Read a tag as a table | no |
 | [`take`](#take) | Keep the first rows | no |
 | [`undo`](#undo) | Reverse the last line that changed something | yes |
-| [`up`](#up) | Move up one directory | yes, where you are |
+| [`up`](#up) | Leave the view, or move up one directory | yes, where you are |
 | [`vars`](#vars) | List the variables in scope | no |
 | [`where`](#where) | Keep the rows a predicate is true for | no |
 | [`write`](#write) | Write text to a file | yes |
@@ -153,15 +155,15 @@ This filesystem lives in the browser tab.
 
 ## cd
 
-Enters a directory and makes it current.
+Goes somewhere. Somewhere is a directory, a saved view, or a question written out.
 
 **Parameters**
 
 | Name | Notes |
 | --- | --- |
-| `TargetPath` | piped. The directory to enter. |
+| `TargetPath` | piped. A directory, a view file, or a predicate. |
 
-**Returns** the new current directory as a path.
+**Returns** the directory it entered, as a file, or the predicate, as a query.
 
 ```
 $ cd documents
@@ -170,19 +172,28 @@ $ cd ../projects
 projects
 $ echo documents | cd
 documents
+$ cd $row.mood eq great
+$row.mood eq great
 ```
 
-`cd ..` normalises, so the working directory shows the parent's real name rather than a
-path ending in `..`.
+What decides between the two is whether an operator was written. `cd journal` is a
+name: a directory, or a file of kind `view`, whose predicate is entered instead.
+`cd $row.mood eq great` has `eq` in it, so it is a question, and entering it sets the
+view without moving out of the directory you are in — new files still land there.
+See [The filesystem](filesystem.md#views).
 
-**Undo** returns to the directory you were in before.
+`cd ..` normalises, so the working directory shows the parent's real name rather than a
+path ending in `..`. Entering a directory puts down whatever view was held.
+
+**Undo** returns you to where you were, view and all.
 
 **Errors**
 
 | Message | Cause |
 | --- | --- |
 | `'cd' needs an argument for 'TargetPath'.` | No path given and nothing piped in. |
-| `Directory does not exist : <path>` | No such directory. |
+| `Directory does not exist : <path>` | No such directory, and no view file of that name. |
+| `'<path>' does not hold a predicate : <text>` | A view file whose content is not a predicate. |
 
 ---
 
@@ -378,6 +389,41 @@ In the desktop shell it closes the window.
 
 ---
 
+## find
+
+Lists every record a predicate is true of, wherever it is, without going anywhere.
+
+**Parameters**
+
+| Name | Notes |
+| --- | --- |
+| `predicate` | An expression over `$row`, such as `$row.kind eq note`. |
+
+**Returns** a table of the matching records, in the same shape [`ls`](#ls) produces.
+The `folder` column is what says where each row came from.
+
+```
+$ find $row.mood eq great
+name      kind  folder    size  modified                           mood   tag
+postcard  note  /         0     2026-09-22T09:30:00.0000000+00:00  great  home
+saturday  note  /journal  0     2026-09-22T09:30:00.0000000+00:00  great  home
+
+$ find $row.kind eq note and $row.tag eq work | count
+2
+```
+
+`find` asks a question once; [`cd`](#cd) on the same predicate moves into it, so every
+`ls` afterwards asks it again. Asking changes nothing, so a `find` leaves no
+transaction and `undo` reaches past it.
+
+**Errors**
+
+| Message | Cause |
+| --- | --- |
+| `'find' needs a predicate, such as $row.kind eq note.` | A plain word was written instead of a question. |
+
+---
+
 ## first
 
 The first row of a table.
@@ -520,17 +566,17 @@ $ ls | sort name | last
 
 ## ls
 
-Lists a directory: directories first, then files, each by name.
+Lists where you are: a directory, or the view you are in.
 
 **Parameters**
 
 | Name | Notes |
 | --- | --- |
-| `path` | optional. Defaults to the current directory. |
+| `path` | optional. Defaults to the current directory, or to the current view. |
 
 **Returns** a table. Five columns are always there — `name`, `kind`, `folder`, `size`
-and `modified` — followed by every other attribute anything in the folder carries,
-ordered by name. A file that does not carry one has a gap in that column.
+and `modified` — followed by every other attribute anything listed carries, ordered by
+name. A file that does not carry one has a gap in that column.
 
 ```
 $ ls
@@ -542,6 +588,19 @@ readme.txt  text    /       41    2026-09-22T09:30:00.0000000+00:00
 $ ls documents
 name       kind  folder      size  modified
 notes.txt  text  /documents  50    2026-09-22T09:30:00.0000000+00:00
+```
+
+In a view, `ls` lists every record in the terminal the view matches, from whatever
+directory, and the `folder` column is what says where each row came from. Writing a
+path is how you look at a directory without leaving the view.
+
+```
+$ cd $row.mood eq great
+$row.mood eq great
+$ ls
+name      kind  folder    size  modified                           mood   tag
+postcard  note  /         0     2026-09-22T09:30:00.0000000+00:00  great  home
+saturday  note  /journal  0     2026-09-22T09:30:00.0000000+00:00  great  home
 ```
 
 `size` is the length of the file's content, worked out when the table is built rather
@@ -639,16 +698,24 @@ Stopped.
 
 ## pwd
 
-Returns the current directory.
+Returns where you are: the current directory, or the view you are in.
 
 **Parameters** none.
 
+**Returns** the directory's path as text, or the view as a query.
+
 ```
 $ pwd
-terminal
+/documents
+
+$ cd $row.mood eq great
+$row.mood eq great
+$ pwd
+$row.mood eq great
 ```
 
-The line above the input shows the same thing as a full path, at all times.
+The line above the input shows the same thing at all times, and says which of the two
+it is.
 
 ---
 
@@ -841,6 +908,59 @@ The tag can be piped in: `echo <note name=todo/> | save`.
 
 The `name` attribute is required, and a name already used in the folder is an error.
 The file has no content, so `cat` on it returns empty text; `write` gives it some.
+
+---
+
+## save-view
+
+Keeps a predicate as a file, so a question becomes somewhere you can go back to.
+
+**Parameters**
+
+| Name | Notes |
+| --- | --- |
+| `name` | What to call the view. |
+| `predicate` | An expression over `$row`, such as `$row.mood eq great`. |
+
+**Returns** the view it created, as a file.
+
+```
+$ save <note name=postcard mood=great/>
+postcard
+
+$ save-view cheerful $row.mood eq great
+cheerful
+
+$ ls
+name        kind    folder  size  modified                           mood
+documents   folder  /       0     2026-09-22T09:30:00.0000000+00:00
+examples    folder  /       0     2026-09-22T09:30:00.0000000+00:00
+projects    folder  /       0     2026-09-22T09:30:00.0000000+00:00
+cheerful    view    /       18    2026-09-22T09:30:00.0000000+00:00
+postcard    note    /       0     2026-09-22T09:30:00.0000000+00:00  great
+readme.txt  text    /       41    2026-09-22T09:30:00.0000000+00:00
+
+$ cat cheerful
+$row.mood eq great
+
+$ cd cheerful
+$row.mood eq great
+```
+
+A view is an ordinary record of kind `view` whose content is the predicate as it was
+written, so it is listed, tapped, renamed with `attr`, undone and deleted like any
+other file, and `cat` shows what it asks. The view is created in the current
+directory; what it matches is not limited to that directory.
+
+**Undo** deletes the view.
+
+**Errors**
+
+| Message | Cause |
+| --- | --- |
+| `'save-view' needs a predicate, such as $row.kind eq note.` | A plain word was written instead of a question. |
+| `Target file already exists : <path>` | Something of that name is already here. |
+| `A view needs a name.` | The name was empty. |
 
 ---
 
@@ -1064,18 +1184,28 @@ turn and `history` shows both.
 
 ## up
 
-Moves to the parent directory.
+Comes back out. In a view, that means putting the view down; otherwise it means the
+parent directory.
 
 **Parameters** none.
 
-**Returns** the new current directory.
+**Returns** the directory you are now in, as a path.
 
 ```
+$ cd journal
+journal
+$ cd $row.mood eq great
+$row.mood eq great
 $ up
-terminal
+/journal
+$ up
+/
 ```
 
-**Undo** returns to the directory you were in before.
+Two `up`s from a view over a subdirectory come out in the order they went in: the
+question first, the directory second. At the root with no view, `up` stays at the root.
+
+**Undo** returns you to where you were, view and all.
 
 ---
 

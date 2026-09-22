@@ -57,6 +57,7 @@ appear between `<` and what follows it.
 
 ```
 Identifier        ::= IdentifierChar+
+CommandName       ::= Identifier ( "-" Identifier )*
 Word              ::= ( WordStart | "-" &Digit ) ( WordChar | "/" !( ">" | "}" ) )*
                       -- a leading WordStart of "/" is subject to the same lookahead
 Flag              ::= "-" !Digit IdentifierChar+
@@ -98,6 +99,14 @@ A `MemberName` carries its own full stop, so `$row.size` is three tokens — a s
 variable name and one member — and re-serialising writes the stop back with the member
 it belongs to.
 
+A `CommandName` is one token, and appears in exactly two places: the name of a CLI
+expression and the name of a function expression. The hyphen **must** be adjacent to an
+identifier on both sides, so `save-view` is one name while `ls -l` is a name and a
+flag and `echo -5` is a name and a negative number
+([decision 0022](../decisions/0022-hyphenated-command-names.md)). The hyphen is not an
+`IdentifierChar`, so nothing else in the grammar — a variable, an attribute, a
+parameter name — admits one.
+
 ## Grammar
 
 ```
@@ -109,12 +118,12 @@ CommandExpression    ::= FunctionExpression
                        | CliExpression
                        | InstanceTag
 
-FunctionExpression   ::= Identifier Space* "(" Space* FunctionArgumentList Space* ")" Space*
+FunctionExpression   ::= CommandName Space* "(" Space* FunctionArgumentList Space* ")" Space*
 FunctionArgumentList ::= ( FunctionArgument ( "," Space* FunctionArgument )* )?
 FunctionArgument     ::= Identifier Space* ":" Space* Expression
                        | Expression
 
-CliExpression        ::= Identifier Space* CommandArgument*
+CliExpression        ::= CommandName Space* CommandArgument*
 CommandArgument      ::= Flag
                        | Assignment
                        | Expression
@@ -256,13 +265,19 @@ A closing tag whose type differs from its opening tag **must** fail with the mes
 | `[size=3]` | Syntax error at column 0 |
 | `<a></b>` | Message: `Closing tag 'b' does not match opening tag 'a'` |
 
-## The identifier grammar
+## Entry points besides a program
 
-A second entry point validates a single name:
+Two further entry points parse a fragment rather than a line.
 
 ```
 IdentifierOnly ::= Space* Identifier Space* EOF
+ExpressionOnly ::= Space* Expression Space* EOF
 ```
 
-An implementation **must** expose it so a host can ask whether text is a valid name
-without running a command.
+An implementation **must** expose `IdentifierOnly` so a host can ask whether text is a
+valid name without running a command.
+
+An implementation **must** expose `ExpressionOnly` if it supports saved views, because
+a view is a record whose content is a predicate with no command line around it, and
+reading one back **must** use the same `Expression` rule that read it in the first
+place.

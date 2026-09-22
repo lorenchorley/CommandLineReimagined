@@ -37,8 +37,13 @@ command implements.
 | Returns | `Table` |
 | Undo | none |
 
-Lists `path`, or the current folder. The rows **must** be ordered: folders, then files,
-each group ordered by name with an ordinal comparison.
+Lists `path`; or, when a view is set and no path is written, every record in the store
+the view matches; or the current folder. The rows **must** be ordered: folders, then
+files, each group ordered by name with an ordinal comparison.
+
+A view's listing **must** be built from the matching records alone, so its columns are
+their attributes rather than every attribute in the store. Writing a path **must**
+list that folder and **must not** clear the view.
 
 This ordering is normative. It previously said entry order "follows the filesystem",
 which meant it was whatever the host happened to return and could not be tested at all.
@@ -59,13 +64,26 @@ Errors: `Directory does not exist : <path>`.
 | Field | Value |
 | --- | --- |
 | Name | `cd` |
-| Parameters | `TargetPath` (piped) |
-| Returns | `Text` of the new current folder's path |
-| Undo | returns to the previous directory |
+| Parameters | `TargetPath` (piped, kind `Predicate`) |
+| Returns | `File` of the folder entered, `Text` of `/` for the root, or `Query` of the view entered |
+| Undo | returns to the previous location, view included |
 
-The target **must** be normalised, so `cd ..` yields the parent's real path.
+The parameter's kind is `Predicate`, so the argument arrives unevaluated and `cd`
+decides what it is:
 
-Errors: `Directory does not exist : <target>`, quoting the target as written.
+- An argument that used an operator is a **view**. `Location.View` **must** be set to
+  it and `Location.Folder` **must** be left unchanged.
+- An argument that is a plain operand, or a piped value, is a **name**. It is evaluated
+  and resolved. A record of kind `view` **must** be entered as the view its content
+  parses to; anything else **must** be resolved as a folder path.
+- Entering a folder **must** clear `Location.View`.
+
+The target **must** be normalised, so `cd ..` yields the parent's real path. Entering
+the location already held **must** emit no event.
+
+Errors: `Directory does not exist : <target>`, quoting the target as written;
+`'<path>' does not hold a predicate : <text>` for a view file whose content is not an
+expression.
 
 ### up
 
@@ -73,8 +91,11 @@ Errors: `Directory does not exist : <target>`, quoting the target as written.
 | --- | --- |
 | Name | `up` |
 | Parameters | none |
-| Returns | `Text` of the new current folder's path |
-| Undo | returns to the previous directory |
+| Returns | `Text` of the current folder's path |
+| Undo | returns to the previous location, view included |
+
+With a view set, `up` **must** clear `Location.View` and **must** leave
+`Location.Folder` unchanged. Without one it moves to the parent.
 
 At the filesystem root, moving up **must** leave the current directory unchanged and
 **must not** fail. The directory a session starts in is not a boundary: a user may
@@ -87,8 +108,42 @@ under WebAssembly is the page's in-memory one.
 | --- | --- |
 | Name | `pwd` |
 | Parameters | none |
-| Returns | `Text` of the current folder's path |
+| Returns | `Query` of the view when one is set, otherwise `Text` of the current folder's path |
 | Undo | none |
+
+### find
+
+| Field | Value |
+| --- | --- |
+| Name | `find` |
+| Parameters | `predicate` (kind `Predicate`) |
+| Returns | `Table` |
+| Undo | none |
+
+Lists every record in the store the predicate is true of, in the same shape `ls`
+produces and with the same ordering. It **must not** change the location.
+
+The predicate is evaluated once per candidate record, in a scope with `$row` bound to
+that record's row, exactly as `where` binds it
+([execution model](execution-model.md#predicates)).
+
+Errors: `'find' needs a predicate, such as $row.kind eq note.` when the argument used
+no operator.
+
+### save-view
+
+| Field | Value |
+| --- | --- |
+| Name | `save-view` |
+| Parameters | `name`, `predicate` (kind `Predicate`) |
+| Returns | `File` of the record created |
+| Undo | deletes the view |
+
+Creates a record in the current folder with `kind` of `view` and content equal to the
+predicate's display text. A view is an ordinary record in every other respect.
+
+Errors: `'save-view' needs a predicate, such as $row.kind eq note.`;
+`Target file already exists : <path>`; `A view needs a name.`
 
 ## Files
 

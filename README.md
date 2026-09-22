@@ -10,15 +10,24 @@ The terminal runs in a browser tab: the parser, the commands and the filesystem 
 layer drives a Windows desktop shell built on an entity component system.
 
 ```
-$ ls | set files
-up  documents  projects  readme.txt
+$ ls | where $row.kind eq folder | select name
+name
+documents
+examples
+projects
 
 $ cat documents/notes.txt | write backup.txt
 backup.txt
 
 $ undo
-Undone: write
+Undone: cat documents/notes.txt | write backup.txt
+
+$ cd $row.kind eq folder
+$row.kind eq folder
 ```
+
+A listing is a table, a predicate over it is a question, and a question is somewhere
+you can be: after that last line, `ls` answers the query rather than a directory.
 
 ## Try it
 
@@ -32,6 +41,7 @@ you type leaves the page, and your files are kept in the browser between visits.
 - **[Documentation index](docs/README.md)** — start here.
 - [Getting started](docs/getting-started.md) — open a terminal and run something.
 - [Worked examples](docs/examples.md) — complete sessions to copy.
+- [The filesystem](docs/filesystem.md) — files as attribute records, queries as places.
 - [The command language](docs/language.md) — every syntax the parser accepts.
 - [Command reference](docs/commands.md) — one entry per command.
 - [How it works](docs/concepts.md) — parse, bind, evaluate, render, undo.

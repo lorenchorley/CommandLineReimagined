@@ -235,10 +235,30 @@ name
 readme.txt
 ```
 
+And a question is somewhere you can go. `cd` takes a predicate as readily as a
+directory name, and once you are in one, `ls` answers it — across directories, because
+the question was not about directories:
+
+```
+$ cd $row.tag eq work
+$row.tag eq work
+
+$ ls
+name        kind  folder  size  modified                           tag
+readme.txt  text  /       41    2026-09-22T09:30:00.0000000+00:00  work
+
+$ up
+/
+```
+
+[The filesystem](filesystem.md) is the guide to attributes, views and what a file
+really is here.
+
 ## Next
 
 - [Worked examples](examples.md) for complete sessions to copy.
 - [Tables and predicates](tables.md) for filtering, sorting and counting a listing.
+- [The filesystem](filesystem.md) for attribute records, views and `find`.
 - [The command language](language.md) for tags, components, variables and the function
   call form.
 - [How it works](concepts.md) for what happens between Enter and the answer.

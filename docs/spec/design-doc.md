@@ -63,15 +63,22 @@ scene are out of scope.
                             │ source text                  │ rendered result
                             ▼                              ▲
                     ┌───────────────┐   semantic tree   ┌───┴──────────────┐
-                    │ Parser.FParsec├──────────────────▶│ CommandEvaluator │
+                    │ Parser.FParsec├──────────────────▶│    Evaluator     │
                     └───────────────┘                   └───┬──────────────┘
                             │                               │
-                            │ tokens                        ├─▶ ArgumentBinder
+                            │ tokens                        ├─▶ Binder
                             ▼                               ├─▶ Scope (variables)
-                    ┌───────────────┐                       ├─▶ CommandHistory (undo)
-                    │ colouring,    │                       ├─▶ ICommandOutput (live)
-                    │ inspection    │                       └─▶ Commands ─▶ filesystem
-                    └───────────────┘
+                    ┌───────────────┐                       ├─▶ IOutput (live)
+                    │ colouring,    │                       └─▶ Commands ─▶ events
+                    │ inspection    │                               │
+                    └───────────────┘                               ▼
+                                                            ┌──────────────┐
+                                                            │ Store ─▶ log │
+                                                            └───┬──────────┘
+                                                                │ fold
+                                                                ▼
+                                                          Projection: files,
+                                                          variables, location
 ```
 
 ### Stages
@@ -85,10 +92,12 @@ scene are out of scope.
 3. **Bind.** `ArgumentBinder` matches written arguments to declared parameters, drawing
    on the piped value and on defaults. See
    [Execution model](execution-model.md#argument-binding).
-4. **Evaluate.** `CommandEvaluator` folds the pipeline, resolving each expression to a
-   `Value`. Tags build values without calling a command.
-5. **Record.** Each execution is pushed onto `CommandHistory` with its invocation, which
-   is what undo replays.
+4. **Evaluate.** `Evaluator` folds the pipeline, resolving each expression to a
+   `Value`. Tags build values without calling a command. No stage changes anything: a
+   command returns the events describing what it would change.
+5. **Commit.** When every stage has succeeded, the events are appended to the log as
+   one transaction, which is also when the projection moves. A line that failed
+   commits nothing; a line that produced no events commits nothing either.
 6. **Render.** The front end turns the value into its own presentation: entities and
    buttons in the desktop scene, chips and text blocks in the browser.
 
@@ -105,16 +114,53 @@ browser sink raises an event, the test sink records. Commands therefore never re
 a loop, a window or a graphics library, which is what allows them to run under
 WebAssembly.
 
-**Undo holds the invocation, not the arguments.** A history entry keeps the command
-instance that ran together with its bound arguments, scope and output, so reversing it
-needs no reconstruction. Command instances are created per execution, which is what
-makes undo per-invocation rather than per-command-type.
+**Undo is a compensating transaction, not a replay.** A command does not know how to
+reverse itself and is never asked to. Every event carries both sides of its change, so
+inverting one needs nothing but the event; undoing a line appends its events inverted
+and reversed, marked as compensating it. Redo compensates the compensation, so it is
+the same mechanism seen from the other side rather than a second one.
 
 **The parser is combinators, not tables.** The generated LALR parser left about a third
 of the grammar unimplemented, reported every error at column zero when wrapped for
 backtracking, and required an external tool and an embedded binary table. Combinators
 put the grammar in source, in the same order as the original BNF, and make error
 positions faithful. The old parser is retained only so the two can be compared.
+
+### Data storage
+
+There is no filesystem underneath this. There is a log, a blob store, and a fold.
+
+**The log** is an append-only list of transactions, each one command line's worth of
+change: a sequence number, a timestamp, the line as it was typed, the events, and
+optionally the sequence number of the transaction it compensates. Nothing is ever
+edited or removed. `reset` is the one exception and it empties the log rather than
+amending it.
+
+**Blobs** hold file content, addressed by the SHA-256 of the text. An event names
+hashes rather than carrying text, so keeping every version of a file costs one hash
+per write, and undoing a write is pointing at the old hash again. A command reaches
+the blob store through a capability that can put and get and cannot append, undo or
+read the history.
+
+**The projection** is what the log adds up to: the files, the variables and the
+location. It is not state that commands mutate — it is `fold apply empty events`, and
+a fresh store replaying the same log **must** arrive at exactly the same projection.
+That identity is what makes a browser reload a replay rather than a restore.
+
+A file in the projection is a record: an id, a map of attributes and an optional
+content hash. There is no directory type; a directory is a record whose `kind` is
+`folder`, and the root is implicit. Because the hierarchy is one attribute among many,
+a query over attributes is a location in the same sense a directory is
+([The filesystem](../filesystem.md)).
+
+Where the log lives is the host's business. The browser keeps it in IndexedDB for the
+page's origin, in a hand-written versioned shape so that a later build can read an
+earlier one's log; tests and the desktop shell keep it in memory. Nothing is sent
+anywhere.
+
+The log grows with use and nothing compacts it. Snapshotting the projection and
+keeping only the log after it is the obvious answer, and is deliberately deferred
+until a log exists that is big enough to notice.
 
 ### Degree of constraint
 
@@ -124,8 +170,9 @@ semantics, the undo contract, and the wire formats in
 [Host interfaces](host-interfaces.md).
 
 The following are deliberately left open: how a host renders values, which commands are
-registered, where the filesystem lives, how completion ranks its answers, and how a
-host schedules the evaluator with respect to its own input loop.
+registered, where the log is kept, how completion ranks its answers, whether a host
+offers a live refresh at all, and how a host schedules the evaluator with respect to
+its own input loop.
 
 ## Alternatives considered
 

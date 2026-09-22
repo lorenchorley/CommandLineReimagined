@@ -77,6 +77,10 @@ convenient place for symbols and because `<` already opens a tag:
 Combine them with `and`, `or` and `not`. `and` binds tighter than `or`, so
 `a or b and c` means `a or (b and c)`. `not` takes the whole comparison after it.
 
+The same predicate is also somewhere you can be. `find` runs one over the whole
+terminal, and `cd` on one moves into it, so every `ls` afterwards asks it again:
+[The filesystem](filesystem.md#views).
+
 The examples that follow are in a folder of stock items, made with `save`:
 
 ```
@@ -286,6 +290,9 @@ $ help | where $row.name like sort
 name  parameters               description
 sort  <column> [desc] [table]  Order the rows by a column
 ```
+
+- `find <predicate>` is a listing of everything in the terminal the predicate is true
+  of, wherever it lives, with the same columns `ls` gives.
 
 ## When it goes wrong
 

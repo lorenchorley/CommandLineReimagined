@@ -29,6 +29,10 @@ $ cat readme.txt
 This filesystem lives in the browser tab.
 ```
 
+A name may be several words joined by hyphens, as `save-view` is. The hyphen has to
+touch a word on both sides, so a space before it makes it a flag again: `ls -l` is a
+command and a flag, and `echo -5` is a command and a negative number.
+
 ### Function form
 
 The name, then arguments in parentheses separated by commas. Use `name: value` to pick
@@ -284,7 +288,9 @@ $ echo $a eq b
 'echo' takes a value for 'text', not an expression.
 ```
 
-What the operators mean is in [Tables and predicates](tables.md#predicates).
+What the operators mean is in [Tables and predicates](tables.md#predicates). An
+expression is also what `cd`, `find` and `save-view` take, which is how a question
+becomes somewhere you can be: see [The filesystem](filesystem.md#views).
 
 A parenthesis in operand position is a nested pipeline, not a grouping. It parses, and
 running one is not built yet:

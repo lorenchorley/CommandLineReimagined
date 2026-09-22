@@ -168,6 +168,12 @@ There is no disk. A file is a record: a set of typed attributes, and optionally 
 content. `name`, `kind` and `folder` are three attributes among them, and a folder is
 simply a record whose `kind` is `folder`. `attr` shows them all and writes new ones.
 
+Because a folder is only an attribute, being in one is a question — *which records say
+their folder is this one?* — and any other question is a place in the same sense.
+`cd $row.mood eq great` sets a view, `ls` answers it across directories, and
+`save-view` keeps one as a record of kind `view`. [The filesystem](filesystem.md) is
+the guide to the model.
+
 The whole filesystem is a projection folded from the log, so it lives wherever the log
 does. In the browser that is IndexedDB, for this origin, so a reload replays it and
 everything comes back; in the desktop shell and in tests it is memory, and lasts as

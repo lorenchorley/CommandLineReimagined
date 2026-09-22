@@ -18,3 +18,6 @@ naming the line.
 
 These files are embedded in the core and seeded into a fresh terminal under
 `/examples`, so the hosted build can run them as they are.
+
+`tables.clr` and `journal.clr` run today. `resilient.clr` and `inventory.clr` need
+error recovery and XML, which are not built yet.

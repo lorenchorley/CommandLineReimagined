@@ -86,6 +86,11 @@ Every document carries `"v"`, and a reader exists per version.
 Event types are `fileCreated`, `fileDeleted`, `attributesChanged`, `contentChanged`,
 `variableChanged` and `locationChanged`.
 
+A `locationChanged` event's two sides are each `{ "folder": ..., "view": ... }`, where
+`view` is null or the predicate's display text. It is stored as text and read back
+through the grammar's expression entry point, so it is the same text a saved view
+holds and the same text the location line shows.
+
 Values are written tagged with a kind `k`, one of `empty`, `none`, `text`, `number`,
 `boolean`, `file`, `list`, `object` or `component`. An implementation **must not**
 write a value as the nearest JSON type: an attribute whose text is `2026` has to come
@@ -148,11 +153,12 @@ The reference host-side object, shared by both web front ends.
 | `InitializeAsync()` | Replays the log, and seeds it when it was empty. **Must** be awaited before any execution. |
 | `ReplayedCount` | How many transactions came back. Zero on a first visit. |
 | `Commands` | Every command as `CommandSummary`, sorted by name, excluding `UnknownCommand`. |
-| `Location` | Where the session is: a folder, and from Phase 4 possibly a view. |
+| `Location` | Where the session is: a folder, and the predicate being looked through, if any. |
 | `IsRunning` | Whether a command is in flight. |
 | `OutputChanged` | `Action<int, IReadOnlyList<string>>`, raised with the execution id and the complete current output lines. |
 | `StoreChanged` | `Action<long>`, raised after every committed transaction with its sequence number. |
 | `ExecuteAsync(source, executionId, cancellation)` | Parses and runs one line; never throws. |
+| `RefreshAsync(source)` | Re-runs a read-only line for a live listing. Same response shape; commits nothing; refuses a line that names any command that could change something. |
 | `Cancel()` | Cancels the running command; returns whether there was one. |
 | `Complete(text)` | Completions for the last word. |
 | `Variables()` | Everything bound in scope. |
@@ -261,7 +267,9 @@ structure beside it:
 A host **must** keep `error` as the sentence it always was; `fault` is additional.
 
 `location` replaces `workingDirectory`, which is kept as an alias for one phase and
-then removed. A folder is `/` at the root, with no trailing separator.
+then removed. A folder is `/` at the root, with no trailing separator. `view` is null,
+or the predicate as it was written. The two are independent: a view does not replace
+the folder, because a new file still lands there.
 
 ### Other shapes
 
@@ -281,6 +289,7 @@ layer.
 | --- | --- |
 | `Parse(source)` | Parse response, as a JSON string. Synchronous. |
 | `Execute(source, executionId)` | Execution response, as a JSON string. Asynchronous. |
+| `Refresh(source)` | Execution response for a re-read, as a JSON string. Asynchronous. Commits nothing, and answers a fault for a line that is not read-only. |
 | `Cancel()` | `true` when a command was running. |
 | `Initialize()` | Opens the store and replays the log. Asynchronous, and **must** be awaited before the input is enabled. Answers with the store's status. |
 | `Commands()` | Command summaries, as a JSON string. |
@@ -299,17 +308,31 @@ While a command runs, the bridge calls into the page:
 
 ```js
 window.terminal = {
-  output(executionId, lines) { /* lines is the complete current output */ }
+  output(executionId, lines) { /* lines is the complete current output */ },
+  storeChanged(sequence)     { /* a transaction was committed */ }
 };
 ```
 
-The host **must** coalesce these calls; the reference implementation sends at most one
-every 40 milliseconds, because a download updates its counter on every few kilobytes
-and each call costs more than the redraw. A page **must** tolerate missing updates: the
-final response carries every line.
+The host **must** coalesce the output calls; the reference implementation sends at most
+one every 40 milliseconds, because a download updates its counter on every few
+kilobytes and each call costs more than the redraw. A page **must** tolerate missing
+updates: the final response carries every line.
 
 A page **should** ignore an update whose `executionId` is not the command it is
 currently showing.
+
+### Live listings
+
+`storeChanged` is raised after every committed transaction, and is how a page knows a
+listing on screen has gone stale. It is raised from inside the commit, which is inside
+the call the page is still awaiting, so:
+
+- The host **must not** require the page to answer synchronously, and **must not** fail
+  an execution because the call into the page failed.
+- A page **must** defer its refresh until nothing is running; `Refresh` during an
+  execution is refused like any other concurrent call.
+- A missed `storeChanged` **must** cost nothing worse than a stale table until the
+  next one.
 
 ## ASP.NET host
 

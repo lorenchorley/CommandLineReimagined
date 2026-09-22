@@ -101,7 +101,7 @@ value, absent or not, is false. `and` and `or` **must** short-circuit.
 
 | Type | Purpose |
 | --- | --- |
-| `CommandSpec` | `Name`, `Description`, `Keywords`, `Parameters`, `Meta`. |
+| `CommandSpec` | `Name`, `Description`, `Keywords`, `Parameters`, `Meta`, `ReadOnly`. |
 | `Parameter` | `Name`, `Description`, `Optional`, `Flag`, `Default`, `AcceptsPipe`, `Kind`. |
 | `ParamKind` | `Single`, `Predicate` (Phase 3), `Assignments`. |
 | `Invocation` | `Spec`, `Args`, `Assignments`, `Input`, `Output`, `Scope`, `Projection`, `Location`, `Blobs`, `Cancel`. |
@@ -119,6 +119,11 @@ per-command undo state for a second invocation to replay.
 `Meta` marks a command as being about the log rather than about the world. `undo`,
 `redo`, `history` and `exit` are meta; they run outside the transaction and receive a
 `StoreAccess` capability that no other command can reach.
+
+`ReadOnly` marks a command that can only ever read, and is what a refresh is allowed to
+re-run (see [Refreshing](#refreshing)). It **must** be declared rather than inferred: a
+command that writes under some arguments and not others — `attr` is the one — **must
+not** be marked.
 
 ## Resolving a command
 
@@ -289,6 +294,42 @@ everything visible with the innermost binding winning.
 
 The terminal uses one global scope per session. Nested scopes are supported by the
 model and not yet created by any host.
+
+## Location
+
+```
+Location = { Folder: string; View: Expr option }
+```
+
+`Folder` is the absolute path of the current directory, `/` for the root. `View` is a
+predicate, and when it is set the session is *in* that query.
+
+The two are independent, and an implementation **must** keep them so:
+
+- A view **must not** change `Folder`. A record created while a view is set **must**
+  be created in `Folder`.
+- `ls` with a view set and no path written **must** list every record in the store the
+  view matches, across folders. With a path written it **must** list that folder and
+  leave the view set.
+- `pwd` **must** answer `Query` when a view is set and `Text` of `Folder` otherwise.
+- `up` **must** clear the view when one is set, and move to the parent otherwise, so
+  two `up`s leave a view over a subfolder in the order they were entered.
+- Both changes travel as `LocationChanged`, so undo restores the whole location.
+
+A view's predicate is evaluated once per candidate record, in a child scope with `$row`
+bound to a row of the same shape `ls` produces — so `$row.kind`, `$row.folder`, `$row.size`
+and any attribute the record carries all mean in a view what they mean after `ls |`.
+
+## Refreshing
+
+An implementation **may** offer a way to re-run a line without committing it, so a host
+can keep a listing on screen up to date as the store changes. Where it does:
+
+- Every stage of the line **must** name a registered command whose spec is `ReadOnly`.
+  A line that does not **must** be refused with a fault of kind `Invalid`, *before* any
+  of it runs. An unregistered name is not read-only.
+- The run **must** commit nothing, whatever events it gathers, and **must** leave the
+  history and the undo chain untouched.
 
 ## The store
 

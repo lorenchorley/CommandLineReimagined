@@ -23,12 +23,12 @@ test methods; data-driven methods expand to more cases at run time.
 | --- | --- | --- |
 | Lexical rules: identifiers, accents, flags, string forms, variables | `Parser.Tests/LexicalTests` | 15 |
 | Bare words, in arguments and in tag attributes; assignments; negative numbers | `Parser.Tests/BareWordTests` | 18 |
-| The three command forms, arguments, pipes | `Parser.Tests/CommandFormTests` | 19 |
+| The three command forms, arguments, pipes, hyphenated command names | `Parser.Tests/CommandFormTests` | 26 |
 | Object and component tags, nesting, closing forms, variable tags | `Parser.Tests/ObjectInstanceTests` | 17 |
 | Productions the original grammar never implemented | `Parser.Tests/CompletedGrammarTests` | 17 |
 | Error positions and expected symbols | `Parser.Tests/SyntaxErrorTests` | 5 |
 | Round-trip serialisation | `Parser.Tests/SerialisationTests` | 7 |
-| Word operators, precedence, member access, reserved words, nested pipelines | `Parser.Tests/ExpressionTests` | 19 |
+| Word operators, precedence, member access, reserved words, nested pipelines, the expression entry point | `Parser.Tests/ExpressionTests` | 21 |
 | Agreement with the retained GOLD parser | `Parser.Tests/ParserEquivalenceTests` | 4 |
 | The two string forms of every value, and number formatting | `Core.Tests/ValueTests` | 16 |
 | The Table value: coercion, columns, types, gaps, rows, display | `Core.Tests/TableTests` | 23 |
@@ -42,13 +42,14 @@ test methods; data-driven methods expand to more cases at run time.
 | Asynchronous commands, live output, cancellation | `Core.Tests/AsyncCommandTests` | 10 |
 | `undo`, `redo` and `history` as commands | `Core.Tests/MetaCommandTests` | 16 |
 | The table functions, as whole command lines | `Core.Tests/TableCommandTests` | 29 |
-| The example programs, against their golden results, and `run` | `Core.Tests/ExampleProgramTests` | 11 |
-| Completion over the projection, the operators and the columns | `Core.Tests/CompletionTests` | 19 |
+| Views: `cd` on a predicate, `ls` across folders, `up`, `find`, `save-view`, refreshing | `Core.Tests/ViewTests` | 38 |
+| The example programs, against their golden results, and `run` | `Core.Tests/ExampleProgramTests` | 14 |
+| Completion over the projection, the operators, the columns and the places | `Core.Tests/CompletionTests` | 22 |
 | The phase's acceptance list, from a fresh session | `Core.Tests/AcceptanceTests` | 10 |
 | Replaying a log, seeding once, and `reset` | `Core.Tests/PersistenceTests` | 13 |
-| The stored shape of a transaction, every event and value case, versioning | `Web.Core.Tests/LogFormatTests` | 21 |
+| The stored shape of a transaction, every event and value case, versioning | `Web.Core.Tests/LogFormatTests` | 22 |
 | The browser's IndexedDB module, including a browser without it | `tools/store-check.mjs` | 20 |
-| DTO shapes including tables, streaming, cancellation, completion, tokens | `Web.Core.Tests/TerminalSessionTests` | 38 |
+| DTO shapes including tables, views, refreshing, streaming, cancellation, completion, tokens | `Web.Core.Tests/TerminalSessionTests` | 43 |
 | Path and naming helpers | `Terminal.Tests/ValidCommandTests` | 2 |
 | The published page, in a browser at phone size | `tools/browser-check.mjs` | 1 session |
 
@@ -56,11 +57,11 @@ Cases actually run, which is what the suite reports:
 
 | Project | Cases |
 | --- | --- |
-| `Parser.Tests` | 281 |
-| `Core.Tests` | 369 |
-| `Web.Core.Tests` | 59 |
+| `Parser.Tests` | 293 |
+| `Core.Tests` | 413 |
+| `Web.Core.Tests` | 65 |
 | `Terminal.Tests` | 32 |
-| Total | 741 |
+| Total | 803 |
 
 Run them with:
 
@@ -84,6 +85,8 @@ here, asserting on the projection rather than on a temporary directory.
 - [ ] The thirteen reserved words are rejected as bare words everywhere, exactly, with
       a message saying how to write one as text.
 - [ ] `-flag` is a flag and `--flag` is a syntax error.
+- [ ] A command's name may join identifiers with hyphens, and only where the hyphen is
+      adjacent on both sides, so `ls -l` and `echo -5` are unchanged.
 - [ ] The empty program is decided before the command list, so error positions are
       faithful.
 - [ ] Errors carry a zero-based line and offset, and a mismatched closing tag is
@@ -127,6 +130,14 @@ here, asserting on the projection rather than on a temporary directory.
 - [ ] `sort` is stable in both directions.
 - [ ] `run` commits one transaction per line, skips blank and commented lines while
       counting them, and names the script and the line in a fault.
+- [ ] `cd` on an argument that used an operator sets the view and leaves the folder
+      alone; on a plain name it enters a folder, or the view a `view` record holds.
+- [ ] `ls` in a view lists across folders, and its columns are the matching records'
+      attributes rather than the whole store's.
+- [ ] `up` clears the view before it moves, and undo restores the whole location.
+- [ ] A record created while a view is set is created in the folder.
+- [ ] A refresh is refused, before running, unless every stage names a read-only
+      command, and commits nothing when it does run.
 
 **Terminal**
 
@@ -135,6 +146,8 @@ here, asserting on the projection rather than on a temporary directory.
 - [ ] Output changes are raised with the complete line set and an execution id.
 - [ ] Completion follows the context table, offsets included.
 - [ ] Wire formats match [Host interfaces](host-interfaces.md#wire-formats).
+- [ ] A stored location carries its view, so a replay comes back into the query it was
+      in.
 
 ## Known deviations
 
@@ -149,9 +162,9 @@ case.
 | The retained GOLD parser reports column 12 where the combinator parser reports 11 on one truncated input. | Documented in `ParserEquivalenceTests`. The combinator position is correct. |
 | `pwd` at the filesystem root produces a result whose display name is empty. | Cosmetic. The path is still correct in the response and in the prompt. |
 | A pipeline in parentheses parses as an operand and evaluates to `A pipeline in parentheses is not a value yet`. | Intended for now. An operand is where it belongs, and what running one means is Phase 5's question. |
-| A `Query` value has no stored shape, so a log cannot carry one. | Intended for now. Nothing can produce one outside a predicate, which is consumed where it is written. Views need it, and will add it. |
 | Suggestion and completion chips are 26 pixels tall, below the usual 44 pixel touch target. | Known. Worth raising; the input, the run button and a table's cells already meet it. |
-| `Scope` supports nesting, but no host creates a child scope. | Intended. The model is ahead of the shell. |
+| `Scope` supports nesting, but no host creates a child scope outside a predicate. | Intended. The model is ahead of the shell. |
+| `attr` is not marked read-only, so a live listing cannot be an `attr`. | Intended. The same command reads with no assignments and writes with them, and a refresh is decided by name before it runs. |
 | Messages are English only and the client is published with invariant globalisation. | Intended for now; see [Design doc](design-doc.md#internationalisation). |
 
 ## Changing this specification
