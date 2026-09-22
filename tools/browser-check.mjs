@@ -156,6 +156,23 @@ const PHASE_5 = [
 ];
 
 /**
+ * Phase 6: XML and CSV are real files.
+ *
+ * Run from a fresh store. The example program first: its last line is the bolts row,
+ * read back out of the XML file it wrote. Then the CSV it exported, as the file it is,
+ * and a document that is not XML, which has to fail as a line rather than as a page.
+ */
+const PHASE_6 = [
+  { line: 'run examples/inventory.clr',
+    expect: ['> cat reorder.csv', 'sku,qty', 'C3,0', '<row sku=A1 name=bolts qty=120 min=50/>'] },
+  { line: 'from-csv reorder.csv', expect: ['sku', 'qty', 'C3', 'B2'], absent: ['A1'] },
+  { line: 'from-xml items.xml | where $row.qty lt $row.min | count', expect: ['2'] },
+  { line: 'echo "not xml" | write broken.xml', expect: ['broken.xml'] },
+  { line: 'from-xml broken.xml', fault: 'invalid', expect: ['Not well-formed XML : /stock/broken.xml line 1'] },
+  { line: 'cd /', expect: ['/'] },
+];
+
+/**
  * Phase 2: what a reload is for. Run, reload the page, and check what came back.
  *
  * This cannot be a unit test. Replaying a log is covered in `Core.Tests`; what is only
@@ -550,6 +567,27 @@ async function main() {
       note('`try` and `else` are not coloured as keywords in the input');
     }
     await page.fill('#cmd', '');
+
+    // ---- Phase 6: XML and CSV as real files ---------------------------------
+
+    await submit(page, 'reset');
+    await runScript(page, PHASE_6, note);
+    console.log(`Ran ${PHASE_6.length} more for Phase 6.`);
+
+    // A listing written out as XML reads back as as many rows as it had. Counted
+    // rather than pinned, so the check says what it means whatever the program left.
+    // The result is the entry's tail; the rest of the entry is the line echoed back.
+    const answer = async line => {
+      await submit(page, line);
+      return (await page.locator('.entry').last().locator('.tail').innerText()).trim();
+    };
+    const counted = await answer('ls | count');
+    await submit(page, 'ls | to-xml listing.xml');
+    const readBack = await answer('from-xml listing.xml | count');
+
+    if (!/^\d+$/.test(counted) || readBack !== counted) {
+      note(`\`ls\` counted ${JSON.stringify(counted)} rows and listing.xml read back ${JSON.stringify(readBack)}`);
+    }
 
     // ---- Phase 2: the log survives a reload ---------------------------------
 

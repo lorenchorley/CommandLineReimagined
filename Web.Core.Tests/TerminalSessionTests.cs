@@ -527,6 +527,43 @@ public class TerminalSessionTests
         Assert.AreEqual("File does not exist : /nowhere.txt", item.Text);
     }
 
+    /// <summary>
+    /// A document read back is a table the page can draw, with the column types the
+    /// file's contents earned: every quantity is a number, so the column is one.
+    /// </summary>
+    [TestMethod]
+    public async Task ADocumentReadBackIsATableWithTypedColumns()
+    {
+        await _session.ExecuteAsync("<items><item sku=A1 qty=120/><item sku=B2 qty=12/></items> | to-xml items.xml");
+        await _session.ExecuteAsync("from-xml items.xml | to-csv items.csv");
+
+        foreach (var line in new[] { "from-xml items.xml | table", "from-csv items.csv" })
+        {
+            var response = await _session.ExecuteAsync(line);
+
+            Assert.IsNull(response.Error, line);
+            var table = response.Result!.Single();
+            Assert.AreEqual("table", table.Kind, line);
+            CollectionAssert.AreEqual(
+                new[] { new ResultColumn("sku", "text"), new ResultColumn("qty", "number") },
+                table.Columns!.ToArray(),
+                line);
+            Assert.AreEqual("120", table.Rows![0][1].Text, line);
+        }
+    }
+
+    /// <summary>A writer answers the file it wrote, the same as <c>write</c> does.</summary>
+    [TestMethod]
+    public async Task AWriterAnswersTheFileItWrote()
+    {
+        var response = await _session.ExecuteAsync("ls | to-csv listing.csv");
+
+        Assert.IsNull(response.Error);
+        var item = response.Result!.Single();
+        Assert.AreEqual("file", item.Kind);
+        Assert.AreEqual("/listing.csv", item.Path);
+    }
+
     // ---- completion -------------------------------------------------------------
 
     [TestMethod]
