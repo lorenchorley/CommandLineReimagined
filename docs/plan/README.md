@@ -16,6 +16,7 @@ this plan does not reopen those decisions, it executes them.
 | [phase-6-xml.md](phase-6-xml.md) | `from-xml`, `to-xml`, `from-csv`, `to-csv` over real files. |
 | [phase-7-consolidation.md](phase-7-consolidation.md) | Specification rewrite, user documentation, conformance, browser check in CI. |
 | [examples.md](examples.md) | Four one-screen programs, one per pillar, with golden results. The proof that the whole works as imagined. |
+| [scene-editor-direction.md](scene-editor-direction.md) | Not a phase. A proposed direction, pending [0023](../decisions/0023-scene-editor-direction.md): the ECS as a scene the command line edits, rendered on a canvas beside a DOM terminal. |
 
 ## What is being built, in one paragraph
 

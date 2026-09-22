@@ -32,6 +32,10 @@ The [implementation plan](plan/README.md) is the work in progress: an F# core wi
 failure as a value, an event-sourced store, an attribute filesystem, tables and
 queries. It is written so that an agent with only this repository can execute it.
 
+A [proposed design direction](plan/scene-editor-direction.md) records where the entity
+component system could go next: a scene the command line builds and edits, rendered on
+a canvas beside the terminal.
+
 The [specification](spec/README.md) defines the language and the runtime normatively:
 grammar, semantic tree, execution model, command contracts and the host interfaces.
 The user documentation describes what the system does; the specification says what any
