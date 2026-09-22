@@ -176,7 +176,7 @@ question, and asking a question leaves nothing to undo.
 | --- | --- | --- |
 | `where` | a predicate | the rows it is true for |
 | `select` | one or more column names | those columns, in that order |
-| `sort` | a column, and `desc` to reverse it | the rows in order |
+| `sort` | a column, and `desc` to reverse it or `asc`, the default, to say so | the rows in order |
 | `take`, `skip` | a count | the first rows, or the rest |
 | `first`, `last` | — | one row as an object, or nothing |
 | `count` | — | how many rows, as a number |
@@ -412,6 +412,7 @@ sort  <column> [desc] [table]  Order the rows by a column
 | `'count' needs a table, not text.` | Something that is not a table, and cannot be read as one, reached a table function. |
 | `'select' has no column named 'nowhere'.` | A column name that is not in the table. `columns` lists what is. |
 | `'select' needs at least one column.` | `select` with nothing to select. The pipe is the table, not the column list. |
+| `'sort' takes 'desc' or 'asc' for 'desc', not 'up'.` | A word after the column that is neither direction. |
 | `<items> is not a table: child 2 is <other> where the first is <item>.` | A tag whose children disagree about their type, or one that has children of its own. |
 | `Column 5: 'eq' is an operator; write "eq" to pass it as text` | A reserved word in argument position. The column is where the word starts. |
 | `'echo' takes a value for 'text', not an expression.` | A comparison was written for a command that does not take a predicate. |

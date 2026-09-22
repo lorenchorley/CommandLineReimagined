@@ -80,6 +80,9 @@ $ echo "eq"
 eq
 ```
 
+The rule holds inside a tag as well: `<t a=eq/>` gets the same answer, with column 5,
+and `<t a="eq"/>` is the way to write it.
+
 The match is exact, so `equals`, `eq.txt` and `Eq` are ordinary words. N is the column
 the word starts in, counted from zero.
 
@@ -184,6 +187,24 @@ $ progress steps=20
 To bind a declared parameter by name, use a flag, `progress -steps 20`, or the function
 form, `progress(steps: 20)`.
 
+### `'<command>' takes '<on>' or '<off>' for '<parameter>', not '<word>'.`
+
+A switch given a word it does not take. A switch is on for its own name and off for the
+word the command offers for the other way; anything else is refused rather than read as
+on.
+
+```
+$ ls | sort name up
+'sort' takes 'desc' or 'asc' for 'desc', not 'up'.
+```
+
+A switch with no word for off says so in a shorter form:
+
+```
+$ ls | to-xml l.xml -declaration no
+'to-xml' takes '-declaration' on its own, not 'no'.
+```
+
 ### `Unsupported argument value : <node>`
 
 The parser produced a value the binder does not know how to evaluate. Strings, words,
@@ -239,7 +260,7 @@ From `cd`, `find` and `save-view`. [The filesystem](filesystem.md#views) is the 
 | `'find' needs a predicate, such as $row.kind eq note.` | A plain word was written where a question belongs. `find monday` finds nothing by definition; `find $row.name eq monday` is the question. |
 | `'save-view' needs a predicate, such as $row.kind eq note.` | The same, for `save-view`. |
 | `A view needs a name.` | `save-view` was given an empty name, such as `""`. |
-| `'<path>' does not hold a predicate : <text>` | `cd` on a file of kind `view` whose content is not an expression any more. `cat` it to see what is in there, or `rm` it. |
+| `'<path>' does not hold a predicate : <text>` | `cd` on a file of kind `view` whose content is not a predicate: text that does not parse, or a plain word, as in `'/weekend' does not hold a predicate : monday`. `cat` it to see what is in there, or `rm` it. |
 
 ## Script errors
 
@@ -257,12 +278,13 @@ resolved against the current directory.
 
 | Message | Meaning |
 | --- | --- |
-| `Unknown command : <name>` | No command by that name. Run `help`. |
+| `Unknown command : <name>` | No command by that name. Run `help`. Typing `UnknownCommand`, the name of the command that reports this, gets `Unknown command : UnknownCommand` like any other unknown name. |
 | `Directory does not exist : <path>` | `cd`, `ls` or `write` could not find it. |
 | `File does not exist : <path>` | `cat`, `cp`, `attr`, `run` or a reader could not find it. |
 | `That is a directory, not a file : <path>` | `cat`, `write`, `run`, `download` or a reader was given a directory. |
 | `Target directory already exists : <path>` | `mkdir` will not overwrite, and a file of that name counts. |
-| `Target file already exists : <path>` | `cp`, `save` or `save-view` will not overwrite, and `attr x name=y` will not rename onto a name already taken. Use `write` or `rm` first. |
+| `Target file already exists : <path>` | `cp`, `save` or `save-view` will not overwrite, and `attr x name=y` will not rename onto a sibling's name. Use `write` or `rm` first. |
+| `'cp' copies files, and <path> is a directory.` | `cp` copies one record, and a directory's record without what is in it would not be a copy. |
 | `Target directory does not exist : <path>` | `cp` or `download` has nowhere to put it. |
 | `Nothing exists at : <path>` | `rm` found neither a file nor a directory. |
 | `Directory is not empty : <path>` | `rm` only deletes empty directories. |
@@ -270,14 +292,19 @@ resolved against the current directory.
 | `'<name>' is not a valid variable name.` | Letters, digits and underscore only. |
 | `'set' needs a value for '<name>'.` | `set` was given a value that turned out to be nothing, such as `set x (ls \| where $row.kind eq view \| first)` with no views. An empty string is a value and is accepted. |
 | `'steps' must be at least 1.` | `progress` was given zero or a negative count. |
-| `'steps' must be a whole number, not '<value>'.` | `progress` was given something that is not a whole number, such as a bare `-steps` flag, which reads `true`, or quoted text such as `"3"`. The message says `steps` even when it is the `delay` that is wrong. |
-| `'<name>' is set by the terminal and cannot be written.` | `attr` was asked to write `folder`, `created` or `modified`. |
+| `'<parameter>' must be a whole number, not '<value>'.` | `progress` was given a `steps` or `delay` that is not a whole number, such as `1.5`, a bare `-steps` flag, which reads `true`, or quoted text such as `"3"`. The message names the one that is wrong. |
+| `'delay' must be zero or more, not '<value>'.` | `progress` was given a negative delay, such as `-5`. |
+| `'<name>' is set by the terminal and cannot be written.` | `attr` or `save` was asked to write `folder`, `created` or `modified`. |
+| `'size' is worked out from the content and cannot be written.` | `attr` or `save` was asked to write `size`, which is not stored: it is the content's length. |
+| `A directory cannot change its kind : <path>` | `attr` was asked to give a directory another `kind`. Whatever is in it names it as its folder. |
+| `A file with content cannot become a directory : <path>` | `attr x kind=folder` on a file with content. A record with no content, such as a saved tag, may become one. |
+| `'<name>' is not a valid file name: '/' separates directories.` | `save` or `attr name=` was given a name with a `/` in it, such as `a/b`. A name is one segment of a path. |
+| `'<name>' is not a valid file name: it already names a directory.` | A name of `.` or `..`, which already mean somewhere else. |
 | `A saved tag needs a 'name' attribute.` | `save` was given a tag with no name, or an empty one, for the file. |
 | `'save' needs a tag, not <kind>.` | `save` was given text, a number or a component. |
-| `A file must have a name.` | A file or directory with an empty name, such as `write "" hello` or `mkdir ""`. |
+| `A file must have a name.` | A file or directory with an empty name, such as `write "" hello`, `mkdir ""` or `attr x name=""`. |
 | `Not a valid URL : <text>` | `download` needs an absolute URL. |
 | `The server did not report a content length.` | `download` cannot show progress without one. |
-| `The transfer ended before all bytes arrived.` | The connection closed early. |
 | `Download failed : <reason>` | The request itself failed. In the browser this is usually a host that does not allow cross-origin reads; see [Troubleshooting](troubleshooting.md). |
 
 ## Evaluation errors
@@ -305,7 +332,7 @@ Not errors from the language, but from the session.
 | `Redone: <line>` | Redo put that line back. It names the original line, not the undo. |
 | `Reset. <n> files restored.` | `reset` emptied the log and seeded it again; in the browser that is 9 files. A host that seeds nothing gets `Reset. The filesystem is empty.` |
 | `The session has not been initialised. Call Initialize first.` | A host executed a line before replaying the log. A defect in the host, not in what you typed. |
-| `A live refresh only re-reads : <line>` | A live listing was asked to re-run a line that could change something. You will not see this on the page: it keeps only lines starting with `ls` or `find` live, and when a refresh is refused it leaves the table as it was. |
+| `A live refresh only re-reads : <line>` | A live listing was asked to re-run a line that could change something, including one that moves you, such as `up`. You will not see this on the page: it keeps only lines starting with `ls` or `find` live, and when a refresh is refused it leaves the table as it was. |
 
 ## Page messages
 

@@ -81,7 +81,7 @@ Five attributes are the runtime's. You can read all of them; you may write two.
 | `created` | the terminal | When the record was made. |
 | `modified` | the terminal | When its content or attributes last changed. |
 
-Writing one of the last three is refused:
+Writing one of the last three is refused, by `attr` and by `save` alike:
 
 ```
 $ attr /readme.txt folder=/elsewhere
@@ -89,8 +89,42 @@ $ attr /readme.txt folder=/elsewhere
 ```
 
 `size` is not an attribute at all. It is the length of the content, worked out when a
-listing is built, so it can never disagree with what `cat` shows. Moving a file is
-therefore not a copy and a delete: it is one attribute changing.
+listing is built, so it can never disagree with what `cat` shows, and writing it is
+refused too:
+
+```
+$ attr /readme.txt size=3
+'size' is worked out from the content and cannot be written.
+```
+
+A name is one segment of a path, so it cannot be empty, contain a `/`, or be `.` or
+`..`. A new name that is already taken in the same folder is refused with
+`Target file already exists`. A `kind` can change, within one rule: a directory stays a
+directory, and a file with content cannot become one.
+
+Where a record lives is its `folder` attribute, not a position in a tree, so renaming a
+directory rewrites the `folder` of everything under it — and moves you with it, if you
+are inside. It is all one line, so one `undo` puts it back:
+
+```
+$ attr /journal name=diary
+diary
+
+$ pwd
+/diary
+
+$ ls | select name folder
+name      folder
+monday    /diary
+saturday  /diary
+tuesday   /diary
+
+$ undo
+Undone: attr /journal name=diary
+
+$ pwd
+/journal
+```
 
 ## Directories are records too
 

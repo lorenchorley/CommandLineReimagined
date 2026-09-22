@@ -201,6 +201,9 @@ $ echo ""quoted twice""
 quoted twice
 ```
 
+An empty string is `""`. Four quotes, `""""`, is the empty string too, not the start of
+a string quoted twice.
+
 The number of quotes is kept in the tree, so re-serialising your command gives back
 exactly what you typed.
 
@@ -225,6 +228,15 @@ Directory does not exist : true
 
 That message is what a switch looks like when the command wanted a value. Flags bind
 `true` only because some parameters are genuinely switches.
+
+A parameter that is a switch can also be given a word: its own name turns it on, and a
+word the command offers for the other way turns it off. `sort name desc` sorts downwards
+and `sort name asc` upwards; any other word is refused rather than read as on:
+
+```
+$ ls | sort name up
+'sort' takes 'desc' or 'asc' for 'desc', not 'up'.
+```
 
 ### Named arguments in function form
 
