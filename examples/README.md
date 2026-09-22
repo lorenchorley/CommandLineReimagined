@@ -19,5 +19,6 @@ naming the line.
 These files are embedded in the core and seeded into a fresh terminal under
 `/examples`, so the hosted build can run them as they are.
 
-`tables.clr`, `journal.clr` and `resilient.clr` run today. `inventory.clr` needs XML
-and CSV, which are not built yet.
+All four run today. `inventory.clr` is one line longer than it was first written:
+decision [0026](../docs/decisions/0026-inventory-sorts-its-reorder-list.md) added the
+`sort qty` its golden reorder file had always assumed.

@@ -180,6 +180,25 @@ From the table functions, and from reading a tag as a table.
 | `A <node> cannot be part of an expression.` | A tag as one side of a comparison. |
 | `A pipeline in parentheses only runs as part of a line : (...)` | A saved view whose text has a pipeline in parentheses in it, written by hand with `write` rather than kept by `save-view`. A line runs its nested pipelines before the predicate is built, and `save-view` keeps the value; a view file has no line around it to run one. |
 
+## Document errors
+
+From `from-xml`, `to-xml`, `from-csv` and `to-csv`.
+[Reading and writing files](tables.md#reading-and-writing-files) is the guide. The
+readers also give the two answers `cat` gives: `File does not exist : <path>` and
+`That is a directory, not a file : <path>`.
+
+| Message | Meaning |
+| --- | --- |
+| `Not well-formed XML : <path> line <n>, position <m>` | The file is not XML, or declares a DTD, which is refused. The line and position are where the parser gave up; an empty file gives line 1, position 1. Kind `invalid`. |
+| `'to-xml' needs a tag, a table or a list of tags, not <kind>.` | Only something with elements in it can be a document. A list with an item that is not a tag says what the item is. Kind `binding`. |
+| `'<name>' is not a name XML allows.` | An element or attribute name XML cannot hold, usually a column from a CSV header with a space in it. `select` the columns you want, or rename them before writing. Kind `invalid`. |
+| `<path> line <n> has <m> fields where the header has <k>.` | A CSV record wider or narrower than the header. `n` is the line the record starts on, counting line breaks inside quoted fields. Kind `invalid`. |
+| `<path> line <n>: a quoted field is never closed.` | A quote opens a field and the file ends before one closes it. Kind `invalid`. |
+| `<path> line <n>: a closing quote is followed by more text.` | A quoted field is followed by something other than the delimiter or a line break, such as `"a"b`. Kind `invalid`. |
+| `<path> has two columns named '<name>'.` | The header names a column twice, ignoring case, which would make `$row.<name>` mean whichever came first. Kind `invalid`. |
+| `<path> column <n> has no name.` | An empty header cell. Kind `invalid`. |
+| `'delimiter' must be one character, or 'tab', not '<text>'.` | `-delimiter` was given more than one character, a quote or a line break. Kind `invalid`. |
+
 ## View errors
 
 From `cd`, `find` and `save-view`. [The filesystem](filesystem.md#views) is the guide.

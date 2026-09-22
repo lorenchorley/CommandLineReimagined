@@ -319,9 +319,8 @@ $ undo
 Undone: set answer 42
 ```
 
-`cat examples/tables.clr` shows the program. `journal.clr` and `resilient.clr` run
-too, and are the subjects of examples 11 and 12. The fourth, `inventory.clr`, needs XML
-and CSV, which are not built yet.
+`cat examples/tables.clr` shows the program. `journal.clr`, `resilient.clr` and
+`inventory.clr` run too, and are the subjects of examples 11, 12 and 13.
 
 ## 11. A question is somewhere you can be
 
@@ -502,3 +501,87 @@ Undone: first (ls | where $row.kind eq view) ?? "no views yet" | set latest
 
 [Errors as values](language.md#errors-as-values) is the guide to all three, and
 `run examples/resilient.clr` is the same program in one go.
+
+## 13. Keep a table in a file
+
+A table does not have to stay on the screen. This is `examples/inventory.clr`, a line at
+a time, from a fresh terminal: stock levels written down as tags, kept as an XML file,
+questioned, and the answer exported as CSV.
+
+```
+$ mkdir stock
+stock
+
+$ cd stock
+stock
+```
+
+A tag whose children share a type is a table already. `to-xml` writes it out as a
+document, and the file is an ordinary one: it is in `ls`, `cat` reads it, and `undo`
+would take it away.
+
+```
+$ <items><item sku=A1 name=bolts qty=120 min=50/><item sku=B2 name=nuts qty=12 min=40/><item sku=C3 name=washers qty=0 min=20/></items> | to-xml items.xml
+items.xml
+
+$ from-xml items.xml | count
+3
+```
+
+`from-xml` reads the document back into the same tree, and a table function reads that
+as a table. Every `qty` and every `min` reads as a number, so they are number columns,
+and `lt` and `sort` compare them as numbers:
+
+```
+$ from-xml items.xml | where $row.qty lt $row.min | sort qty | select sku name qty min
+sku  name     qty  min
+C3   washers  0    20
+B2   nuts     12   40
+```
+
+The same question, with two columns kept, is the reorder list. `to-csv` writes it with a
+header row, and `from-csv` reads it back as a table:
+
+```
+$ from-xml items.xml | where $row.qty lt $row.min | sort qty | select sku qty | to-csv reorder.csv
+reorder.csv
+
+$ from-csv reorder.csv | count
+2
+
+$ cat reorder.csv
+sku,qty
+C3,0
+B2,12
+
+```
+
+The blank line after it is real: every line of a CSV ends in a line break, the last one
+too. And the document still answers any other question:
+
+```
+$ from-xml items.xml | sort qty desc | first
+<row sku=A1 name=bolts qty=120 min=50/>
+
+$ ls
+name         kind  folder  size  modified
+items.xml    xml   /stock  168   2026-09-22T20:29:03.0152650+00:00
+reorder.csv  csv   /stock  19    2026-09-22T20:29:03.0832217+00:00
+```
+
+Both files have the kind of what is in them. Writing one is a line like any other, so
+`undo` takes the export back and `redo` puts it there again:
+
+```
+$ undo
+Undone: from-xml items.xml | where $row.qty lt $row.min | sort qty | select sku qty | to-csv reorder.csv
+
+$ cat reorder.csv
+File does not exist : /stock/reorder.csv
+
+$ redo
+Redone: from-xml items.xml | where $row.qty lt $row.min | sort qty | select sku qty | to-csv reorder.csv
+```
+
+[Reading and writing files](tables.md#reading-and-writing-files) is the guide, and
+`run examples/inventory.clr` is the same program in one go.

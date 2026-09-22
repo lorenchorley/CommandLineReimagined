@@ -25,6 +25,8 @@ drive. `..` and `.` work.
 | [`find`](#find) | List every record a predicate is true of | no |
 | [`exit`](#exit) | Ask the host to close | no |
 | [`first`](#first) | The first row of a table | no |
+| [`from-csv`](#from-csv) | Read a CSV file as a table | no |
+| [`from-xml`](#from-xml) | Read an XML file as a tag, or a table | no |
 | [`group`](#group) | Gather the rows that share a value | no |
 | [`help`](#help) | The commands, as a table | no |
 | [`history`](#history) | The lines that changed something | no |
@@ -47,6 +49,8 @@ drive. `..` and `.` work.
 | [`sort`](#sort) | Order a table's rows by a column | no |
 | [`table`](#table) | Read a tag as a table | no |
 | [`take`](#take) | Keep the first rows | no |
+| [`to-csv`](#to-csv) | Write a table to a file as CSV | yes |
+| [`to-xml`](#to-xml) | Write a tag, a table or a list of tags as XML | yes |
 | [`undo`](#undo) | Reverse the last line that changed something | yes |
 | [`up`](#up) | Leave the view, or move up one directory | yes, where you are |
 | [`vars`](#vars) | List the variables in scope | no |
@@ -57,6 +61,8 @@ The thirteen table functions — `columns`, `count`, `distinct`, `first`, `group
 `last`, `rows`, `select`, `skip`, `sort`, `table`, `take` and `where` — all take their
 table from the pipe, coerce a table-shaped tag, and change nothing.
 [Tables and predicates](tables.md) is the guide to them; this is the reference.
+The four document commands — `from-csv`, `from-xml`, `to-csv` and `to-xml` — are covered
+in [Reading and writing files](tables.md#reading-and-writing-files).
 
 The column says whether the command produces events. A line made only of commands that
 change nothing leaves no trace at all, which is why `undo` after `ls` reverses the line
@@ -454,6 +460,88 @@ no views yet
 The table can be written as a [pipeline in parentheses](language.md#pipelines-in-parentheses),
 with a space before it: `first (ls)`. Written against the name, `first(ls)` is the
 function form, and hands `first` the word `ls`.
+
+---
+
+## from-csv
+
+Reads a CSV file with a header row as a table.
+
+**Parameters**
+
+| Name | Notes |
+| --- | --- |
+| `path` | piped. The file to read. |
+| `delimiter` | optional. The character between fields: `,` by default, `tab` for a tab. |
+
+**Returns** a table. The header names the columns. A column is a number column when
+every cell in it reads as a number, and text otherwise. An empty field is a gap;
+`""` is empty text.
+
+```
+$ cat reorder.csv
+sku,qty
+C3,0
+B2,12
+
+$ from-csv reorder.csv | sort qty desc
+sku  qty
+B2   12
+C3   0
+```
+
+Quoted fields may hold the delimiter, doubled quotes and line breaks, as RFC 4180 has
+it. A blank line is skipped when the header has more than one column.
+
+**Errors**
+
+| Message | Cause |
+| --- | --- |
+| `File does not exist : <path>` | Nothing at that path. |
+| `That is a directory, not a file : <path>` | The path names a directory. |
+| `<path> line <n> has <m> fields where the header has <k>.` | A record is wider or narrower than the header. |
+| `<path> line <n>: a quoted field is never closed.` | A quote opens a field and nothing closes it. |
+| `<path> line <n>: a closing quote is followed by more text.` | Something other than a delimiter or a line break follows a quoted field. |
+| `<path> has two columns named '<name>'.` | Two header cells name the same column, ignoring case. |
+| `<path> column <n> has no name.` | An empty header cell. |
+| `'delimiter' must be one character, or 'tab', not '<text>'.` | The delimiter is longer than one character, or is a quote or a line break. |
+
+---
+
+## from-xml
+
+Reads an XML file into the tree the tag notation produces.
+
+**Parameters**
+
+| Name | Notes |
+| --- | --- |
+| `path` | piped. The file to read. |
+
+**Returns** the root element as a tag: its name is the type, its attributes are typed
+by the number-or-text rule a bare word gets, and its child elements are its children.
+A table-shaped document is a table wherever one is expected.
+
+```
+$ from-xml items.xml | count
+3
+$ from-xml items.xml | sort qty desc | first
+<row sku=A1 name=bolts qty=120 min=50/>
+$ from-xml memo.xml
+<memo to=ann text=Back at ten./>
+```
+
+An element's text is read as an attribute called `text`
+([decision 0025](decisions/0025-xml-text-content.md)). Comments and processing
+instructions are dropped; a document with a DTD is refused.
+
+**Errors**
+
+| Message | Cause |
+| --- | --- |
+| `File does not exist : <path>` | Nothing at that path. |
+| `That is a directory, not a file : <path>` | The path names a directory. |
+| `Not well-formed XML : <path> line <n>, position <m>` | The file is not XML, or has a DTD. The line and position are where the parser gave up. |
 
 ---
 
@@ -1179,6 +1267,89 @@ name
 documents
 examples
 ```
+
+---
+
+## to-csv
+
+Writes a table to a file as CSV, with a header row.
+
+**Parameters**
+
+| Name | Notes |
+| --- | --- |
+| `path` | The file to write. |
+| `value` | piped. The table, or anything that reads as one. |
+| `delimiter` | optional. The character between fields: `,` by default, `tab` for a tab. |
+
+**Returns** the file it wrote. A file it creates has kind `csv`.
+
+```
+$ from-xml items.xml | where $row.qty lt $row.min | sort qty | select sku qty | to-csv reorder.csv
+reorder.csv
+```
+
+Every line ends in a line break, including the last. A field is quoted only when it
+holds the delimiter, a quote or a line break, or is empty text. A gap is an empty field.
+Numbers are written with every digit they have, not rounded as a table displays them.
+
+**Undo** restores the previous contents, or deletes the file if it did not exist.
+
+**Errors**
+
+| Message | Cause |
+| --- | --- |
+| `'to-csv' needs a table, not <kind>.` | What was piped is not a table and cannot be read as one. |
+| `That is a directory, not a file : <path>` | The path names a directory. |
+| `Directory does not exist : <path>` | The parent directory is missing. |
+
+---
+
+## to-xml
+
+Writes a tag, a table or a list of tags to a file as XML.
+
+**Parameters**
+
+| Name | Notes |
+| --- | --- |
+| `path` | The file to write. |
+| `value` | piped. The tag, table or list to write. |
+| `root` | optional. The root element's name, instead of the tag's own, `table` or `list`. |
+| `row` | optional. The name of a table's row elements; `row` by default. |
+| `declaration` | optional. Write `-declaration` to begin with an XML declaration. |
+
+**Returns** the file it wrote. A file it creates has kind `xml`.
+
+```
+$ <items><item sku=A1 name=bolts qty=120 min=50/><item sku=B2 name=nuts qty=12 min=40/><item sku=C3 name=washers qty=0 min=20/></items> | to-xml items.xml
+items.xml
+$ from-xml items.xml | select sku qty | to-xml short.xml -root stock -row line -declaration
+short.xml
+$ cat short.xml
+<?xml version="1.0" encoding="UTF-8"?>
+<stock>
+  <line sku="A1" qty="120"/>
+  <line sku="B2" qty="12"/>
+  <line sku="C3" qty="0"/>
+</stock>
+```
+
+Pretty-printed with two spaces a level. A gap is an attribute that is not written, and
+an attribute called `text` is written as the element's content. `-declaration` is a
+switch: write it after the path, since a flag followed by a plain word takes the word as
+its value.
+
+**Undo** restores the previous contents, or deletes the file if it did not exist.
+
+**Errors**
+
+| Message | Cause |
+| --- | --- |
+| `'to-xml' needs a tag, a table or a list of tags, not <kind>.` | The value, or an item in a list, has no elements in it. |
+| `'<name>' is not a name XML allows.` | An element or attribute name XML cannot hold, such as a column with a space in it. |
+| `That is a directory, not a file : <path>` | The path names a directory. |
+| `Directory does not exist : <path>` | The parent directory is missing. |
 
 ---
 

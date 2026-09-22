@@ -418,6 +418,7 @@ grow to 44 pixels in Phase 1.
 | 0022 | A command's name may be several words joined by hyphens | 4 |
 | 0023 | Function form requires an adjacent parenthesis; a spaced parenthesis is a nested pipeline | 5 |
 | 0024 | Stop is not a failure a line can recover from | 5 |
-| 0025 | XML element text content is out of scope for the first XML release | 6 |
+| 0025 | XML element text content is out of scope for the first XML release; it is read as a `text` attribute | 6 |
+| 0026 | The inventory program sorts its reorder list before writing it | 6 |
 | 0020 | Scripts: one line per statement, `#` comments, `.clr`, `run` commits per line and stops at the first fault | 3 |
 | 0021 | One parameter may collect the remaining positional arguments | 3 |

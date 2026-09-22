@@ -274,6 +274,112 @@ $ <items><item sku=A1/><other sku=B2/></items> | count
 `table` is the explicit form, for seeing what a tag reads as. Everywhere else the
 coercion is implicit, so `where`, `count` and the rest take a tag directly.
 
+## Reading and writing files
+
+A table can live in a file, as XML or as CSV, and comes back out as the same value it
+went in as. Four commands do it: `to-xml` and `to-csv` write, `from-xml` and `from-csv`
+read. A document is an ordinary file in the terminal: it shows up in `ls`, `cat` reads
+it as text, and `undo` takes a write away like any other.
+
+```
+$ mkdir stock
+stock
+$ cd stock
+stock
+$ <items><item sku=A1 name=bolts qty=120 min=50/><item sku=B2 name=nuts qty=12 min=40/><item sku=C3 name=washers qty=0 min=20/></items> | to-xml items.xml
+items.xml
+$ cat items.xml
+<items>
+  <item sku="A1" name="bolts" qty="120" min="50"/>
+  <item sku="B2" name="nuts" qty="12" min="40"/>
+  <item sku="C3" name="washers" qty="0" min="20"/>
+</items>
+```
+
+`from-xml` reads a document into the same tree the tag notation makes, so a
+table-shaped document is a table wherever one is expected, exactly as a tag is.
+Attributes are typed by the rule a bare word in a tag gets: one that reads as a number
+is a number. That is what makes `qty` and `min` number columns, and `lt` and `sort`
+numeric on a file that only ever held characters:
+
+```
+$ from-xml items.xml | columns
+name  type
+sku   text
+name  text
+qty   number
+min   number
+```
+
+`to-csv` writes a table with a header row. `from-csv` reads one back, and a column is
+a number column only when every cell in it reads as a number:
+
+```
+$ from-xml items.xml | where $row.qty lt $row.min | sort qty | select sku qty | to-csv reorder.csv
+reorder.csv
+$ cat reorder.csv
+sku,qty
+C3,0
+B2,12
+
+$ from-csv reorder.csv | sort qty desc
+sku  qty
+B2   12
+C3   0
+```
+
+Every line of a CSV ends in a line break, the last one included. A field is quoted only
+when it has to be: when it holds the delimiter, a quote or a line break, or when it is
+empty text, since an empty field is a gap and `""` is text that happens to be empty. A
+gap is written as an empty field and reads back as a gap. `-delimiter` chooses another
+separator, for reading and for writing; `tab` names a tab.
+
+### What to-xml writes
+
+A tag is written as itself. A table is written as a root element called `table` with
+a `row` element per row; `-root` and `-row` name them instead. A list of tags is
+written under a root called `list`, each item keeping its own name. `-declaration`
+begins the file with an XML declaration:
+
+```
+$ from-xml items.xml | select sku qty | to-xml short.xml -root stock -row line -declaration
+short.xml
+$ cat short.xml
+<?xml version="1.0" encoding="UTF-8"?>
+<stock>
+  <line sku="A1" qty="120"/>
+  <line sku="B2" qty="12"/>
+  <line sku="C3" qty="0"/>
+</stock>
+```
+
+Both writers set the kind of a file they create to `xml` or `csv`, whatever it is
+called. Writing to a file that already exists replaces its content and keeps its kind,
+the same as `write`.
+
+### Text inside an element
+
+The tag notation has no way to write text inside an element, so an element's text is
+read as an attribute called `text`, and a `text` attribute is written back as the
+element's content ([decision 0025](decisions/0025-xml-text-content.md)):
+
+```
+$ write memo.xml "<memo to='ann'>Back at ten.</memo>"
+memo.xml
+$ from-xml memo.xml
+<memo to=ann text=Back at ten./>
+$ from-xml memo.xml | to-xml memo-copy.xml
+memo-copy.xml
+$ cat memo-copy.xml
+<memo to="ann">Back at ten.</memo>
+```
+
+That round trip is exact for elements with only attributes, only text, or both. It is
+not for *mixed* content, where text and child elements interleave: the text is
+gathered, trimmed, into one attribute and written back before the children. Comments
+and processing instructions are dropped, a prefixed name such as `x:item` is kept as
+written, and a document with a DTD is refused.
+
 ## The other tables
 
 `ls` is not the only command that answers one.
@@ -304,3 +410,7 @@ sort  <column> [desc] [table]  Order the rows by a column
 | `<items> is not a table: child 2 is <other> where the first is <item>.` | A tag whose children disagree about their type, or one that has children of its own. |
 | `'eq' is an operator; write "eq" to pass it as text` | A reserved word in argument position. |
 | `'echo' takes a value for 'text', not an expression.` | A comparison was written for a command that does not take a predicate. |
+| `Not well-formed XML : /stock/broken.xml line 1, position 16` | `from-xml` was given a file that is not XML. The line and position are where the parser gave up. |
+| `'to-xml' needs a tag, a table or a list of tags, not text.` | Only something with elements in it can be written as a document. |
+| `'first name' is not a name XML allows.` | A column name that XML cannot hold, often from a CSV header with a space in it. |
+| `/stock/r.csv line 3 has 1 fields where the header has 2.` | A CSV record of a different width from its header. A table has one width. |

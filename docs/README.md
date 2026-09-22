@@ -14,7 +14,7 @@ The terminal runs in a browser tab. The parser, the commands and the filesystem 
 | [Getting started](getting-started.md) | Open a terminal and run your first commands. |
 | [Worked examples](examples.md) | Follow complete sessions, keystroke by keystroke. |
 | [The command language](language.md) | Understand every syntax the parser accepts. |
-| [Tables and predicates](tables.md) | Question a listing: filter, sort, count, group. |
+| [Tables and predicates](tables.md) | Question a listing: filter, sort, count, group; keep a table in an XML or CSV file. |
 | [The filesystem](filesystem.md) | Files as attribute records, and queries as places. |
 | [Command reference](commands.md) | Look up one command's arguments and behaviour. |
 | [The web terminal](web-terminal.md) | Learn the screen: chips, completion, Stop, undo. |

@@ -45,13 +45,15 @@ test methods; data-driven methods expand to more cases at run time.
 | The table functions, as whole command lines | `Core.Tests/TableCommandTests` | 29 |
 | Views: `cd` on a predicate, `ls` across folders, `up`, `find`, `save-view`, refreshing | `Core.Tests/ViewTests` | 38 |
 | Recovery: `else`, `try`, `??`, nested pipelines, fault values and their members, `is-fault`, what a refresh refuses | `Core.Tests/RecoveryTests` | 32 |
-| The example programs, against their golden results, and `run` | `Core.Tests/ExampleProgramTests` | 18 |
+| XML documents: reading, text content, namespaces, refusals, writing, round trips, and the two commands | `Core.Tests/XmlTests` | 40 |
+| CSV files: RFC 4180 reading, column typing, gaps, faults naming the line, writing, round trips, and the two commands | `Core.Tests/CsvTests` | 33 |
+| The example programs, against their golden results, and `run` | `Core.Tests/ExampleProgramTests` | 22 |
 | Completion over the projection, the operators, the columns, the places and the keywords | `Core.Tests/CompletionTests` | 25 |
 | The phase's acceptance list, from a fresh session | `Core.Tests/AcceptanceTests` | 10 |
 | Replaying a log, seeding once, and `reset` | `Core.Tests/PersistenceTests` | 13 |
 | The stored shape of a transaction, every event and value case, versioning | `Web.Core.Tests/LogFormatTests` | 24 |
 | The browser's IndexedDB module, including a browser without it | `tools/store-check.mjs` | 20 |
-| DTO shapes including tables, views, refreshing, caught faults, streaming, cancellation, completion, tokens | `Web.Core.Tests/TerminalSessionTests` | 45 |
+| DTO shapes including tables, views, refreshing, caught faults, documents, streaming, cancellation, completion, tokens | `Web.Core.Tests/TerminalSessionTests` | 47 |
 | Path and naming helpers | `Terminal.Tests/ValidCommandTests` | 2 |
 | The published page, in a browser at phone size | `tools/browser-check.mjs` | 1 session |
 
@@ -60,10 +62,10 @@ Cases actually run, which is what the suite reports:
 | Project | Cases |
 | --- | --- |
 | `Parser.Tests` | 336 |
-| `Core.Tests` | 452 |
-| `Web.Core.Tests` | 69 |
+| `Core.Tests` | 529 |
+| `Web.Core.Tests` | 71 |
 | `Terminal.Tests` | 32 |
-| Total | 889 |
+| Total | 968 |
 
 Run them with:
 
@@ -140,6 +142,14 @@ here, asserting on the projection rather than on a temporary directory.
 - [ ] A record created while a view is set is created in the folder.
 - [ ] A refresh is refused, before running, unless every stage names a read-only
       command, and commits nothing when it does run.
+- [ ] `from-xml` reads an element's attributes by the number-or-text rule and its
+      text into an attribute `text`, refuses a DTD, and names the line and position of
+      a document that does not parse.
+- [ ] `from-csv` types a column as numbers only when every cell present is one, reads
+      an unquoted empty field as `None` and `""` as empty text, and names the line of
+      a record whose width differs from the header's.
+- [ ] `to-xml` and `to-csv` emit the events `write` would, set the kind of a file they
+      create, write numbers exactly, and end every line in `\n`.
 
 **Terminal**
 
@@ -167,6 +177,8 @@ case.
 | Suggestion and completion chips are 26 pixels tall, below the usual 44 pixel touch target. | Known. Worth raising; the input, the run button and a table's cells already meet it. |
 | `Scope` supports nesting, but no host creates a child scope outside a predicate. | Intended. The model is ahead of the shell. |
 | `attr` is not marked read-only, so a live listing cannot be an `attr`. | Intended. The same command reads with no assignments and writes with them, and a refresh is decided by name before it runs. |
+| XML element text is read as an attribute `text` and written back as content, so mixed content comes back with its text gathered before the children, trimmed; an XML attribute called `text` on an element with content is replaced by it; comments and processing instructions are dropped. | Intended for this release; see [decision 0025](../decisions/0025-xml-text-content.md). |
+| A document with a DTD is refused rather than read. | Intended. A file in the store is anyone's, and entity expansion is a way to stop a tab. |
 | Messages are English only and the client is published with invariant globalisation. | Intended for now; see [Design doc](design-doc.md#internationalisation). |
 
 ## Changing this specification

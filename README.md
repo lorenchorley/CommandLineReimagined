@@ -32,7 +32,8 @@ starting fresh
 A listing is a table, a predicate over it is a question, and a question is somewhere
 you can be: after the `cd`, `ls` answers the query rather than a directory. A failure
 is a value too: `else` recovers without leaving the line, and `try` keeps a fault for a
-later stage to read.
+later stage to read. And a table can be kept: `to-xml` and `to-csv` write one to a
+file, and `from-xml` and `from-csv` read it back as the same table.
 
 ## Try it
 

@@ -401,6 +401,98 @@ the distinct values first appeared.
 A row built for `first`, `last`, `rows` or `group` **must** carry the columns in the
 table's order and **must** omit a cell that is `None`.
 
+## Documents
+
+Four commands over XML and CSV files (decision
+[0011](../decisions/0011-real-xml-files.md)). The readers **must** resolve and read
+their file exactly as `cat` does, raise the same faults for a missing path or a folder,
+and emit no events. The writers **must** emit exactly the events `write` would for the
+text they serialise, so that undo, redo and history treat a document like any other
+file; a file they create **must** have kind `xml` or `csv` whatever its extension, and
+a file they overwrite keeps its kind.
+
+| Name | Parameters | Returns |
+| --- | --- | --- |
+| `from-xml` | `path` (piped) | the root element as an `Object` |
+| `to-xml` | `path`, `value` (piped), `root` (optional), `row` (optional), `declaration` (optional) | `File` |
+| `from-csv` | `path` (piped), `delimiter` (optional, default `,`) | `Table` |
+| `to-csv` | `path`, `value` (piped), `delimiter` (optional, default `,`) | `File` |
+
+### Reading XML
+
+`from-xml` **must** parse the content as XML 1.0 and build a `Tag` per element:
+
+- the element's name, as written with any prefix, is the `TypeName`;
+- each attribute, as written with any prefix and including namespace declarations, is
+  an attribute, in document order, its value read by the number-or-text rule a bare
+  word is read by;
+- the element's own text nodes that are not only whitespace, trimmed and joined with
+  one space, are an attribute `text`, typed by the same rule, replacing any XML
+  attribute of that name (decision [0025](../decisions/0025-xml-text-content.md));
+- child elements are the children, in document order.
+
+Comments and processing instructions **must** be dropped. A document with a DTD
+**must** be refused. A document that does not parse **must** raise `Not well-formed XML
+: <path> line <n>, position <m>` (`Invalid`), with the parser's line and position, at
+least 1; the parser's own sentence **must not** be part of the message, since it differs
+between hosts.
+
+### Writing XML
+
+`to-xml` **must** write:
+
+- a `Tag` (`Object` or `Component`) as itself, renamed to `root` when given;
+- a `Table` as a root named `root`, or `table`, with one child per row named `row`,
+  or `row`, carrying the row's cells as attributes, a `None` cell omitted;
+- a `List` as a root named `root`, or `list`, around its items, each of which **must**
+  be a tag.
+
+Anything else, or a list item that is not a tag, **must** raise `'to-xml' needs a tag, a
+table or a list of tags, not <kind>.` (`Binding`). A name that is not an XML name
+**must** raise `'<name>' is not a name XML allows.` (`Invalid`).
+
+The output **must** be indented two spaces per level, one element per line, with each
+line ending in `\n`. An attribute that is `None` or `Empty` is omitted. An attribute
+named `text` **must** be written as the element's content, before its children; an
+element with content and no children is written on one line. `&`, `<`, `>` and `\r`
+are escaped in content, and additionally `"`, `\n` and `\t` in attribute values.
+Values are written by their file text: a `Number` in its shortest exact form, anything
+else by its display string. The declaration `<?xml version="1.0" encoding="UTF-8"?>` is
+written only when `declaration` is.
+
+### Reading CSV
+
+`from-csv` **must** read RFC 4180: records end in `\n` or `\r\n`; a field in double
+quotes may hold the delimiter, `""` for a quote, and line breaks; the line break after
+the last record ends it. The first record is the header, and its fields name the
+columns; an empty name raises `<path> column <n> has no name.`, and two names equal
+ignoring case raise `<path> has two columns named '<name>'.`.
+
+Every other record **must** have as many fields as the header, or raise `<path> line
+<n> has <m> fields where the header has <k>.`, where `n` is the line the record began
+on. A record that is one empty unquoted field is skipped when the header has more than
+one column. An unclosed quote raises `<path> line <n>: a quoted field is never closed.`
+and text after a closing quote `<path> line <n>: a closing quote is followed by more
+text.`. All of these are `Invalid`.
+
+An unquoted empty field **must** read as `None`. A column **must** be numeric, every cell
+a `Number`, when every field in it that is not `None` reads as a number by the
+number-or-text rule; otherwise every such field is `Text`. The empty file is the empty
+table.
+
+### Writing CSV
+
+`to-csv` **must** coerce its value as a table function does, raising `'to-csv' needs a
+table, not <kind>.`. It writes the header, then a record per row, each line ending in
+`\n`, the last included. A cell that is `None` or `Empty` is an empty field. A field
+**must** be quoted, with `"` doubled, when it contains the delimiter, `"`, `\n` or
+`\r`, or is empty text, and **must not** be quoted otherwise. Values are written by
+their file text, as for XML. A table with no columns is the empty file.
+
+A `delimiter` is one character other than `"`, `\n` and `\r`, or the word `tab`;
+anything else raises `'delimiter' must be one character, or 'tab', not '<text>'.`
+(`Invalid`).
+
 ### help
 
 | Field | Value |

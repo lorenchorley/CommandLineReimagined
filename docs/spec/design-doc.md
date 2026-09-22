@@ -153,6 +153,14 @@ content hash. There is no directory type; a directory is a record whose `kind` i
 a query over attributes is a location in the same sense a directory is
 ([The filesystem](../filesystem.md)).
 
+Documents are files like any other. XML and CSV are formats for a file's content, not
+kinds of storage: `from-xml` parses the text into the tree the tag notation produces,
+so a table-shaped document is a table for the same reason a tag is, and `to-xml` and
+`to-csv` serialise a value and write it with the events `write` would emit
+([decision 0011](../decisions/0011-real-xml-files.md)). The tree has nowhere for an
+element's text, so the first release reads it as an attribute called `text`
+([decision 0025](../decisions/0025-xml-text-content.md)).
+
 Where the log lives is the host's business. The browser keeps it in IndexedDB for the
 page's origin, in a hand-written versioned shape so that a later build can read an
 earlier one's log; tests and the desktop shell keep it in memory. Nothing is sent

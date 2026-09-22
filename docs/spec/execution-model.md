@@ -80,6 +80,10 @@ where it has none.
 A tag that is not table-shaped **must** produce a fault of kind `invalid` naming the
 first child that broke the shape and why.
 
+A document read by `from-xml` is a tag, so the same rule reads it as a table; nothing
+about a tag's origin changes how it coerces. A CSV file read by `from-csv` is a table
+already. See [Documents](command-catalogue.md#documents).
+
 ### Comparison
 
 Two values compare with one of `eq ne gt ge lt le like has`.
