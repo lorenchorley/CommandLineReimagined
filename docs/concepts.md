@@ -183,7 +183,7 @@ A command has two ways to say something:
 - **Its result**, a value, returned at the end. It flows down the pipe and is rendered
   as a table, chips or a text block.
 - **Its output**, written while it runs, through an output sink. This is how `progress`
-  updates a counter and a bar, `download` reports its speed, and `run` shows each line
+  updates a counter and a bar, `download` reports its progress, and `run` shows each line
   of a script as it goes.
 
 The sink is an interface. The desktop shell implements it over the entity component
@@ -235,14 +235,14 @@ two records with the same name in one folder cannot get into the log.
 
 ```
 $ history
-seq  at        source                       undone
+seq  at        source                       undone  compensates
 1    09:30:00  seed                         false
 2    09:30:00  echo hello | write note.txt  false
 3    09:30:00  mkdir scratch | cd           false
 4    09:30:00  up                           false
 ```
 
-The three lines that failed, the listing and `pwd` are not there. `up` is, because
+The lines that failed, the listing and `pwd` are not there. `up` is, because
 moving changes your location, and your location is part of what the log records.
 
 ## 5. Project
@@ -270,12 +270,12 @@ $ pwd
 /scratch
 
 $ history
-seq  at        source                       undone
+seq  at        source                       undone  compensates
 1    09:30:00  seed                         false
 2    09:30:00  echo hello | write note.txt  false
 3    09:30:00  mkdir scratch | cd           false
 4    09:30:00  up                           true
-5    09:30:00  up                           false
+5    09:30:00  up                           false   4
 
 $ redo
 Redone: up
@@ -285,7 +285,9 @@ $ pwd
 ```
 
 Row 5 is the undo. It is a transaction in its own right, carrying the name of the line
-it reversed, and it is never itself marked undone; row 4, the `up` it reversed, is.
+it reversed, and its `compensates` column holds 4, the sequence number of the
+transaction it reverses. It is never itself marked undone; row 4, the `up` it reversed,
+is. A redo is a row of the same kind, whose `compensates` names the undo it reverses.
 
 - **Undo is one line at a time, not one command at a time.** `undo` reverses the last
   line that changed something, and names it.

@@ -71,7 +71,10 @@ before the `ls` rather than the `ls` itself. See
 
 A live view re-runs a line only when every command in it is declared read-only, and
 refuses any other line with `A live refresh only re-reads : <line>`. The read-only
-commands are the ones marked "no" above except `exit` and `progress`, plus `up`.
+commands are the ones marked "no" above except `exit` and `progress`.
+
+A name that is not a command fails with `Unknown command : <name>`, and that includes
+`UnknownCommand`, the name the terminal uses internally to report one.
 
 `clear` is handled by the page rather than by a command: it is about the screen rather
 than about the filesystem. See
@@ -114,12 +117,34 @@ readme.txt
 ```
 
 `name` and `kind` may be set, and renaming to a name already used in the folder is an
-error. `folder`, `created` and `modified` are the terminal's and are refused:
+error. `folder`, `created` and `modified` are the terminal's and are refused, and so is
+`size`, which is not stored at all:
 
 ```
 $ attr readme.txt modified=yesterday
 'modified' is set by the terminal and cannot be written.
+$ attr readme.txt size=3
+'size' is worked out from the content and cannot be written.
 ```
+
+Renaming a directory carries everything inside it, and moves you too if you are
+standing in it. It is one line, so one `undo` puts it all back:
+
+```
+$ attr documents name=docs
+docs
+$ ls docs
+name       kind  folder  size  modified
+notes.txt  text  /docs   50    2026-09-22T09:30:00.0000000+00:00
+$ undo
+Undone: attr documents name=docs
+$ ls documents
+name       kind  folder      size  modified
+notes.txt  text  /documents  50    2026-09-22T09:30:00.0000000+00:00
+```
+
+A directory keeps the kind `folder`. A record with no content, such as one made by
+[`save`](#save), may become a directory with `kind=folder`; a file with content may not.
 
 Assignments are data, not named parameters. A command that does not collect them says
 so rather than ignoring them:
@@ -137,7 +162,13 @@ Undo restores every attribute the record had.
 | --- | --- |
 | `File does not exist : <path>` | Nothing at that path. |
 | `'<name>' is set by the terminal and cannot be written.` | An assignment to `folder`, `created` or `modified`. |
+| `'size' is worked out from the content and cannot be written.` | An assignment to `size`. |
 | `Target file already exists : <path>` | A `name=` assignment names something already in the folder. |
+| `A file must have a name.` | `name=""`. |
+| `'<name>' is not a valid file name: '/' separates directories.` | The new name has a `/` in it. |
+| `'<name>' is not a valid file name: it already names a directory.` | The new name is `.` or `..`. |
+| `A directory cannot change its kind : <path>` | A `kind=` assignment on a directory. |
+| `A file with content cannot become a directory : <path>` | `kind=folder` on a file with content. |
 
 ---
 
@@ -213,7 +244,7 @@ path ending in `..`. Entering a directory puts down whatever view was held.
 | --- | --- |
 | `'cd' needs an argument for 'TargetPath'.` | No path given and nothing piped in. |
 | `Directory does not exist : <path>` | No such directory, and no view file of that name. The path is shown as you wrote it. |
-| `'<path>' does not hold a predicate : <text>` | A view file whose content does not parse as an expression. |
+| `'<path>' does not hold a predicate : <text>` | A view file whose content is not a predicate, such as `'/weekend' does not hold a predicate : monday`. |
 
 ---
 
@@ -287,8 +318,7 @@ $ cp readme.txt documents
 readme.txt
 ```
 
-Given a directory, `cp` copies the directory's own record and nothing inside it, so the
-copy is an empty directory of the same name.
+`cp` copies files only; a directory is refused.
 
 **Undo** deletes the copy.
 
@@ -299,6 +329,7 @@ copy is an empty directory of the same name.
 | `File does not exist : <path>` | No such source file. |
 | `Target directory does not exist : <path>` | No such destination directory. |
 | `Target file already exists : <path>` | Refuses to overwrite; use `write` or `rm` first. |
+| `'cp' copies files, and <path> is a directory.` | The source is a directory. |
 
 ---
 
@@ -338,7 +369,7 @@ asynchronous command: it can be stopped, and it reports what it wrote.
 | `into` | optional. Defaults to the current directory. |
 
 **Returns** the downloaded file. If a file of that name is already in the directory,
-its content is replaced.
+its content is replaced and its `modified` time updated, as `write` does.
 
 ```
 $ download
@@ -662,33 +693,36 @@ The lines that changed something, oldest first.
 history
 ```
 
-**Returns** a table of `seq`, `at`, `source` and `undone`. In a fresh tab, after
-`mkdir alpha` and `write note.txt hello`:
+**Returns** a table of `seq`, `at`, `source`, `undone` and `compensates`. In a fresh
+tab, after `mkdir alpha` and `write note.txt hello`:
 
 ```
 $ history
-seq  at        source                undone
+seq  at        source                undone  compensates
 1    09:30:00  seed                  false
 2    09:30:00  mkdir alpha           false
 3    09:30:00  write note.txt hello  false
 ```
 
-Each row is a sequence number, the time, the line exactly as it was typed, and whether
-its effect has been reversed:
+Each row is a sequence number, the time, the line exactly as it was typed, whether its
+effect has been reversed, and, for an undo or a redo, the sequence number of the
+transaction it reverses:
 
 ```
 $ undo
 Undone: write note.txt hello
 $ history
-seq  at        source                undone
+seq  at        source                undone  compensates
 1    09:30:00  seed                  false
 2    09:30:00  mkdir alpha           false
 3    09:30:00  write note.txt hello  true
-4    09:30:00  write note.txt hello  false
+4    09:30:00  write note.txt hello  false   3
 ```
 
-The fourth row is the undo itself, which is a line in its own right. Lines that changed
-nothing, such as `ls`, never appear, because they were never recorded.
+The fourth row is the undo itself, which is a transaction in its own right: it carries
+the name of the line it reversed, and `compensates` says it reverses row 3. An undo or a
+redo is never itself marked undone. Lines that changed nothing, such as `ls`, never
+appear, because they were never recorded.
 
 Being a table, it can be questioned:
 
@@ -868,14 +902,16 @@ line fails with `Stopped.`
 
 It produces no events, so there is nothing for `undo` to reverse: `undo` after
 `progress` reverses the line before it. It is not declared read-only, though, so a
-live view does not re-run it.
+live view does not re-run it. A delay of `0` runs the steps back to back.
 
 **Errors**
 
 | Message | Cause |
 | --- | --- |
 | `'steps' must be at least 1.` | `steps` was zero or negative. |
-| `'steps' must be a whole number, not '<value>'.` | `steps` or `delay` was not a whole number, for example a bare `-steps` flag. The message says `'steps'` for either. |
+| `'steps' must be a whole number, not '<value>'.` | `steps` was not a whole number, for example a bare `-steps` flag. |
+| `'delay' must be a whole number, not '<value>'.` | `delay` was not a whole number, such as `1.5`. |
+| `'delay' must be zero or more, not '<value>'.` | `delay` was negative. |
 
 ---
 
@@ -1114,8 +1150,10 @@ rather than a `write` followed by several `attr` calls.
 
 The tag can be piped in: `echo <note name=todo/> | save`.
 
-The `name` attribute is required, and a name already used in the folder is an error.
-The file is created in the current directory. It has no content, so `cat` on it returns
+The `name` attribute is required, follows the same rules as a name `attr` sets, and a
+name already used in the folder is an error. The tag may not carry `folder`, `created`,
+`modified` or `size`, which the terminal works out. The file is created in the current
+directory. It has no content, so `cat` on it returns
 empty text; `write` gives it some.
 
 **Undo** deletes the file.
@@ -1125,6 +1163,9 @@ empty text; `write` gives it some.
 | Message | Cause |
 | --- | --- |
 | `A saved tag needs a 'name' attribute.` | The tag has no `name`, or an empty one. |
+| `'<name>' is not a valid file name: <reason>.` | The name has a `/` in it, or is `.` or `..`. |
+| `'<name>' is set by the terminal and cannot be written.` | The tag has a `folder`, `created` or `modified` attribute. |
+| `'size' is worked out from the content and cannot be written.` | The tag has a `size` attribute. |
 | `Target file already exists : <path>` | Something of that name is already here. |
 | `'save' needs a tag, not <kind>.` | What was written or piped is not a tag. |
 
@@ -1291,7 +1332,7 @@ Orders the rows by a column.
 | Name | Notes |
 | --- | --- |
 | `column` | The column to order by. |
-| `desc` | optional. Write `desc` after the column, or `-desc`, to order downwards. Any word in this place orders downwards, so `sort name asc` does too; leave it out for ascending. |
+| `desc` | optional. Write `desc` after the column, or `-desc`, to order downwards; `asc`, or nothing, orders upwards. |
 | `table` | optional, piped. The table to work on. Taken from the pipe when it is not written. |
 
 **Returns** a table. Numbers order numerically, everything else by the text on screen.
@@ -1318,6 +1359,7 @@ projects    0
 | Message | Cause |
 | --- | --- |
 | `'sort' has no column named '<name>'.` | No such column. |
+| `'sort' takes 'desc' or 'asc' for 'desc', not '<word>'.` | Some other word was written after the column. |
 
 ---
 
@@ -1453,8 +1495,8 @@ $ cat short.xml
 
 Pretty-printed with two spaces a level. A gap is an attribute that is not written, and
 an attribute called `text` is written as the element's content. `-declaration` is a
-switch: write it after the path, since a flag followed by a plain word takes the word as
-its value.
+switch: write it last, since a flag followed by a plain word takes the word as its value,
+and `to-xml` refuses any value but none.
 
 **Undo** restores the previous contents, or deletes the file if it did not exist.
 
@@ -1464,6 +1506,7 @@ its value.
 | --- | --- |
 | `'to-xml' needs a tag, a table or a list of tags, not <kind>.` | The value, or an item in a list, has no elements in it. |
 | `'<name>' is not a name XML allows.` | An element or attribute name XML cannot hold, such as a column with a space in it. |
+| `'to-xml' takes '-declaration' on its own, not '<word>'.` | A word followed `-declaration`, as in `-declaration no`. |
 | `That is a directory, not a file : <path>` | The path names a directory. |
 | `Directory does not exist : <path>` | The parent directory is missing. |
 
