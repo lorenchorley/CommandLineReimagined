@@ -97,7 +97,7 @@ public class LexicalTests
         Assert.AreEqual(2, text.QuoteCount);
     }
 
-    [DataTestMethod]
+    [TestMethod]
     [DataRow("echo \"a\"", "a", 1)]
     [DataRow("echo \"\"a\"\"", "a", 2)]
     [DataRow("echo \"\"\"a\"\"\"", "a", 3)]
