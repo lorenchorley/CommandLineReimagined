@@ -636,7 +636,7 @@ can pick up where the last one stopped. States: `not started`, `in progress`,
 | A. Commands and help | stream agent | in progress | |
 | B. Value stages and parse wording | stream agent | merged | b3e6c21 |
 | C. Variables and values | stream agent | merged (vars pending the owner) | 0e20841 |
-| D. Arguments by parameter | stream agent | in progress | |
+| D. Arguments by parameter | stream agent | merged | db3c1a9 |
 | E. Predicates | stream agent | in progress | |
 | F. What flows in | stream agent | merged | 06e18f8 |
 | G. The page | stream agent | in progress | |
