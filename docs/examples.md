@@ -157,22 +157,36 @@ $ echo "hello world"
 hello world
 ```
 
-Tap the words `hello world` in the scrollback and the inspector names them a string.
-Tap `echo` and it names it a command. The quotes are separate tokens, also strings. Now make a mistake on purpose:
+Tap `echo` in the scrollback and the detail line above the location shows the command
+and its parameters: `echo <text> · Writes its argument, or whatever was piped into it`.
+Tap the words `hello world`, or either quote around them, and it shows the same line
+with `<text>` in bold and what that parameter is for: `echo <text> · What to write`.
+Now make a mistake on purpose:
 
 ```
 $ <thing
-Syntax error at column 6: expected identifier, />, >.
+Syntax error at column 6: expected an attribute name or the end of the tag.
 
 $ <a></b>
 Closing tag 'b' does not match opening tag 'a'
 
 $ echo --double
-Syntax error at column 5: expected argument, end of input, identifier, ", "", """, $, (, <, <$, ??, else, not, {, |.
+Syntax error at column 5: expected an argument, a variable, a quoted string, a parenthesised pipeline, a tag, a component, 'not', '??', 'else', a pipe or the end of the line.
 ```
 
-The column is a zero-based offset into the line, and the list is what the grammar could
-have accepted at that point.
+The column is a zero-based offset into the line, and the list is what could have come
+there, in words. Some mistakes have a sentence of their own:
+
+```
+$ ls | where $row.
+Column 16: a column name belongs after the stop, as in $row.kind
+
+$ ls | where $row.kind eq
+Column 23: eq needs a value to compare with, such as folder
+
+$ lss
+Unknown command : lss. Did you mean ls?
+```
 
 ## 7. Same call, three ways
 
