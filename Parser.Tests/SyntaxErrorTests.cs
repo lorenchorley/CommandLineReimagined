@@ -28,7 +28,6 @@ public class SyntaxErrorTests
     [DataRow("<thing broken=/>")]
     [DataRow("<|thing/>")]
     [DataRow("\"just a string\"")]
-    [DataRow("$variable")]
     public void IsRejected(string source) => ParserHarness.ParseError(source);
 
     [TestMethod]

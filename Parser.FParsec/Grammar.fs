@@ -542,15 +542,22 @@ let private cliExpression: P<CommandExpressionCli> =
     commandName .>> ws .>>. commandArgumentList
     |>> fun (name, arguments) -> CommandExpressionCli(Name = CommandName(Name = name), Arguments = arguments)
 
-type private StageForm = OneOf.OneOf<FunctionExpression, CommandExpressionCli, InstanceTag, NestedPipeline>
+type private StageForm =
+    OneOf.OneOf<FunctionExpression, CommandExpressionCli, InstanceTag, NestedPipeline, VariableReference>
 
 /// <summary>
 /// <CommandExpression> ::= <FunctionExpression> | <CommandExpression_CLINotation>
 ///                       | <IndividualCLIValue> | '(' <PipedCommandList> ')'
+///                       | <VariableReference>
 /// </summary>
 /// <remarks>
-/// The last alternative is Phase 5's: a pipeline in parentheses can stand as a stage,
+/// The fourth alternative is Phase 5's: a pipeline in parentheses can stand as a stage,
 /// so `try (cat notes.txt) | set r` marks exactly the part that may fail.
+///
+/// The last is Phase 8's (decision 0032): a variable, with or without members, can
+/// stand as a stage the way a tag already could, so `$files | count`, `$problem.kind`
+/// and `$maybe ?? "x"` are lines. `$` cannot start a command name, so the alternative
+/// takes nothing away from the others.
 /// </remarks>
 let private commandExpression: P<StageForm> =
     choice
@@ -561,7 +568,8 @@ let private commandExpression: P<StageForm> =
           // through every branch and threw.
           instanceTag |>> StageForm.op_Implicit
           attempt (pchar '(' >>. ws) >>. pipeline .>> pchar ')'
-          |>> fun nested -> StageForm.op_Implicit(NestedPipeline(Pipeline = nested)) ]
+          |>> fun nested -> StageForm.op_Implicit(NestedPipeline(Pipeline = nested))
+          variableReference |>> StageForm.op_Implicit ]
     .>> ws
 
 /// The `try` in front of a stage. A whole word, so `trying` is still a command name

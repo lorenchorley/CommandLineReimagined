@@ -111,7 +111,10 @@ public abstract class VisitorBase : ISemanticTreeVisitor
             function => function.Accept(this),
             commandName => commandName.Accept(this),
             commandExpressionCli => commandExpressionCli.Accept(this),
-            nested => nested.Accept(this)
+            nested => nested.Accept(this),
+            // A value standing as a stage (decision 0032) is written exactly as it is
+            // as an argument, so `$files | count` reads back unchanged.
+            reference => reference.Accept(this)
         );
 
         if (commandExpression.Default is not null)

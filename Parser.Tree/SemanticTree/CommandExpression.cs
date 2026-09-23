@@ -12,10 +12,15 @@ namespace Commands.Parser.SemanticTree
     /// answers nothing. The two markers belong to the stage rather than to the pipeline,
     /// so <c>try cat x | set problem</c> binds the fault and <c>first (ls) ?? "none"</c>
     /// defaults what <c>first</c> returned.
+    ///
+    /// Phase 8 adds a fifth form (decision 0032): a variable reference, with or without
+    /// members, may stand as a stage, so <c>$files | count</c> and <c>$maybe ?? "x"</c>
+    /// are lines. The node is the same <see cref="VariableReference"/> an argument
+    /// holds, because the two are read the same way; only where it stands differs.
     /// </remarks>
     public record CommandExpression : IVisitable
     {
-        public OneOf<FunctionExpression, CommandExpressionCli, InstanceTag, NestedPipeline> Expression { get; init; }
+        public OneOf<FunctionExpression, CommandExpressionCli, InstanceTag, NestedPipeline, VariableReference> Expression { get; init; }
 
         /// <summary>Written with <c>try</c> in front of it.</summary>
         public bool Try { get; init; }

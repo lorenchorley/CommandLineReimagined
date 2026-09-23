@@ -50,11 +50,13 @@ type ExpressionTests() =
         Assert.AreEqual<Value>(Value.Text "notes.txt", Expr.readMember "name" file)
         Assert.AreEqual<Value>(Value.Text "/documents/notes.txt", Expr.readMember "path" file)
 
+    /// Decision 0032: with no row in scope, `$row` is not merely unknown, and the fault
+    /// says where it does exist.
     [<TestMethod>]
     member _.AnUnknownVariableIsAFault() =
         let fault = expectFault NotFound (Expr.evaluate (Scope Map.empty) (column "kind"))
 
-        StringAssert.Contains(fault.Message, "Unknown variable : $row")
+        StringAssert.Contains(fault.Message, "$row is the row a predicate is testing.")
 
     // ------------------------------------------------------------ Comparisons
 
