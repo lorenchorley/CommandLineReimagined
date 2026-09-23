@@ -190,11 +190,29 @@ line breaks survive.
 
 ```
 $ cat readme.txt
-This filesystem lives in the browser tab.
+This is a command line that runs in this browser tab.
+
+The guide folder explains how it works, one idea per file. Start with the first:
+
+  cat guide/1-start.txt
+
+or list them all:
+
+  ls guide
+
 $ echo documents/notes.txt | cat
 Try: ls, cd documents, mkdir scratch, echo "hello"
 $ cat(path: readme.txt)
-This filesystem lives in the browser tab.
+This is a command line that runs in this browser tab.
+
+The guide folder explains how it works, one idea per file. Start with the first:
+
+  cat guide/1-start.txt
+
+or list them all:
+
+  ls guide
+
 ```
 
 **Errors**
@@ -291,9 +309,9 @@ How many rows there are.
 
 ```
 $ ls | count
-4
+5
 $ ls | where $row.kind eq folder | count
-3
+4
 ```
 
 **Errors**
@@ -429,8 +447,9 @@ $ ls | echo
 name        kind    folder  size  modified
 documents   folder  /       0     2026-09-22T09:30:00.0000000+00:00
 examples    folder  /       0     2026-09-22T09:30:00.0000000+00:00
+guide       folder  /       0     2026-09-22T09:30:00.0000000+00:00
 projects    folder  /       0     2026-09-22T09:30:00.0000000+00:00
-readme.txt  text    /       41    2026-09-22T09:30:00.0000000+00:00
+readme.txt  text    /       192   2026-09-22T09:30:00.0000000+00:00
 ```
 
 The value keeps its type: `echo 42` returns a number, and `ls | echo` returns the table
@@ -533,7 +552,7 @@ Nothing is an answer, not a failure, and `??` is how to give it a default.
 
 ```
 $ ls | sort name desc | first
-<row name=readme.txt kind=text folder=/ size=41 modified=2026-09-22T09:30:00.0000000+00:00/>
+<row name=readme.txt kind=text folder=/ size=192 modified=2026-09-22T09:30:00.0000000+00:00/>
 $ first (ls | where $row.kind eq view) ?? "no views yet"
 no views yet
 ```
@@ -653,7 +672,7 @@ reads as its row count, and `rows` is how you look inside one.
 ```
 $ ls | group kind
 key     rows
-folder  3 rows
+folder  4 rows
 text    1 row
 ```
 
@@ -814,7 +833,7 @@ The last row of a table.
 
 ```
 $ ls | sort name | last
-<row name=readme.txt kind=text folder=/ size=41 modified=2026-09-22T09:30:00.0000000+00:00/>
+<row name=readme.txt kind=text folder=/ size=192 modified=2026-09-22T09:30:00.0000000+00:00/>
 ```
 
 ---
@@ -838,8 +857,9 @@ $ ls
 name        kind    folder  size  modified
 documents   folder  /       0     2026-09-22T09:30:00.0000000+00:00
 examples    folder  /       0     2026-09-22T09:30:00.0000000+00:00
+guide       folder  /       0     2026-09-22T09:30:00.0000000+00:00
 projects    folder  /       0     2026-09-22T09:30:00.0000000+00:00
-readme.txt  text    /       41    2026-09-22T09:30:00.0000000+00:00
+readme.txt  text    /       192   2026-09-22T09:30:00.0000000+00:00
 $ ls documents
 name       kind  folder      size  modified
 notes.txt  text  /documents  50    2026-09-22T09:30:00.0000000+00:00
@@ -1020,7 +1040,7 @@ reset
 
 ```
 $ reset
-Reset. 9 files restored.
+Reset. 17 files restored.
 ```
 
 This is the only command that cannot be undone. The lines it would have been undone
@@ -1028,7 +1048,7 @@ from are the ones it threw away:
 
 ```
 $ reset
-Reset. 9 files restored.
+Reset. 17 files restored.
 $ undo
 Nothing to undo.
 ```
@@ -1086,7 +1106,7 @@ A table's rows, as objects rather than as a table.
 
 ```
 $ ls | select name kind | rows
-<row name=documents kind=folder/> <row name=examples kind=folder/> <row name=projects kind=folder/> <row name=readme.txt kind=text/>
+<row name=documents kind=folder/> <row name=examples kind=folder/> <row name=guide kind=folder/> <row name=projects kind=folder/> <row name=readme.txt kind=text/>
 ```
 
 ---
@@ -1122,12 +1142,13 @@ $ run examples/tables.clr
 name        kind    folder  size  modified
 documents   folder  /       0     2026-09-22T09:30:00.0000000+00:00
 examples    folder  /       0     2026-09-22T09:30:00.0000000+00:00
+guide       folder  /       0     2026-09-22T09:30:00.0000000+00:00
 projects    folder  /       0     2026-09-22T09:30:00.0000000+00:00
-readme.txt  text    /       41    2026-09-22T09:30:00.0000000+00:00
+readme.txt  text    /       192   2026-09-22T09:30:00.0000000+00:00
 > ls | where $row.kind eq folder | count
-3
+4
 > ls | sort name desc | first
-<row name=readme.txt kind=text folder=/ size=41 modified=2026-09-22T09:30:00.0000000+00:00/>
+<row name=readme.txt kind=text folder=/ size=192 modified=2026-09-22T09:30:00.0000000+00:00/>
 > ls | select name kind | take 2
 name       kind
 documents  folder
@@ -1237,10 +1258,11 @@ $ ls
 name        kind    folder  size  modified                           mood
 documents   folder  /       0     2026-09-22T09:30:00.0000000+00:00
 examples    folder  /       0     2026-09-22T09:30:00.0000000+00:00
+guide       folder  /       0     2026-09-22T09:30:00.0000000+00:00
 projects    folder  /       0     2026-09-22T09:30:00.0000000+00:00
 cheerful    view    /       18    2026-09-22T09:30:00.0000000+00:00
 postcard    note    /       0     2026-09-22T09:30:00.0000000+00:00  great
-readme.txt  text    /       41    2026-09-22T09:30:00.0000000+00:00
+readme.txt  text    /       192   2026-09-22T09:30:00.0000000+00:00
 
 $ cat cheerful
 $row.mood eq great
@@ -1286,8 +1308,9 @@ $ ls | select name size
 name        size
 documents   0
 examples    0
+guide       0
 projects    0
-readme.txt  41
+readme.txt  192
 ```
 
 **Errors**
@@ -1320,8 +1343,9 @@ $ ls | set files
 name        kind    folder  size  modified
 documents   folder  /       0     2026-09-22T09:30:00.0000000+00:00
 examples    folder  /       0     2026-09-22T09:30:00.0000000+00:00
+guide       folder  /       0     2026-09-22T09:30:00.0000000+00:00
 projects    folder  /       0     2026-09-22T09:30:00.0000000+00:00
-readme.txt  text    /       41    2026-09-22T09:30:00.0000000+00:00
+readme.txt  text    /       192   2026-09-22T09:30:00.0000000+00:00
 $ echo $greeting
 hello
 ```
@@ -1355,6 +1379,7 @@ error.
 ```
 $ ls | skip 3 | select name
 name
+projects
 readme.txt
 ```
 
@@ -1385,15 +1410,17 @@ arrived in and `sort name | sort size desc` leaves the equal sizes in name order
 ```
 $ ls | sort size desc | select name size
 name        size
-readme.txt  41
+readme.txt  192
 documents   0
 examples    0
+guide       0
 projects    0
 $ ls | sort size -desc | select name size
 name        size
-readme.txt  41
+readme.txt  192
 documents   0
 examples    0
+guide       0
 projects    0
 ```
 
@@ -1584,9 +1611,10 @@ name        kind    folder  size  modified
 alpha       folder  /       0     2026-09-22T09:30:00.0000000+00:00
 documents   folder  /       0     2026-09-22T09:30:00.0000000+00:00
 examples    folder  /       0     2026-09-22T09:30:00.0000000+00:00
+guide       folder  /       0     2026-09-22T09:30:00.0000000+00:00
 projects    folder  /       0     2026-09-22T09:30:00.0000000+00:00
 note.txt    text    /       5     2026-09-22T09:30:00.0000000+00:00
-readme.txt  text    /       41    2026-09-22T09:30:00.0000000+00:00
+readme.txt  text    /       192   2026-09-22T09:30:00.0000000+00:00
 $ undo
 Undone: mkdir alpha
 ```
@@ -1648,12 +1676,12 @@ Every variable in scope.
 ```
 $ vars
 name      value
-entries   4 rows
+entries   5 rows
 greeting  hello
 ```
 
 A cell is one line, so a variable holding a table says how many rows it has. It is
-still the table: `echo $entries | count` answers 4.
+still the table: `echo $entries | count` answers 5.
 
 With nothing bound it writes `No variables. Try: set greeting hello` beside an empty
 table, so `vars | count` is 0 rather than a fault.
@@ -1677,7 +1705,7 @@ variable called `row` outside it is left alone.
 
 ```
 $ ls | where $row.kind eq folder | count
-3
+4
 ```
 
 A predicate can compare two columns. In `/stock`, after `run examples/inventory.clr`:
