@@ -5,9 +5,12 @@ cursor can be and says so. It knows which command and parameter the word belongs
 the value that will flow into that stage, and what a variable holds. A line that goes
 wrong says how to put it right, in words rather than grammar symbols.
 
-**Status: planned.** Written from an audit of the page and the core on 2026-09-22.
-The audit ran about fifty partial lines through `Session.Complete` and through the
-session itself. What they did is recorded against each finding below.
+**Status: planned, ready to run.** Written from an audit of the page and the core on
+2026-09-22. The audit ran about fifty partial lines through `Session.Complete` and
+through the session itself. What they did is recorded against each finding below.
+Its decisions are accepted, and nothing in it waits on the owner. It is run as
+[running.md](running.md) describes, with the layout in [Running it](#running-it) and
+the state in [Progress](#progress).
 
 ## Why
 
@@ -65,14 +68,13 @@ what the audit saw.
 | 34 | More than 12 chips | The rest are dropped silently | A `+N` chip that shows them | G |
 | 35 | Chip size | About 26 pixels tall (left open by Phase 7) | 44 pixels, the touch target | G |
 
-## Records to add first
+## Decision records
 
-All three are written in checkpoint 8.0 with the status Proposed. Stream B depends on
-0032 and stream E on 0033, so each of those two may be built while its record is
-Proposed but not merged until the owner has accepted it. 0031 changes no language, so
-8.0 records it as Accepted.
+All three are written and Accepted, on 2026-09-23. The owner accepted 0032, which
+stream B builds, and 0033, which stream E builds. 0031 changes no language, so it was
+recorded as Accepted when the phase was planned. No stream waits on a decision.
 
-- **0031. Completion reads the line, and may run what comes before the cursor.**
+- **[0031](../decisions/0031-completion-reads-the-line.md). Completion reads the line, and may run what comes before the cursor.**
   Completion parses the line with a placeholder in place of the word being typed (see
   [How the cursor is read](#how-the-cursor-is-read)). That tells it the stage, the
   command, the parameter and the expression state. To learn what flows into the stage,
@@ -86,14 +88,14 @@ Proposed but not merged until the owner has accepted it. 0031 changes no languag
   weighed are static column inference per command (every command has to declare how
   its output relates to its input), running the stages (chosen) and always guessing
   (today).
-- **0032. A stage may be a value.** A variable reference, with or without members,
+- **[0032](../decisions/0032-a-stage-may-be-a-value.md). A stage may be a value.** A variable reference, with or without members,
   may stand as a stage: `$files`, `$problem.kind`, `$files | where $row.size gt 10`.
   Its value is the stage's value, so `??`, `else` and `try` apply as they do to any
   stage. The grammar already lets a tag stand as a stage (`Binder.evaluateTag`); this
   extends the same idea to variables. `$row` standing as a stage outside a predicate
   is a fault that says where `$row` exists. Decision 0014's slip
   (`$maybe ?? "default"` is not a line) becomes true.
-- **0033. A predicate is a yes-or-no question about the row.** Two changes. A
+- **[0033](../decisions/0033-a-predicate-is-a-question-about-the-row.md). A predicate is a yes-or-no question about the row.** Two changes. A
   predicate that never reads `$row` is a `Binding` fault when it is bound, with the
   bare words it compared named as the likely columns:
   `kind eq folder never reads $row, so it is the same for every row. Did you mean
@@ -224,7 +226,8 @@ kind of value.
 One agent, before anything else. It is the critical path, and it changes no behaviour
 anyone can see: every existing completion test passes unchanged.
 
-1. Decision records 0031, 0032 and 0033, with their rows in the log's index.
+1. Confirm that decision records 0031, 0032 and 0033 are Accepted in the log's index.
+   They were written when the owner accepted them, so this step writes nothing.
 2. `Core/Completion/`: `Summary.fs`, `Shape.fs`, `Context.fs`, and one provider file
    per stream: `Commands.fs` (A), `Variables.fs` (C), `Arguments.fs` and `Paths.fs`
    (D), `Predicates.fs` (E), `Hover.fs` (G). `Completion.fs` becomes the dispatcher:
@@ -298,7 +301,7 @@ Soft dependencies, none blocking:
 
 ### B. Value stages and parse wording
 
-**Closes** 3, 4, 27, 28, 29. **Size** L. Merges only after 0032 is accepted.
+**Closes** 3, 4, 27, 28, 29. **Size** L. Builds decision 0032, which is Accepted.
 
 - Grammar (`Parser.FParsec/Grammar.fs`): a stage may be a variable reference
   (0032). This needs a new tree node or an existing one reused, and the
@@ -393,7 +396,7 @@ Soft dependencies, none blocking:
 
 ### E. Predicates
 
-**Closes** 22 to 26. **Size** M. The two faults merge only after 0033 is accepted.
+**Closes** 22 to 26. **Size** M. The two faults are decision 0033, which is Accepted.
 
 - `Completion/Predicates.fs`, dispatching on `Expression`:
 
@@ -502,17 +505,55 @@ are written once, against what merged, rather than seven times in parallel.
 
 ## Running it
 
-Each stream is one agent in its own worktree, branched from the 8.0 commit, and
-merged back into `claude/project-overview-38505w` by one integrator in this order:
+The session that runs this phase is the orchestrator, following
+[running.md](running.md). That gives nine pieces of work, and says who does each:
 
-1. **F** and **B** first, because others improve once they are in.
-2. Then **C**, **D** and **E**.
-3. Then **A**.
-4. **G** last, because it draws everything else.
+```
+orchestrator   8.0 foundation ──────────────────────────────────▶ merge each ──▶ 8.9 index, verifier, republish, As built
+sub-agents                     A B C D E F G, in parallel worktrees             8.9 docs · spec · check, in parallel
+```
 
-After each merge: the full build, every test suite, and the browser check. A stream
-that is not ready does not hold the others: merge order is a preference, not a
-dependency.
+1. **8.0: the orchestrator, itself,** in the main checkout. It is the critical path,
+   and every brief is written against it. Scouts may help it read. When the
+   checkpoint's "Done when" holds, it pushes, then launches the streams.
+2. **A to G: seven stream agents, launched together in one message,** each in its own
+   worktree created from the 8.0 commit. Each gets
+   [the brief](running.md#the-brief), filled in from its section above and from this
+   table:
+
+   | Stream | Title | Findings | Records to read | Done when, beyond the brief |
+   | --- | --- | --- | --- | --- |
+   | A | Commands and help | 7 to 11 | — | `lss` run says `Did you mean ls?`, and `help where \| count` still works |
+   | B | Value stages and parse wording | 3, 4, 27 to 29 | 0014, 0032 | `$v` run answers `5`; no syntax error names a grammar label |
+   | C | Variables and values | 1, 2, 5, 21 | 0008 | `vars` and the chip details print the same summaries |
+   | D | Arguments by parameter | 12 to 20 | 0017, 0021 | `ArgumentCompletionTests` has a row for every parameter of every command |
+   | E | Predicates | 22 to 26 | 0008, 0013, 0033 | the four example programs still give their golden results |
+   | F | What flows in | 6, and 12 and 24's real answers | 0009, 0031 | every case listed under `ShapeTests.fs` passes, the budget and the cache included |
+   | G | The page | 30 to 35 | 0030 | the existing browser check passes against a local publish of the worktree |
+
+   Each stream's "Owns" and "Touches" lines, and its column in
+   [Who touches what](#who-touches-what), fill in the brief's rule 1.
+3. **Merging: the orchestrator,** in this order when several are waiting:
+   1. **F** and **B** first, because others improve once they are in.
+   2. Then **C**, **D** and **E**.
+   3. Then **A**.
+   4. **G** last, because it draws everything else.
+
+   After each merge: the full build, every test suite, and the browser check. A stream
+   that is not ready does not hold the others: merge order is a preference, not a
+   dependency.
+4. **8.9, parts 1 to 3: three sub-agents in parallel,** once all seven are merged, each
+   owning one set of files and briefed with its item of [Checkpoint 8.9](#checkpoint-89-integration):
+
+   | Part | Owns | Covers |
+   | --- | --- | --- |
+   | docs | the user documents in `docs/` | item 1 |
+   | spec | `docs/spec/` | item 2 |
+   | check | `tools/browser-check.mjs` | item 3 |
+
+5. **8.9, parts 4 and 5: the orchestrator.** The decision index, a verifier run of the
+   [Acceptance](#acceptance) table against the merged head, the republish, the "As
+   built" section, and the status lines here and in the README.
 
 ## Checkpoint 8.9: integration
 
@@ -539,8 +580,28 @@ dependency.
    - `$files` alone draws the table;
    - `lss` says `Did you mean ls?`;
    - tapping `$files` in a finished line shows its summary.
-4. **Decision index**: 0032 and 0033 Accepted, or Superseded with a reason.
+4. **Decision index**: a record, and its row, for every question a stream raised
+   that the owner answered during the phase.
 5. **Republish** and an "As built" section here.
+
+## Progress
+
+Kept by the orchestrator, and committed after every change of state, so a new session
+can pick up where the last one stopped. States: `not started`, `in progress`,
+`reported`, `merged`, `blocked` (with the reason).
+
+| Work | Done by | State | Commit |
+| --- | --- | --- | --- |
+| 8.0 Foundation | orchestrator | not started | |
+| A. Commands and help | stream agent | not started | |
+| B. Value stages and parse wording | stream agent | not started | |
+| C. Variables and values | stream agent | not started | |
+| D. Arguments by parameter | stream agent | not started | |
+| E. Predicates | stream agent | not started | |
+| F. What flows in | stream agent | not started | |
+| G. The page | stream agent | not started | |
+| 8.9 docs, spec, check | three sub-agents | not started | |
+| 8.9 index, verifier, republish, As built | orchestrator | not started | |
 
 ## Acceptance
 

@@ -213,6 +213,38 @@ the live site follows that branch. Narrow the trigger to `main` once it merges.
 Pages is enabled by the first run. If that is refused, the repository owner sets
 Settings, then Pages, then Source to "GitHub Actions", once.
 
+## Republishing the Artifact
+
+The client is also published as a private claude.ai Artifact, at
+<https://claude.ai/artifact/CcDmgfyanWjtEC2b6cs8mU>. Only its owner, and whoever they
+share it with, can open it. Republishing is done from a Claude Code session, because
+it needs the Artifact tool:
+
+```bash
+tools/prepare-artifact.sh /tmp/artifact
+```
+
+That publishes the client, post-processes it for the root path, and writes
+`artifact.html`, the page, and `files.json`, the map of the 71 files served beside it.
+Then publish with the Artifact tool:
+
+| Field | Value |
+| --- | --- |
+| `url` | the Artifact's address above, so the link stays the same |
+| `file_path` | `/tmp/artifact/artifact.html` |
+| `root` | `/tmp/artifact` |
+| `files` | the contents of `/tmp/artifact/files.json` |
+| `label` | a few words on what changed |
+
+When only `index.html` changed, publish the page alone, without `files`: the files
+already published are kept.
+
+The page is the title, the icon, the styles and the body, not a whole document,
+because the service wraps the page in a document of its own. It has no `<base href>`,
+so it resolves `framework/` beside itself. To check it in that form before publishing,
+serve a copy with the page wrapped in a bare document under a sub-path, then run
+`node tools/browser-check.mjs --url http://127.0.0.1:<port>/<sub-path>/index.html`.
+
 ## Continuous integration
 
 `.github/workflows/build.yml` runs four jobs on every push:

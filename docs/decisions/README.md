@@ -40,6 +40,9 @@ a later record, **Rejected**.
 | [0028](0028-mixed-columns.md) | A column whose cells disagree is typed `mixed`, not `text` | Accepted |
 | [0029](0029-scene-editor-direction.md) | The entity component system becomes a scene the command line edits | Proposed |
 | [0030](0030-undo-takes-the-line-back-on-screen.md) | On screen, undo takes the line back rather than adding one | Accepted |
+| [0031](0031-completion-reads-the-line.md) | Completion reads the line, and may run what comes before the cursor | Accepted |
+| [0032](0032-a-stage-may-be-a-value.md) | A stage may be a value: `$files` and `$problem.kind` are lines | Accepted |
+| [0033](0033-a-predicate-is-a-question-about-the-row.md) | A predicate that never reads `$row`, or is not true or false, is a fault | Accepted |
 
 Retrospective records document decisions taken before the log existed, so that the
 log is the one place to look. Their alternatives are the ones weighed at the time, as

@@ -1,18 +1,30 @@
 # Implementation plan: functional core, event-sourced store, attribute filesystem, tables
 
-**Status: Phases 1 to 7 complete; Phase 8 planned.** The first seven phases are built,
-and each phase document ends with an "As built" section recording where the result
-differs from what it planned. [Phase 8](phase-8-intellisense.md) was added afterwards,
-from an audit of completion; unlike the others, it is divided into streams that run in
-parallel after one foundation checkpoint.
+**Status: Phases 1 to 7 complete; Phase 8 planned, its decisions accepted.** The first
+seven phases are built, and each phase document ends with an "As built" section
+recording where the result differs from what it planned.
+[Phase 8](phase-8-intellisense.md) was added afterwards, from an audit of completion;
+unlike the others, it is divided into streams that run in parallel after one
+foundation checkpoint. Its three decision records, 0031 to 0033, are Accepted, so
+nothing in it waits on the owner.
 
 This plan is written for an implementing agent who has this repository and nothing
-else. Read this file, then [architecture.md](architecture.md), then the phase you are
-on. Everything the owner has decided is in the [decision log](../decisions/README.md);
-this plan does not reopen those decisions, it executes them.
+else. Read this file, then [running.md](running.md), then
+[architecture.md](architecture.md), then the phase you are on. Everything the owner
+has decided is in the [decision log](../decisions/README.md); this plan does not
+reopen those decisions, it executes them.
+
+**To run it,** type `/run-plan` in a Claude Code session on this repository, or ask
+for the plan to be run. The session that receives it is the orchestrator:
+[running.md](running.md) says how it finds where the plan stands, which work it does
+itself, which it hands to sub-agents (one per parallel stream, each in its own git
+worktree), how it briefs them, and how it merges and verifies what they return. That
+use of sub-agents is the owner's standing instruction, and needs no further
+permission.
 
 | Document | Contents |
 | --- | --- |
+| [running.md](running.md) | How the plan is run: the orchestrator, sub-agents per stream, the brief, merging, verification, owner decisions, resuming. Applies to every phase. |
 | [architecture.md](architecture.md) | The target: projects, types, store model, filesystem model, grammar changes, wire formats. Read fully before Phase 1. |
 | [phase-1-functional-core.md](phase-1-functional-core.md) | F# core with Result, Option and Fault; event-sourced store as the filesystem; every command ported; parity with today plus undo, redo and history. |
 | [phase-2-persistence.md](phase-2-persistence.md) | The log persists in the browser's IndexedDB; reload replays it. |
@@ -78,8 +90,9 @@ explicit `$row`, recovery is spelled `else`.
   memory: run the command, copy the result.
 - The browser client is published and verified with the procedure in
   [docs/building.md](../building.md) and the script in `tools/browser-check.mjs`
-  (added in Phase 1). The artifact URL and the publish recipe are in the owner's
-  session; the local check on a static server is what the agent can do unaided.
+  (added in Phase 1). GitHub Pages republishes on every push; the Artifact is
+  republished with `tools/prepare-artifact.sh` and the Artifact tool, as
+  [building.md](../building.md#republishing-the-artifact) describes.
 - Do not touch the GOLD parser or its `.grm` files except to add comments. The
   equivalence tests compare only inputs both parsers accept; when the grammar grows,
   add new cases to the FParsec-only test classes.
@@ -95,7 +108,10 @@ core+store    persistence   tables       views         else/try     xml/csv     
 ```
 
 Inside Phase 8 the checkpoints are not all sequential: after its foundation checkpoint,
-seven streams run in parallel worktrees and merge back in a stated order.
+seven streams run in parallel worktrees and merge back in a stated order. From Phase 8
+on, every phase document carries a work breakdown (serial checkpoints, parallel
+streams, file ownership, merge order and a Progress table), and
+[running.md](running.md) says how it is carried out.
 
 Phase 1 is the largest and the least divisible: replacing the execution layer and the
 filesystem model at once avoids porting per-command undo only to delete it. Its

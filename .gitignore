@@ -396,3 +396,6 @@ FodyWeavers.xsd
 
 # JetBrains Rider
 *.sln.iml
+
+# Sub-agents work in git worktrees here while the plan runs.
+.claude/worktrees/
