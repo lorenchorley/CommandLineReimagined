@@ -31,6 +31,9 @@ A parameter can also be bound by name, `name: value`, or by flag, `-name` or
 matches a declared `Flag`. Errors are written as the message, then the fault kind in
 parentheses.
 
+What a parameter's argument is, its `Takes`, is not part of how it binds, and is listed
+for every command in [What each parameter takes](#what-each-parameter-takes).
+
 ## Rules every command follows
 
 These hold for every entry below, and an entry does not repeat them.
@@ -131,6 +134,65 @@ reported as a normal failure; see
 [Resolving a command](execution-model.md#resolving-a-command). It is not listed by
 `help` or offered by completion.
 
+## What each parameter takes
+
+Every parameter declares what its argument is, as `Takes`
+([The command model](execution-model.md#the-command-model)). Completion offers by it
+([Host interfaces](host-interfaces.md#what-a-parameter-takes)), and `help <command>`
+writes it in words in its `takes` column. A *predicate* parameter is written
+`a predicate` and an *assignments* parameter `name=value pairs`, whatever they declare,
+and a *rest* parameter adds `, any number`. A parameter that declares nothing takes
+`Anything`.
+
+| Command | Parameter | `Takes` | `help` says |
+| --- | --- | --- | --- |
+| `ls` | `path` | `Place` | a folder or a view |
+| `cd` | `TargetPath` | `Place` | a predicate |
+| `find` | `predicate` | `Anything` | a predicate |
+| `save-view` | `name` | `NewName` | a new name |
+| `save-view` | `predicate` | `Anything` | a predicate |
+| `cat` | `path` | `Path` | a path |
+| `write` | `path` | `Path` | a path |
+| `write` | `text` | `Value` | a value |
+| `rm` | `path` | `Path` | a path |
+| `cp` | `sourcePathAndFile` | `Path` | a path |
+| `cp` | `targetPath` | `Place` | a folder or a view |
+| `mkdir` | `FolderName` | `NewName` | a new name |
+| `attr` | `path` | `Path` | a path |
+| `attr` | `assignments` | `Anything` | name=value pairs |
+| `save` | `tag` | `Value` | a value |
+| `echo` | `text` | `Value` | a value |
+| `set` | `name` | `VariableName` | a variable name |
+| `set` | `value` | `Value` | a value |
+| `is-fault` | `value` | `Value` | a value |
+| `progress` | `steps` | `Count` | a count |
+| `progress` | `delay` | `Number` | a number |
+| `download` | `url` | `Url` | a URL |
+| `download` | `into` | `Place` | a folder or a view |
+| `where` | `predicate` | `Anything` | a predicate |
+| `select` | `columns` | `Column` | a column, any number |
+| `sort` | `column` | `Column` | a column |
+| `sort` | `desc` | `Switch("desc", Some "asc")` | desc or asc |
+| `take`, `skip` | `count` | `Count` | a count |
+| `distinct`, `group` | `column` | `Column` | a column |
+| every table function | `table` | `Value` | a value |
+| `from-xml` | `path` | `Path` | a path |
+| `to-xml` | `path` | `Path` | a path |
+| `to-xml` | `value` | `Value` | a value |
+| `to-xml` | `root`, `row` | `Text` | text |
+| `to-xml` | `declaration` | `Switch("declaration", None)` | declaration |
+| `from-csv` | `path` | `Path` | a path |
+| `from-csv`, `to-csv` | `delimiter` | `Text` | text |
+| `to-csv` | `path` | `Path` | a path |
+| `to-csv` | `value` | `Value` | a value |
+| `run` | `path` | `Path` | a path |
+| `help` | `command` | `CommandName` | a command name |
+| `UnknownCommand` | `name`, `nearest` | `Anything` | not listed |
+
+`up`, `pwd`, `vars`, `undo`, `redo`, `history`, `reset` and `exit` have no parameters.
+A command added later **should** declare what each of its parameters takes; one that
+does not is offered files and folders for every argument.
+
 ## Navigation
 
 ### ls
@@ -193,9 +255,12 @@ line commits nothing and `undo` reaches past it. Reversing a `cd` restores the p
 location, view included.
 
 Errors: `Directory does not exist : <target>` (`NotFound`), quoting the target as
-written, also when it names a file; `'<path>' does not hold a predicate : <text>`
-(`Invalid`) for a view record whose content does not parse or has no operator, quoting
-the content trimmed.
+written, also when it names a file; `<predicate> never reads $row, so it is the same for
+every row.` (`Binding`) for an argument that used an operator and never reads `$row`;
+`'<path>' does not hold a predicate : <text>` (`Invalid`) for a view record whose
+content does not parse or has no operator, quoting the content trimmed. The content of
+a view record is not held to the first of these (see
+[Known deviations](conformance.md#known-deviations)).
 
 ### up
 
@@ -243,7 +308,11 @@ record's row, exactly as `where` binds it
 answer is `Boolean true`.
 
 Errors: `'find' needs a predicate, such as $row.kind eq note.` (`Binding`) when the
-argument used no operator; any fault the predicate raises for a row.
+argument used no operator; `<predicate> never reads $row, so it is the same for every
+row.` (`Binding`) when it used one and never reads `$row`
+([Predicates](execution-model.md#predicates)); any fault the predicate raises for a
+record. A predicate with an operator always answers true or false, so the run check of
+decision 0033 never fails here.
 
 ### save-view
 
@@ -261,6 +330,7 @@ renamed with `attr`, deleted with `rm` and entered with `cd`. Reversing the line
 deletes it.
 
 Errors: `'save-view' needs a predicate, such as $row.kind eq note.` (`Binding`);
+`<predicate> never reads $row, so it is the same for every row.` (`Binding`);
 `A view needs a name.` (`Invalid`) for empty text; the other faults of the
 [name rule](#rules-every-command-follows).
 
@@ -468,9 +538,11 @@ Errors: `'<name>' is not a valid variable name.` (`Invalid`);
 | Events | None |
 | Marks | `ReadOnly` |
 
-One row per variable in scope, ordered by name. With nothing bound it **must** still
+One row per variable in scope, ordered by name, its `value` cell the value itself, so a
+table reads as `4 rows` and a fault as its message. With nothing bound it **must** still
 return a table, so that `vars | count` is 0 rather than a fault, and writes one output
-line, `No variables. Try: set greeting hello`.
+line, `No variables. Try: set greeting hello`. It does not use the one-line summaries
+completion gives a variable ([Host interfaces](host-interfaces.md#a-value-in-one-line)).
 
 ### is-fault
 
@@ -578,8 +650,14 @@ Thirteen commands over tables. Each one **must**:
 `where` **must** evaluate its predicate in a child scope with `$row` bound to the row
 as an `Object` of type `row` ([decision 0008](../decisions/0008-explicit-row-variable.md)),
 and keep the row only where the answer is `Boolean true`, preserving order. A variable
-named `row` outside the predicate is left alone. Unlike `find`, `where` does not refuse
-an operand with no operator; it is evaluated for each row like any predicate.
+named `row` outside the predicate is left alone. The predicate is held to the two
+checks of [decision 0033](../decisions/0033-a-predicate-is-a-question-about-the-row.md)
+([Predicates](execution-model.md#predicates)): one that used an operator and never reads
+`$row` is `<predicate> never reads $row, so it is the same for every row.` (`Binding`),
+and the first row it answers anything but true, false or a gap for is
+`<predicate> is <kind> (<value>), not true or false.` (`Invalid`). Unlike `find`,
+`where` does not refuse an operand with no operator, so `where $row.done` keeps the rows
+whose `done` is true.
 
 `select` with no columns **must** raise `'select' needs at least one column.`
 (`Binding`) rather than answering an empty table. The *rest* parameter never takes the
@@ -816,16 +894,40 @@ Errors: `File does not exist : <path>` (`NotFound`);
 
 | Field | Value |
 | --- | --- |
-| Parameters | none |
-| Returns | `Table` of `name`, `parameters` and `description` |
+| Parameters | `command` (*optional*) |
+| Returns | Without `command`, `Table` of `name`, `parameters` and `description`. With it, `Table` of `name`, `required`, `piped`, `takes` and `description` |
 | Events | None |
 | Marks | `Meta`, `ReadOnly` |
 
-One row per registered command except `UnknownCommand`, ordered by name with an ordinal
-comparison. `parameters` **must** be the declared parameters in order, separated by one
-space, each written `name...` when it is *rest*, `[name]` when it is optional and
-`<name>` otherwise; a table function's `[table]` and `attr`'s `[assignments]` are
-listed like any other.
+Without `command`, one row per registered command except `UnknownCommand`, ordered by
+name with an ordinal comparison. `parameters` **must** be the declared parameters in
+order, separated by one space, each written `name...` when it is *rest*, `[name]` when
+it is optional and `<name>` otherwise; a table function's `[table]` and `attr`'s
+`[assignments]` are listed like any other.
+
+With `command`, matched case-insensitively, one row per parameter of that command in
+declaration order, and one output line before the table, the command's description.
+The description is written to the output rather than put in the value, so the value
+stays a table and `help where | count` counts parameters:
+
+```
+$ help sort
+Order the rows by a column
+name    required  piped  takes        description
+column  true      false  a column     The column to order by
+desc    false     false  desc or asc  Write 'desc' to order downwards
+table   false     true   a value      The table to work on; taken from the pipe when it is not written
+```
+
+`required` is a `Boolean`, true when the parameter is not optional; `piped` is a
+`Boolean`, true when it takes the pipe; `takes` is what it takes, in the words of
+[What each parameter takes](#what-each-parameter-takes); `name` and `description` are
+`Text`. A command with no parameters answers a table with these columns and no rows.
+
+Errors: `Unknown command : <name>` (`UnknownCommand`) for a name that is not a command,
+`UnknownCommand` included, with the nearest command names after it as
+[Resolving a command](execution-model.md#resolving-a-command) gives them:
+`Unknown command : lss. Did you mean ls?`.
 
 ### exit
 
@@ -844,15 +946,19 @@ and a host with nothing to close **may** do nothing, as the browser does.
 
 | Field | Value |
 | --- | --- |
-| Parameters | `name` (*optional*) |
+| Parameters | `name` (*optional*), `nearest` (*rest*) |
 | Returns | never returns |
 | Events | None |
 | Marks | `Meta` |
 
-Raises `Unknown command : <name>` (`UnknownCommand`). The evaluator runs it with the
-name that did not resolve bound to `name`. It is not resolvable by name, so typing
-`UnknownCommand` is itself an unknown command, `Unknown command : UnknownCommand`, and
-it is not listed by `help` or offered by completion.
+Raises `Unknown command : <name>` (`UnknownCommand`), followed by
+`. Did you mean <names>?` when `nearest` holds any, at most three of them. The
+evaluator runs it with the name that did not resolve bound to `name` and the nearest
+command names to `nearest`, nearest first
+([Resolving a command](execution-model.md#resolving-a-command)). It is not resolvable
+by name, so typing `UnknownCommand` is itself an unknown command,
+`Unknown command : UnknownCommand`, and it is not listed by `help` or offered by
+completion.
 
 ## Known deviations
 
