@@ -592,7 +592,7 @@ can pick up where the last one stopped. States: `not started`, `in progress`,
 
 | Work | Done by | State | Commit |
 | --- | --- | --- | --- |
-| 8.0 Foundation | orchestrator | not started | |
+| 8.0 Foundation | orchestrator | in progress | |
 | A. Commands and help | stream agent | not started | |
 | B. Value stages and parse wording | stream agent | not started | |
 | C. Variables and values | stream agent | not started | |
