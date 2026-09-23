@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
 <title>CommandLineReimagined</title>
 <base href="/" />
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ctext y='13' font-size='13'%3E%E2%96%B8%3C/text%3E%3C/svg%3E">
@@ -23,8 +23,16 @@
     }
   }
   * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  /*
+    The terminal is pinned to the part of the screen the keyboard leaves, so the input sits
+    just above the keyboard and the page itself never scrolls. --app-height and --app-top
+    follow the visual viewport (see pinToTheVisibleArea); without one, it is the window.
+  */
   html,body { height:100%; }
+  html { overflow:hidden; }
   body {
+    position:fixed; left:0; right:0; top:var(--app-top, 0px); height:var(--app-height, 100%);
+    box-sizing:border-box;
     margin:0; background:var(--bg); color:var(--fg);
     font:13px/1.55 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
     display:flex; flex-direction:column;
@@ -231,7 +239,7 @@
       <div class="field">
         <div id="mirror"></div>
         <input id="cmd" disabled autocapitalize="off" autocorrect="off"
-               autocomplete="off" spellcheck="false" enterkeyhint="go">
+               autocomplete="off" spellcheck="false" enterkeyhint="enter">
       </div>
       <button id="run" disabled>Run</button>
     </div>
@@ -253,6 +261,82 @@ let draft = '';          // what was typed before walking into history
 let running = null;      // { id, entry } while a command executes
 let nextId = 1;
 let completions = [];    // what the last word could become
+
+// ---- continuity on a phone --------------------------------------------------
+
+/*
+  Nothing the page does on its own opens or closes the keyboard, moves the input, or
+  leaves the newest output out of sight.
+
+  - The keyboard comes with the input's focus, so on a touch screen the page never takes
+    the focus or gives it: a tap on a button, a chip, a cell or a token leaves it where it
+    was (the pointerdown and mousedown below), and after a line runs it goes back to the
+    input only if it was there. With a mouse there is no keyboard to open, and the input
+    is focused as before, which is what typing next wants.
+  - The terminal is fitted to the part of the screen the keyboard leaves, so the input is
+    always just above the keyboard, and the document never scrolls under it.
+  - The scrollback stays at its end while it is at its end, whatever changes size: new
+    output, a table drawn, the location line growing an `up` button, the keyboard
+    opening. Scrolled up to read, it is left alone until the next line is run.
+*/
+const touchScreen = window.matchMedia && matchMedia('(pointer: coarse)').matches;
+
+/// Gives the input the focus back after something the page did: always with a mouse,
+/// and on a touch screen only when it had it (`had`), so the keyboard stays as it was.
+function refocus(had = document.activeElement === cmd) {
+  if (!ready || document.activeElement === cmd) return;
+  if (had || !touchScreen) cmd.focus({ preventScroll: true });
+}
+
+// On a touch screen only: with a mouse, a press is also how text is selected to copy,
+// and there is no keyboard for it to close.
+if (touchScreen) {
+  for (const type of ['pointerdown', 'mousedown']) {
+    document.addEventListener(type, e => {
+      if (e.target.closest && e.target.closest('button, .grid td, .grid th, .t, .key, .item')) e.preventDefault();
+    });
+  }
+}
+
+let atEnd = true;   // whether the scrollback is showing its last line
+
+function toEnd() {
+  atEnd = true;
+  scroll.scrollTop = scroll.scrollHeight;
+}
+
+scroll.addEventListener('scroll', () => {
+  atEnd = scroll.scrollHeight - scroll.scrollTop - scroll.clientHeight < 4;
+}, { passive: true });
+
+// Anything that changes the scrollback's size or content keeps it at its end if it was.
+const keepAtEnd = () => { if (atEnd) scroll.scrollTop = scroll.scrollHeight; };
+if (window.ResizeObserver) new ResizeObserver(keepAtEnd).observe(scroll);
+new MutationObserver(keepAtEnd).observe(scroll, { childList: true, subtree: true, characterData: true, attributes: true });
+
+/// Brings an entry into view inside the scrollback, and only there: `scrollIntoView`
+/// would move every scrolling ancestor, the page and a frame around it included.
+function reveal(entry) {
+  const r = entry.getBoundingClientRect(), s = scroll.getBoundingClientRect();
+  if (r.top < s.top) scroll.scrollTop += r.top - s.top;
+  else if (r.bottom > s.bottom) scroll.scrollTop += r.bottom - s.bottom;
+  atEnd = scroll.scrollHeight - scroll.scrollTop - scroll.clientHeight < 4;
+}
+
+(function pinToTheVisibleArea() {
+  const view = window.visualViewport;
+  const fit = () => {
+    const root = document.documentElement.style;
+    root.setProperty('--app-height', `${view ? view.height : window.innerHeight}px`);
+    root.setProperty('--app-top', `${view ? view.offsetTop : 0}px`);
+    keepAtEnd();
+  };
+  fit();
+  (view || window).addEventListener('resize', fit);
+  // A browser that pans the page to show the focused input, as Safari does, moves the
+  // visible area; the terminal follows it rather than fighting it.
+  if (view) view.addEventListener('scroll', fit);
+})();
 
 // ---- rendering ------------------------------------------------------------
 
@@ -282,7 +366,7 @@ function addEntry(html) {
   div.className = 'entry';
   div.innerHTML = html;
   scroll.appendChild(div);
-  scroll.scrollTop = scroll.scrollHeight;
+  toEnd();
   return div;
 }
 
@@ -453,7 +537,7 @@ function finishEntry(entry, r) {
   else tail = itemsHtml(r.result);
 
   entry.querySelector('.tail').innerHTML = tail;
-  scroll.scrollTop = scroll.scrollHeight;
+  toEnd();
 }
 
 // ---- undo and redo --------------------------------------------------------
@@ -497,7 +581,7 @@ function standing(seq, stands) {
   // Coming back where it was can be far above the prompt, so it is brought into view
   // and flashes, the way a live table says that it changed.
   if (shown && wasHidden) {
-    entry.scrollIntoView({ block: 'nearest' });
+    reveal(entry);
     entry.classList.remove('flash');
     void entry.offsetWidth;
     entry.classList.add('flash');
@@ -612,7 +696,7 @@ window.terminal = {
   output(id, lines) {
     if (!running || running.id !== id) return;
     running.entry.querySelector('.live').innerHTML = linesHtml(lines);
-    scroll.scrollTop = scroll.scrollHeight;
+    toEnd();
   },
 
   // Raised from inside the commit, which is inside the call the page is still
@@ -790,7 +874,7 @@ function drawChips() {
     more.title = `${completions.length - shown} more`;
     // It opens the row rather than changing the line, so the caret stays where it was.
     more.onmousedown = e => e.preventDefault();
-    more.onclick = () => { showAll = true; drawChips(); cmd.focus(); };
+    more.onclick = () => { showAll = true; drawChips(); refocus(); };
     row.appendChild(more);
   }
 
@@ -854,7 +938,7 @@ function applyCompletion(c, keepTab = false) {
   cmd.value = base.slice(0, c.start) + inserted + rest;
   const caret = c.start + inserted.length;
   cmd.setSelectionRange(caret, caret);
-  refreshMirror(); refreshCompletions(keepTab); cmd.focus();
+  refreshMirror(); refreshCompletions(keepTab); refocus();
 }
 
 /// Puts one chip in place while stepping: no space after it, and nothing asked again,
@@ -933,6 +1017,10 @@ async function run() {
   const text = cmd.value.trim();
   if (!ready || !text) return;
 
+  // Whether the keyboard was up. It stays as it was: a line run from the keyboard keeps
+  // it, and one run by a button with the keyboard down does not bring it up.
+  const hadFocus = document.activeElement === cmd;
+
   // Handled by the page rather than the evaluator, because it is about the screen
   // rather than about the filesystem. `undo` used to be here too, and `help` until
   // Phase 3; both are real commands now, so they go through the evaluator like
@@ -942,6 +1030,7 @@ async function run() {
   }
 
   const id = nextId++;
+  atEnd = true;
   running = { id, entry: startEntry(id, text) };
   runButton.textContent = 'Stop'; runButton.classList.add('stop');
   afterRun(text);
@@ -981,7 +1070,7 @@ async function run() {
     // refresh it asked for happens now that nothing is in flight.
     if (refreshWanted) await refreshLive();
 
-    cmd.focus();
+    refocus(hadFocus);
   }
 }
 
@@ -1186,7 +1275,7 @@ function insert(text) {
   if (!text) return;
   cmd.value = (cmd.value ? cmd.value.replace(/\s*$/, ' ') : '') + text;
   refreshMirror(); refreshCompletions();
-  cmd.focus();
+  refocus();
 }
 
 runButton.onclick = run;
@@ -1212,7 +1301,7 @@ runButton.onclick = run;
     const b = document.createElement('button');
     b.className = 'key'; b.innerHTML = label;
     b.onclick = () => {
-      cmd.value = value; refreshMirror(); refreshCompletions(); cmd.focus();
+      cmd.value = value; refreshMirror(); refreshCompletions(); refocus();
     };
     $('keys').appendChild(b);
   });
@@ -1319,7 +1408,7 @@ function finishBoot(store) {
 
     refreshPrompt();
     refreshMirror();
-    cmd.focus();
+    refocus();
 }
 
 refreshMirror();

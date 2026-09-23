@@ -909,6 +909,72 @@ async function main() {
 
     console.log(`Ran ${PHASE_8.length + 1} more for Phase 8, then checked the chips, the detail line, Tab and a tap.`);
 
+    // ---- On a phone: nothing moves, opens or closes on its own ----------------
+
+    // The keyboard comes with the input's focus, so the focus is what is checked: a
+    // blur is the keyboard closing, and a focus the page gave is it opening.
+    await page.evaluate(() => {
+      window.__blurs = 0;
+      document.getElementById('cmd').addEventListener('blur', () => { window.__blurs++; });
+    });
+
+    const finishedNow = () => page.evaluate(() => Number(document.body.dataset.finished || 0));
+    const afterTap = async (selector, before) => {
+      await page.tap(selector);
+      await page.waitForFunction(
+        count => Number(document.body.dataset.finished || 0) > count &&
+                 document.querySelectorAll('.entry.running').length === 0,
+        before, { timeout: 30000 });
+      await page.waitForTimeout(150);
+    };
+    const focused = () => page.evaluate(() => document.activeElement === document.getElementById('cmd'));
+    const atTheEnd = () => page.evaluate(() => {
+      const s = document.getElementById('scroll');
+      return s.scrollHeight - s.scrollTop - s.clientHeight < 2;
+    });
+
+    // With the keyboard up, running a line by tapping Run keeps it up throughout.
+    await page.focus('#cmd');
+    await page.fill('#cmd', 'mkdir kept');
+    await afterTap('#run', await finishedNow());
+
+    if (await page.evaluate(() => window.__blurs) > 0 || !await focused()) {
+      note('tapping Run with the keyboard up closed it, even for a moment');
+    }
+
+    // With the keyboard down, undo and redo leave it down.
+    await page.evaluate(() => document.getElementById('cmd').blur());
+    await afterTap('#prompt #undo', await finishedNow());
+    if (await focused()) note('tapping undo with the keyboard down brought it up');
+    await afterTap('#prompt #redo', await finishedNow());
+    if (await focused()) note('tapping redo with the keyboard down brought it up');
+
+    // A listing is shown to its last row, even when the location line grows an `up`
+    // button after the line has finished, which takes height from the scrollback.
+    await submit(page, 'cd documents');
+    await submit(page, 'ls');
+    await page.waitForTimeout(150);
+    if (!await atTheEnd()) note('after ls below the root, the scrollback stopped short of its last line');
+
+    // The keyboard opening takes height from the page: the input stays in sight, just
+    // above it, and the scrollback stays at its end. Resizing the viewport is how a
+    // headless browser shows the keyboard.
+    await page.focus('#cmd');
+    await page.setViewportSize({ width: VIEWPORT.width, height: 460 });
+    await page.waitForTimeout(200);
+    await submit(page, 'ls');
+    await page.waitForTimeout(150);
+
+    const input = await page.locator('#cmd').boundingBox();
+    if (!input || input.y + input.height > 460) {
+      note(`with the keyboard up, the input is at ${input ? Math.round(input.y) : 'no'} pixels, below the 460 left above it`);
+    }
+    if (!await atTheEnd()) note('with the keyboard up, after ls the scrollback stopped short of its last line');
+    if (!await focused()) note('with the keyboard up, running ls from it closed it');
+
+    await page.setViewportSize(VIEWPORT);
+    console.log('Checked that the keyboard, the input and the scrollback stay put on a phone.');
+
     if (consoleErrors.length > 0) {
       for (const error of consoleErrors) note(`console error: ${error}`);
     }

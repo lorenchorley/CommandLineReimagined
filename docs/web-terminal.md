@@ -19,6 +19,25 @@ the page's rather than the language's.
 The page is laid out for a phone first: a 390 by 844 screen fits the scrollback, the
 input and both button rows without horizontal scrolling.
 
+## On a phone
+
+Nothing the page does on its own opens or closes the keyboard, or moves what is on
+screen:
+
+- The keyboard stays as you left it. Tapping Run, `up`, ↶, ↷, a chip, a suggestion key,
+  a table cell or a word neither closes it nor opens it, and a line run from the
+  keyboard leaves it up. The return key is a plain return, so it does not close the
+  keyboard either.
+- The terminal fits the part of the screen the keyboard leaves. The input sits just
+  above the keyboard, and running a line does not move it.
+- The newest output is shown to its last line, even when something below it changes
+  size afterwards, such as the location line gaining an `up` button, or the keyboard
+  opening. If you have scrolled up to read, the scrollback stays where you are until
+  you run the next line.
+
+With a mouse, a tap on a button still puts the focus back in the input, since there
+is no keyboard to open, and pressing on a table still selects its text to copy.
+
 ## Typing
 
 The input is a real text field, so the phone keyboard, autocorrect settings and text
