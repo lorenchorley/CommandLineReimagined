@@ -186,7 +186,9 @@ The reference host-side object, shared by both web front ends.
 | `ExecuteAsync(source, executionId, cancellation)` | Parses and runs one line; never throws. |
 | `RefreshAsync(source)` | Re-runs a read-only line for a live listing. Same response shape; commits nothing; refuses a line that names any command that could change something. |
 | `Cancel()` | Cancels the running command; returns whether there was one. |
-| `Complete(text)` | Completions for the last word. |
+| `CompleteAsync(text, cursor)` | What the word at the cursor could become, and the signature of the command it is in, as a `CompletionResponse`. Asynchronous; see [Completion](#completion). |
+| `DescribeAsync(text, offset)` | What the token ending at `offset` is, as a `HoverInfo`, or null. Asynchronous; see [Hover](#hover). |
+| `Complete(text)` | The items `CompleteAsync` answers with the cursor at the end of the text, waited for. For tests, and a host that cannot await. |
 | `Variables()` | Everything bound in scope. |
 
 `Undo()` is gone: `undo` is a command, and so are `redo` and `history`. A host **must
@@ -208,8 +210,181 @@ Rules an implementation **must** follow:
 
 ### Completion
 
-`Complete` returns whole replacements for the last word, with the offset at which to
-apply them.
+`CompleteAsync(text, cursor)` answers what the word at the cursor could become, and the
+signature of the command the cursor is in. It reads the line rather than guessing from
+its text, and may run the stages before the cursor to learn what flows into the one
+being written ([decision 0031](../decisions/0031-completion-reads-the-line.md)). The
+reference implementation is `Core/Completion.fs`, which dispatches, `Core/Completion/`
+for the providers, and `Session.Complete(text, cursor)`, which answers an
+`Async<CompletionResult>`.
+
+#### The word
+
+The cursor is clamped to the text. The word under it runs back to the nearest
+whitespace, `|`, `(` or `,`, or to the quote an unclosed string opened with, and forward
+to the next whitespace, `|`, `(`, `,`, `)`, `"`, `>`, `}` or a `/` that has `>` or `}`
+after it. A quoted word runs forward past its closing quote, or to the end of the line
+when it has none.
+
+Every item **must** carry the word's `start` and `end`, and applying an item **must**
+replace that span and nothing else, so completing in the middle of a line keeps what
+follows the word. `start` of a quoted word is at its opening quote, and the items for it
+carry their quotes.
+
+Matching against what is written of the word before the cursor is by prefix and ignores
+case.
+
+#### Reading the place
+
+An implementation **must** find the place by parsing, not by inspecting the text around
+the word:
+
+1. Replace the word with a placeholder that is an identifier no one will type. A word
+   that begins with `$`, `-`, `<` or `<$`, one that is `name=` or its value, and one
+   inside a tag that is still open keep that form around the placeholder.
+2. Close whatever the line left open: a quote, parentheses, an open tag, a variable tag.
+3. Parse the result. When it does not parse, parse the line cut at the end of the word
+   instead, in case what follows the cursor is what fails.
+4. Find the placeholder in the tree. The node it is in names the place. Written
+   arguments are counted as steps 1 and 2 of
+   [argument binding](execution-model.md#argument-binding) count them, so the parameter
+   named is the one the word would bind to.
+
+A word that begins with `$`, `<` or `<$`, or that is inside an open tag, is classified
+by its form, and the parse supplies the stage it is in. When nothing parses, the place
+is `Unknown`.
+
+| Place | Where the word is | Offers |
+| --- | --- | --- |
+| `Blank` | The line is empty or white space. | Nothing. The page shows its suggestion chips instead. |
+| `CommandName` | Where a stage's command is named: the head of a line, after `\|`, `else`, `try` or `(`. | The commands whose name starts with the word, each with its description as the detail. From three letters, also the commands with a keyword that starts with the word, detail `rm · matches "delete"`, and then the names one edit away from the word, two for a word longer than four letters, each with its description. Then `clear`, which the page handles, and the keyword `try`. After a pipe, only the commands with a parameter that takes the pipe, and not `clear`. |
+| `Variable` | `$` or `<$` and the start of a name. | The variables in scope whose name starts with what is written, ordered by name, each with its [summary](#a-value-in-one-line) as the detail, with the sigil written. Inside an argument handed to a *predicate* parameter, `$row` first, detail `the row being tested`; anywhere else `$row` **must not** be offered. |
+| `Member` | After `$name.`, and after any members written after it. | The members of what the variable holds, the written members read first: a table's columns, each with its type; a tag's attributes and a file's `name`, `kind`, `folder`, `path` and `id`, each with its summary; a fault's `kind`, `message`, `stage` and `path`, and `cause` when it has one. A number, a text, a boolean and anything else have none. For `$row`, the columns of [what flows into the stage](#what-flows-into-a-stage), or of a listing of the current folder outside a stage, and after `$row.column.` the members of that column's value in the first row that has one. Each item is the whole word, `$row.kind`. |
+| `Argument`, a parameter | An argument that would bind to a declared parameter. | By what the parameter [takes](#what-a-parameter-takes). |
+| `Argument`, a flag | A word that starts with `-`. | `-name` for each parameter of kind `Single` that is optional or a switch, does not take the pipe and is not already written, the flag's own name where it declares one, each with its description. |
+| `Argument`, an assignment | A plain word past the positional parameters of a command with an *assignments* parameter. | For `attr`, the attributes of the record its first plain argument names, as `name=`: its own attributes, then `name` and `kind`, leaving out `folder`, `created`, `modified` and `size` and those already assigned on the line, each with the summary of its value. Nothing once `name=` is written. |
+| `Argument`, surplus | More arguments than the command takes, or any argument of a name that is not a command. | Files and folders, as for a path. |
+| `Predicate`, an operand | Where a value starts in an argument handed to a *predicate* parameter: its start, after `not`, `and` or `or`. | `$row.`, `not` and `(`, each with a detail. For `cd`'s first word, where a plain operand is a path ([decision 0013](../decisions/0013-attribute-filesystem.md)), folders and views instead. |
+| `Predicate`, after an operand | An operand is written and nothing joins it to anything. | The eight comparison operators, `eq`, `ne`, `gt`, `ge`, `lt`, `le`, `like` and `has`. |
+| `Predicate`, the right of a comparison | After a comparison operator whose left side is `$row.column`. | The distinct display texts of that column in the rows that flow in, most frequent first and then by ordinal comparison, at most 12, each with its count as the detail, `3 rows`. After `like`, each is followed by `*`. A value that would not read back as one word is written quoted. Nothing when the rows are not known, or the left side is anything else. |
+| `Predicate`, after a comparison | A whole comparison is written. | `and` and `or`. |
+| `TagType` | A word that starts with `<`. | `<type` for each kind of record in the store other than `folder` and `view`, and each type of tag a variable holds, alone or in a list, ordered by name, with the detail `4 records` and, for a variable's tag, `1 tag in variables`. |
+| `TagAttribute` | Inside an open tag, after its type. | `name=` for each attribute that records of that kind, and tags of that type held by variables, carry: `name` first, then by name, leaving out `kind`, `folder`, `created`, `modified` and `size` and those already written in the tag, with how many of the records and tags carry it as the detail, `2 of 3 carry it`. |
+| `Unknown` | No variant of the line parses, or the word is a tag attribute's value. | The [lexical rules](#the-lexical-rules). |
+
+In a parameter's argument, an assignment's name and a surplus argument, the keyword
+`else` is offered first, once two letters of it are there and the word is not quoted.
+
+An implementation **must** answer each place by its own rule, and **must not** fall back
+to files where a parameter takes something else. How items are ranked within a rule is
+left to the implementation ([Design doc](design-doc.md#degree-of-constraint)).
+
+#### What a parameter takes
+
+A parameter declares what its argument is, as `Takes` (`Commands/Spec.fs`), and an
+`Argument` place for it is answered by that declaration. Binding never reads it. The
+[command catalogue](command-catalogue.md#what-each-parameter-takes) lists every
+parameter's.
+
+| `Takes` | Offers |
+| --- | --- |
+| `Anything`, `Path` | The records in the folder the word's directory part names, or the current folder: folders with a trailing `/`, files, and views by name. A name that a bare word cannot carry, and every name when the word is quoted, is written quoted. |
+| `Place` | Folders and saved views only. |
+| `Column` | The columns of what flows into the stage, each with its type. For a *rest* parameter, not the ones already written. |
+| `Switch(on, off)` | `on`, with the parameter's description, and `off` when there is one. |
+| `VariableName` | The variables in scope, without the `$`, each with its summary. |
+| `CommandName` | The commands, each with its description. |
+| `Value` | The variables in scope, with the `$`, each with its summary. |
+| `Count`, `Number`, `NewName`, `Text`, `Url` | Nothing. The signature says what is wanted. |
+
+`Anything` is the default, so a parameter that declares nothing is offered files and
+folders, as every argument was before decision 0031.
+
+#### The signature
+
+For an `Argument` or a `Predicate` place in a command that exists, the response carries
+the command's signature: its name, its description, and its parameters in declaration
+order, each with its name, whether it is optional and its description. `active` is the
+index of the parameter the word would bind to:
+
+- the parameter itself, for a parameter's argument;
+- the *assignments* parameter, for an assignment;
+- the parameter whose name or flag the written flag names exactly, for a flag, and none
+  while the flag is still being written;
+- the *predicate* parameter, anywhere in a predicate;
+- none for a surplus argument.
+
+Every other place has no signature.
+
+#### What flows into a stage
+
+The columns a stage's argument is offered, and the values a comparison's right side is
+offered, depend on what flows into the stage. An implementation **must** learn it as
+follows, and **must** answer rather than fail whenever it cannot:
+
+- At the head of a pipeline, nothing flows in. The answer is the columns a listing of
+  the current folder would have, `name`, `kind`, `folder`, `size` and `modified` and
+  every attribute a record there carries, with no rows.
+- Otherwise the stages before it are written out as a line of their own, the upstream.
+  A lone `$name` is read from the variables, and nothing runs. `$name | rest` runs as
+  `echo $name | rest`.
+- Any other upstream is run the way a [refresh](execution-model.md#refreshing) runs a
+  line: refused before it runs unless every stage is read-only, committing nothing,
+  touching neither the history nor the undo chain, and writing its output nowhere.
+- A table answers its columns and its rows. A tag, or a list of tags, is read as a table
+  the way the table functions read one
+  ([decision 0009](../decisions/0009-table-coercion.md)). Any other value, and a tag
+  that is not table-shaped, has no columns.
+- A refusal, a fault, an unset variable at the head, a missed budget and a cancellation
+  all answer the current folder's listing columns, with no rows.
+
+The budget is 150 milliseconds from the start of the run. A run that waits on
+something is answered for with the listing's columns when the budget is spent. It is
+not stopped, and its answer is kept for the next request. A run that never waits has
+nothing that could interrupt it, and its answer is used however long it took.
+
+Answers are cached by the upstream text and the store's sequence number, so typing
+inside the last stage does not run the stages before it again. Every committed
+transaction clears the cache, and an answer to a run that started before a clear
+**must not** be stored.
+
+#### Cancellation and stale answers
+
+Completion is asked on every keystroke, and an answer may arrive after the next one.
+
+- Each `CompleteAsync` **must** cancel the one before it, so that an upstream run for a
+  keystroke that has been superseded stops. A cancelled run answers the listing's
+  columns and is not cached.
+- A host **must** drop any answer that is not to its latest request. The reference
+  page numbers its requests and keeps an answer only when its number is the latest.
+- `DescribeAsync` is not a keystroke and **must not** cancel a completion in flight; it
+  runs with a token of its own that is never cancelled.
+
+#### A value in one line
+
+A variable's detail, a member's detail and a hover all describe a value with the same
+one-line summary (`Completion/Summary.fs`). A part that runs free, a text, a message or
+a query, is cut to 40 characters, ending in `…`, with its line breaks folded to spaces.
+
+| Value | Summary |
+| --- | --- |
+| `Empty`, `None` | `empty`, `none` |
+| Number, boolean, text | `number · 5`, `boolean · true`, `text · "NotFound"` |
+| A folder | `folder · documents` |
+| Any other file | `file · readme.txt · text` |
+| List | `list · 3 items` |
+| Object, component | `tag · note · 2 attributes`, `component · panel · 1 attribute`, and the children when there are any, `tag · list · 0 attributes · 1 child` |
+| Table | `table · 4 rows · name, kind, folder…`, naming at most three columns |
+| Query | `query · $row.kind eq folder` |
+| Fault | `fault · NotFound · File does not exist : /missing.txt` |
+
+`vars` does not use these summaries: its `value` column holds the values themselves
+(see [vars](command-catalogue.md#vars)).
+
+#### The lexical rules
+
+When the place is `Unknown`, the rules that answered before decision 0031 answer,
+reading the text before the cursor. They are kept as the fallback, not deleted:
 
 | Context | Offers |
 | --- | --- |
@@ -221,13 +396,37 @@ apply them.
 | After `cd` | folders, and files of kind `view` |
 | Anything else | files and folders in the current folder, folders ending in `/`; and `else` once two letters of it are typed |
 
-The last word starts after the nearest preceding whitespace, `|`, `(` or `,`. Matching
-is case-insensitive and by prefix. A path completion's text includes whatever directory
-prefix the user already typed, so applying it never loses their position.
+Their items replace from the start of the word to its end, as every other item does.
+
+### Hover
+
+`DescribeAsync(text, offset)` says what the token that ends at `offset` means where it
+stands (`Completion/Hover.fs`). It reads the line as completion does, with the offset as
+the cursor, and answers a `HoverInfo`, or null when there is nothing to say, in which
+case a host shows the token's grammar role.
+
+| The token | `kind` | `detail` | `signature` |
+| --- | --- | --- | --- |
+| A variable | `variable` | Its summary, or `not set`. `$row` is `the row being tested` inside a predicate, and `the row a predicate is testing, only inside where, find, cd and save-view` anywhere else. | none |
+| A member | `member` | For `$row.column`, `column · <type>` from what flows into the stage. For another variable, a table's column as `column · <type>`, or the summary of the member read, and none when there is no such member. | none |
+| A command's name | `command` | The command's description. | The command's, with nothing active. |
+| An operator in a predicate | `operator` | `and`: `true when both sides are true`; `or`: `true when either side is true`; `not`: `true when what follows is false`; a comparison: `true when <left> <meaning> <right>`, with `the value before it` or `the value after it` for a side that is not there. | none |
+| A flag | `flag` | `<parameter> · <description>` of the parameter it names. | The command's, with that parameter active. |
+| Any other argument of a command | `argument` | `<parameter> · <description>` of the parameter it binds to, or of the predicate parameter. | The command's, with that parameter active. |
+
+The meanings of the comparisons are `is equal to`, `is not equal to`,
+`is greater than`, `is greater than or equal to`, `is less than`,
+`is less than or equal to`, `matches the pattern (* for anything)` and `contains`, so
+`eq` in `ls | where $row.kind eq folder` reads `true when $row.kind is equal to folder`.
+
+Nothing is said about an empty token, a tag's type or attribute, or a word whose place
+is `Unknown`.
 
 ## Wire formats
 
 Both web front ends serialise with .NET's web defaults: camel-cased property names.
+The serialiser escapes quotes and characters outside ASCII, `\u00B7` for `·`; the
+examples below are shown with those escapes decoded.
 
 ### Parse response
 
@@ -242,14 +441,67 @@ Both web front ends serialise with .NET's web defaults: camel-cased property nam
 }
 ```
 
-On failure, `tokens` is empty, `reserialised` is null and `error` is:
+On failure, `tokens` is empty, `reserialised` is null and `error` is, for `<thing`:
 
 ```json
-{ "kind": "syntax", "line": 0, "column": 6, "expected": ["identifier", "/>", ">"] }
+{"kind":"syntax","line":0,"column":6,"expected":["attribute name","/>",">"],"explanation":null,"sentence":"Syntax error at column 6: expected an attribute name or the end of the tag."}
 ```
 
 `kind` is `syntax`, `lexical` or `error`. For `error`, `expected` carries the messages
-and the position is zero.
+and the position is zero. `explanation` is the sentence the grammar gave when it knew
+why the input was wrong ([Errors](lexical-grammar.md#errors)), or null; for
+`ls | where $row.kind eq`:
+
+```json
+{"kind":"syntax","line":0,"column":23,"expected":[],"explanation":"eq needs a value to compare with, such as folder","sentence":"Column 23: eq needs a value to compare with, such as folder"}
+```
+
+`sentence` is what running the line would show as its `error`, so that a page can say it
+while the line is still being typed without a second copy of the wording. It is built
+from the rest (`TerminalSession.Describe(ParseErrorInfo)`):
+
+- with an explanation, `Column <column>: <explanation>`;
+- for `error`, the messages joined with a space, or `Could not parse the command.` when
+  there are none;
+- otherwise `Syntax error at column <column>: expected <phrases>.`, `Lexical` for a
+  lexical error, or `Syntax error at column <column>.` when there is nothing to name.
+
+An implementation **must not** show a grammar label in a sentence. Each label the parser
+expected becomes a phrase from this table, each phrase is named once, in the table's
+order rather than the parser's, and the last two are joined with `or`: `a tag or a
+component`, `an argument, a variable or a quoted string`.
+
+| Labels | Phrase |
+| --- | --- |
+| `identifier` | a command name |
+| `argument` | an argument |
+| `$` | a variable |
+| `variable name` | a variable name |
+| `-` | a flag |
+| `"`, `""`, `"""` | a quoted string |
+| `(` | a parenthesised pipeline |
+| `<`, `<$` | a tag |
+| `{` | a component |
+| `tag type` | a tag type |
+| `attribute name` | an attribute name |
+| `property name` | a property name |
+| `column name` | a column name |
+| `not` | 'not' |
+| `eq`, `ne`, `gt`, `ge`, `lt`, `le`, `like`, `has`, `and`, `or` | an operator |
+| `try` | 'try' |
+| `??` | '??' |
+| `else` | 'else' |
+| `\|` | a pipe |
+| `,` | a comma |
+| `)` | a closing parenthesis |
+| `]` | a closing bracket |
+| `/>`, `>` | the end of the tag |
+| `/}`, `}` | the end of the component |
+| `</`, `{/`, `[/` | a closing tag |
+| `/` | nothing: it is only expected because a word could go on |
+| `end of input` | the end of the line |
+
+A label that is not in the table is named quoted, `'label'`, after the ones that are.
 
 ### Execution response
 
@@ -305,8 +557,9 @@ A column's `type` is `text`, `number`, `boolean`, `file`, `object` or `mixed`. E
 cell **must** be described by the same rules as a standalone value, so a file in a
 listing still carries its path.
 
-`error` carries a user-facing sentence, or null. `fault` carries the same message with
-structure beside it:
+`error` carries a user-facing sentence, or null. For a line that does not parse it is
+the parse error's `sentence`; otherwise it is the fault's message. `fault` carries the
+message with structure beside it:
 
 ```json
 { "kind": "NotFound", "message": "Directory does not exist : nowhere", "stage": 1, "path": "nowhere" }
@@ -321,11 +574,50 @@ A host **must** keep `error` as the sentence it always was; `fault` is additiona
 or the predicate as it was written. The two are independent: a view does not replace
 the folder, because a new file still lands there.
 
+### Completion response
+
+What `Complete(text, cursor)` answers, here for `$` in a session where `v`, `files` and
+`problem` are set:
+
+```json
+{"items":[{"kind":"variable","text":"$files","start":0,"end":1,"detail":"table · 4 rows · name, kind, folder…"},{"kind":"variable","text":"$problem","start":0,"end":1,"detail":"fault · NotFound · File does not exist : /missing.txt"},{"kind":"variable","text":"$v","start":0,"end":1,"detail":"number · 5"}],"signature":null}
+```
+
+and for `ls | sort name d`:
+
+```json
+{"items":[{"kind":"keyword","text":"desc","start":15,"end":16,"detail":"Write 'desc' to order downwards"}],"signature":{"command":"sort","description":"Order the rows by a column","parameters":[{"name":"column","optional":false,"description":"The column to order by"},{"name":"desc","optional":true,"description":"Write 'desc' to order downwards"},{"name":"table","optional":true,"description":"The table to work on; taken from the pipe when it is not written"}],"active":1}}
+```
+
+An item replaces the text from `start` to `end` with `text`. `kind` is one of `command`,
+`keyword`, `variable`, `member`, `operator`, `flag`, `column`, `value`, `file`, `folder`
+and `view`, and a host colours by it. `detail` is a line about the item, or null.
+`signature` is null outside a command's arguments; `active` is an index into
+`parameters`, or null.
+
+### Hover response
+
+What `Describe(text, offset)` answers, here for `ls | where $row.kind eq folder` with
+the offset at the end of `eq`:
+
+```json
+{"kind":"operator","text":"eq","detail":"true when $row.kind is equal to folder","signature":null}
+```
+
+and for `ls | sort name` with the offset at the end of `name`:
+
+```json
+{"kind":"argument","text":"name","detail":"column · The column to order by","signature":{"command":"sort","description":"Order the rows by a column","parameters":[{"name":"column","optional":false,"description":"The column to order by"},{"name":"desc","optional":true,"description":"Write 'desc' to order downwards"},{"name":"table","optional":true,"description":"The table to work on; taken from the pipe when it is not written"}],"active":0}}
+```
+
+`kind` is `variable`, `command`, `member`, `operator`, `flag` or `argument`; `detail`
+and `signature` may each be null. The whole response is `null` when there is nothing to
+say about the token (see [Hover](#hover)).
+
 ### Other shapes
 
 ```json
 { "name": "write", "description": "...", "parameters": [ { "name": "path", "optional": false } ] }
-{ "kind": "folder", "text": "documents/", "start": 3 }
 { "persistent": true, "replayed": 12, "unreadable": 0, "reason": null }
 { "name": "v", "text": "5", "items": [ { "kind": "number", "text": "5", "path": null } ] }
 ```
@@ -344,7 +636,8 @@ layer.
 | `Initialize()` | Opens the store and replays the log. Asynchronous, and **must** be awaited before the input is enabled. Answers with the store's status. |
 | `Status()` | The store's status again, as a JSON string. The page asks after every line, so storage that stops answering mid-session shows as `not persisted` when it happens. |
 | `Commands()` | Command summaries, as a JSON string. |
-| `Complete(text)` | Completions, as a JSON string. |
+| `Complete(text, cursor)` | Completion response, as a JSON string. Asynchronous. |
+| `Describe(text, offset)` | Hover response, as a JSON string, or `null`. Asynchronous. |
 | `Variables()` | Variable summaries, as a JSON string. |
 | `Location()` | The location, as a JSON string. |
 

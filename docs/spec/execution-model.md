@@ -149,9 +149,11 @@ its name.
 The same ordering **must** drive `sort`, so a column that compares as numbers also
 sorts as numbers. An absent value orders before everything.
 
-`and`, `or` and `not` combine expressions. Only `Boolean true` is true; every other
-value, absent or not, is false. `and` and `or` **must** short-circuit, so an unknown
-variable on the right of a false `and` is never looked up.
+`and`, `or` and `not` combine expressions. Inside them, only `Boolean true` is true;
+every other value, absent or not, is false, and none of them is a fault. `and` and `or`
+**must** short-circuit, so an unknown variable on the right of a false `and` is never
+looked up. What a whole predicate's value must be is a rule of its own
+([Predicates](#predicates)).
 
 A tag cannot be an operand: `where <t/> eq 1` is a `Binding` fault,
 `A TagValue cannot be part of an expression.`
@@ -163,7 +165,7 @@ The contract is in `Commands/Spec.fs`.
 | Type | Purpose |
 | --- | --- |
 | `CommandSpec` | `Name`, `Description`, `Keywords`, `Parameters`, `Meta`, `ReadOnly`. |
-| `Parameter` | `Name`, `Description`, `Optional`, `Flag`, `Default`, `AcceptsPipe`, `Kind`. |
+| `Parameter` | `Name`, `Description`, `Optional`, `Flag`, `Default`, `AcceptsPipe`, `Kind`, `Takes`. |
 | `ParamKind` | `Single`, `Predicate`, `Rest`, `Assignments`. |
 | `Invocation` | `Spec`, `Args`, `Assignments`, `Input`, `Output`, `Scope`, `Projection`, `Location`, `Blobs`, `Cancel`. |
 | `CommandResult` | `Value` for the next stage, and `Events` describing what changed. |
@@ -179,6 +181,13 @@ notation alone and takes no positional argument.
 
 A command **must** declare its parameters in the order positional arguments fill them,
 and **should** let at most one accept the pipe, or a pipe becomes ambiguous.
+
+`Takes` says what a parameter's argument is: `Anything`, the default, `Path`, `Place`,
+`NewName`, `Url`, `Column`, `Count`, `Number`, `Text`, `Switch(on, off)`,
+`VariableName`, `CommandName` or `Value`. It is for completion, the signature hint and
+`help <command>`, and binding **must not** read it: two commands that differ only in
+what their parameters take bind alike. What each one offers is in
+[Host interfaces](host-interfaces.md#what-a-parameter-takes).
 
 `Output` is where a command writes while it is still running, such as a progress
 figure; its result is its return value. `Blobs` lets a command put and get file content
@@ -211,14 +220,31 @@ Look up the name case-insensitively among the registered definitions, so `ECHO h
 `echo`.
 
 If there is no match, the implementation **must** resolve the definition named
-`UnknownCommand` instead, bind the written name to its first parameter, and execute it
-with no pipe input. That command fails with `Unknown command : <name>`, kind
-`UnknownCommand`. Reporting through a command rather than directly means an unknown
-name renders like any other failure. `UnknownCommand` is not listed by `help`, and
-**must not** itself be resolvable by name: typing `UnknownCommand` is an unknown command,
+`UnknownCommand` instead, bind the written name to its first parameter and the nearest
+command names to the rest, and execute it with no pipe input. That command fails with
+kind `UnknownCommand` and the message `Unknown command : <name>`, followed, when any
+command name is near, by the nearest names, at most three:
+
+```
+Unknown command : lss. Did you mean ls?
+Unknown command : rum. Did you mean rm or run?
+Unknown command : ct. Did you mean cat, cd or cp?
+```
+
+Reporting through a command rather than directly means an unknown name renders like
+any other failure. `UnknownCommand` is not listed by `help`, and **must not** itself be
+resolvable by name: typing `UnknownCommand` is an unknown command,
 `Unknown command : UnknownCommand`.
 
-If `UnknownCommand` is not registered, fail with `Unknown command : <name>` directly.
+A name is near a command's name when the edit distance between them, ignoring case, is
+at least one and at most one for a written name of up to four letters, or two for a
+longer one. The distance counts an insertion, a deletion, a substitution and a swap of
+two neighbouring letters as one each (Damerau–Levenshtein, optimal string alignment;
+`Nearest.fs`), so `sotr` is one from `sort`. The nearest come first, equally near ones
+in name order. A command's keywords play no part in the message; completion uses them
+([Host interfaces](host-interfaces.md#completion)).
+
+If `UnknownCommand` is not registered, fail with the same message directly.
 
 A hyphenated name is one name: `ls-l` is an unknown command, not `ls` with a flag
 ([decision 0022](../decisions/0022-hyphenated-command-names.md)).
@@ -279,7 +305,7 @@ it, and its `VariableChanged` event is part of what binding returns.
 | --- | --- |
 | String literal | `Text` of the string's value |
 | Identifier or word | `Number` if it parses as a number with the invariant culture, otherwise `Text` |
-| `$name` | The variable's value, or fail with `Unknown variable : $<name>`, kind `NotFound` |
+| `$name` | The variable's value, or fail with `Unknown variable: $<name>`, kind `NotFound`, path `$<name>`. `$row` outside a predicate fails differently; see [The row outside a predicate](#the-row-outside-a-predicate). |
 | `$name.member` | The member read off the variable's value, and so on for each member written. See below. |
 | `( pipeline )` | The value the nested pipeline answered. See [Nested pipelines](#nested-pipelines). |
 | A tag | The object or component it builds, binding its variable if it names one. See [Evaluating tags](#evaluating-tags). |
@@ -309,13 +335,66 @@ The command evaluates it once per item, in a child scope with `$row` bound to th
 `row` outside the predicate **must** be unaffected. Over a table, the item is the row as
 an object of type `row` (see [Reading a tag as a table](#reading-a-tag-as-a-table)).
 
-A filter — `where`, `find`, a view — keeps an item only when its predicate answers
-`Boolean true`; any other answer, including a word, drops it.
-
 A nested pipeline inside a predicate is the exception to "unevaluated": it has already
 run, and the predicate holds the value it answered as a constant. Every row is compared
 against that one value, and a predicate kept as a view keeps the value, not the
 pipeline.
+
+A predicate is a yes-or-no question about the row
+([decision 0033](../decisions/0033-a-predicate-is-a-question-about-the-row.md)). Two
+checks hold it to that, one when it is bound and one when it runs.
+
+**Bound: it must read the row.** When the binder hands an argument to a *predicate*
+parameter, and the argument wrote an operator, the expression **must** read `$row`
+somewhere, or the stage fails with a `Binding` fault before anything runs. A `$row`
+inside a nested pipeline does not count: that pipeline runs once for the line, not once
+per row. The check is made on the expression as written, before any nested pipeline's
+value is put in its place, so the message quotes what was typed:
+
+```
+kind eq folder never reads $row, so it is the same for every row. Did you mean $row.kind eq folder?
+3 lt size never reads $row, so it is the same for every row. Did you mean 3 lt $row.size?
+not done never reads $row, so it is the same for every row. Did you mean not $row.done?
+$v eq 5 never reads $row, so it is the same for every row.
+```
+
+The suggestion reads the bare words the predicate compared as columns: in a comparison,
+its left side when that is a word, and otherwise its right; under `and`, `or` and
+`not`, an operand that is a word on its own. A word here is a letter or `_` followed by
+letters, digits and `_`. When nothing can be read that way, the sentence ends after
+`every row.`.
+
+Because the check is where every *predicate* parameter is bound, `where`, `find`, `cd`
+and `save-view` all make it. An argument with no operator in it is not checked, so
+`cd documents` is still a path ([decision 0013](../decisions/0013-attribute-filesystem.md))
+and `where $flag` is still a question.
+
+**Run: it must answer true or false.** A filter — `where`, `find`, a view — tests each
+item in order, and what the whole predicate answers for it decides:
+
+- `Boolean true` keeps the item, and `Boolean false` drops it.
+- An absent value, `Empty` or `None`, drops it, and is not a fault. A gap read bare is
+  false, so `where $row.done` keeps the rows whose `done` is true and passes over the
+  rows that have no `done` at all.
+- The text `true` or `false`, in any case, drops it, and is not a fault either.
+- Anything else **must** fail the stage with an `Invalid` fault on the first item that
+  answers it, naming what the predicate answered and how to ask a question of it:
+
+```
+$row.kind is text (folder), not true or false. Compare it: $row.kind eq folder.
+$row.size is number (0), not true or false. Compare it: $row.size eq 0.
+kind is text (kind), not true or false. Did you mean $row.kind?
+```
+
+The value is shown by its display string, its first line only, cut to 40 characters.
+The fix is `Compare it: <predicate> eq <value>.` when the predicate reads `$row`, with
+the value quoted when it would not read back as one word, `Did you mean $row.<word>?`
+when the predicate is a bare word, and nothing otherwise.
+
+The run check is on the value of the whole predicate. The operands of `and`, `or` and
+`not` are read as the [comparison](#comparison) rules read them, where only
+`Boolean true` is true, so `where not $row.kind` keeps every row and
+`where $row.kind eq folder or $row.name` keeps the folders.
 
 ## Running a line
 
@@ -347,7 +426,46 @@ A stage is one of:
 - a function expression, executed as a command;
 - a command line expression, executed as a command;
 - an instance tag, evaluated to a value without calling a command, ignoring its input;
-- a pipeline in parentheses, run as a pipeline with the stage's input as its input.
+- a pipeline in parentheses, run as a pipeline with the stage's input as its input;
+- a variable reference, a *value stage*
+  ([decision 0032](../decisions/0032-a-stage-may-be-a-value.md)).
+
+A value stage's value is the variable's value with its members read off it, exactly as
+the same reference written as an argument evaluates
+([Evaluating a written value](#evaluating-a-written-value)). It calls no command and
+emits no events. Like a tag standing alone it ignores its input, so `ls | $v` answers
+`$v`, and in a pipeline it is how a variable feeds the stages after it:
+
+```
+$ $v
+5
+$ $files | count
+4
+$ $problem.kind
+NotFound
+```
+
+A value stage is a stage like any other for recovery: a default applies when it answers
+`None` or `Empty`, `try` makes its failure a value, and `else` runs when it fails. So
+`$nope else echo fallback` answers `fallback`, and `$maybe ?? "default"` still fails
+with `Unknown variable: $maybe` when `maybe` is not set, because a missing variable is a
+failure, not an empty answer (see [Conformance](conformance.md#known-deviations)).
+
+### The row outside a predicate
+
+`$row` is not a variable anyone sets: a predicate binds it for each item it tests
+([decision 0008](../decisions/0008-explicit-row-variable.md)). Read anywhere else — as
+a value stage, as an argument, in a variable tag, or with members — it **must** fail
+with a fault of kind `NotFound`, path `$row`, that says where it exists rather than
+that it is unknown:
+
+```
+$row is the row a predicate is testing. It exists only inside where, find, cd and save-view: ls | where $row.kind eq folder.
+```
+
+`$row`, `echo $row`, `$row.kind` and `echo <$row>` all answer it. A variable that a
+person did bind as `row` is read as any other variable outside a predicate, and is
+shadowed inside one.
 
 ### Recovery
 
@@ -465,7 +583,7 @@ rather than letting it escape (see [Running a line](#running-a-line)).
 | --- | --- |
 | `ObjectInstance` | `Object` with evaluated attributes and children |
 | `ComponentInstance` | `Component` with evaluated attributes and children |
-| `VariableTag` | The named variable's value, or fail with `Unknown variable : $<name>` |
+| `VariableTag` | The named variable's value, or fail with `Unknown variable: $<name>`, or for `<$row>` outside a predicate the fault in [The row outside a predicate](#the-row-outside-a-predicate) |
 
 Rules:
 
@@ -534,10 +652,10 @@ after `ls |`.
 An implementation **may** offer a way to re-run a line without committing it, so a host
 can keep a listing on screen up to date as the store changes. Where it does:
 
-- Every stage of the line **must** name a registered command whose spec is `ReadOnly`.
-  That includes every branch after `else`, every nested pipeline, every stage in
-  parentheses and every default, and an instance tag standing as a stage is not
-  read-only. A line that fails this **must** be refused with a fault of kind `Invalid`,
+- Every stage of the line **must** name a registered command whose spec is `ReadOnly`,
+  or be a value stage, which only reads. That includes every branch after `else`,
+  every nested pipeline, every stage in parentheses and every default, and an instance
+  tag standing as a stage is not read-only, because it can bind a variable. A line that fails this **must** be refused with a fault of kind `Invalid`,
   `A live refresh only re-reads : <line>`, *before* any of it runs. An unregistered
   name is not read-only.
 - The run **must** commit nothing, whatever events it gathers, and **must** leave the

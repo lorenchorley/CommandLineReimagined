@@ -22,14 +22,19 @@ is a record and implements `IVisitable`, except the abstract bases, which declar
 
 | Node | Fields | Meaning |
 | --- | --- | --- |
-| `CommandExpression` | `Expression: OneOf<FunctionExpression, CommandExpressionCli, InstanceTag, NestedPipeline>`, `Try: bool`, `Default: Value?` | One stage of a pipeline: what it runs, whether it was written with `try`, and the operand after `??`, if any. |
+| `CommandExpression` | `Expression: OneOf<FunctionExpression, CommandExpressionCli, InstanceTag, NestedPipeline, VariableReference>`, `Try: bool`, `Default: Value?` | One stage of a pipeline: what it runs, whether it was written with `try`, and the operand after `??`, if any. |
 | `FunctionExpression` | `Id: Identifier`, `Arguments: CommandArguments` | `name(a, b: c)`. |
 | `CommandExpressionCli` | `Name: CommandName`, `Arguments: CommandArguments` | `name a b`. |
 | `CommandName` | `Name: string` | A command name in command line form, hyphens included: `save-view`. |
 
 An `InstanceTag` in `CommandExpression` is the tag form: the stage produces a value
 without calling a command. A `NestedPipeline` there is a pipeline in parentheses
-standing as a stage.
+standing as a stage. A `VariableReference` there is a value stage
+([decision 0032](../decisions/0032-a-stage-may-be-a-value.md)): `$files` and
+`$problem.kind` standing where a command would. It is the same node an argument holds,
+because the two are read the same way; only where it stands differs, so a consumer that
+walks stages **must** handle the fifth case rather than assume that every stage names a
+command or builds a tag.
 
 ### Arguments
 
@@ -55,7 +60,7 @@ producers and is not reachable from text.
 | `SimpleValue` | abstract | A value that is not a tag. |
 | `Identifier` | `Name: string` | A bare word or identifier, as written. Numbers are words too; what a word means is decided at [binding](execution-model.md#evaluating-a-written-value). |
 | `VariableReference` | `Name: VariableName`, `Members: List<MemberName>` | `$name`, or `$name.member`. |
-| `MemberName` | `Name: string` | The `.size` of `$row.size`. It carries its own stop. |
+| `MemberName` | `Name: string` | The `.size` of `$row.size`. It carries its own stop, and its name is never empty: a stop with no name after it does not parse ([Tokens](lexical-grammar.md#tokens)). |
 | `Constant` | abstract | Base for literals. |
 | `StringConstant` | `Value: string`, `QuoteCount: int`, `QuoteString: string` | A string literal. |
 | `TagValue` | `Tag: InstanceTag` | A tag used where a value is expected. |
@@ -76,6 +81,10 @@ where it admits a value, and which of the two was written is decided by what is 
 page rather than by where it is. A comparison with no operator in it **must** produce
 the operand's own node rather than a wrapper around it, so a line written before
 expressions existed parses to the tree it always did.
+
+A `ComparisonExpression` always has both sides. An operator with nothing after it to
+compare with does not parse, and produces a syntax error that names the operator
+([Expressions](lexical-grammar.md#expressions)) rather than a node with a null `Right`.
 
 A `StringConstant` carries its body as `Value`, the number of quotes in its delimiter as
 `QuoteCount`, and the delimiter itself as `QuoteString`. The combinator grammar builds
@@ -224,6 +233,10 @@ unit       attribute
 metres     identifier
 />         punctuation
 ```
+
+A value stage tokenises as the variable reference it is, whether it stands as a stage
+or as an argument: `$problem.kind` is `$` and `problem` as `variable`, then `.` and
+`kind` as `member`.
 
 A token is what one write of the traversal produced, not a whole lexeme, and adjacent
 tokens are not merged. A host **must not** assume one token per lexeme: `$row.size` is
