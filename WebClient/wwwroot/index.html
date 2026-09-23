@@ -786,8 +786,13 @@ function drawChips() {
     row.appendChild(more);
   }
 
+  // Scrolled by hand rather than with scrollIntoView, which may move the page too.
   const current = row.querySelector('.sel');
-  if (current && current.scrollIntoView) current.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  if (current) {
+    const left = current.offsetLeft - row.offsetLeft, right = left + current.offsetWidth;
+    if (left < row.scrollLeft) row.scrollLeft = left;
+    else if (right > row.scrollLeft + row.clientWidth) row.scrollLeft = right - row.clientWidth;
+  }
 }
 
 /// The detail line, which does one job at a time, in this order: the signature while the
