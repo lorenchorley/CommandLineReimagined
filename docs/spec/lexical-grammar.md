@@ -142,6 +142,16 @@ A `MemberName` carries its own full stop, so `$row.size` is three tokens — a s
 variable name and one member — and re-serialising writes the stop back with the member
 it belongs to.
 
+A stop after a variable **must** be followed by an `Identifier`
+([decision 0032](../decisions/0032-a-stage-may-be-a-value.md)). Once a `VariableReference`
+has read a `.`, the stop belongs to it: an implementation **must not** end the reference
+in front of the stop and read the stop as the start of a `Word`. A stop with no name
+after it **must** be a syntax error, reported where the name should have been, and its
+explanation **should** say what belongs there. The reference implementation says
+`a column name belongs after the stop, as in $row.kind`, so `ls | where $row.` fails at
+column 16 rather than reaching `where` with a path called `.`. A member may be all
+digits, like any identifier: `$x.1` reads a member named `1`.
+
 A `CommandName` is one token, and appears in exactly two places: the name of a CLI
 expression and the name of a function expression. The hyphen **must** be adjacent to an
 identifier on both sides, so `save-view` is one name while `ls -l` is a name and a
@@ -164,7 +174,8 @@ Stage                ::= ( "try" Space* )? CommandExpression ( Default Space* Op
 CommandExpression    ::= ( FunctionExpression
                          | CliExpression
                          | InstanceTag
-                         | "(" Space* PipedCommandList ")" ) Space*
+                         | "(" Space* PipedCommandList ")"
+                         | VariableReference ) Space*
 
 FunctionExpression   ::= CommandName "(" Space* FunctionArgumentList Space* ")" Space*
 FunctionArgumentList ::= ( FunctionArgument ( "," Space* FunctionArgument )* )?
@@ -182,7 +193,8 @@ Expression           ::= OrExpr
 OrExpr               ::= AndExpr ( "or" Space* AndExpr )*
 AndExpr              ::= NotExpr ( "and" Space* NotExpr )*
 NotExpr              ::= "not" Space* NotExpr | Comparison
-Comparison           ::= Operand ( CompareOp Space* Operand )?
+Comparison           ::= Operand ( CompareOp Space* RightOperand )?
+RightOperand         ::= Operand
 CompareOp            ::= "eq" | "ne" | "gt" | "ge" | "lt" | "le" | "like" | "has"
 Operand              ::= ArgumentValue Space*
                        | "(" Space* PipedCommandList ")" Space*
@@ -262,6 +274,15 @@ did, and only a line that actually writes an operator produces an expression nod
 An operator **must** be followed by something that is not a `WordChar`, so `eq` is an
 operator and `equals` is a word. This is the fourth ordered choice that matters.
 
+Once a `CompareOp` is written, its `RightOperand` **must** follow. When nothing that
+could begin an operand is there, an implementation **must** fail at the position where
+the operand should begin, and the explanation **should** name the operator and give an
+example of what it compares with. The reference implementation says
+`eq needs a value to compare with, such as folder`: the example is `10` for `gt`, `ge`,
+`lt` and `le`, `"*.txt"` for `like`, and `folder` for the rest. An operand that began
+and went wrong keeps its own error: a string that never closes, and a reserved word
+written as the value, are reported as such.
+
 `and` binds tighter than `or`, and both are left associative. `not` takes the whole
 `NotExpr` after it, so `not $row.kind eq folder` negates the comparison rather than its
 left operand. Expressions have no symbol operators and no parenthesised
@@ -287,11 +308,14 @@ One `Default` per stage: `a ?? b ?? c` is a syntax error rather than a chain. Th
 default is an `Operand`, not an `Expression`, so an operator after it is a syntax error
 too.
 
-A `Stage` is a command, a tag or a pipeline in parentheses, never a bare value, so a
-line cannot begin with a variable or a string: `$maybe ?? "default"` is a syntax error
-at column 0, and the stage has to be written as a command, `echo $maybe ?? "default"`.
-[Decision 0014](../decisions/0014-recovery-operator.md) shows the bare form as an
-example; the grammar has never accepted it.
+A `Stage` is a command, a tag, a pipeline in parentheses or a variable reference
+([decision 0032](../decisions/0032-a-stage-may-be-a-value.md)). The last is a *value
+stage*: `$files`, `$problem.kind`, `$files | where $row.size gt 10` and
+`$maybe ?? "default"` are lines, and `try` and `??` apply to a value stage as to any
+other. It is the fifth alternative, and takes nothing away from the other four, because
+`$` can begin no command name, tag or parenthesis. A value stage has no arguments:
+`$v x` is a syntax error at column 3, where the stage should have ended. A string or a
+word cannot stand as a stage, so `"x"` is a syntax error at column 0.
 
 A `FunctionExpression`'s opening parenthesis **must** be adjacent to its `CommandName`.
 With `Space` between them the parenthesis is not a call: it begins an `Operand`, which
@@ -340,9 +364,13 @@ A failed parse **must** produce one of:
 | Messages | a list of strings | A structural rule failed, such as a mismatched closing tag. |
 
 The explanation is a sentence the grammar supplies when it knows *why* the input is
-wrong rather than only what could have appeared: a reserved word used as an argument or
-as a command name is the case it exists for. A host **should** show the explanation in
-preference to the expected symbols when there is one.
+wrong rather than only what could have appeared. The reference implementation gives one
+in four cases: a reserved word used as an argument, a reserved word used as a command
+name, a stop after a variable with no name after it, and a comparison operator with
+nothing to compare with. A host **should** show the explanation in preference to the
+expected symbols when there is one, and **should** say the expected symbols in words
+rather than as labels (see
+[Parse response](host-interfaces.md#parse-response)).
 
 The lexical error kind is kept for parsers with a separate tokeniser. The reference
 implementation has none: an unexpected character is a syntax error at its position, and
@@ -353,9 +381,12 @@ not from the start of the line; for the single-line programs this grammar accept
 two coincide.
 
 Expected symbols are the labels the grammar could have accepted at that position, for
-example `identifier`, `argument`, `end of input`, `"`, `<`, `<$`, `{`, `(`, `|`, `/>`,
-`>`, `??`, `try`, `else`, `not` or a comparison word. An implementation **should**
-report them; the set itself is not normative.
+example `identifier`, `argument`, `end of input`, `"`, `$`, `<`, `<$`, `{`, `(`, `|`,
+`/>`, `>`, `??`, `try`, `else`, `not` or a comparison word. A name the grammar reads in
+a particular place is labelled for what it names: `variable name` after `$`,
+`column name` after a variable's stop, `tag type` after `<` or `{`, `attribute name`
+inside a tag and `property name` inside a property assignment. An implementation
+**should** report them; the set itself is not normative.
 
 A closing tag whose type differs from its opening tag **must** fail with the message
 `Closing tag 'X' does not match opening tag 'Y'`. The empty closing forms `</>` and
@@ -365,8 +396,8 @@ A closing tag whose type differs from its opening tag **must** fail with the mes
 
 | Input | Result |
 | --- | --- |
-| `<thing` | Syntax error at column 6, expecting `identifier`, `/>`, `>` |
-| `{renderer` | Syntax error at column 9, expecting `identifier`, `/}`, `}` |
+| `<thing` | Syntax error at column 6, expecting `attribute name`, `/>`, `>` |
+| `{renderer` | Syntax error at column 9, expecting `attribute name`, `/}`, `}` |
 | `echo --double` | Syntax error at column 5 |
 | `mkdir \|` | Syntax error at column 7 |
 | `[size=3]` | Syntax error at column 0 |
@@ -377,7 +408,15 @@ A closing tag whose type differs from its opening tag **must** fail with the mes
 | `cat x else` | Syntax error at column 10 |
 | `echo (a else b)` | Syntax error at column 8, expecting `)`, `??`, `\|` |
 | `first ?? a ?? b` | Syntax error at column 11, expecting `end of input`, `else`, `\|` |
-| `$maybe ?? "default"` | Syntax error at column 0 |
+| `$maybe ?? "default"` | A line: a value stage with a default |
+| `"x"` | Syntax error at column 0 |
+| `$` | Syntax error at column 1, expecting `variable name` |
+| `$v x` | Syntax error at column 3, expecting `end of input`, `??`, `else`, `\|` |
+| `$row.` | Syntax error at column 5: `a column name belongs after the stop, as in $row.kind` |
+| `ls \| where $row.` | Syntax error at column 16, with the same explanation |
+| `ls \| where $row.kind eq` | Syntax error at column 23: `eq needs a value to compare with, such as folder` |
+| `ls \| where $row.size gt` | Syntax error at column 23: `gt needs a value to compare with, such as 10` |
+| `ls \| where $row.name like` | Syntax error at column 25: `like needs a value to compare with, such as "*.txt"` |
 | `<a></b>` | Message: `Closing tag 'b' does not match opening tag 'a'` |
 
 ## Entry points besides a program
