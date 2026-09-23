@@ -299,6 +299,119 @@ module Expr =
     /// The display text of a predicate, for `Value.display` and for the prompt.
     let display (expr: Expr) = Value.exprText expr
 
+    // ------------------------------------------------ A question about the row (0033)
+
+    /// <summary>Whether the expression reads `$row` anywhere.</summary>
+    /// <remarks>
+    /// A nested pipeline does not count: it runs once for the line, not once per row,
+    /// so a `$row` inside it is the inner predicate's and not this one's.
+    /// </remarks>
+    let rec readsTheRow (expr: Expr) =
+        match expr with
+        | Expr.Variable(name, _) -> name = "row"
+        | Expr.Compare(_, left, right)
+        | Expr.And(left, right)
+        | Expr.Or(left, right) -> readsTheRow left || readsTheRow right
+        | Expr.Not operand -> readsTheRow operand
+        | Expr.Const _
+        | Expr.Nested _ -> false
+
+    /// A bare word that could be a column's name, read as that column.
+    let private asColumn (expr: Expr) =
+        match expr with
+        | Expr.Const(Value.Text word) when
+            word.Length > 0
+            && (Char.IsLetter word[0] || word[0] = '_')
+            && word |> Seq.forall (fun c -> Char.IsLetterOrDigit c || c = '_')
+            ->
+            Some(Expr.Variable("row", [ word ]))
+        | _ -> Option.None
+
+    /// <summary>The predicate with the bare words it compared read as columns.</summary>
+    /// <remarks>
+    /// In a comparison it is the left side that names the column (`kind eq folder`),
+    /// unless the left is not a word and the right is (`3 lt size`). An operand of
+    /// `and`, `or` or `not` that is a bare word is read as a column too: `not done`.
+    /// </remarks>
+    let rec private withColumns (question: bool) (expr: Expr) =
+        match expr with
+        | Expr.Compare(op, left, right) ->
+            match asColumn left, asColumn right with
+            | Some column, _ -> Expr.Compare(op, column, right)
+            | Option.None, Some column -> Expr.Compare(op, left, column)
+            | Option.None, Option.None -> expr
+        | Expr.And(left, right) -> Expr.And(withColumns true left, withColumns true right)
+        | Expr.Or(left, right) -> Expr.Or(withColumns true left, withColumns true right)
+        | Expr.Not operand -> Expr.Not(withColumns true operand)
+        | other when question -> asColumn other |> Option.defaultValue other
+        | other -> other
+
+    /// <summary>The static half of decision 0033, checked when a predicate is bound.</summary>
+    /// <remarks>
+    /// A predicate that uses an operator and never reads `$row` is the same for every
+    /// row, so it is a binding fault that names the bare words it compared as the
+    /// likely columns. A plain operand is not checked: `cd documents` is a path
+    /// (decision 0013), and `where $flag` asks nothing of the rows but is not wrong.
+    /// </remarks>
+    let asksAboutTheRow (expr: Expr) : Outcome<Expr> =
+        if not (isPredicate expr) || readsTheRow expr then
+            Ok expr
+        else
+            let suggested = withColumns true expr
+
+            let suggestion =
+                if readsTheRow suggested then Some(display suggested) else Option.None
+
+            Error(Fault.neverReadsTheRow (display expr) suggestion)
+
+    /// A value as it would be written on the right of `eq`: quoted when it would not
+    /// read back as one word. Completion writes a column's values the same way.
+    let asWritten (shown: string) =
+        if shown = "" || shown |> Seq.exists (fun c -> Char.IsWhiteSpace c || "|()<>\"$,".Contains c) then
+            "\"" + shown.Replace("\"", "'") + "\""
+        else
+            shown
+
+    /// What a value displays as, on one line and not too long to read in a message.
+    let private briefly (value: Value) =
+        let shown = (Value.display value).Split('\n').[0].TrimEnd()
+        if shown.Length > 40 then shown.Substring(0, 39) + "…" else shown
+
+    /// <summary>Tests one row: the dynamic half of decision 0033.</summary>
+    /// <remarks>
+    /// `true` keeps the row and `false` does not. An absent value is `false`, because a
+    /// sparse table's gap is exactly that (decision 0009) and `where $row.done` must skip
+    /// a row that has no `done` rather than stop the line. Anything else was never a
+    /// yes-or-no answer, and the fault says what it was and how to ask a question of it.
+    /// </remarks>
+    let test (scope: Scope) (expr: Expr) : Outcome<bool> =
+        evaluate scope expr
+        |> Outcome.bind (fun value ->
+            match value with
+            | Value.Boolean answer -> Ok answer
+            | absent when Value.isAbsent absent -> Ok false
+            // `attr x done=true` stores the word, not a boolean, and 0033 keeps a
+            // boolean attribute read bare valid. Whether the word should count as one
+            // is the owner's question; until it is answered it keeps today's answer,
+            // which is that it is not true.
+            | Value.Text word when
+                String.Equals(word, "true", StringComparison.OrdinalIgnoreCase)
+                || String.Equals(word, "false", StringComparison.OrdinalIgnoreCase)
+                ->
+                Ok false
+            | other ->
+                let shown = briefly other
+
+                let fix =
+                    if readsTheRow expr then
+                        Some(sprintf "Compare it: %s eq %s." (display expr) (asWritten shown))
+                    else
+                        match asColumn expr with
+                        | Some column -> Some(sprintf "Did you mean %s?" (display column))
+                        | Option.None -> Option.None
+
+                Error(Fault.notTrueOrFalse (display expr) (Value.kind other) shown fix))
+
     /// <summary>Reads a predicate back from text.</summary>
     /// <remarks>
     /// A saved view is a file whose content is the predicate as it was written

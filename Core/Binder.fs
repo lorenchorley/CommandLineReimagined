@@ -198,7 +198,14 @@ module Binder =
             // A nested pipeline in a predicate ran once, before binding, so the
             // predicate compares every row against the one value it produced.
             let constant (pipeline: Tree.NestedPipeline) = nested pipeline |> Outcome.map Expr.Const
-            Expr.ofNodeWith constant node |> Outcome.map (fun expr -> ((Value.Query expr, []), scope))
+
+            // Decision 0033: a predicate that never reads `$row` is the same for every
+            // row. It is checked as written, before any nested pipeline's value is put
+            // in, so the fault quotes what was typed.
+            Expr.ofNode node
+            |> Outcome.bind Expr.asksAboutTheRow
+            |> Outcome.bind (fun _ -> Expr.ofNodeWith constant node)
+            |> Outcome.map (fun expr -> ((Value.Query expr, []), scope))
         | _ when Expr.isExpression node -> Error(Fault.takesNoExpression spec.Name parameter.Name)
         | _ -> eval nested scope node
 

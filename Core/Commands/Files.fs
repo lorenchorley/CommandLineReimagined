@@ -96,7 +96,7 @@ let private listMatching (invocation: Invocation) (expr: Expr) =
                 // A frame of its own per row, so `$row` is local to the predicate
                 // (decision 0008).
                 let scope = invocation.Scope.Push().Bind "row" (Table.row candidates row)
-                Expr.evaluate scope expr |> Outcome.map (fun kept -> record, Expr.isTrue kept))
+                Expr.test scope expr |> Outcome.map (fun kept -> record, kept))
 
         match judged with
         | Error fault -> return Error fault

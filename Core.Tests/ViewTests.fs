@@ -421,3 +421,65 @@ type ViewTests() =
         match (harness.Refresh "wibble").Fault with
         | Some fault -> StringAssert.Contains(fault.Message, "only re-reads")
         | None -> Assert.Fail "A refresh of an unknown name should have been refused."
+
+    // ------------------------------------------- a question about the row (0033)
+
+    /// The static check is made where the binder builds the query, so `find` has it
+    /// too: comparing two words is the same for every record.
+    [<TestMethod>]
+    member _.FindRefusesAPredicateThatNeverReadsTheRow() =
+        let harness = journal ()
+        let fault = harness.Fail "find mood eq great"
+
+        Assert.AreEqual<FaultKind>(Binding, fault.Kind)
+
+        Assert.AreEqual<string>(
+            "mood eq great never reads $row, so it is the same for every row. Did you mean $row.mood eq great?",
+            fault.Message)
+
+    /// `cd` with an operator in it is a view, so it is checked, and the location is
+    /// left where it was.
+    [<TestMethod>]
+    member _.CdRefusesAPredicateThatNeverReadsTheRow() =
+        let harness = journal ()
+        harness.Run "cd journal" |> ignore
+        let fault = harness.Fail "cd mood eq great"
+
+        Assert.AreEqual<FaultKind>(Binding, fault.Kind)
+
+        Assert.AreEqual<string>(
+            "mood eq great never reads $row, so it is the same for every row. Did you mean $row.mood eq great?",
+            fault.Message)
+
+        Assert.AreEqual<string>("/journal", harness.Location)
+        Assert.AreEqual<Expr option>(None, harness.View)
+
+    /// `cd` with a plain operand is a path (decision 0013), and is not checked.
+    [<TestMethod>]
+    member _.CdOnAPlainOperandIsNotChecked() =
+        let harness = journal ()
+        harness.Run "cd journal" |> ignore
+
+        Assert.AreEqual<string>("/journal", harness.Location)
+
+    /// `save-view` has it too, and writes nothing.
+    [<TestMethod>]
+    member _.SaveViewRefusesAPredicateThatNeverReadsTheRow() =
+        let harness = journal ()
+        let fault = harness.Fail "save-view work tag eq work"
+
+        Assert.AreEqual<FaultKind>(Binding, fault.Kind)
+
+        Assert.AreEqual<string>(
+            "tag eq work never reads $row, so it is the same for every row. Did you mean $row.tag eq work?",
+            fault.Message)
+
+        Assert.IsFalse(harness.Exists "/work")
+
+    /// A view lists by testing every record, so a record whose answer is a gap is
+    /// skipped rather than stopping the listing.
+    [<TestMethod>]
+    member _.AViewSkipsARecordWithAGap() =
+        let harness = journal ()
+
+        Assert.AreEqual<string>("saturday stray", harness.Names "find $row.mood eq great and not $row.nothing")

@@ -68,6 +68,124 @@ type TableCommandTests() =
 
         Assert.AreEqual<string>("", harness.Names "ls | where $row.nothing eq anything")
 
+    // ------------------------------------------- a question about the row (0033)
+
+    /// Finding 26: comparing two words is the same for every row, so it is a binding
+    /// fault that names the words as the columns they were likely meant to be.
+    [<TestMethod>]
+    member _.APredicateThatNeverReadsTheRowIsABindingFault() =
+        let harness = seeded ()
+        let fault = harness.Fail "ls | where kind eq folder"
+
+        Assert.AreEqual<FaultKind>(Binding, fault.Kind)
+
+        Assert.AreEqual<string>(
+            "kind eq folder never reads $row, so it is the same for every row. Did you mean $row.kind eq folder?",
+            fault.Message)
+
+    [<TestMethod>]
+    member _.EveryBareWordComparedIsNamedAsAColumn() =
+        let harness = seeded ()
+
+        Assert.AreEqual<string>(
+            "kind eq folder and size gt 3 never reads $row, so it is the same for every row. Did you mean $row.kind eq folder and $row.size gt 3?",
+            harness.Error "ls | where kind eq folder and size gt 3")
+
+        Assert.AreEqual<string>(
+            "3 lt size never reads $row, so it is the same for every row. Did you mean 3 lt $row.size?",
+            harness.Error "ls | where 3 lt size")
+
+        Assert.AreEqual<string>(
+            "not done never reads $row, so it is the same for every row. Did you mean not $row.done?",
+            harness.Error "ls | where not done")
+
+    /// With no bare word to read as a column, the fault says what is wrong and no more.
+    [<TestMethod>]
+    member _.APredicateOverAVariableAloneHasNoSuggestion() =
+        let harness = seeded ()
+        harness.Run "set x 1" |> ignore
+
+        Assert.AreEqual<string>(
+            "$x eq 1 never reads $row, so it is the same for every row.",
+            harness.Error "ls | where $x eq 1")
+
+    /// A nested pipeline runs once for the line, so a predicate over only its value
+    /// asks nothing of the rows. The fault quotes the pipeline as it was written.
+    [<TestMethod>]
+    member _.ANestedPipelineIsNotTheRow() =
+        let harness = seeded ()
+
+        Assert.AreEqual<string>(
+            "(ls | count) gt 3 never reads $row, so it is the same for every row.",
+            harness.Error "ls | where (ls | count) gt 3")
+
+        Assert.AreEqual<int>(1, (harness.Table "ls | where $row.size gt (ls | count)").Rows.Length)
+
+    /// A fault like any other, so `else` recovers from it.
+    [<TestMethod>]
+    member _.ThePredicateFaultIsRecoverable() =
+        let harness = seeded ()
+
+        Assert.AreEqual<string>("recovered", harness.Text "ls | where kind eq folder else echo recovered")
+
+    /// Finding 25: a column read bare that is not true or false, named with its value
+    /// on the first row it was seen on, and the comparison to write instead.
+    [<TestMethod>]
+    member _.APredicateThatIsNotTrueOrFalseIsAnInvalidFault() =
+        let harness = seeded ()
+        let fault = harness.Fail "ls | where $row.kind"
+
+        Assert.AreEqual<FaultKind>(Invalid, fault.Kind)
+
+        Assert.AreEqual<string>(
+            "$row.kind is text (folder), not true or false. Compare it: $row.kind eq folder.",
+            fault.Message)
+
+    /// A bare word as the whole predicate is a plain operand, so it binds; on the first
+    /// row it is found not to be a question, and the word is named as a column.
+    [<TestMethod>]
+    member _.ABareWordIsNotTrueOrFalse() =
+        let harness = seeded ()
+
+        Assert.AreEqual<string>(
+            "done is text (done), not true or false. Did you mean $row.done?",
+            harness.Error "ls | where done")
+
+    /// A boolean read bare stays valid (decision 0033): `history`'s `undone` is one.
+    [<TestMethod>]
+    member _.ABooleanReadBareIsAPredicate() =
+        let harness = seeded ()
+        harness.Run "mkdir alpha" |> ignore
+        harness.Run "mkdir beta" |> ignore
+        harness.Run "undo" |> ignore
+
+        Assert.AreEqual<string>("1", harness.Text "history | where $row.undone | count")
+
+        Assert.AreEqual<string>(
+            harness.Text "history | where $row.undone eq false | count",
+            harness.Text "history | where not $row.undone | count")
+
+    /// A gap is not an answer of the wrong kind (decision 0009): a row without the
+    /// column is skipped, as a comparison with a gap is.
+    [<TestMethod>]
+    member _.AGapReadBareSkipsTheRow() =
+        let harness = notes ()
+
+        Assert.AreEqual<string>("", harness.Names "ls | where $row.nothing")
+
+    /// <summary>A word that reads `true` or `false` keeps today's answer.</summary>
+    /// <remarks>
+    /// `attr x done=true` stores the word, not a boolean. Whether it should count as
+    /// one when read bare is a question for the owner; until then it is not a fault and
+    /// does not keep the row, which is what it did before 0033.
+    /// </remarks>
+    [<TestMethod>]
+    member _.AWordThatReadsTrueIsNotAFault() =
+        let harness = notes ()
+        harness.Run "attr monday done=true" |> ignore
+
+        Assert.AreEqual<string>("", harness.Names "ls | where $row.done")
+
     // ----------------------------------------------------------------- select
 
     [<TestMethod>]
