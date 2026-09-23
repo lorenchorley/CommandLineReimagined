@@ -638,7 +638,7 @@ can pick up where the last one stopped. States: `not started`, `in progress`,
 | C. Variables and values | stream agent | merged (vars pending the owner) | 0e20841 |
 | D. Arguments by parameter | stream agent | in progress | |
 | E. Predicates | stream agent | in progress | |
-| F. What flows in | stream agent | in progress | |
+| F. What flows in | stream agent | merged | 06e18f8 |
 | G. The page | stream agent | in progress | |
 | 8.9 docs, spec, check | three sub-agents | not started | |
 | 8.9 index, verifier, republish, As built | orchestrator | not started | |
