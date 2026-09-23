@@ -54,7 +54,7 @@ second table counts from `dotnet test`.
 | The example programs, against their golden results, and `run` | `Core.Tests/ExampleProgramTests` | 22 |
 | The lexical rules: completion over the projection, the operators, the columns, the places and the keywords | `Core.Tests/CompletionTests` | 25 |
 | Where the cursor is: the place for every line of the Phase 8 finding table | `Core.Tests/ContextTests` | 4 |
-| Command names: after a pipe, by keyword, by edit distance, with descriptions | `Core.Tests/CommandCompletionTests` | 20 |
+| Command names: after a pipe, not a path command after a table, by keyword, by edit distance, with descriptions | `Core.Tests/CommandCompletionTests` | 21 |
 | Variables, `$row` only in a predicate, members by what a variable holds, tag types and attributes, the summaries | `Core.Tests/VariableCompletionTests` | 18 |
 | Every parameter of every command by what it takes, flags, assignments, quoted paths, the signature | `Core.Tests/ArgumentCompletionTests` | 45 |
 | Inside a predicate: operands, operators, a column's values, `and` and `or` | `Core.Tests/PredicateCompletionTests` | 22 |
@@ -75,10 +75,10 @@ Cases actually run, which is what the suite reports:
 | Project | Cases |
 | --- | --- |
 | `Parser.Tests` | 375 |
-| `Core.Tests` | 757 |
+| `Core.Tests` | 758 |
 | `Web.Core.Tests` | 137 |
 | `Terminal.Tests` | 32 |
-| Total | 1301 |
+| Total | 1302 |
 
 Run them with:
 

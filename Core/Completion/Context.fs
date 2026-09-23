@@ -63,8 +63,9 @@ type Place =
     /// Nothing typed at all.
     | Blank
     /// Where a command's name is written: the head of a line, after `|`, `else`, `try`
-    /// or an opening parenthesis. `afterPipe` when a previous stage feeds it.
-    | CommandName of afterPipe: bool
+    /// or an opening parenthesis. `afterPipe` when a previous stage feeds it, and
+    /// `upstream` the stages before it written out, so what they answer can be asked.
+    | CommandName of afterPipe: bool * upstream: string option
     /// A `$` and the start of a name. `inPredicate` when it is inside an argument
     /// handed to a `Predicate` parameter, which is the only place `$row` exists.
     | Variable of inPredicate: bool
@@ -553,12 +554,12 @@ module Context =
             stage.Expression.Match(
                 (fun (f: Tree.Function) ->
                     if isPlaceholder f.Id.Name then
-                        Place.CommandName(index > 0)
+                        Place.CommandName(index > 0, upstreamOf pipeline index)
                     else
                         inArguments specs pipeline index f.Id.Name f.Arguments),
                 (fun (c: Tree.Cli) ->
                     if isPlaceholder c.Name.Name then
-                        Place.CommandName(index > 0)
+                        Place.CommandName(index > 0, upstreamOf pipeline index)
                     else
                         inArguments specs pipeline index c.Name.Name c.Arguments),
                 // A tag standing alone: its type and attributes are read from the word.
@@ -709,7 +710,7 @@ module Context =
 
         match place with
         | Place.Blank -> "Blank"
-        | Place.CommandName afterPipe -> if afterPipe then "CommandName afterPipe" else "CommandName"
+        | Place.CommandName(afterPipe, _) -> if afterPipe then "CommandName afterPipe" else "CommandName"
         | Place.Variable inPredicate -> if inPredicate then "Variable inPredicate" else "Variable"
         | Place.Member(variable, path, stage) ->
             let path = path |> List.map (fun m -> "." + m) |> String.concat ""

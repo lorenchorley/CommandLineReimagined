@@ -13,6 +13,13 @@ module CommandCompletion =
     let takesThePipe (spec: CommandSpec) =
         spec.Parameters |> List.exists (fun parameter -> parameter.AcceptsPipe)
 
+    /// Whether what a command takes from the pipe is a path or a place: a name, which a
+    /// table has none of. `ls | cat`, `ls | first | rm` and `ls | cd` are all faults.
+    let takesAPathFromThePipe (spec: CommandSpec) =
+        spec.Parameters
+        |> List.filter (fun parameter -> parameter.AcceptsPipe)
+        |> List.forall (fun parameter -> parameter.Takes = Takes.Path || parameter.Takes = Takes.Place)
+
     /// <summary>The commands among `specs` the word could name, best first.</summary>
     /// <remarks>
     /// Three ways to match, ranked. The name starts with the word, which is completing
@@ -77,26 +84,55 @@ module CommandCompletion =
     /// <summary>The commands the word could name, where a stage starts.</summary>
     /// <remarks>
     /// Straight after a pipe, only the commands that take the pipe's value: `ls | `
-    /// offers what could be done with a listing, not `mkdir`, which would ignore it. The
-    /// page's own words and `try` are offered where a command is written, as they were;
-    /// the page's words not after a pipe, since `clear` takes nothing from one. An empty
-    /// line is `Place.Blank`, which the dispatcher answers with nothing.
+    /// offers what could be done with a listing, not `mkdir`, which would ignore it.
+    /// When the stages before it were run and answered a table, the commands that take
+    /// a path from the pipe go too, because a table is not a name: `ls | ` does not
+    /// offer `cat` or `rm`, and `echo readme.txt | ` still offers `cat`. A line that
+    /// could not be run keeps them, since nothing says what flows in. The page's own
+    /// words and `try` are offered where a command is written, as they were; the page's
+    /// words not after a pipe, since `clear` takes nothing from one. An empty line is
+    /// `Place.Blank`, which the dispatcher answers with nothing.
     /// </remarks>
-    let suggest (request: Request) (afterPipe: bool) : Async<Completion list> =
-        let word = request.Context.Word.Prefix
-        let specs = if afterPipe then request.Specs |> List.filter takesThePipe else request.Specs
+    let suggest (request: Request) (afterPipe: bool) (upstream: string option) : Async<Completion list> =
+        async {
+            let word = request.Context.Word.Prefix
 
-        let pageWords =
-            if afterPipe then
-                []
-            else
-                Lexical.pageWords
+            let! aTable =
+                match upstream with
+                | Some _ when afterPipe ->
+                    async {
+                        let! shape =
+                            request.Shapes
+                                { Spec = None
+                                  Name = ""
+                                  Index = 1
+                                  Upstream = upstream
+                                  Written = [] }
+
+                        return shape.Rows.IsSome
+                    }
+                | _ -> async.Return false
+
+            let specs =
+                if afterPipe then
+                    request.Specs
+                    |> List.filter takesThePipe
+                    |> List.filter (fun spec -> not (aTable && takesAPathFromThePipe spec))
+                else
+                    request.Specs
+
+            let pageWords =
+                if afterPipe then
+                    []
+                else
+                    Lexical.pageWords
+                    |> List.filter (startsWith word)
+                    |> List.map (Request.item request "command")
+
+            let keywords =
+                Lexical.stageKeywords
                 |> List.filter (startsWith word)
-                |> List.map (Request.item request "command")
+                |> List.map (Request.item request "keyword")
 
-        let keywords =
-            Lexical.stageKeywords
-            |> List.filter (startsWith word)
-            |> List.map (Request.item request "keyword")
-
-        async.Return(among request specs @ pageWords @ keywords)
+            return among request specs @ pageWords @ keywords
+        }

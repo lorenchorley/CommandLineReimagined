@@ -74,11 +74,32 @@ type CommandCompletionTests() =
         let harness = seeded ()
         let offered = texts harness "ls | "
 
-        for name in [ "where"; "sort"; "count"; "select"; "cat"; "set" ] do
+        for name in [ "where"; "sort"; "count"; "select"; "set" ] do
             assertContains name offered
 
         for name in [ "mkdir"; "ls"; "pwd"; "undo"; "clear" ] do
             assertDoesNotContain name offered
+
+    /// A listing is a table, and a table is not a name, so the commands that take a
+    /// path or a place from the pipe are not offered after one: `ls | cat` and
+    /// `ls | rm` are faults. After text they are, because the text may be a name.
+    [<TestMethod>]
+    member _.AfterATableTheCommandsThatTakeAPathAreNotOffered() =
+        let harness = seeded ()
+
+        for line in [ "ls | "; "ls | where $row.kind eq text | " ] do
+            let offered = texts harness line
+
+            for name in [ "cat"; "rm"; "cd"; "run"; "attr"; "from-csv"; "from-xml" ] do
+                assertDoesNotContain name offered
+
+            for name in [ "where"; "count"; "write"; "to-csv" ] do
+                assertContains name offered
+
+        let afterText = texts harness "echo readme.txt | "
+
+        for name in [ "cat"; "rm"; "cd" ] do
+            assertContains name afterText
 
     [<TestMethod>]
     member _.EveryCommandOfferedAfterAPipeTakesThePipe() =

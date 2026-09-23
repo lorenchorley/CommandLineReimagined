@@ -47,7 +47,7 @@ type CompletionTests() =
     member _.AWordAfterAPipeIsStillACommand() =
         let harness = seeded ()
 
-        assertContains "cat" (texts harness "ls | c")
+        assertContains "count" (texts harness "ls | c")
 
     /// Phase 5: after `else`, after `try` and inside a parenthesis, a stage starts, so
     /// the word names a command.
@@ -56,7 +56,7 @@ type CompletionTests() =
         let harness = seeded ()
 
         for line in [ "cat x else c"; "try c"; "ls | try c"; "first (c"; "echo (ls | c" ] do
-            assertContains "cat" (texts harness line)
+            assertContains "count" (texts harness line)
 
     [<TestMethod>]
     member _.TryIsOfferedWhereACommandIsWritten() =

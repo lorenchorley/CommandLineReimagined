@@ -85,7 +85,7 @@ column's type or a value's count comes with the chip but is not on the screen. S
 | Where the word is | Offered | For example |
 | --- | --- | --- |
 | The first word of a stage: the start of the line, and after `else`, `try` or `(` | Command names, each with its description, and `try` and the page's `clear` | `wh`: `where · Keep the rows a predicate is true for` |
-| Straight after a pipe | Only the commands that take the piped value, and `try` | `ls \| `: `attr`, `cat`, `cd`, `columns`, `count` … `where`, `write`, `try`; not `ls` or `mkdir`, which would ignore it |
+| Straight after a pipe | Only the commands that take the piped value, and `try`. After a table, not the ones that take a path or a place from the pipe, since a table is not a name | `ls \| `: `columns`, `count`, `distinct` … `where`, `write`, `try`; not `ls` or `mkdir`, which would ignore it, nor `cat`, `rm` or `cd`. `echo readme.txt \| ` offers `cat`, `rm` and `cd` too |
 | A command name written another way, once three letters are typed | A command found by what it does, or one a slip away | `delete`: `rm · rm · matches "delete"`; `lss`: `ls` |
 | After `$` | The variables in name order, each saying what it holds | `$`: `$files · table · 4 rows · name, kind, folder…`, `$problem · fault · NotFound · File does not exist : /missing.txt`, `$v · number · 5` |
 | After `$` inside a predicate | `$row` first, then the variables | `ls \| where $`: `$row · the row being tested`, then `$files`, `$problem`, `$v` |

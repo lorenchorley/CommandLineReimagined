@@ -5,7 +5,8 @@ cursor can be and says so. It knows which command and parameter the word belongs
 the value that will flow into that stage, and what a variable holds. A line that goes
 wrong says how to put it right, in words rather than grammar symbols.
 
-**Status: planned, ready to run.** Written from an audit of the page and the core on
+**Status: complete.** Built on 2026-09-23; where the result differs from the plan is in
+[As built](#as-built). Written from an audit of the page and the core on
 2026-09-22. The audit ran about fifty partial lines through `Session.Complete` and
 through the session itself. What they did is recorded against each finding below.
 Its decisions are accepted, and nothing in it waits on the owner. It is run as
@@ -643,7 +644,7 @@ can pick up where the last one stopped. States: `not started`, `in progress`,
 | F. What flows in | stream agent | merged | 06e18f8 |
 | G. The page | stream agent | merged | 7eae9cf |
 | 8.9 docs, spec, check | three sub-agents | merged | 2c08e65 |
-| 8.9 index, verifier, republish, As built | orchestrator | in progress | |
+| 8.9 index, verifier, republish, As built | orchestrator | merged | this commit |
 
 ## Acceptance
 
@@ -695,3 +696,56 @@ the payload under 20 MB, and no warnings.
 | Asynchronous completion races the typing | The page keeps a sequence number per request and drops stale answers. The core cancels a superseded upstream run. |
 | Several streams edit `Faults.fs` (A, B, E) and `Evaluator.fs` (A, B, F) | Edits are additive and in different functions. Merge order puts the owner of the largest change (B) first. |
 | Tab stepping through chips surprises desktop users | The first Tab still fills the common prefix. Stepping starts only when that does nothing more, which is how shells that cycle behave. |
+
+## As built
+
+Every checkpoint and stream, with these differences and findings.
+
+- **How it ran.** The phase was the first run through [running.md](running.md). One
+  orchestrator did 8.0, launched A to G together in their own worktrees, and merged all
+  seven, fixing what their merges needed. It then launched 8.9's three parts, and asked
+  the owner four questions that the streams had raised. The questions went unanswered
+  in that session, so its three parts finished and waited, unmerged, in their
+  worktrees. A second session took over from the Progress table and the worktrees, as
+  running.md's "Resuming" section describes, put the questions to the owner, merged
+  the three parts without conflict, and finished the phase.
+- **The owner's answers** became two records and one withdrawn line:
+  [0034](../decisions/0034-what-answers-a-predicate.md), under which the word `true` or
+  `false` answers a predicate and every operand of `and`, `or` and `not` is held to
+  0033's rule; [0035](../decisions/0035-a-value-stage-ignores-its-input.md), under
+  which `ls | $v` answers `$v`; and `vars`, which keeps its `name` and `value` table
+  rather than printing the summaries, so stream C's line to that effect is withdrawn.
+  One function, `Expr.truth`, answers for a whole predicate and for the operators.
+- **Found in integration and fixed:**
+  - `cd` into a saved view skipped 0033's bound check, which the record says `cd`
+    makes. A view read back from its record is now checked like a predicate written
+    out.
+  - `ls | ` offered the commands that take a path or a place from the pipe: `cat`,
+    `rm`, `cd`, `run`, `attr`, `from-csv` and `from-xml`. Every one of them is a
+    fault after a table, and the acceptance line asks for the commands that take a
+    table. The command-name place now carries its upstream, and when the upstream was
+    previewed and answered a table those commands are left out. `echo readme.txt | `
+    still offers them, and a line that cannot be previewed keeps today's answer.
+- **Kept as they are, and why:**
+  - `Unknown command : lss.` keeps the space before its colon, and `Unknown variable:`
+    lost it. Stream A's section said both would be fixed together, but the acceptance
+    table and decision 0022, which cannot be edited, both quote the spaced form.
+  - The 150 ms budget answers for a run at its first pause. A run that never pauses is
+    used however long it takes, because in the browser it shares one thread with the
+    timer, and nothing can interrupt it there. `conformance.md` lists it.
+  - In an argument or a predicate, the detail line shows the signature, so a chip's own
+    detail there (a column's type, `folder · 3 rows`) is not on screen. It is the order
+    stream G's section gives.
+  - `ls | select name, size | where $row.` offers the listing's columns: the comma form
+    does not parse, so completion falls back. Without the comma it offers `name` and
+    `size`.
+- **Open, for the owner:** `$files.` offers the table's columns, as stream C's section
+  asks, but `$files.name` evaluates to nothing. Either a member of a table should read
+  something (a column's values, a change to the language) or completion should stop
+  offering it.
+- **Verification.** A verifier ran the acceptance table against the merged head: 28 of
+  29 rows matched and `ls | ` was partial, which the fix above closes. On the final head
+  every project builds without warnings, 1302 tests pass (758 in Core.Tests), the four
+  example programs give their golden results, and the browser check passes at 390 by
+  844 with Phase 8's chips, detail line, Tab, mid-line completion and tap. The payload
+  is 9 MB as published.

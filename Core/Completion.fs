@@ -28,7 +28,7 @@ module Completion =
                 // Nothing typed yet: offering every command is noise, and the page
                 // shows its suggestion chips in that state instead.
                 | Place.Blank -> async.Return []
-                | Place.CommandName afterPipe -> CommandCompletion.suggest request afterPipe
+                | Place.CommandName(afterPipe, upstream) -> CommandCompletion.suggest request afterPipe upstream
                 | Place.Variable inPredicate -> VariableCompletion.variables request inPredicate
                 | Place.Member(variable, path, stage) -> VariableCompletion.members request variable path stage
                 | Place.TagType -> VariableCompletion.tagTypes request

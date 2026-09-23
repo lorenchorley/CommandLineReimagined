@@ -1,12 +1,11 @@
 # Implementation plan: functional core, event-sourced store, attribute filesystem, tables
 
-**Status: Phases 1 to 7 complete; Phase 8 planned, its decisions accepted.** The first
-seven phases are built, and each phase document ends with an "As built" section
-recording where the result differs from what it planned.
+**Status: Phases 1 to 8 complete.** Every phase is built, and each phase document ends
+with an "As built" section recording where the result differs from what it planned.
 [Phase 8](phase-8-intellisense.md) was added afterwards, from an audit of completion;
-unlike the others, it is divided into streams that run in parallel after one
-foundation checkpoint. Its three decision records, 0031 to 0033, are Accepted, so
-nothing in it waits on the owner.
+unlike the others, it was divided into streams that ran in parallel after one
+foundation checkpoint, and it was the first phase run through
+[running.md](running.md).
 
 This plan is written for an implementing agent who has this repository and nothing
 else. Read this file, then [running.md](running.md), then
