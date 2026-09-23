@@ -41,7 +41,24 @@
     <Compile Include="Commands/Tables.fs" />
     <Compile Include="Commands/Documents.fs" />
     <Compile Include="Commands/Meta.fs" />
+    <Compile Include="Nearest.fs" />
     <Compile Include="Evaluator.fs" />
+    <!--
+      Phase 8: completion reads the line. `Context` says where the cursor is, each
+      provider answers one kind of place, and `Completion.fs` dispatches between them.
+      Every file a stream builds is registered here now, so no stream edits this file.
+    -->
+    <Compile Include="Completion/Summary.fs" />
+    <Compile Include="Completion/Context.fs" />
+    <Compile Include="Completion/Shape.fs" />
+    <Compile Include="Completion/Request.fs" />
+    <Compile Include="Completion/Lexical.fs" />
+    <Compile Include="Completion/Commands.fs" />
+    <Compile Include="Completion/Variables.fs" />
+    <Compile Include="Completion/Paths.fs" />
+    <Compile Include="Completion/Arguments.fs" />
+    <Compile Include="Completion/Predicates.fs" />
+    <Compile Include="Completion/Hover.fs" />
     <Compile Include="Completion.fs" />
     <Compile Include="Seed.fs" />
     <Compile Include="Session.fs" />
