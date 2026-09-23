@@ -183,7 +183,49 @@ seq  at        source   undone  compensates
 ```
 
 A row that has no value in the column counts as false, so a sparse column skips the
-rows without it rather than stopping the line.
+rows without it rather than stopping the line. So does the word `false`, and the word
+`true` counts as true ([decision 0034](decisions/0034-what-answers-a-predicate.md)),
+because `attr` stores the word it was given. From a fresh tab:
+
+```
+$ mkdir chores
+chores
+
+$ cd chores
+chores
+
+$ save <task name=laundry/>
+laundry
+
+$ save <task name=dishes/>
+dishes
+
+$ attr laundry done=true
+laundry
+
+$ ls | where $row.done
+name     kind  folder   size  modified                           done
+laundry  task  /chores  0     2026-09-22T09:30:00.0000000+00:00  true
+
+$ ls | where not $row.done
+name    kind  folder   size  modified                           done
+dishes  task  /chores  0     2026-09-22T09:30:00.0000000+00:00
+```
+
+Each side of an `and` or an `or`, and what follows a `not`, is held to the same rule,
+and the fault names the part that was not a question:
+
+```
+$ ls | where not $row.kind
+$row.kind is text (folder), not true or false. Compare it: $row.kind eq folder.
+
+$ ls | where $row.kind eq text or $row.kind
+$row.kind is text (folder), not true or false. Compare it: $row.kind eq folder.
+```
+
+A part that is never read is never checked: in
+`ls | where $row.kind eq nothing and $row.kind`, the left side is false for every row,
+so the right side is not looked at and the answer is an empty table.
 
 ### The reserved words
 

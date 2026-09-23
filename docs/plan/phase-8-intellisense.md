@@ -385,7 +385,9 @@ Soft dependencies, none blocking:
   | Query | `query · $row.kind eq folder` |
   | List | `list · 3 items` |
 
-  `vars` uses the same summaries, so the page and the command agree.
+  `vars` was to use the same summaries. The owner decided on 2026-09-23 that it keeps
+  its `name` and `value` table, which the `tables.clr` golden result pins, so the
+  summaries are completion's and hover's only.
 - `Completion/Variables.fs`: each variable chip carries its summary. `$row` is offered
   only in `Predicate` places, first, with the detail `the row being tested`.
 - Members: after `$x.`, the members of what `$x` holds. That is a table's columns
@@ -635,7 +637,7 @@ can pick up where the last one stopped. States: `not started`, `in progress`,
 | 8.0 Foundation | orchestrator | merged | e5ca02d |
 | A. Commands and help | stream agent | merged | 8e2bf93 |
 | B. Value stages and parse wording | stream agent | merged | b3e6c21 |
-| C. Variables and values | stream agent | merged (vars pending the owner) | 0e20841 |
+| C. Variables and values | stream agent | merged | 0e20841 |
 | D. Arguments by parameter | stream agent | merged | db3c1a9 |
 | E. Predicates | stream agent | merged | 6b18395 |
 | F. What flows in | stream agent | merged | 06e18f8 |

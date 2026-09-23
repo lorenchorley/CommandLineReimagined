@@ -208,6 +208,20 @@ $ cd mood eq great
 mood eq great never reads $row, so it is the same for every row. Did you mean $row.mood eq great?
 ```
 
+A saved view is held to the same rule when you enter it, so one whose file was written
+over with such a question says so rather than listing nothing:
+
+```
+$ save-view folders $row.kind eq folder
+folders
+
+$ echo "kind eq folder" | write folders
+folders
+
+$ cd folders
+kind eq folder never reads $row, so it is the same for every row. Did you mean $row.kind eq folder?
+```
+
 ## Asking once: `find`
 
 `find` is `ls` over the whole terminal with a predicate written on the spot, and it

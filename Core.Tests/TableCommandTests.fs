@@ -173,18 +173,42 @@ type TableCommandTests() =
 
         Assert.AreEqual<string>("", harness.Names "ls | where $row.nothing")
 
-    /// <summary>A word that reads `true` or `false` keeps today's answer.</summary>
-    /// <remarks>
-    /// `attr x done=true` stores the word, not a boolean. Whether it should count as
-    /// one when read bare is a question for the owner; until then it is not a fault and
-    /// does not keep the row, which is what it did before 0033.
-    /// </remarks>
+    /// `attr x done=true` stores the word, not a boolean, and read bare it answers the
+    /// question it plainly asks (decision 0034). `false` answers no, in any case.
     [<TestMethod>]
-    member _.AWordThatReadsTrueIsNotAFault() =
+    member _.AWordThatReadsTrueOrFalseIsAnAnswer() =
         let harness = notes ()
         harness.Run "attr monday done=true" |> ignore
+        harness.Run "attr tuesday done=FALSE" |> ignore
 
-        Assert.AreEqual<string>("", harness.Names "ls | where $row.done")
+        Assert.AreEqual<string>("monday", harness.Names "ls | where $row.done")
+        Assert.AreEqual<string>("tuesday", harness.Names "ls | where $row.done eq FALSE")
+
+    /// Each operand of `not`, `and` and `or` is held to the same rule as the whole
+    /// predicate (decision 0034), so text is no longer quietly false inside one.
+    [<TestMethod>]
+    member _.AnOperandThatIsNotTrueOrFalseIsAnInvalidFault() =
+        let harness = seeded ()
+        let fault = harness.Fail "ls | where not $row.kind"
+
+        Assert.AreEqual<FaultKind>(Invalid, fault.Kind)
+
+        Assert.AreEqual<string>(
+            "$row.kind is text (folder), not true or false. Compare it: $row.kind eq folder.",
+            fault.Message)
+
+        Assert.AreEqual<string>(
+            "$row.kind is text (folder), not true or false. Compare it: $row.kind eq folder.",
+            harness.Error "ls | where $row.kind eq text or $row.kind")
+
+    /// Short circuiting still holds: an `and` whose left is false never reads its right,
+    /// so the right is not held to the rule on that row.
+    [<TestMethod>]
+    member _.AnOperandNeverReadIsNotChecked() =
+        let harness = seeded ()
+
+        Assert.AreEqual<string>("", harness.Names "ls | where $row.kind eq nothing and $row.kind")
+        Assert.AreEqual<int>(4, (harness.Table "ls | where $row.size ge 0 or $row.kind").Rows.Length)
 
     // ----------------------------------------------------------------- select
 

@@ -239,7 +239,13 @@ let private enterNamed (invocation: Invocation) (written: string) =
             // or retyped a note as a view, would otherwise be entered as a question
             // whose every answer is false.
             | Ok expr when not (Expr.isPredicate expr) -> return Error(Fault.notAPredicate path (text.Trim()))
-            | Ok expr -> return enterView invocation expr
+            // And the check `cd` makes on a predicate written out (decision 0033): a view
+            // saved before 0033, or written by hand, whose question never reads `$row`
+            // would otherwise list nothing and say nothing.
+            | Ok expr ->
+                match Expr.asksAboutTheRow expr with
+                | Error fault -> return Error fault
+                | Ok expr -> return enterView invocation expr
         | _ -> return enterFolder invocation written
     }
 

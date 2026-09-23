@@ -46,8 +46,8 @@ second table counts from `dotnet test`.
 | Asynchronous commands, live output, cancellation | `Core.Tests/AsyncCommandTests` | 14 |
 | `undo`, `redo`, `history` and `help` as commands, `help <command>`, and the nearest names an unknown command is given | `Core.Tests/MetaCommandTests` | 28 |
 | What a line says it did to the log: the lines it committed, undid and redid | `Core.Tests/LogChangesTests` | 11 |
-| The table functions, as whole command lines, and the two predicate faults of decision 0033 | `Core.Tests/TableCommandTests` | 42 |
-| Views: `cd` on a predicate, `ls` across folders, `up`, `find`, `save-view`, refreshing, and the bound check in each | `Core.Tests/ViewTests` | 45 |
+| The table functions, as whole command lines, the two predicate faults of decision 0033, and what answers a predicate (decision 0034) | `Core.Tests/TableCommandTests` | 44 |
+| Views: `cd` on a predicate, `ls` across folders, `up`, `find`, `save-view`, refreshing, and the bound check in each, a view read back from its record included | `Core.Tests/ViewTests` | 46 |
 | Recovery: `else`, `try`, `??`, nested pipelines, fault values and their members, `is-fault`, what a refresh refuses, recovery around a value stage | `Core.Tests/RecoveryTests` | 37 |
 | XML documents: reading, text content, namespaces, refusals, writing, round trips, and the two commands | `Core.Tests/XmlTests` | 41 |
 | CSV files: RFC 4180 reading, column typing, gaps, faults naming the line, writing, round trips, and the two commands | `Core.Tests/CsvTests` | 33 |
@@ -75,10 +75,10 @@ Cases actually run, which is what the suite reports:
 | Project | Cases |
 | --- | --- |
 | `Parser.Tests` | 375 |
-| `Core.Tests` | 754 |
+| `Core.Tests` | 757 |
 | `Web.Core.Tests` | 137 |
 | `Terminal.Tests` | 32 |
-| Total | 1298 |
+| Total | 1301 |
 
 Run them with:
 
@@ -228,10 +228,7 @@ case.
 | A reserved word in argument position is described as an operator even when it is `try` or `else`, as in `'try' is an operator; write "try" to pass it as text`. | Cosmetic. The advice is right for all thirteen words. |
 | The retained GOLD parser reports column 12 where the combinator parser reports 11 on one truncated input. | Documented in `ParserEquivalenceTests`. The combinator position is correct. |
 | A pipeline in parentheses inside a predicate runs once, and the predicate keeps its value, so a view saved with one does not re-run it. | Intended. A view is a question about records, and a question that changed its own terms each time it was asked would be a different question. |
-| A saved view whose text never reads `$row`, such as a `view` record holding `kind eq folder`, is entered by `cd` and lists nothing, without the bound check of [decision 0033](../decisions/0033-a-predicate-is-a-question-about-the-row.md). The check is made where an argument is bound, and a view read back from its record is not an argument. | Open, raised with the owner. |
-| The text `true` or `false`, read bare in a predicate, drops the item without a fault, so `where $row.done` passes over a record whose `done` was set with `attr f done=true`, which stores the word. | Open, raised with the owner: the code keeps the answer it gave before decision 0033 until it is decided whether the word counts as a boolean. |
-| The operands of `and`, `or` and `not` are not held to the run check of decision 0033: only `Boolean true` is true in them, so `where not $row.kind` keeps every row. | As decision 0033 is worded, which is about the predicate's value. Raised with the owner. |
-| `vars` holds each value itself in its `value` column, not the one-line summary completion gives the same variable. | Pending the owner's decision. |
+| `vars` holds each value itself in its `value` column, not the one-line summary completion gives the same variable. | Intended. The owner kept `vars` as a table of the values themselves on 2026-09-23; the summaries are completion's and hover's. |
 | `Scope` supports nesting, but no host creates a child scope outside a predicate. | Intended. The model is ahead of the shell. |
 | `attr` is not marked read-only, so a live listing cannot be an `attr`. | Intended. The same command reads with no assignments and writes with them, and a refresh is decided by name before it runs. |
 | XML element text is read as an attribute `text` and written back as content, so mixed content comes back with its text gathered before the children, trimmed; an XML attribute called `text` on an element with content is replaced by it; comments and processing instructions are dropped. | Intended for this release; see [decision 0025](../decisions/0025-xml-text-content.md). |

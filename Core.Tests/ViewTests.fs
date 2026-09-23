@@ -331,6 +331,24 @@ type ViewTests() =
         Assert.AreEqual<string>("'/weekend' does not hold a predicate : monday", harness.Error "cd weekend")
         Assert.AreEqual<Expr option>(None, harness.View)
 
+    /// A view file whose question never reads `$row` gets the check `cd` makes on a
+    /// predicate written out (decision 0033), rather than listing nothing in silence.
+    [<TestMethod>]
+    member _.AViewFileThatNeverReadsTheRowIsRefused() =
+        let harness = journal ()
+        harness.Run "save-view weekend $row.mood eq great" |> ignore
+        harness.Run "echo \"mood eq great\" | write weekend" |> ignore
+
+        let fault = harness.Fail "cd weekend"
+
+        Assert.AreEqual<FaultKind>(Binding, fault.Kind)
+
+        Assert.AreEqual<string>(
+            "mood eq great never reads $row, so it is the same for every row. Did you mean $row.mood eq great?",
+            fault.Message)
+
+        Assert.AreEqual<Expr option>(None, harness.View)
+
     // -------------------------------------------------------------- refresh
 
     /// What a live listing is made of: the same answer, computed again, with nothing

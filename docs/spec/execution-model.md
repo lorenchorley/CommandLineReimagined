@@ -365,9 +365,12 @@ letters, digits and `_`. When nothing can be read that way, the sentence ends af
 `every row.`.
 
 Because the check is where every *predicate* parameter is bound, `where`, `find`, `cd`
-and `save-view` all make it. An argument with no operator in it is not checked, so
-`cd documents` is still a path ([decision 0013](../decisions/0013-attribute-filesystem.md))
-and `where $flag` is still a question.
+and `save-view` all make it. `cd` into a saved view **must** make it too, on the
+predicate read back from the view's record, so a view whose text was written over with
+`kind eq folder` is refused with the same fault rather than listing nothing. An
+argument with no operator in it is not checked, so `cd documents` is still a path
+([decision 0013](../decisions/0013-attribute-filesystem.md)) and `where $flag` is still
+a question.
 
 **Run: it must answer true or false.** A filter — `where`, `find`, a view — tests each
 item in order, and what the whole predicate answers for it decides:
@@ -376,7 +379,9 @@ item in order, and what the whole predicate answers for it decides:
 - An absent value, `Empty` or `None`, drops it, and is not a fault. A gap read bare is
   false, so `where $row.done` keeps the rows whose `done` is true and passes over the
   rows that have no `done` at all.
-- The text `true` or `false`, in any case, drops it, and is not a fault either.
+- The text `true` keeps it and the text `false` drops it, in any case
+  ([decision 0034](../decisions/0034-what-answers-a-predicate.md)). `attr f done=true`
+  stores the word, and `where $row.done` asks whether it is done.
 - Anything else **must** fail the stage with an `Invalid` fault on the first item that
   answers it, naming what the predicate answered and how to ask a question of it:
 
@@ -391,10 +396,13 @@ The fix is `Compare it: <predicate> eq <value>.` when the predicate reads `$row`
 the value quoted when it would not read back as one word, `Did you mean $row.<word>?`
 when the predicate is a bare word, and nothing otherwise.
 
-The run check is on the value of the whole predicate. The operands of `and`, `or` and
-`not` are read as the [comparison](#comparison) rules read them, where only
-`Boolean true` is true, so `where not $row.kind` keeps every row and
-`where $row.kind eq folder or $row.name` keeps the folders.
+The same rule **must** hold for each operand of `and`, `or` and `not`
+([decision 0034](../decisions/0034-what-answers-a-predicate.md)), and the fault names
+the operand rather than the whole predicate. `where not $row.kind` fails on the first
+row with `$row.kind is text (folder), not true or false. Compare it: $row.kind eq
+folder.`, as does `where $row.kind eq text or $row.kind`. `and` and `or` still short
+circuit, so an operand that is never read is never checked:
+`where $row.kind eq nothing and $row.kind` answers an empty table.
 
 ## Running a line
 
@@ -433,8 +441,9 @@ A stage is one of:
 A value stage's value is the variable's value with its members read off it, exactly as
 the same reference written as an argument evaluates
 ([Evaluating a written value](#evaluating-a-written-value)). It calls no command and
-emits no events. Like a tag standing alone it ignores its input, so `ls | $v` answers
-`$v`, and in a pipeline it is how a variable feeds the stages after it:
+emits no events. Like a tag standing alone it ignores its input
+([decision 0035](../decisions/0035-a-value-stage-ignores-its-input.md)), so `ls | $v`
+answers `$v`, and in a pipeline it is how a variable feeds the stages after it:
 
 ```
 $ $v

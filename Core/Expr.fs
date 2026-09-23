@@ -236,66 +236,6 @@ module Expr =
             | "has" -> Ok(Value.Boolean(contains right left))
             | other -> Error(Fault.unknownOperator other)
 
-    // --------------------------------------------------------------- Evaluation
-
-    /// Whether a value counts as true. Only `Boolean true` does: `where` keeps the rows
-    /// its predicate answered true for, and a row whose predicate answered "notes.txt"
-    /// has not been asked a question that was answered.
-    let isTrue (value: Value) =
-        match value with
-        | Value.Boolean b -> b
-        | _ -> false
-
-    /// <summary>Evaluates an expression against a scope.</summary>
-    /// <remarks>
-    /// `and` and `or` are short circuiting, so an unknown variable on the right of a
-    /// false `and` is never looked up.
-    /// </remarks>
-    let rec evaluate (scope: Scope) (expr: Expr) : Outcome<Value> =
-        match expr with
-        | Expr.Const value -> Ok value
-
-        | Expr.Variable(name, members) ->
-            scope.TryFind name
-            |> Outcome.ofOption (Fault.unknownVariable name)
-            |> Outcome.map (fun value -> members |> List.fold (fun current m -> readMember m current) value)
-
-        | Expr.Compare(op, left, right) ->
-            outcome {
-                let! a = evaluate scope left
-                let! b = evaluate scope right
-                return! compareValues op a b
-            }
-
-        | Expr.And(left, right) ->
-            outcome {
-                let! a = evaluate scope left
-
-                if not (isTrue a) then
-                    return Value.Boolean false
-                else
-                    let! b = evaluate scope right
-                    return Value.Boolean(isTrue b)
-            }
-
-        | Expr.Or(left, right) ->
-            outcome {
-                let! a = evaluate scope left
-
-                if isTrue a then
-                    return Value.Boolean true
-                else
-                    let! b = evaluate scope right
-                    return Value.Boolean(isTrue b)
-            }
-
-        | Expr.Not operand -> evaluate scope operand |> Outcome.map (fun value -> Value.Boolean(not (isTrue value)))
-
-        // A pipeline is the evaluator's to run, and it runs a line's nested pipelines
-        // before the predicate is built, so one only survives to here from an
-        // expression that no line ran — a saved view read back from its file.
-        | Expr.Nested pipeline -> Error(Fault.nestedPipelineNotAValue (Value.exprText (Expr.Nested pipeline)))
-
     /// The display text of a predicate, for `Value.display` and for the prompt.
     let display (expr: Expr) = Value.exprText expr
 
@@ -377,40 +317,95 @@ module Expr =
         let shown = (Value.display value).Split('\n').[0].TrimEnd()
         if shown.Length > 40 then shown.Substring(0, 39) + "…" else shown
 
-    /// <summary>Tests one row: the dynamic half of decision 0033.</summary>
+    /// <summary>What a value says as the answer to a yes-or-no question.</summary>
     /// <remarks>
-    /// `true` keeps the row and `false` does not. An absent value is `false`, because a
-    /// sparse table's gap is exactly that (decision 0009) and `where $row.done` must skip
-    /// a row that has no `done` rather than stop the line. Anything else was never a
-    /// yes-or-no answer, and the fault says what it was and how to ask a question of it.
+    /// `true` and `false` answer it. So does the word `true` or `false`, in any case,
+    /// because `attr x done=true` stores the word and `where $row.done` is plainly
+    /// asking whether it is done (decision 0034). A gap is `false`, because a sparse
+    /// table's gap is exactly that (decision 0009): `where $row.done` skips a row with
+    /// no `done` rather than stopping the line. Anything else was never an answer, and
+    /// the fault names the expression it came from, what it was, and how to ask a
+    /// question of it. The same rule holds for a whole predicate and for each operand
+    /// of `and`, `or` and `not`.
     /// </remarks>
+    let truth (expr: Expr) (value: Value) : Outcome<bool> =
+        match value with
+        | Value.Boolean answer -> Ok answer
+        | absent when Value.isAbsent absent -> Ok false
+        | Value.Text word when String.Equals(word, "true", StringComparison.OrdinalIgnoreCase) -> Ok true
+        | Value.Text word when String.Equals(word, "false", StringComparison.OrdinalIgnoreCase) -> Ok false
+        | other ->
+            let shown = briefly other
+
+            let fix =
+                if readsTheRow expr then
+                    Some(sprintf "Compare it: %s eq %s." (display expr) (asWritten shown))
+                else
+                    match asColumn expr with
+                    | Some column -> Some(sprintf "Did you mean %s?" (display column))
+                    | Option.None -> Option.None
+
+            Error(Fault.notTrueOrFalse (display expr) (Value.kind other) shown fix)
+
+    // --------------------------------------------------------------- Evaluation
+
+    /// <summary>Evaluates an expression against a scope.</summary>
+    /// <remarks>
+    /// `and` and `or` are short circuiting, so an unknown variable on the right of a
+    /// false `and` is never looked up.
+    /// </remarks>
+    let rec evaluate (scope: Scope) (expr: Expr) : Outcome<Value> =
+        match expr with
+        | Expr.Const value -> Ok value
+
+        | Expr.Variable(name, members) ->
+            scope.TryFind name
+            |> Outcome.ofOption (Fault.unknownVariable name)
+            |> Outcome.map (fun value -> members |> List.fold (fun current m -> readMember m current) value)
+
+        | Expr.Compare(op, left, right) ->
+            outcome {
+                let! a = evaluate scope left
+                let! b = evaluate scope right
+                return! compareValues op a b
+            }
+
+        | Expr.And(left, right) ->
+            outcome {
+                let! a = evaluate scope left |> Outcome.bind (truth left)
+
+                if not a then
+                    return Value.Boolean false
+                else
+                    let! b = evaluate scope right |> Outcome.bind (truth right)
+                    return Value.Boolean b
+            }
+
+        | Expr.Or(left, right) ->
+            outcome {
+                let! a = evaluate scope left |> Outcome.bind (truth left)
+
+                if a then
+                    return Value.Boolean true
+                else
+                    let! b = evaluate scope right |> Outcome.bind (truth right)
+                    return Value.Boolean b
+            }
+
+        | Expr.Not operand ->
+            evaluate scope operand
+            |> Outcome.bind (truth operand)
+            |> Outcome.map (fun answer -> Value.Boolean(not answer))
+
+        // A pipeline is the evaluator's to run, and it runs a line's nested pipelines
+        // before the predicate is built, so one only survives to here from an
+        // expression that no line ran — a saved view read back from its file.
+        | Expr.Nested pipeline -> Error(Fault.nestedPipelineNotAValue (Value.exprText (Expr.Nested pipeline)))
+
+    /// <summary>Tests one row: the dynamic half of decision 0033.</summary>
+    /// <remarks>The rule for what counts as an answer is `truth`'s.</remarks>
     let test (scope: Scope) (expr: Expr) : Outcome<bool> =
-        evaluate scope expr
-        |> Outcome.bind (fun value ->
-            match value with
-            | Value.Boolean answer -> Ok answer
-            | absent when Value.isAbsent absent -> Ok false
-            // `attr x done=true` stores the word, not a boolean, and 0033 keeps a
-            // boolean attribute read bare valid. Whether the word should count as one
-            // is the owner's question; until it is answered it keeps today's answer,
-            // which is that it is not true.
-            | Value.Text word when
-                String.Equals(word, "true", StringComparison.OrdinalIgnoreCase)
-                || String.Equals(word, "false", StringComparison.OrdinalIgnoreCase)
-                ->
-                Ok false
-            | other ->
-                let shown = briefly other
-
-                let fix =
-                    if readsTheRow expr then
-                        Some(sprintf "Compare it: %s eq %s." (display expr) (asWritten shown))
-                    else
-                        match asColumn expr with
-                        | Some column -> Some(sprintf "Did you mean %s?" (display column))
-                        | Option.None -> Option.None
-
-                Error(Fault.notTrueOrFalse (display expr) (Value.kind other) shown fix))
+        evaluate scope expr |> Outcome.bind (truth expr)
 
     /// <summary>Reads a predicate back from text.</summary>
     /// <remarks>

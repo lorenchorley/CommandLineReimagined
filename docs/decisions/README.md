@@ -43,6 +43,8 @@ a later record, **Rejected**.
 | [0031](0031-completion-reads-the-line.md) | Completion reads the line, and may run what comes before the cursor | Accepted |
 | [0032](0032-a-stage-may-be-a-value.md) | A stage may be a value: `$files` and `$problem.kind` are lines | Accepted |
 | [0033](0033-a-predicate-is-a-question-about-the-row.md) | A predicate that never reads `$row`, or is not true or false, is a fault | Accepted |
+| [0034](0034-what-answers-a-predicate.md) | The word `true` or `false` answers a predicate, and so must every operand of `and`, `or` and `not` | Accepted |
+| [0035](0035-a-value-stage-ignores-its-input.md) | A value stage ignores what is piped into it | Accepted |
 
 Retrospective records document decisions taken before the log existed, so that the
 log is the one place to look. Their alternatives are the ones weighed at the time, as

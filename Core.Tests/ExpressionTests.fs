@@ -183,13 +183,24 @@ type ExpressionTests() =
         Assert.IsTrue(isTrue [] (Expr.Not(Expr.Const(Value.Boolean false))))
         Assert.IsFalse(isTrue [] (Expr.Not(Expr.Const(Value.Boolean true))))
 
-    /// Only `Boolean true` is true. A predicate that answered `notes.txt` has not been
-    /// asked a question that was answered.
+    /// A boolean answers a yes-or-no question, and so does the word `true` or `false`,
+    /// in any case (decision 0034). A gap is `false`. A predicate that answered
+    /// `notes.txt` or `1` has not been asked a question that was answered.
     [<TestMethod>]
-    member _.OnlyABooleanIsTrue() =
-        Assert.IsFalse(Expr.isTrue (Value.Text "notes.txt"))
-        Assert.IsFalse(Expr.isTrue (Value.Number 1.0))
-        Assert.IsTrue(Expr.isTrue (Value.Boolean true))
+    member _.OnlyABooleanOrTheWordForOneIsAnAnswer() =
+        let asked = column "done"
+
+        Assert.IsTrue(expectOk (Expr.truth asked (Value.Boolean true)))
+        Assert.IsFalse(expectOk (Expr.truth asked (Value.Boolean false)))
+        Assert.IsTrue(expectOk (Expr.truth asked (Value.Text "true")))
+        Assert.IsTrue(expectOk (Expr.truth asked (Value.Text "TRUE")))
+        Assert.IsFalse(expectOk (Expr.truth asked (Value.Text "False")))
+        Assert.IsFalse(expectOk (Expr.truth asked Value.None))
+
+        for other in [ Value.Text "notes.txt"; Value.Number 1.0 ] do
+            match Expr.truth asked other with
+            | Error fault -> Assert.AreEqual<FaultKind>(Invalid, fault.Kind)
+            | Ok answer -> Assert.Fail(sprintf "%A was taken as %b." other answer)
 
     // --------------------------------------------------------------- Display
 
