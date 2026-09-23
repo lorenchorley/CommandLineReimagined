@@ -34,6 +34,13 @@
     <Compile Include="MetaCommandTests.fs" />
     <Compile Include="LogChangesTests.fs" />
     <Compile Include="CompletionTests.fs" />
+    <Compile Include="ContextTests.fs" />
+    <Compile Include="CommandCompletionTests.fs" />
+    <Compile Include="VariableCompletionTests.fs" />
+    <Compile Include="ArgumentCompletionTests.fs" />
+    <Compile Include="PredicateCompletionTests.fs" />
+    <Compile Include="ShapeTests.fs" />
+    <Compile Include="HoverTests.fs" />
     <Compile Include="PersistenceTests.fs" />
     <Compile Include="ExampleProgramTests.fs" />
     <Compile Include="AcceptanceTests.fs" />
