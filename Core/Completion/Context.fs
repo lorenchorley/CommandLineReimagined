@@ -380,7 +380,8 @@ module Context =
                 (fun (f: Tree.Function) -> isPlaceholder f.Id.Name || argumentsHave f.Arguments),
                 (fun (c: Tree.Cli) -> isPlaceholder c.Name.Name || argumentsHave c.Arguments),
                 (fun (tag: Tree.InstanceTag) -> tagHas tag),
-                (fun (nested: Tree.NestedPipeline) -> pipelineHas nested.Pipeline))
+                (fun (nested: Tree.NestedPipeline) -> pipelineHas nested.Pipeline),
+                (fun (reference: Tree.VariableReference) -> valueHas reference))
 
         own || valueHas stage.Default
 
@@ -563,7 +564,10 @@ module Context =
                 // A tag standing alone: its type and attributes are read from the word.
                 (fun (_: Tree.InstanceTag) -> Place.Unknown),
                 (fun (nested: Tree.NestedPipeline) ->
-                    inPipeline specs nested.Pipeline |> Option.defaultValue Place.Unknown))
+                    inPipeline specs nested.Pipeline |> Option.defaultValue Place.Unknown),
+                // A variable standing as a stage (decision 0032): the `$` word is read
+                // from its form, so the tree has nothing to add.
+                (fun (_: Tree.VariableReference) -> Place.Unknown))
 
     and private inArguments specs pipeline index (name: string) (arguments: Tree.Arguments) : Place =
         let written =
