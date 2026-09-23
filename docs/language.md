@@ -75,6 +75,9 @@ $ <measurement unit=metres value=3/>
 <measurement unit=metres value=3/>
 ```
 
+A variable can stand on its own the same way: see
+[A variable as a stage](#a-variable-as-a-stage).
+
 ## Arguments
 
 ### Bare words
@@ -285,12 +288,28 @@ metres
 ```
 
 An object or a component answers its attributes. A file answers `name`, `kind`,
-`folder`, `path` and `id`. A member that is not there is *nothing* rather than an
-error, which is what lets a predicate skip a row that is missing a column instead of
-stopping the line.
+`folder`, `path` and `id`, and a fault the members listed under
+[Keeping a failure with `try`](#keeping-a-failure-with-try). A member that is not there
+is *nothing* rather than an error, which is what lets a predicate skip a row that is
+missing a column instead of stopping the line.
 
-This is what a predicate uses to read a column: `$row.size` is a member access on an
-ordinary variable, not a special form.
+A full stop has to be followed by a name. With nothing after it, the line does not
+parse, and the message says what belongs there:
+
+```
+$ echo $thing.
+Column 12: a column name belongs after the stop, as in $row.kind
+```
+
+This is what a predicate uses to read a column: `$row.size` is a member access like
+any other. What is particular to `$row` is where it exists. `where`, `find`, `cd` and
+`save-view` bind it to each row they test, and nothing else does, so reading it
+anywhere else says where it can be used:
+
+```
+$ echo $row
+$row is the row a predicate is testing. It exists only inside where, find, cd and save-view: ls | where $row.kind eq folder.
+```
 
 ## Expressions
 
@@ -554,7 +573,51 @@ $ echo $entries | count
 
 Names may contain letters, digits and underscore. Writing `set $x 1` does not name a
 variable `x`; `$x` is read as a variable reference, so it reports
-`Unknown variable : $x`.
+`Unknown variable: $x`.
+
+On the page, typing `$` offers every bound variable as a completion, each saying what
+it holds, such as `table · 4 rows · name, kind, folder…`. See
+[The web terminal](web-terminal.md#completions).
+
+### A variable as a stage
+
+A variable may stand as a stage of its own, with or without members, and the stage's
+value is the variable's value
+([decision 0032](decisions/0032-a-stage-may-be-a-value.md)). So a name you kept can be
+looked at by typing it, and piped on like any other result:
+
+```
+$ set v 5
+5
+$ $v
+5
+$ ls | set files
+name        kind    folder  size  modified
+documents   folder  /       0     2026-09-22T09:30:00.0000000+00:00
+examples    folder  /       0     2026-09-22T09:30:00.0000000+00:00
+projects    folder  /       0     2026-09-22T09:30:00.0000000+00:00
+readme.txt  text    /       41    2026-09-22T09:30:00.0000000+00:00
+$ $files | count
+4
+$ $files | where $row.size gt 10
+name        kind  folder  size  modified
+readme.txt  text  /       41    2026-09-22T09:30:00.0000000+00:00
+$ try cat missing.txt | set problem
+File does not exist : /missing.txt
+$ $problem.kind
+NotFound
+```
+
+It is a stage like any other, so `??`, `else` and `try` apply to it: an unbound name
+is a fault that `else` recovers from.
+
+```
+$ $nope else echo fallback
+fallback
+```
+
+A variable stage takes nothing from the pipe: `ls | $v` answers `5`. `$row` standing alone is the fault above, since no row is
+being tested.
 
 Undoing a `set` restores whatever the name was bound to before, or unbinds it if it was
 new.
@@ -643,10 +706,12 @@ These are absent by design or not built yet. Nothing here silently half-works.
 
 ## Reading the tree back
 
-The terminal colours each word by the role the grammar gave it, and tapping a word in
-the scrollback names that role. The roles are: command, flag, string, variable,
-identifier, type, attribute, operator, member, keyword and punctuation. `try` and `else`
-are keywords; `??` is an operator.
+The terminal colours each word by the role the grammar gave it. The roles are: command,
+flag, string, variable, identifier, type, attribute, operator, member, keyword and
+punctuation. `try` and `else` are keywords; `??` is an operator. Tapping a word in the
+scrollback says what it is where it stands: what a variable holds, a command's
+parameters, a column's type, what an operator compares, and otherwise its role. See
+[Tapping a word](web-terminal.md#tapping-a-word).
 
 Because the tree is faithful, serialising it reproduces your text exactly. The parser's
 tests check that round trip, which is what keeps colouring and structure honest.
