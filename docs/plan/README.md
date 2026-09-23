@@ -1,8 +1,10 @@
 # Implementation plan: functional core, event-sourced store, attribute filesystem, tables
 
-**Status: complete.** All seven phases are built, and each phase document ends with an
-"As built" section recording where the result differs from what it planned. What
-follows is kept as the record of what was set out to do.
+**Status: Phases 1 to 7 complete; Phase 8 planned.** The first seven phases are built,
+and each phase document ends with an "As built" section recording where the result
+differs from what it planned. [Phase 8](phase-8-intellisense.md) was added afterwards,
+from an audit of completion; unlike the others, it is divided into streams that run in
+parallel after one foundation checkpoint.
 
 This plan is written for an implementing agent who has this repository and nothing
 else. Read this file, then [architecture.md](architecture.md), then the phase you are
@@ -19,6 +21,7 @@ this plan does not reopen those decisions, it executes them.
 | [phase-5-error-syntax.md](phase-5-error-syntax.md) | `else`, `try`, `??`, nested pipelines in parentheses. |
 | [phase-6-xml.md](phase-6-xml.md) | `from-xml`, `to-xml`, `from-csv`, `to-csv` over real files. |
 | [phase-7-consolidation.md](phase-7-consolidation.md) | Specification rewrite, user documentation, conformance, browser check in CI. |
+| [phase-8-intellisense.md](phase-8-intellisense.md) | Completion that reads the line: the command, parameter and value at the cursor; value stages; predicate faults; hints and hover on the page. Seven parallel streams after one foundation checkpoint. |
 | [examples.md](examples.md) | Four one-screen programs, one per pillar, with golden results. The proof that the whole works as imagined. |
 | [scene-editor-direction.md](scene-editor-direction.md) | Not a phase. A proposed direction, pending [0029](../decisions/0029-scene-editor-direction.md): the ECS as a scene the command line edits, rendered on a canvas beside a DOM terminal. |
 
@@ -87,9 +90,12 @@ Phases are sequential. Inside a phase, checkpoints are buildable states; commit 
 each. Do not start a phase until the previous phase's acceptance list is fully green.
 
 ```
-Phase 1  ──▶  Phase 2  ──▶  Phase 3  ──▶  Phase 4  ──▶  Phase 5  ──▶  Phase 6  ──▶  Phase 7
-core+store    persistence   tables       views         else/try     xml/csv      consolidate
+Phase 1  ──▶  Phase 2  ──▶  Phase 3  ──▶  Phase 4  ──▶  Phase 5  ──▶  Phase 6  ──▶  Phase 7  ──▶  Phase 8
+core+store    persistence   tables       views         else/try     xml/csv      consolidate  intellisense
 ```
+
+Inside Phase 8 the checkpoints are not all sequential: after its foundation checkpoint,
+seven streams run in parallel worktrees and merge back in a stated order.
 
 Phase 1 is the largest and the least divisible: replacing the execution layer and the
 filesystem model at once avoids porting per-command undo only to delete it. Its
