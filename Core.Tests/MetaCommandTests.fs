@@ -208,3 +208,120 @@ type MetaCommandTests() =
         assertDoesNotContain "UnknownCommand" names
         assertContains "undo" names
         assertContains "attr" names
+
+    // ----------------------------------------------------- help <command>
+
+    /// Finding 10: `help where` answers `where`'s parameters, one row each.
+    [<TestMethod>]
+    member _.HelpForACommandIsATableOfItsParameters() =
+        let harness = seeded ()
+        let table = harness.Table "help where"
+
+        Assert.AreEqual<string list>([ "name"; "required"; "piped"; "takes"; "description" ], Table.names table)
+        Assert.AreEqual<string list>([ "predicate"; "table" ], harness.Column "help where" "name")
+        Assert.AreEqual<string list>([ "true"; "false" ], harness.Column "help where" "required")
+        Assert.AreEqual<string list>([ "false"; "true" ], harness.Column "help where" "piped")
+        Assert.AreEqual<string>("a predicate", List.head (harness.Column "help where" "takes"))
+
+        Assert.AreEqual<string>(
+            "An expression over $row, such as $row.kind eq folder",
+            List.head (harness.Column "help where" "description"))
+
+    /// The description is written above the table, through the output, so the value
+    /// stays a table.
+    [<TestMethod>]
+    member _.HelpForACommandWritesItsDescriptionAbove() =
+        let harness = seeded ()
+
+        Assert.AreEqual<string list>([ "Keep the rows a predicate is true for" ], harness.Written "help where")
+
+    [<TestMethod>]
+    member _.HelpForACommandCanBePiped() =
+        let harness = seeded ()
+
+        Assert.AreEqual<string>("2", harness.Text "help where | count")
+        Assert.AreEqual<string>("predicate", harness.Names "help where | where $row.required eq true")
+
+    [<TestMethod>]
+    member _.HelpReadsTheCommandsNameInAnyCase() =
+        let harness = seeded ()
+
+        Assert.AreEqual<string list>([ "predicate"; "table" ], harness.Column "help WHERE" "name")
+
+    /// A command with no parameters is an empty table, not a fault.
+    [<TestMethod>]
+    member _.HelpForACommandWithoutParametersIsAnEmptyTable() =
+        let harness = seeded ()
+
+        Assert.AreEqual<int>(0, List.length (harness.Table "help undo").Rows)
+        Assert.AreEqual<string list>([ "Reverse the last line that changed something" ], harness.Written "help undo")
+
+    /// Without a command, `help` is the table of every command it always was.
+    [<TestMethod>]
+    member _.HelpWithoutACommandListsEveryCommand() =
+        let harness = seeded ()
+        let table = harness.Table "help"
+
+        Assert.AreEqual<string list>([ "name"; "parameters"; "description" ], Table.names table)
+        Assert.AreEqual<int>(List.length harness.Session.Commands, List.length table.Rows)
+        Assert.AreEqual<string list>([], harness.Written "help")
+        Assert.AreEqual<string list>([ "[command]" ], harness.Column "help | where $row.name eq help" "parameters")
+
+    [<TestMethod>]
+    member _.HelpForAnUnknownCommandIsAFault() =
+        let harness = seeded ()
+        let fault = harness.Fail "help frobnicate"
+
+        Assert.AreEqual<FaultKind>(UnknownCommand, fault.Kind)
+        Assert.AreEqual<string>("Unknown command : frobnicate", fault.Message)
+
+    /// <summary>An unknown command given to `help` names the nearest ones.</summary>
+    /// <remarks>
+    /// Run as a command rather than through the session: `help` is handed
+    /// `Nearest.names` by whoever builds it, because `Nearest.fs` is compiled after it.
+    /// </remarks>
+    [<TestMethod>]
+    member _.HelpForAMistypedCommandSaysWhichWasMeant() =
+        let specs = (seeded ()).Session.Commands
+        let command = Commands.Meta.helpWith Nearest.names (fun () -> specs)
+
+        let invocation =
+            { Spec = command.Spec
+              Args = Map.ofList [ "command", Value.Text "lss" ]
+              Assignments = []
+              Input = Value.Empty
+              Output = CapturingOutput ignore
+              Scope = Scope Map.empty
+              Projection = Projection.empty
+              Location = Projection.emptyLocation
+              Blobs =
+                { new IBlobs with
+                    member _.Put _ = failwith "help writes nothing"
+                    member _.Get _ = async.Return None }
+              Cancel = System.Threading.CancellationToken.None }
+
+        match Async.RunSynchronously(command.Run invocation) with
+        | Error fault -> Assert.AreEqual<string>("Unknown command : lss. Did you mean ls?", fault.Message)
+        | Ok _ -> Assert.Fail "Expected a fault."
+
+    /// Finding 9: a mistyped command says which one was meant.
+    [<TestMethod>]
+    member _.AMistypedCommandSaysWhichWasMeant() =
+        let harness = seeded ()
+        let fault = harness.Fail "lss"
+
+        Assert.AreEqual<FaultKind>(UnknownCommand, fault.Kind)
+        Assert.AreEqual<string>("Unknown command : lss. Did you mean ls?", fault.Message)
+
+    [<TestMethod>]
+    member _.SeveralNearCommandsAreAllNamed() =
+        let harness = seeded ()
+
+        Assert.AreEqual<string>("Unknown command : ct. Did you mean cat, cd or cp?", harness.Error "ct")
+
+    /// A name nothing is near is only named as unknown.
+    [<TestMethod>]
+    member _.ANameNothingIsNearIsOnlyUnknown() =
+        let harness = seeded ()
+
+        Assert.AreEqual<string>("Unknown command : frobnicate", harness.Error "frobnicate")

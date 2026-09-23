@@ -59,9 +59,9 @@ type ContextTests() =
           "first (c", "CommandName"
           "echo (ls | c", "CommandName afterPipe"
           "ls | where $row.size gt (ls | c", "CommandName afterPipe"
-          // 10, 11: help takes no argument until stream A gives it one
-          "help where", "Argument(help, surplus)"
-          "help ", "Argument(help, surplus)"
+          // 10, 11: help takes a command's name
+          "help where", "Argument(help, command)"
+          "help ", "Argument(help, command)"
           // 12, 13, 19: arguments, by the parameter they bind to
           "ls | sort ", "Argument(sort, column)"
           "ls | sort name", "Argument(sort, column)"

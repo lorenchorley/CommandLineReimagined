@@ -212,8 +212,22 @@ module Fault =
 
     // ------------------------------------------------------------ Execution errors
 
-    let unknownCommand name =
-        create UnknownCommand (sprintf "Unknown command : %s" name)
+    /// <summary>A name that is not a command, and the commands it was probably meant to be.</summary>
+    /// <remarks>
+    /// `nearest` comes nearest first (`Nearest.names`), and at most three are named: a
+    /// longer list is a menu, and the page's completion is already one.
+    /// </remarks>
+    let unknownCommand name (nearest: string list) =
+        let suggestion =
+            match List.truncate 3 nearest with
+            | [] -> ""
+            | [ only ] -> sprintf ". Did you mean %s?" only
+            | several ->
+                let last = List.last several
+                let others = several |> List.take (several.Length - 1) |> String.concat ", "
+                sprintf ". Did you mean %s or %s?" others last
+
+        create UnknownCommand (sprintf "Unknown command : %s%s" name suggestion)
 
     let directoryDoesNotExist path =
         create NotFound (sprintf "Directory does not exist : %s" path) |> withPath path

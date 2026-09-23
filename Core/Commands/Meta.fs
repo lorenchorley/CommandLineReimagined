@@ -87,27 +87,65 @@ let history (store: StoreAccess) =
                     )
             } }
 
-/// <summary>The commands, as a table.</summary>
+/// <summary>What a parameter's argument is, in words, for `help <command>`.</summary>
+/// <remarks>
+/// How the argument is handed over says more than what it is, so a predicate and
+/// `name=value` pairs are named by their kind. The rest read the parameter's `Takes`,
+/// which is `anything` until a command says otherwise.
+/// </remarks>
+let private takesText (parameter: Parameter) =
+    let what =
+        match parameter.Takes with
+        | Takes.Anything -> "anything"
+        | Takes.Path -> "a path"
+        | Takes.Place -> "a folder or a view"
+        | Takes.NewName -> "a new name"
+        | Takes.Url -> "a URL"
+        | Takes.Column -> "a column"
+        | Takes.Count -> "a count"
+        | Takes.Number -> "a number"
+        | Takes.Text -> "text"
+        | Takes.Switch(on, Some off) -> sprintf "%s or %s" on off
+        | Takes.Switch(on, None) -> on
+        | Takes.VariableName -> "a variable name"
+        | Takes.CommandName -> "a command name"
+        | Takes.Value -> "a value"
+
+    match parameter.Kind with
+    | Predicate -> "a predicate"
+    | Assignments -> "name=value pairs"
+    | Rest -> sprintf "%s, any number" what
+    | Single -> what
+
+/// <summary>The commands, as a table; or one command's parameters.</summary>
 /// <remarks>
 /// `help` used to be a word the page intercepted and answered itself, which meant the
 /// desktop shell had no help at all and neither could pipe it. It is a command now, so
 /// `help | where $row.name eq set` is an ordinary question. It is `Meta` because
 /// reading the command list changes nothing and should leave no transaction.
 ///
+/// Given a command (Phase 8), it answers that command's parameters, one row each, and
+/// writes the command's description above them through the output. The description
+/// goes to the output rather than into the value so that the value stays a table:
+/// `help where | count` counts parameters, as any other table would be counted.
+///
 /// The specs arrive as a function rather than a list because the list includes this
-/// command, and a value cannot contain itself.
+/// command, and a value cannot contain itself. `nearest` is `Nearest.names`, which is
+/// compiled after this file, so it is handed in: it names what an unknown command was
+/// probably meant to be.
 /// </remarks>
-let help (specs: unit -> CommandSpec list) =
+let helpWith (nearest: string list -> string -> string list) (specs: unit -> CommandSpec list) =
     { Spec =
         CommandSpec.create
             "help"
             "The commands, with their parameters and what they do"
             [ "help"; "commands"; "what"; "usage"; "manual" ]
-            []
+            [ Parameter.optional "command" "The command to describe; every command when it is not written"
+              |> Parameter.takes Takes.CommandName ]
         |> CommandSpec.meta
         |> CommandSpec.readOnly
       Run =
-        fun _ ->
+        fun invocation ->
             async {
                 let written (parameter: Parameter) =
                     match parameter.Kind with
@@ -115,15 +153,51 @@ let help (specs: unit -> CommandSpec list) =
                     | _ when parameter.Optional -> sprintf "[%s]" parameter.Name
                     | _ -> sprintf "<%s>" parameter.Name
 
-                let rows =
-                    specs ()
-                    |> List.map (fun spec ->
-                        [ Value.Text spec.Name
-                          Value.Text(spec.Parameters |> List.map written |> String.concat " ")
-                          Value.Text spec.Description ])
+                let all = specs ()
 
-                return Invocation.pure' (Value.Table(Table.ofColumns [ "name"; "parameters"; "description" ] rows))
+                if not (Invocation.given "command" invocation) then
+                    let rows =
+                        all
+                        |> List.map (fun spec ->
+                            [ Value.Text spec.Name
+                              Value.Text(spec.Parameters |> List.map written |> String.concat " ")
+                              Value.Text spec.Description ])
+
+                    return Invocation.pure' (Value.Table(Table.ofColumns [ "name"; "parameters"; "description" ] rows))
+                else
+                    let name = Invocation.text "command" invocation
+
+                    let found =
+                        all
+                        |> List.tryFind (fun spec ->
+                            System.String.Equals(spec.Name, name, System.StringComparison.OrdinalIgnoreCase))
+
+                    match found with
+                    | None ->
+                        let names = all |> List.map (fun spec -> spec.Name)
+                        return Error(Fault.unknownCommand name (nearest names name))
+                    | Some spec ->
+                        invocation.Output.NewLine().Write spec.Description |> ignore
+
+                        let rows =
+                            spec.Parameters
+                            |> List.map (fun parameter ->
+                                [ Value.Text parameter.Name
+                                  Value.Boolean(not parameter.Optional)
+                                  Value.Boolean parameter.AcceptsPipe
+                                  Value.Text(takesText parameter)
+                                  Value.Text parameter.Description ])
+
+                        let columns = [ "name"; "required"; "piped"; "takes"; "description" ]
+                        return Invocation.pure' (Value.Table(Table.ofColumns columns rows))
             } }
+
+/// <summary>`help`, with an unknown command named as unknown and nothing more.</summary>
+/// <remarks>
+/// What the session builds until it hands `helpWith` the nearest names itself, which
+/// it can: `Session.fs` is compiled after `Nearest.fs`.
+/// </remarks>
+let help (specs: unit -> CommandSpec list) = helpWith (fun _ _ -> []) specs
 
 /// <summary>Empties the log and starts again from the seeded filesystem.</summary>
 /// <remarks>
@@ -262,6 +336,14 @@ let unknown =
             "UnknownCommand"
             "Reports a command name that could not be resolved"
             []
-            [ Parameter.optional "name" "The name that was written" ]
+            [ Parameter.optional "name" "The name that was written"
+              // Filled by the evaluator with `Nearest.names`, which is compiled after
+              // this file: the command cannot look for them itself.
+              Parameter.rest "nearest" "The commands it was probably meant to be, nearest first" ]
         |> CommandSpec.meta
-      Run = fun invocation -> async { return Error(Fault.unknownCommand (Invocation.text "name" invocation)) } }
+      Run =
+        fun invocation ->
+            async {
+                let nearest = Invocation.list "nearest" invocation |> List.map Value.display
+                return Error(Fault.unknownCommand (Invocation.text "name" invocation) nearest)
+            } }
