@@ -136,7 +136,7 @@ $ cd /
 /
 
 $ ls | where $row.kind eq folder | count
-4
+5
 ```
 
 The root is the exception. `/` is implicit: nothing records it, because a record for it
