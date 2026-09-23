@@ -197,6 +197,39 @@ public sealed class TerminalSession
             result.Signature is null ? null : Describe(result.Signature.Value));
     }
 
+    /// <summary>
+    /// What the token that ends at <paramref name="offset"/> is, for the page's tap.
+    /// </summary>
+    /// <remarks>
+    /// Null when there is nothing to say about it, and the page then shows the token's
+    /// grammar role as it always did. Asynchronous because a <c>$row.</c> member asks
+    /// what flows into its stage, which may run the stages before it (decision 0031).
+    /// </remarks>
+    public async Task<HoverInfo?> DescribeAsync(string text, int offset)
+    {
+        text ??= string.Empty;
+        offset = Math.Clamp(offset, 0, text.Length);
+
+        var result = await FSharpAsync.StartAsTask(
+            _session.Describe(text, offset),
+            FSharpOption<TaskCreationOptions>.None,
+            FSharpOption<CancellationToken>.None);
+
+        // An F# option is a reference whose None is null.
+        if (result is null)
+        {
+            return null;
+        }
+
+        var hover = result.Value;
+
+        return new HoverInfo(
+            hover.Kind,
+            hover.Text,
+            hover.Detail?.Value,
+            hover.Signature is null ? null : Describe(hover.Signature.Value));
+    }
+
     /// <summary>What the end of the text could become, waited for.</summary>
     public IReadOnlyList<Completion> Complete(string text) =>
         _session.Complete(text ?? string.Empty).Select(Describe).ToList();
@@ -436,5 +469,12 @@ public sealed record SignatureInfo(
     string Command, string Description, IReadOnlyList<SignatureParameter> Parameters, int? Active);
 
 public sealed record SignatureParameter(string Name, bool Optional, string Description);
+
+/// <summary>What a tapped token is.</summary>
+/// <param name="Kind">`variable`, `command`, `member`, `operator`, `flag` or `argument`.</param>
+/// <param name="Text">The token as written, sigils included.</param>
+/// <param name="Detail">A variable's summary, a column's type, what an operator compares, a parameter's description.</param>
+/// <param name="Signature">The command's parameters, for a command name or one of its arguments.</param>
+public sealed record HoverInfo(string Kind, string Text, string? Detail, SignatureInfo? Signature);
 
 public sealed record VariableSummary(string Name, string Text, IReadOnlyList<ResultItem> Items);

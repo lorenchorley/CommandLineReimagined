@@ -152,6 +152,16 @@ public static class TerminalBridge
     public static async Task<string> Complete(string text, int cursor) =>
         JsonSerializer.Serialize(await Session.CompleteAsync(text ?? string.Empty, cursor), Options);
 
+    /// <summary>
+    /// What the token ending at <paramref name="offset"/> is, as JSON, or <c>null</c>.
+    /// </summary>
+    /// <remarks>
+    /// Asked when a token is tapped. A task for the same reason <see cref="Complete"/> is.
+    /// </remarks>
+    [JSInvokable]
+    public static async Task<string> Describe(string text, int offset) =>
+        JsonSerializer.Serialize(await Session.DescribeAsync(text ?? string.Empty, offset), Options);
+
     /// <summary>The variables currently in scope.</summary>
     [JSInvokable]
     public static string Variables() => JsonSerializer.Serialize(Session.Variables(), Options);
