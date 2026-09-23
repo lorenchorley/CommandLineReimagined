@@ -27,8 +27,8 @@ let progress =
             "progress"
             "Runs a progress bar, to exercise async commands, cancellation and undo"
             [ "progress"; "test"; "bar" ]
-            [ Parameter.optional "steps" "How many steps to take; 100 by default"
-              Parameter.optional "delay" "Milliseconds between steps; 100 by default" ]
+            [ Parameter.optional "steps" "How many steps to take; 100 by default" |> Parameter.takes Takes.Count
+              Parameter.optional "delay" "Milliseconds between steps; 100 by default" |> Parameter.takes Takes.Number ]
       Run =
         fun invocation ->
             async {
@@ -86,8 +86,8 @@ let download (client: unit -> HttpClient) (newId: Files.IdSource) (now: unit -> 
             "download"
             "Download a file, with progress"
             [ "download"; "file"; "transfer"; "api"; "stream"; "http"; "ftp" ]
-            [ Parameter.optional "url" "What to download"
-              Parameter.optional "into" "Directory to download into" ]
+            [ Parameter.optional "url" "What to download" |> Parameter.takes Takes.Url
+              Parameter.optional "into" "Directory to download into" |> Parameter.takes Takes.Place ]
       Run =
         fun invocation ->
             async {

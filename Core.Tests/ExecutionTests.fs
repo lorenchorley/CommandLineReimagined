@@ -407,3 +407,76 @@ type ExecutionTests() =
         harness.Run "up" |> ignore
 
         Assert.AreEqual<string>("/", harness.Location)
+
+    // ------------------------------------------------------------ value stages
+
+    /// Decision 0032: a variable standing alone is a line, and its value is the answer.
+    [<TestMethod>]
+    member _.AVariableStandingAloneAnswersItsValue() =
+        let harness = seeded ()
+        harness.Run "set v 5" |> ignore
+
+        Assert.AreEqual<Value>(Value.Number 5.0, harness.Run "$v")
+        Assert.AreEqual<string>("5", harness.Text "$v")
+
+    /// A value stage is the head of a pipeline like any other, so what it holds flows on.
+    [<TestMethod>]
+    member _.AVariableStageFeedsThePipe() =
+        let harness = seeded ()
+        harness.Run "ls | set files" |> ignore
+
+        Assert.AreEqual<Value>(Value.Number 4.0, harness.Run "$files | count")
+        Assert.AreEqual<string>("documents examples projects", harness.Names "$files | where $row.kind eq folder")
+
+    /// Members read off a value stage the way they read off an argument.
+    [<TestMethod>]
+    member _.AVariableStageReadsItsMembers() =
+        let harness = seeded ()
+        harness.Run "try cat missing.txt | set problem" |> ignore
+
+        Assert.AreEqual<string>("NotFound", harness.Text "$problem.kind")
+
+    /// A value stage changes nothing, so a live view may re-read it.
+    [<TestMethod>]
+    member _.AVariableStageOnlyReads() =
+        let harness = seeded ()
+        harness.Run "set v 5" |> ignore
+
+        let response = harness.Refresh "$v"
+
+        Assert.IsTrue(response.Fault.IsNone)
+        Assert.AreEqual<Value option>(Some(Value.Number 5.0), response.Result)
+
+    [<TestMethod>]
+    member _.AnUnknownVariableStageIsReported() =
+        let harness = seeded ()
+
+        Assert.AreEqual<string>("Unknown variable: $nope", harness.Error "$nope")
+        Assert.AreEqual<string>("Unknown variable: $nope", harness.Error "echo $nope")
+
+    /// Decision 0032: `$row` outside a predicate says where it does exist.
+    [<TestMethod>]
+    member _.RowStandingAloneSaysWhereItExists() =
+        let harness = seeded ()
+
+        let fault = harness.Fail "$row"
+
+        Assert.AreEqual<string>(
+            "$row is the row a predicate is testing. It exists only inside where, find, cd and save-view: ls | where $row.kind eq folder.",
+            fault.Message)
+        Assert.AreEqual(NotFound, fault.Kind)
+
+    /// The same for `$row` read as an argument, which used to be an unknown variable.
+    [<TestMethod>]
+    member _.RowAsAnArgumentSaysWhereItExists() =
+        let harness = seeded ()
+
+        StringAssert.StartsWith(harness.Error "echo $row", "$row is the row a predicate is testing.")
+        StringAssert.StartsWith(harness.Error "$row.kind", "$row is the row a predicate is testing.")
+
+    /// Inside a predicate `$row` is the row, as it always was.
+    [<TestMethod>]
+    member _.RowInsideAPredicateIsTheRow() =
+        let harness = seeded ()
+
+        Assert.AreEqual<string>("readme.txt", harness.Names "ls | where $row.kind eq text")

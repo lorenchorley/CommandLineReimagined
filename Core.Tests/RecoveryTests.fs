@@ -290,3 +290,40 @@ type RecoveryTests() =
             Assert.IsTrue(response.Fault.IsSome, sprintf "'%s' should have been refused." line)
 
         Assert.IsTrue((harness.Refresh "ls | where $row.size gt (ls | count) else echo none").Fault.IsNone)
+
+    // ------------------------------------------------------- value stages
+
+    /// Decision 0014's own example, which decision 0032 made a line. `set` refuses to
+    /// hold nothing, so the nothing here is a member the value does not have, which
+    /// reads as `None` (decision 0009).
+    [<TestMethod>]
+    member _.TheDefaultReplacesAValueStageThatAnswersNothing() =
+        let harness = seeded ()
+        harness.Run "try cat missing.txt | set maybe" |> ignore
+
+        Assert.AreEqual<string>("x", harness.Text "$maybe.nothing ?? \"x\"")
+
+    /// `??` replaces nothing, not a failure: an unknown variable is still reported,
+    /// and `try` or `else` is what recovers from it.
+    [<TestMethod>]
+    member _.TheDefaultDoesNotHideAnUnknownVariable() =
+        let harness = seeded ()
+
+        Assert.AreEqual<string>("Unknown variable: $maybe", harness.Error "$maybe ?? \"x\"")
+        Assert.AreEqual<string>("x", harness.Text "$maybe else echo \"x\"")
+
+    [<TestMethod>]
+    member _.TheDefaultLeavesAVariableHoldingAValue() =
+        let harness = seeded ()
+        harness.Run "set maybe hello" |> ignore
+
+        Assert.AreEqual<string>("hello", harness.Text "$maybe ?? \"x\"")
+
+    /// `try` and `else` treat a value stage as they treat any other.
+    [<TestMethod>]
+    member _.TryAndElseApplyToAVariableStage() =
+        let harness = seeded ()
+
+        Assert.AreEqual(NotFound, (faultOf (harness.Run "try $nope")).Kind)
+        Assert.AreEqual<string>("none", harness.Text "$nope else echo none")
+        StringAssert.StartsWith(harness.Text "$row else echo", "$row is the row a predicate is testing.")

@@ -100,7 +100,9 @@ type Evaluator(commands: Command list, store: Store, blobs: IBlobs) =
                     (fun (f: Tree.Function) -> reads f.Id.Name && argumentsRead f.Arguments),
                     (fun (c: Tree.Cli) -> reads c.Name.Name && argumentsRead c.Arguments),
                     (fun (_: Tree.InstanceTag) -> false),
-                    (fun (nested: Tree.NestedPipeline) -> pipelineReads nested.Pipeline))
+                    (fun (nested: Tree.NestedPipeline) -> pipelineReads nested.Pipeline),
+                    // A variable standing as a stage (decision 0032) only reads it.
+                    (fun (_: Tree.VariableReference) -> true))
 
             own && (isNull expression.Default || nodeReads expression.Default)
 
@@ -321,6 +323,19 @@ type Evaluator(commands: Command list, store: Store, blobs: IBlobs) =
                                 async {
                                     let! result = runPipeline input nested.Pipeline
                                     return result |> Outcome.mapFault (fun fault -> { fault with Stage = None })
+                                }),
+                            // Decision 0032: a variable standing as a stage is its value,
+                            // members read off it, so `??`, `else` and `try` treat it as
+                            // they treat any stage. Like a tag standing alone, it takes
+                            // nothing from the pipe. `$row` outside a predicate is not in
+                            // scope, and its lookup says where it does exist.
+                            (fun (reference: Tree.VariableReference) ->
+                                async {
+                                    match Binder.evaluate (Scope working.Variables) reference with
+                                    | Error fault -> return Error fault
+                                    | Ok(value, events) ->
+                                        record events
+                                        return Ok value
                                 })
                         )
                 }

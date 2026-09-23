@@ -143,8 +143,31 @@ module Fault =
     let takesNoAssignments command name =
         create Binding (sprintf "'%s' does not take '%s=' assignments." command name)
 
+    /// <summary>`$row` read where no predicate is testing a row.</summary>
+    /// <remarks>
+    /// Decision 0032. `$row` is not a variable anyone set: `where`, `find`, `cd` and
+    /// `save-view` bind it for each row they test. Read anywhere else — standing as a
+    /// stage, or as `echo $row` — "unknown variable" says nothing a person can act on,
+    /// so the fault says where it does exist, with a line that uses it.
+    /// </remarks>
+    let rowOutsidePredicate () =
+        create
+            NotFound
+            "$row is the row a predicate is testing. It exists only inside where, find, cd and save-view: ls | where $row.kind eq folder."
+        |> withPath "$row"
+
+    /// <summary>A variable that is not set.</summary>
+    /// <remarks>
+    /// `$row` is the one name that is never set by hand, so an unknown `$row` is
+    /// answered with where it exists instead (<see cref="rowOutsidePredicate"/>). Every
+    /// lookup comes through here, which is what makes that true of an argument, a
+    /// stage and a predicate evaluated with no row alike.
+    /// </remarks>
     let unknownVariable name =
-        create NotFound (sprintf "Unknown variable : $%s" name) |> withPath ("$" + name)
+        if name = "row" then
+            rowOutsidePredicate ()
+        else
+            create NotFound (sprintf "Unknown variable: $%s" name) |> withPath ("$" + name)
 
     let unsupportedArgument node =
         create Internal (sprintf "Unsupported argument value : %s" node)
