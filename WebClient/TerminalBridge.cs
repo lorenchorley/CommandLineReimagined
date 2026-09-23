@@ -141,10 +141,16 @@ public static class TerminalBridge
     [JSInvokable]
     public static string Commands() => JsonSerializer.Serialize(Session.Commands, Options);
 
-    /// <summary>Completions for the last word of the text.</summary>
+    /// <summary>
+    /// Completions for the word at the cursor, and the signature it is in, as JSON.
+    /// </summary>
+    /// <remarks>
+    /// A task, because completion may run the stages before the cursor (decision
+    /// 0031). The page numbers its requests and drops any answer that is not the latest.
+    /// </remarks>
     [JSInvokable]
-    public static string Complete(string text) =>
-        JsonSerializer.Serialize(Session.Complete(text ?? string.Empty), Options);
+    public static async Task<string> Complete(string text, int cursor) =>
+        JsonSerializer.Serialize(await Session.CompleteAsync(text ?? string.Empty, cursor), Options);
 
     /// <summary>The variables currently in scope.</summary>
     [JSInvokable]

@@ -174,10 +174,47 @@ public sealed class TerminalSession
 
     public bool Cancel() => _session.Cancel();
 
+    /// <summary>
+    /// What the word at the cursor could become, and the signature it is in.
+    /// </summary>
+    /// <remarks>
+    /// Asynchronous because completion may run the stages before the cursor to learn
+    /// what flows into them (decision 0031). The page keeps only the answer to its
+    /// latest keystroke.
+    /// </remarks>
+    public async Task<CompletionResponse> CompleteAsync(string text, int cursor)
+    {
+        text ??= string.Empty;
+        cursor = Math.Clamp(cursor, 0, text.Length);
+
+        var result = await FSharpAsync.StartAsTask(
+            _session.Complete(text, cursor),
+            FSharpOption<TaskCreationOptions>.None,
+            FSharpOption<CancellationToken>.None);
+
+        return new CompletionResponse(
+            result.Items.Select(Describe).ToList(),
+            result.Signature is null ? null : Describe(result.Signature.Value));
+    }
+
+    /// <summary>What the end of the text could become, waited for.</summary>
     public IReadOnlyList<Completion> Complete(string text) =>
-        _session.Complete(text ?? string.Empty)
-                .Select(c => new Completion(c.Kind, c.Text, c.Start))
-                .ToList();
+        _session.Complete(text ?? string.Empty).Select(Describe).ToList();
+
+    private static Completion Describe(Core.Completion completion) =>
+        new(completion.Kind,
+            completion.Text,
+            completion.Start,
+            completion.End,
+            completion.Detail is null ? null : completion.Detail.Value);
+
+    private static SignatureInfo Describe(Signature signature) =>
+        new(signature.Command,
+            signature.Description,
+            signature.Parameters
+                     .Select(p => new SignatureParameter(p.Item1, p.Item2, p.Item3))
+                     .ToList(),
+            signature.Active is null ? null : signature.Active.Value);
 
     public IReadOnlyList<VariableSummary> Variables() =>
         _session.Variables()
@@ -384,7 +421,20 @@ public sealed record CommandSummary(string Name, string Description, IReadOnlyLi
 
 public sealed record ParameterSummary(string Name, bool Optional);
 
-/// <summary>A possible continuation of the last word: replace the text from <paramref name="Start"/> with <paramref name="Text"/>.</summary>
-public sealed record Completion(string Kind, string Text, int Start);
+/// <summary>
+/// A possible continuation of the word at the cursor: replace the text from
+/// <paramref name="Start"/> to <paramref name="End"/> with <paramref name="Text"/>.
+/// </summary>
+/// <param name="Detail">A line about it: what a variable holds, what a command does. Null when there is nothing to say.</param>
+public sealed record Completion(string Kind, string Text, int Start, int End, string? Detail);
+
+/// <summary>What the word could become, and the signature of the command it is in.</summary>
+public sealed record CompletionResponse(IReadOnlyList<Completion> Items, SignatureInfo? Signature);
+
+/// <summary>A command's parameters, with <paramref name="Active"/> the one being written.</summary>
+public sealed record SignatureInfo(
+    string Command, string Description, IReadOnlyList<SignatureParameter> Parameters, int? Active);
+
+public sealed record SignatureParameter(string Name, bool Optional, string Description);
 
 public sealed record VariableSummary(string Name, string Text, IReadOnlyList<ResultItem> Items);

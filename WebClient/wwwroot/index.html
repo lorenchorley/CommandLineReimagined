@@ -624,16 +624,36 @@ function refreshMirror() {
 
 // ---- completion -----------------------------------------------------------
 
-function refreshCompletions() {
-  const row = $('complete');
-  completions = [];
-  row.innerHTML = '';
-  if (!ready || !cmd.value.length) return;
+// Asked asynchronously, because the core may run the stages before the cursor to
+// learn what flows in (decision 0031). Every request is numbered and only the answer
+// to the latest is drawn, so a slow answer to an old keystroke never replaces a new one.
+let completionSeq = 0;
+let completionPending = Promise.resolve();
 
-  try { completions = JSON.parse(DotNet.invokeMethod('WebClient', 'Complete', cmd.value)); } catch { return; }
+function refreshCompletions() {
+  completionPending = loadCompletions();
+  return completionPending;
+}
+
+async function loadCompletions() {
+  const row = $('complete');
+  const seq = ++completionSeq;
+  if (!ready || !cmd.value.length) { completions = []; row.innerHTML = ''; return; }
+
+  const text = cmd.value;
+  const cursor = cmd.selectionStart ?? text.length;
+  let items = [];
+  try {
+    const response = JSON.parse(await DotNet.invokeMethodAsync('WebClient', 'Complete', text, cursor));
+    items = response.items || [];
+  } catch { items = []; }
+  if (seq !== completionSeq) return;
+
+  completions = items;
+  row.innerHTML = '';
 
   // Nothing to offer when the word is already exactly the only completion.
-  if (completions.length === 1 && cmd.value.slice(completions[0].start) === completions[0].text) {
+  if (completions.length === 1 && text.slice(completions[0].start, completions[0].end) === completions[0].text) {
     completions = []; return;
   }
 
@@ -647,12 +667,18 @@ function refreshCompletions() {
 
 // A folder completes to `documents/` and stops there, so the next tap can go deeper;
 // anything else is a whole word and gets its space. The core calls it `folder`: this
-// said `directory`, so a folder was never coloured and always got a space.
+// said `directory`, so a folder was never coloured and always got a space. A
+// completion replaces its word only, from `start` to `end`, so the rest of the line
+// stays, and the caret lands after what was put in.
 function applyCompletion(c) {
   const place = c.kind === 'folder' || c.kind === 'file' || c.kind === 'view';
   const text = place ? asWord(c.text) : c.text;
-  const trailing = c.kind === 'folder' && text === c.text ? '' : ' ';
-  cmd.value = cmd.value.slice(0, c.start) + text + trailing;
+  const rest = cmd.value.slice(c.end);
+  const trailing = (c.kind === 'folder' && text === c.text) || rest.startsWith(' ') ? '' : ' ';
+  const inserted = text + trailing;
+  cmd.value = cmd.value.slice(0, c.start) + inserted + rest;
+  const caret = c.start + inserted.length;
+  cmd.setSelectionRange(caret, caret);
   refreshMirror(); refreshCompletions(); cmd.focus();
 }
 
@@ -806,17 +832,23 @@ cmd.addEventListener('keydown', e => {
     return;
   }
 
-  // Tab takes the only completion, or the common prefix of several.
+  // Tab takes the only completion, or the common prefix of several. It waits for the
+  // answer to the last keystroke first, which may still be on its way.
   if (e.key === 'Tab') {
     e.preventDefault();
-    if (!completions.length) return;
-    if (completions.length === 1) { applyCompletion(completions[0]); return; }
-    let prefix = completions[0].text;
-    for (const c of completions) while (!c.text.toLowerCase().startsWith(prefix.toLowerCase())) prefix = prefix.slice(0, -1);
-    if (prefix.length > cmd.value.length - completions[0].start) {
-      cmd.value = cmd.value.slice(0, completions[0].start) + prefix;
-      refreshMirror(); refreshCompletions();
-    }
+    completionPending.then(() => {
+      if (!completions.length) return;
+      if (completions.length === 1) { applyCompletion(completions[0]); return; }
+      const first = completions[0];
+      let prefix = first.text;
+      for (const c of completions) while (!c.text.toLowerCase().startsWith(prefix.toLowerCase())) prefix = prefix.slice(0, -1);
+      if (prefix.length > first.end - first.start) {
+        cmd.value = cmd.value.slice(0, first.start) + prefix + cmd.value.slice(first.end);
+        const caret = first.start + prefix.length;
+        cmd.setSelectionRange(caret, caret);
+        refreshMirror(); refreshCompletions();
+      }
+    });
   }
 });
 
