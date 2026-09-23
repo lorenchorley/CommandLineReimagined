@@ -74,7 +74,7 @@ type PersistenceTests() =
 
         let second = reopen log
 
-        Assert.AreEqual<string>("documents examples persisted projects note.txt readme.txt", names second "ls /")
+        Assert.AreEqual<string>("documents examples guide persisted projects note.txt readme.txt", names second "ls /")
         Assert.AreEqual<string>("hello", display second "cat /note.txt")
         Assert.AreEqual<string>("hi", display second "echo $greeting")
         Assert.AreEqual<string>("/persisted", second.Location.Folder)
@@ -104,7 +104,7 @@ type PersistenceTests() =
 
         let second = reopen log
 
-        Assert.AreEqual<string>("documents examples projects", names second "ls")
+        Assert.AreEqual<string>("documents examples guide projects", names second "ls")
 
     /// Undo survives a reload, because the compensation chain is in the log rather
     /// than in memory.
@@ -117,7 +117,7 @@ type PersistenceTests() =
         let second = reopen log
 
         Assert.AreEqual<string>("Undone: mkdir alpha", display second "undo")
-        Assert.AreEqual<string>("documents examples projects readme.txt", names second "ls")
+        Assert.AreEqual<string>("documents examples guide projects readme.txt", names second "ls")
         Assert.AreEqual<string>("Redone: mkdir alpha", display second "redo")
 
     /// Content is in the log's blob store, so a reload can still read a file written
@@ -143,8 +143,8 @@ type PersistenceTests() =
         harness.Run "mkdir alpha" |> ignore
         harness.Run "write note.txt hello" |> ignore
 
-        Assert.AreEqual<string>("Reset. 9 files restored.", harness.Text "reset")
-        Assert.AreEqual<string>("documents examples projects readme.txt", harness.Names "ls")
+        Assert.AreEqual<string>("Reset. 17 files restored.", harness.Text "reset")
+        Assert.AreEqual<string>("documents examples guide projects readme.txt", harness.Names "ls")
 
     [<TestMethod>]
     member _.ResetLeavesNothingToUndo() =
@@ -195,7 +195,7 @@ type PersistenceTests() =
 
         let second = reopen log
 
-        Assert.AreEqual<string>("documents examples projects readme.txt", names second "ls")
+        Assert.AreEqual<string>("documents examples guide projects readme.txt", names second "ls")
 
     /// A session with nothing to seed resets to genuinely nothing, and says so.
     [<TestMethod>]

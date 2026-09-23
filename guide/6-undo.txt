@@ -1,0 +1,16 @@
+6. Undo, redo and history
+
+Everything you do is recorded, in order, in a log kept in this browser. The files you see are worked out from that log, which is why any change can be taken back.
+
+  mkdir scratch
+  undo
+  redo
+  history
+
+undo takes the last change back, and its line leaves the screen. redo puts both back. history lists every line, the undone ones included. The arrows above the input do the same as undo and redo.
+
+The log survives a reload. If the status at the top says "not persisted", this browser is not keeping it (a private window, for example), and everything goes when the tab closes.
+
+reset starts again from the files the terminal began with. It is the one thing that cannot be undone.
+
+Next: cat guide/7-files.txt

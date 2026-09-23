@@ -199,7 +199,7 @@ type CompletionTests() =
     member _.CdOffersOnlyPlaces() =
         let harness = seeded ()
 
-        Assert.AreEqual<string list>([ "documents/"; "examples/"; "projects/" ], texts harness "cd ")
+        Assert.AreEqual<string list>([ "documents/"; "examples/"; "guide/"; "projects/" ], texts harness "cd ")
 
     [<TestMethod>]
     member _.OtherCommandsStillOfferEveryName() =

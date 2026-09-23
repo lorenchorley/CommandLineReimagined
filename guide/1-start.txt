@@ -1,0 +1,20 @@
+1. Getting around
+
+Type a command and press return, or tap Run. Tapping a result, a table cell or a chip under the input puts it in the line, so most things take little typing.
+
+  ls
+  cat readme.txt
+  cd documents
+  up
+  help
+  help where
+
+ls lists what is here, cat shows what a file says, cd goes into a folder and up comes back out (so does the up button above the input). help lists every command, and help with a command's name says what it takes.
+
+While you type, the chips under the input offer what can come next: commands, files, columns, variables. On a keyboard, Tab takes one. The line just above the input describes the command you are writing, or the chip that is selected. Tap a word in any line to see what it is.
+
+The arrows above the input undo and redo.
+
+Your files live in this browser and are never sent anywhere.
+
+Next: cat guide/2-values.txt

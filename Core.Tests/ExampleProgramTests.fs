@@ -19,18 +19,29 @@ open CommandLineReimagined.Core.Tests.SessionHarness
 [<TestClass>]
 type ExampleProgramTests() =
 
+    /// The lines a guide shows failing on purpose, to show how a failure reads.
+    let meantToFail = set [ "ls | where kind eq folder"; "ls | where $row.kind"; "cat missing.txt" ]
+
+    /// The example lines of a guide: the lines indented by two spaces, in order.
+    let examplesOf (text: string) =
+        text.Split('\n')
+        |> Array.filter (fun line -> line.StartsWith "  " && line.Trim() <> "")
+        |> Array.map (fun line -> line.Trim())
+        |> List.ofArray
+
     /// The golden results for tables.clr, in the order the script runs them.
     let tablesProgram =
         [ "ls",
           "name        kind    folder  size  modified\n\
              documents   folder  /       0     *\n\
              examples    folder  /       0     *\n\
+             guide       folder  /       0     *\n\
              projects    folder  /       0     *\n\
-             readme.txt  text    /       41    *"
+             readme.txt  text    /       192   *"
 
-          "ls | where $row.kind eq folder | count", "3"
+          "ls | where $row.kind eq folder | count", "4"
 
-          "ls | sort name desc | first", "<row name=readme.txt kind=text folder=/ size=41 modified=*/>"
+          "ls | sort name desc | first", "<row name=readme.txt kind=text folder=/ size=192 modified=*/>"
 
           "ls | select name kind | take 2",
           "name       kind\n\
@@ -107,8 +118,9 @@ type ExampleProgramTests() =
           "name        kind    folder  size  modified\n\
              documents   folder  /       0     *\n\
              examples    folder  /       0     *\n\
+             guide       folder  /       0     *\n\
              projects    folder  /       0     *\n\
-             readme.txt  text    /       41    *\n\
+             readme.txt  text    /       192   *\n\
              today.txt   text    /       14    *" ]
 
     /// <summary>The golden results for inventory.clr, in the order the script runs them.</summary>
@@ -440,3 +452,42 @@ type ExampleProgramTests() =
         harness.Run "write loop.clr \"run loop.clr\"" |> ignore
 
         StringAssert.Contains(harness.Error "run loop.clr", "8 deep")
+
+    // ------------------------------------------------------------------ the guide
+
+    /// <summary>The readme points into the guide, and the guide is seeded whole.</summary>
+    /// <remarks>
+    /// The page's banner says only to read `readme.txt`, so a readme pointing nowhere
+    /// would leave a new visitor with nothing. Every guide names the next one, and the
+    /// last one names none.
+    /// </remarks>
+    [<TestMethod>]
+    member _.TheReadmeLeadsThroughTheWholeGuide() =
+        let harness = seeded ()
+        let guides = harness.Column "ls guide" "name"
+
+        Assert.AreEqual<int>(Seed.guideFiles.Length, guides.Length)
+        StringAssert.Contains(harness.Text "cat readme.txt", "cat guide/1-start.txt")
+
+        for guide in guides |> List.take (guides.Length - 1) do
+            let next = Regex.Match(harness.Text("cat guide/" + guide), @"Next: cat guide/(\S+)")
+            Assert.IsTrue(next.Success, sprintf "%s names no next guide." guide)
+            Assert.IsTrue(harness.Exists("/guide/" + next.Groups[1].Value), sprintf "%s names %s, which is not there." guide next.Groups[1].Value)
+
+    /// <summary>Every example in the guide runs, from a fresh tab, in the order shown.</summary>
+    /// <remarks>
+    /// The guide is what a visitor reads first, so it is held to what the terminal does:
+    /// a line that stops working, or starts working when it is shown failing, fails here.
+    /// </remarks>
+    [<TestMethod>]
+    member _.EveryExampleInTheGuideRuns() =
+        for guide in Seed.guideFiles do
+            let harness = seeded ()
+
+            for line in examplesOf (defaultArg guide.Content "") do
+                let response = harness.Respond line
+
+                match response.Fault, meantToFail.Contains line with
+                | Some fault, false -> Assert.Fail(sprintf "%s: '%s' failed: %s" guide.Name line fault.Message)
+                | None, true -> Assert.Fail(sprintf "%s: '%s' is shown failing, and did not." guide.Name line)
+                | _ -> ()

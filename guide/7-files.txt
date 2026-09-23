@@ -1,0 +1,19 @@
+7. Files, data and scripts
+
+  echo hello | write note.txt
+  cat note.txt
+  rm note.txt
+
+CSV and XML are read as data and written from it, so a table can go out to a file and come back as a table:
+
+  ls | to-csv listing.csv
+  from-csv listing.csv
+  ls | to-xml listing.xml
+  from-xml listing.xml | table
+
+A script is a file of lines, and run runs it one line at a time. The examples folder holds four small ones, each built around one of the ideas in this guide:
+
+  ls examples
+  run examples/tables.clr
+
+That is the whole of it. help lists every command when you want the rest.

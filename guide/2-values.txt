@@ -1,0 +1,27 @@
+2. Everything is a value
+
+A command does not print text. It answers a value, and the page draws it: a table, a file, a number, some text, a tag. A pipe, |, hands that value to the next command as it is, not as text.
+
+  ls | count
+  ls | first
+  echo hello | write note.txt
+
+set keeps a value in a variable, and $ reads it back. A variable on its own is a line too.
+
+  set v 5
+  echo $v
+  ls | set files
+  $files | count
+  vars
+
+A command can be written in two ways that mean the same thing: as words, the way a shell reads them, or as a call with its arguments in parentheses.
+
+  write note.txt hi
+  write(note.txt, hi)
+
+Tags build a value directly, without a command. Angle brackets make an object and braces make a component.
+
+  <measurement unit=metres value=3/>
+  {renderer colour=red/}
+
+Next: cat guide/3-tables.txt

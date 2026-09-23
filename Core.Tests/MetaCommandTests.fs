@@ -151,7 +151,7 @@ type MetaCommandTests() =
         let harness = seeded ()
 
         Assert.AreEqual<string>("Nothing to undo.", harness.Text "undo")
-        Assert.AreEqual<string>("documents examples projects readme.txt", harness.Names "ls")
+        Assert.AreEqual<string>("documents examples guide projects readme.txt", harness.Names "ls")
 
     [<TestMethod>]
     member _.TheSeedIsStillInHistory() =
@@ -168,7 +168,7 @@ type MetaCommandTests() =
 
         Assert.AreEqual<string>("Undone: mkdir alpha", harness.Text "undo")
         Assert.AreEqual<string>("Nothing to undo.", harness.Text "undo")
-        Assert.AreEqual<string>("documents examples projects readme.txt", harness.Names "ls")
+        Assert.AreEqual<string>("documents examples guide projects readme.txt", harness.Names "ls")
 
     [<TestMethod>]
     member _.HistoryOnAFreshSessionIsEmpty() =

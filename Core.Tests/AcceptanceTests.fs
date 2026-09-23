@@ -18,7 +18,7 @@ type AcceptanceTests() =
     member _.AFreshSessionHasSomethingToLookAt() =
         let harness = seeded ()
 
-        Assert.AreEqual<string>("documents examples projects readme.txt", harness.Names "ls")
+        Assert.AreEqual<string>("documents examples guide projects readme.txt", harness.Names "ls")
 
     /// A failed line leaves no trace, whatever its earlier stages managed.
     [<TestMethod>]
@@ -26,16 +26,16 @@ type AcceptanceTests() =
         let harness = seeded ()
 
         Assert.AreEqual<string>("Directory does not exist : nowhere", harness.Error "mkdir a | cd nowhere")
-        Assert.AreEqual<string>("documents examples projects readme.txt", harness.Names "ls")
+        Assert.AreEqual<string>("documents examples guide projects readme.txt", harness.Names "ls")
 
     [<TestMethod>]
     member _.MkdirUndoRedoHistory() =
         let harness = seeded ()
 
         Assert.AreEqual<string>("alpha", harness.Text "mkdir alpha")
-        Assert.AreEqual<string>("alpha documents examples projects readme.txt", harness.Names "ls")
+        Assert.AreEqual<string>("alpha documents examples guide projects readme.txt", harness.Names "ls")
         Assert.AreEqual<string>("Undone: mkdir alpha", harness.Text "undo")
-        Assert.AreEqual<string>("documents examples projects readme.txt", harness.Names "ls")
+        Assert.AreEqual<string>("documents examples guide projects readme.txt", harness.Names "ls")
         Assert.AreEqual<string>("Redone: mkdir alpha", harness.Text "redo")
 
         // The `ls` lines committed nothing, so the history holds four lines and not six.

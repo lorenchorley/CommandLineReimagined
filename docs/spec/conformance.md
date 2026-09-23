@@ -51,7 +51,7 @@ second table counts from `dotnet test`.
 | Recovery: `else`, `try`, `??`, nested pipelines, fault values and their members, `is-fault`, what a refresh refuses, recovery around a value stage | `Core.Tests/RecoveryTests` | 37 |
 | XML documents: reading, text content, namespaces, refusals, writing, round trips, and the two commands | `Core.Tests/XmlTests` | 41 |
 | CSV files: RFC 4180 reading, column typing, gaps, faults naming the line, writing, round trips, and the two commands | `Core.Tests/CsvTests` | 33 |
-| The example programs, against their golden results, and `run` | `Core.Tests/ExampleProgramTests` | 22 |
+| The example programs, against their golden results, and `run`; the guide's examples and its chain of readmes | `Core.Tests/ExampleProgramTests` | 24 |
 | The lexical rules: completion over the projection, the operators, the columns, the places and the keywords | `Core.Tests/CompletionTests` | 25 |
 | Where the cursor is: the place for every line of the Phase 8 finding table | `Core.Tests/ContextTests` | 4 |
 | Command names: after a pipe, not a path command after a table, by keyword, by edit distance, with descriptions | `Core.Tests/CommandCompletionTests` | 21 |
@@ -75,10 +75,10 @@ Cases actually run, which is what the suite reports:
 | Project | Cases |
 | --- | --- |
 | `Parser.Tests` | 375 |
-| `Core.Tests` | 758 |
+| `Core.Tests` | 760 |
 | `Web.Core.Tests` | 137 |
 | `Terminal.Tests` | 32 |
-| Total | 1302 |
+| Total | 1304 |
 
 Run them with:
 

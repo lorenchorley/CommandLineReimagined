@@ -94,7 +94,7 @@ const SCRIPT = [
  * in docs/plan/examples.md rather than whatever the acceptance script left behind.
  */
 const PHASE_3 = [
-  { line: 'ls | where $row.kind eq folder | count', expect: ['3'] },
+  { line: 'ls | where $row.kind eq folder | count', expect: ['4'] },
   { line: 'ls | sort name desc | first', expect: ['<row name=readme.txt', 'kind=text'] },
   { line: 'ls | select name kind | take 2', expect: ['documents', 'examples'], absent: ['readme.txt'] },
   { line: 'ls | where $row.name like read | count', expect: ['1'] },
@@ -195,7 +195,7 @@ const PHASE_8 = [
   { line: 'ls | set files', expect: ['documents', 'readme.txt'] },
   { line: 'try cat missing.txt | set problem', caught: 'NotFound' },
   { line: '$v', expect: ['5'] },
-  { line: '$files | count', expect: ['4'] },
+  { line: '$files | count', expect: ['5'] },
   // A name that is not a command says which one it is near.
   { line: 'lss', fault: 'unknowncommand', expect: ['Unknown command : lss. Did you mean ls?'] },
 ];
@@ -784,8 +784,8 @@ async function main() {
     const drawnHeaders = (await drawn.locator('.grid thead th').allInnerTexts()).join(' ');
     const drawnRows = await drawn.locator('.grid tbody tr').count();
 
-    if (drawnHeaders !== 'name kind folder size modified' || drawnRows !== 4) {
-      note(`'$files' drew headers ${JSON.stringify(drawnHeaders)} and ${drawnRows} row(s), not the four-row listing`);
+    if (drawnHeaders !== 'name kind folder size modified' || drawnRows !== 5) {
+      note(`'$files' drew headers ${JSON.stringify(drawnHeaders)} and ${drawnRows} row(s), not the five-row listing`);
     }
 
     // What is typed. Completion is asked asynchronously, so each case empties the line
@@ -810,8 +810,8 @@ async function main() {
           was, { timeout: 10000 }).catch(() => {});
       }
 
-      const detail = await detailSays(page, 'table · 4 rows');
-      if (!detail.includes('$files') || !detail.includes('table · 4 rows')) {
+      const detail = await detailSays(page, 'table · 5 rows');
+      if (!detail.includes('$files') || !detail.includes('table · 5 rows')) {
         note(`with '$files' selected after '$', the detail line read ${JSON.stringify(detail)}`);
       }
     }
@@ -897,12 +897,12 @@ async function main() {
 
     if (await echoed.count() === 0) {
       note(`the line '$files | count' has no 'files' token to tap`);
-    } else if (beforeTap.includes('table · 4 rows')) {
+    } else if (beforeTap.includes('table · 5 rows')) {
       note(`before the tap the detail line already read ${JSON.stringify(beforeTap)}`);
     } else {
       await echoed.click();
-      const hover = await detailSays(page, 'table · 4 rows');
-      if (!hover.includes('$files') || !hover.includes('table · 4 rows')) {
+      const hover = await detailSays(page, 'table · 5 rows');
+      if (!hover.includes('$files') || !hover.includes('table · 5 rows')) {
         note(`tapping '$files' in a finished line made the detail line read ${JSON.stringify(hover)}`);
       }
     }

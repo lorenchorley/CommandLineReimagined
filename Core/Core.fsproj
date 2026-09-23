@@ -72,6 +72,8 @@
   -->
   <ItemGroup>
     <EmbeddedResource Include="..\examples\*.clr" LogicalName="examples/%(Filename)%(Extension)" />
+    <!-- The guide the root readme points to: one file per idea, seeded into /guide. -->
+    <EmbeddedResource Include="..\guide\*.txt" LogicalName="guide/%(Filename)%(Extension)" />
   </ItemGroup>
 
   <ItemGroup>

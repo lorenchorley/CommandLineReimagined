@@ -242,7 +242,7 @@ type PredicateCompletionTests() =
     member _.CdsOperandOffersPlaces() =
         let harness = seeded ()
 
-        Assert.AreEqual<string list>([ "documents/"; "examples/"; "projects/" ], texts harness "cd ")
+        Assert.AreEqual<string list>([ "documents/"; "examples/"; "guide/"; "projects/" ], texts harness "cd ")
         Assert.AreEqual<string list>([ "documents/" ], texts harness "cd doc")
 
     [<TestMethod>]

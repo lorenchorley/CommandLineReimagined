@@ -25,7 +25,7 @@ type RecoveryTests() =
     member _.ElseIsNotRunWhenTheLeftSucceeds() =
         let harness = seeded ()
 
-        Assert.AreEqual<string>("This filesystem lives in the browser tab.", harness.Text "cat readme.txt else echo none")
+        StringAssert.StartsWith(harness.Text "cat readme.txt else echo none", "This is a command line that runs in this browser tab.")
 
     [<TestMethod>]
     member _.ElseRunsWhenTheLeftFails() =
@@ -218,7 +218,7 @@ type RecoveryTests() =
     member _.ANestedPipelineIsAnArgument() =
         let harness = seeded ()
 
-        Assert.AreEqual<string>("4", harness.Text "echo (ls | count)")
+        Assert.AreEqual<string>("5", harness.Text "echo (ls | count)")
 
     [<TestMethod>]
     member _.ANestedPipelineCanBeComparedAgainst() =
@@ -230,13 +230,13 @@ type RecoveryTests() =
     member _.ANestedPipelineGetsNoPipeInput() =
         let harness = seeded ()
 
-        Assert.AreEqual<string>("4", harness.Text "echo ignored | echo (ls | count)")
+        Assert.AreEqual<string>("5", harness.Text "echo ignored | echo (ls | count)")
 
     [<TestMethod>]
     member _.ANestedStageReceivesThePipe() =
         let harness = seeded ()
 
-        Assert.AreEqual<string>("3", harness.Text "ls | (where $row.kind eq folder | count)")
+        Assert.AreEqual<string>("4", harness.Text "ls | (where $row.kind eq folder | count)")
 
     /// Its events join the line's transaction: a later stage sees them, and undo takes
     /// them back with the rest of the line.

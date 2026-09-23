@@ -1280,7 +1280,7 @@ function insert(text) {
 
 runButton.onclick = run;
 
-[['help','help'],['ls','ls'],['where','ls | where $row.kind eq folder'],
+[['readme','cat readme.txt'],['guide','ls guide'],['help','help'],['ls','ls'],['where','ls | where $row.kind eq folder'],
  ['sort','ls | sort size desc'],['select','ls | select name kind'],['count','ls | count'],
  ['first','ls | sort name | first'],['run','run examples/tables.clr'],
  ['run journal','run examples/journal.clr'],['run resilient','run examples/resilient.clr'],
@@ -1306,38 +1306,25 @@ runButton.onclick = run;
     $('keys').appendChild(b);
   });
 
-/// What the banner says depends on whether this is a first visit, a restored one, or a
-/// session that will not be kept. Saying "nothing is sent anywhere" matters more once
-/// something is being stored, so that is where it is said.
+/// <summary>The banner: where to start, and whether your files are being kept.</summary>
+/// <remarks>
+/// It used to explain the language in a paragraph. That lives in the filesystem now,
+/// in `readme.txt` and the guide it points to, where it is read with the terminal
+/// itself and can be as long as it needs. The banner says only where to begin and the
+/// one thing a visitor must know before typing: whether this browser keeps the files.
+/// </remarks>
 function bannerFor(store) {
-  const common =
-    'The parser, the commands and the filesystem are all .NET compiled to WebAssembly. ' +
-    'Type <b>help</b> for the commands, or tap a suggestion below. ' +
-    'Listings are tables you can question: <b>ls | where $row.kind eq folder | count</b>. ' +
-    'A question is also somewhere you can be: <b>cd $row.kind eq folder</b> enters it, ' +
-    '<b>ls</b> lists it across folders, <b>up</b> leaves it, <b>find</b> asks it once ' +
-    'and <b>save-view</b> keeps it as a file. A failure is a value too: ' +
-    '<b>cat missing.txt else echo "none"</b> recovers, <b>try cat missing.txt | set problem</b> ' +
-    'keeps the fault to read as <b>$problem.kind</b>, and <b>??</b> gives a default for nothing. ' +
-    'The newest listing stays live as the ' +
-    'filesystem changes; tap <b>live</b> under it to stop. ' +
-    'Also pipes, the function form (write(notes.txt, hello)), tags (&lt;thing a=1/&gt;), ' +
-    'components ({renderer/}) and variables (set v 5, then $v). ' +
-    'Tap a column header to re-sort what is on screen, or a cell to insert it. ' +
-    '<b>clear</b> empties the screen; <b>undo</b>, <b>redo</b> and <b>history</b> are commands.';
+  const start = 'New here? Run <b>cat readme.txt</b>, or tap <b>readme</b> below.';
 
   if (!store.persistent) {
-    return 'A terminal running in this tab. ' + common +
-           ' This browser is not keeping the log, so everything here disappears when the tab does.';
+    return `${start} This browser is not keeping your files: they go when the tab does.`;
   }
 
   if (store.replayed > 0) {
-    return `Restored ${store.replayed} line(s) from last time. ` + common +
-           ' Your files live in this browser, and are not sent anywhere.';
+    return `Restored ${store.replayed} line(s) from last time. ${start}`;
   }
 
-  return 'A terminal running in this tab. ' + common +
-         ' Your files are kept in this browser between visits, and are not sent anywhere.';
+  return `A command line that runs in this tab. ${start} Your files stay in this browser.`;
 }
 
 // ---- boot -----------------------------------------------------------------

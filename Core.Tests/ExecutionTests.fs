@@ -380,7 +380,7 @@ type ExecutionTests() =
         harness.Run "mkdir zebra" |> ignore
         harness.Run "write apple.txt a" |> ignore
 
-        Assert.AreEqual<string>("documents examples projects zebra apple.txt readme.txt", harness.Names "ls")
+        Assert.AreEqual<string>("documents examples guide projects zebra apple.txt readme.txt", harness.Names "ls")
 
     /// <summary>A listing is records and nothing else (Phase 3).</summary>
     /// <remarks>
@@ -393,7 +393,7 @@ type ExecutionTests() =
     member _.AListingHasNoParentRow() =
         let harness = seeded ()
 
-        Assert.AreEqual<string>("documents examples projects readme.txt", harness.Names "ls")
+        Assert.AreEqual<string>("documents examples guide projects readme.txt", harness.Names "ls")
 
         harness.Run "cd documents" |> ignore
         Assert.AreEqual<string>("notes.txt", harness.Names "ls")
@@ -425,8 +425,8 @@ type ExecutionTests() =
         let harness = seeded ()
         harness.Run "ls | set files" |> ignore
 
-        Assert.AreEqual<Value>(Value.Number 4.0, harness.Run "$files | count")
-        Assert.AreEqual<string>("documents examples projects", harness.Names "$files | where $row.kind eq folder")
+        Assert.AreEqual<Value>(Value.Number 5.0, harness.Run "$files | count")
+        Assert.AreEqual<string>("documents examples guide projects", harness.Names "$files | where $row.kind eq folder")
 
     /// Members read off a value stage the way they read off an argument.
     [<TestMethod>]

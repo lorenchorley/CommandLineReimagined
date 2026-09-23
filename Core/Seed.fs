@@ -1,7 +1,7 @@
 /// What a brand new session starts with.
 ///
 /// An empty filesystem makes `ls` look broken rather than empty, so a fresh log gets
-/// three things to look at. It is seeded once, as an ordinary transaction, so it shows
+/// things to look at: a readme, the guide it points to, and the example programs. It is seeded once, as an ordinary transaction, so it shows
 /// up in `history` and a reload replays it rather than adding it again.
 namespace CommandLineReimagined.Core
 
@@ -69,32 +69,50 @@ module Seed =
     /// Embedded rather than copied beside the binary, because the browser build is a
     /// set of assemblies downloaded into a tab and there is no "beside" to copy to.
     /// </remarks>
-    let exampleFiles =
+    let private embedded (folder: string) (extension: string) =
         let assembly = Reflection.Assembly.GetExecutingAssembly()
+        let prefix = folder + "/"
 
         assembly.GetManifestResourceNames()
-        |> Array.filter (fun name -> name.StartsWith "examples/" && name.EndsWith ".clr")
+        |> Array.filter (fun name -> name.StartsWith prefix && name.EndsWith extension)
         |> Array.sortWith (fun a b -> String.CompareOrdinal(a, b))
         |> Array.map (fun name ->
             use stream = assembly.GetManifestResourceStream name
             use reader = new IO.StreamReader(stream)
 
-            { Name = name.Substring("examples/".Length)
-              Folder = "/examples"
+            { Name = name.Substring(prefix.Length)
+              Folder = "/" + folder
               Content = Some(reader.ReadToEnd()) })
         |> List.ofArray
+
+    let exampleFiles = embedded "examples" ".clr"
+
+    /// <summary>The guide: one file per idea, numbered in the order to read them.</summary>
+    /// <remarks>
+    /// The page's banner only points here, so what the terminal is and how to use it is
+    /// read in the terminal, with `cat`, rather than printed at the top of every visit.
+    /// </remarks>
+    let guideFiles = embedded "guide" ".txt"
+
+    /// What `readme.txt` says: where to start.
+    let readme =
+        "This is a command line that runs in this browser tab.\n\n"
+        + "The guide folder explains how it works, one idea per file. Start with the first:\n\n"
+        + "  cat guide/1-start.txt\n\n"
+        + "or list them all:\n\n"
+        + "  ls guide\n"
 
     /// The filesystem the terminal has always started with, as records.
     let standardFiles =
         [ { Name = "documents"; Folder = "/"; Content = None }
           { Name = "examples"; Folder = "/"; Content = None }
+          { Name = "guide"; Folder = "/"; Content = None }
           { Name = "projects"; Folder = "/"; Content = None }
-          { Name = "readme.txt"
-            Folder = "/"
-            Content = Some "This filesystem lives in the browser tab." }
+          { Name = "readme.txt"; Folder = "/"; Content = Some readme }
           { Name = "notes.txt"
             Folder = "/documents"
             Content = Some "Try: ls, cd documents, mkdir scratch, echo \"hello\"" } ]
         @ exampleFiles
+        @ guideFiles
 
     let standard newId now : Seed = ofFiles newId now standardFiles

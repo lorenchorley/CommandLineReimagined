@@ -74,14 +74,15 @@ ls
   name        kind    folder  size  modified
   documents   folder  /       0     *
   examples    folder  /       0     *
+  guide       folder  /       0     *
   projects    folder  /       0     *
-  readme.txt  text    /       41    *
+  readme.txt  text    /       192   *
 
 ls | where $row.kind eq folder | count
-  3
+  4
 
 ls | sort name desc | first
-  <row name=readme.txt kind=text folder=/ size=41 modified=*/>
+  <row name=readme.txt kind=text folder=/ size=192 modified=*/>
 
 ls | select name kind | take 2
   name       kind
@@ -176,8 +177,9 @@ ls
   name        kind    folder  size  modified
   documents   folder  /       0     *
   examples    folder  /       0     *
+  guide       folder  /       0     *
   projects    folder  /       0     *
-  readme.txt  text    /       41    *
+  readme.txt  text    /       192   *
   today.txt   text    /       14    *
 ```
 

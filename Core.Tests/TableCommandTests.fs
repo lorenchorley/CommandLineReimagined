@@ -208,7 +208,7 @@ type TableCommandTests() =
         let harness = seeded ()
 
         Assert.AreEqual<string>("", harness.Names "ls | where $row.kind eq nothing and $row.kind")
-        Assert.AreEqual<int>(4, (harness.Table "ls | where $row.size ge 0 or $row.kind").Rows.Length)
+        Assert.AreEqual<int>(5, (harness.Table "ls | where $row.size ge 0 or $row.kind").Rows.Length)
 
     // ----------------------------------------------------------------- select
 
@@ -451,5 +451,5 @@ type TableCommandTests() =
         let harness = seeded ()
 
         Assert.AreEqual<string>(
-            "readme.txt documents examples projects",
+            "readme.txt documents examples guide projects",
             harness.Names "ls | sort size desc")

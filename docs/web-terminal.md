@@ -309,8 +309,9 @@ they go through the evaluator like everything else
 and can be piped. That also means the desktop shell and the browser get the same
 commands, rather than each having its own half of the feature.
 
-What `help` used to say about pipes, tags and variables is in the banner at the top of
-the scrollback, where it is visible before anything has been typed rather than after.
+What `help` used to say about pipes, tags and variables is in the filesystem: the
+banner at the top of the scrollback points to `readme.txt`, and `readme.txt` points to
+the `guide` folder, one file per idea, read with `cat`.
 
 ## The detail line
 
@@ -387,8 +388,9 @@ filesystem and a lost one look identical, so the page refuses to show one as the
 If the replay fails, the status turns red and reads `failed to restore`, the scrollback
 says `Could not restore the session:` and why, and the input stays disabled.
 
-The banner then says what happened — a first visit, or how many lines came back — and
-the status line says `wasm`, with `not persisted` beside it when the browser is not
+The banner then says what happened — a first visit, or how many lines came back —
+points to `cat readme.txt` (the `readme` key runs it), and says whether this browser is
+keeping your files. The status line says `wasm`, with `not persisted` beside it when the browser is not
 keeping anything; hover it to see the reason the browser gave. That is said before you
 have typed, rather than after a morning's work turns out not to have been saved. If some
 stored lines could not be read, a red line in the scrollback says how many were skipped.

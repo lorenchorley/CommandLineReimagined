@@ -1,0 +1,25 @@
+3. Tables
+
+A listing is a table. Its columns are name, kind, folder, size and modified, and each row is one record.
+
+Table commands take a table from the pipe and answer another:
+
+  ls | where $row.kind eq folder
+  ls | sort size desc
+  ls | select name size
+  ls | distinct kind
+  ls | group kind
+
+The argument to where is a question about each row. $row is the row being asked about, and the question is written with words rather than symbols: eq, ne, gt, ge, lt, le, like and has compare, and and, or and not combine.
+
+  ls | where $row.size gt 0 and $row.kind ne folder
+  ls | where $row.name like *.txt
+
+A question has to read $row and answer true or false, so these two say what to write instead of answering an empty table:
+
+  ls | where kind eq folder
+  ls | where $row.kind
+
+Tapping a column header re-sorts the table on screen. Tapping a cell puts it in the line.
+
+Next: cat guide/4-places.txt

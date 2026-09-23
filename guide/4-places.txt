@@ -1,0 +1,24 @@
+4. Records, folders and views
+
+Every file here is a record: a set of attributes, and for a file, some content. name, kind, folder, created and modified are always there, and you can add your own. A folder is a record whose kind is folder, and where a file lives is its folder attribute.
+
+  attr readme.txt
+  attr readme.txt tag=welcome
+  ls | where $row.tag eq welcome
+
+Because a folder is only a question, "which records have this folder?", any question about attributes can be a place too. cd goes into one, and ls there lists everything that answers it, wherever it lives.
+
+  cd $row.kind eq text
+  ls
+  up
+
+find asks once without going anywhere, and save-view keeps a question as a file you can cd into later.
+
+  find $row.kind eq folder
+  save-view texts $row.kind eq text
+  cd texts
+  up
+
+The newest listing stays live: change something and it redraws. Tap live under it to stop it.
+
+Next: cat guide/5-failure.txt

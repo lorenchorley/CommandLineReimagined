@@ -580,8 +580,8 @@ type ArgumentCompletionTests() =
         let harness = seeded ()
         harness.Run "save-view weekend $row.kind eq folder" |> ignore
 
-        Assert.AreEqual<string list>([ "documents/"; "examples/"; "projects/"; "weekend" ], texts harness "ls ")
-        Assert.AreEqual<string list>([ "documents/"; "examples/"; "projects/"; "weekend" ], texts harness "cp readme.txt ")
+        Assert.AreEqual<string list>([ "documents/"; "examples/"; "guide/"; "projects/"; "weekend" ], texts harness "ls ")
+        Assert.AreEqual<string list>([ "documents/"; "examples/"; "guide/"; "projects/"; "weekend" ], texts harness "cp readme.txt ")
 
     [<TestMethod>]
     member _.APathOffersFilesAndFolders() =
