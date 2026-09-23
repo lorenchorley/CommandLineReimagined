@@ -15,8 +15,9 @@ $ ls
 name        kind    folder  size  modified
 documents   folder  /       0     2026-09-22T09:30:00.0000000+00:00
 examples    folder  /       0     2026-09-22T09:30:00.0000000+00:00
+guide       folder  /       0     2026-09-22T09:30:00.0000000+00:00
 projects    folder  /       0     2026-09-22T09:30:00.0000000+00:00
-readme.txt  text    /       41    2026-09-22T09:30:00.0000000+00:00
+readme.txt  text    /       192   2026-09-22T09:30:00.0000000+00:00
 
 $ mkdir scratch
 scratch
@@ -69,9 +70,10 @@ $ ls | set files
 name        kind    folder  size  modified
 documents   folder  /       0     2026-09-22T09:30:00.0000000+00:00
 examples    folder  /       0     2026-09-22T09:30:00.0000000+00:00
+guide       folder  /       0     2026-09-22T09:30:00.0000000+00:00
 projects    folder  /       0     2026-09-22T09:30:00.0000000+00:00
 scratch     folder  /       0     2026-09-22T09:30:00.0000000+00:00
-readme.txt  text    /       41    2026-09-22T09:30:00.0000000+00:00
+readme.txt  text    /       192   2026-09-22T09:30:00.0000000+00:00
 
 $ set target documents
 documents
@@ -82,7 +84,7 @@ notes.txt  text  /documents  50    2026-09-22T09:30:00.0000000+00:00
 
 $ vars
 name    value
-files   5 rows
+files   6 rows
 target  documents
 
 $ undo
@@ -90,7 +92,7 @@ Undone: set target documents
 
 $ vars
 name   value
-files  5 rows
+files  6 rows
 ```
 
 `$files` holds the table itself, not a printed copy of it, which is why `vars` says how
@@ -222,9 +224,10 @@ $ ls
 name        kind    folder  size  modified
 documents   folder  /       0     2026-09-22T09:30:00.0000000+00:00
 examples    folder  /       0     2026-09-22T09:30:00.0000000+00:00
+guide       folder  /       0     2026-09-22T09:30:00.0000000+00:00
 projects    folder  /       0     2026-09-22T09:30:00.0000000+00:00
 scratch     folder  /       0     2026-09-22T09:30:00.0000000+00:00
-readme.txt  text    /       41    2026-09-22T09:30:00.0000000+00:00
+readme.txt  text    /       192   2026-09-22T09:30:00.0000000+00:00
 ```
 
 `rm` refuses a directory that still has anything in it, which is why the files went
@@ -299,12 +302,13 @@ $ run examples/tables.clr
 name        kind    folder  size  modified
 documents   folder  /       0     2026-09-22T09:30:00.0000000+00:00
 examples    folder  /       0     2026-09-22T09:30:00.0000000+00:00
+guide       folder  /       0     2026-09-22T09:30:00.0000000+00:00
 projects    folder  /       0     2026-09-22T09:30:00.0000000+00:00
-readme.txt  text    /       41    2026-09-22T09:30:00.0000000+00:00
+readme.txt  text    /       192   2026-09-22T09:30:00.0000000+00:00
 > ls | where $row.kind eq folder | count
-3
+4
 > ls | sort name desc | first
-<row name=readme.txt kind=text folder=/ size=41 modified=2026-09-22T09:30:00.0000000+00:00/>
+<row name=readme.txt kind=text folder=/ size=192 modified=2026-09-22T09:30:00.0000000+00:00/>
 > ls | select name kind | take 2
 name       kind
 documents  folder
@@ -401,11 +405,12 @@ $ ls
 name        kind    folder  size  modified                           mood   tag
 documents   folder  /       0     2026-09-22T09:30:00.0000000+00:00
 examples    folder  /       0     2026-09-22T09:30:00.0000000+00:00
+guide       folder  /       0     2026-09-22T09:30:00.0000000+00:00
 journal     folder  /       0     2026-09-22T09:30:00.0000000+00:00
 keepsakes   folder  /       0     2026-09-22T09:30:00.0000000+00:00
 projects    folder  /       0     2026-09-22T09:30:00.0000000+00:00
 postcard    note    /       0     2026-09-22T09:30:00.0000000+00:00  great  home
-readme.txt  text    /       41    2026-09-22T09:30:00.0000000+00:00
+readme.txt  text    /       192   2026-09-22T09:30:00.0000000+00:00
 ```
 
 `up` put the view down and left you where you already were. A question worth asking
@@ -500,8 +505,9 @@ $ ls
 name        kind    folder  size  modified
 documents   folder  /       0     2026-09-22T09:30:00.0000000+00:00
 examples    folder  /       0     2026-09-22T09:30:00.0000000+00:00
+guide       folder  /       0     2026-09-22T09:30:00.0000000+00:00
 projects    folder  /       0     2026-09-22T09:30:00.0000000+00:00
-readme.txt  text    /       41    2026-09-22T09:30:00.0000000+00:00
+readme.txt  text    /       192   2026-09-22T09:30:00.0000000+00:00
 today.txt   text    /       14    2026-09-22T09:30:00.0000000+00:00
 
 $ find $row.name eq today | count
@@ -758,14 +764,16 @@ the whole line was rolled back
 name        kind    folder  size  modified
 documents   folder  /       0     2026-09-22T09:30:00.0000000+00:00
 examples    folder  /       0     2026-09-22T09:30:00.0000000+00:00
+guide       folder  /       0     2026-09-22T09:30:00.0000000+00:00
 projects    folder  /       0     2026-09-22T09:30:00.0000000+00:00
-readme.txt  text    /       41    2026-09-22T09:30:00.0000000+00:00
+readme.txt  text    /       192   2026-09-22T09:30:00.0000000+00:00
 today.txt   text    /       14    2026-09-22T09:30:00.0000000+00:00
 name        kind    folder  size  modified
 documents   folder  /       0     2026-09-22T09:30:00.0000000+00:00
 examples    folder  /       0     2026-09-22T09:30:00.0000000+00:00
+guide       folder  /       0     2026-09-22T09:30:00.0000000+00:00
 projects    folder  /       0     2026-09-22T09:30:00.0000000+00:00
-readme.txt  text    /       41    2026-09-22T09:30:00.0000000+00:00
+readme.txt  text    /       192   2026-09-22T09:30:00.0000000+00:00
 today.txt   text    /       14    2026-09-22T09:30:00.0000000+00:00
 ```
 

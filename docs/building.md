@@ -50,7 +50,7 @@ dotnet workload install wasm-tools
 | Project | Covers |
 | --- | --- |
 | `Parser.Tests` | The grammar, both parsers, error positions and serialisation. |
-| `Core.Tests` | Values, faults, the store, undo, binding, pipes, tags, tables, predicates, views, recovery, XML and CSV, persistence, every command, completion, and the four example programs against their golden results. |
+| `Core.Tests` | Values, faults, the store, undo, binding, pipes, tags, tables, predicates, views, recovery, XML and CSV, persistence, every command, completion, the four example programs against their golden results, and every example line in the seeded guide. |
 | `Web.Core.Tests` | The adapter and the stored log: DTO shapes, streaming, cancellation, completion, and the versioned JSON a transaction is kept in. |
 | `Terminal.Tests` | Naming and path helpers. |
 | `Utils.Tests`, `EntityComponentSystem.Tests`, `SourceGenerators.Tests`, `Rendering.Tests` | The supporting libraries. |

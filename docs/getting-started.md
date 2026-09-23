@@ -27,6 +27,36 @@ prerequisites.
 The status in the top right reads `wasm` in green once the .NET runtime has loaded,
 which takes a second or two on a first visit. The input is disabled until then.
 
+## Start with the readme
+
+The first line in the scrollback says where to begin:
+
+```
+A command line that runs in this tab. New here? Run cat readme.txt, or tap readme below. Your files stay in this browser.
+```
+
+If this browser is not keeping your files, a private window for example, the line says
+that instead, and on a return visit it says how many lines it restored. Type `cat readme.txt`, or tap the `readme` suggestion:
+
+```
+$ cat readme.txt
+This is a command line that runs in this browser tab.
+
+The guide folder explains how it works, one idea per file. Start with the first:
+
+  cat guide/1-start.txt
+
+or list them all:
+
+  ls guide
+```
+
+The `guide` folder holds seven short files, read with `cat` like any other: getting
+around, everything is a value, tables, records and views, failure as a value, undo and
+history, and files and scripts. Each ends by naming the next, and every example line in
+them can be typed as it stands. Reading them in the terminal is the first exercise; this page
+covers the same ground with more of what you will see.
+
 ## Run a program first
 
 The quickest way to see what the terminal does is to let it show you. Type
@@ -38,12 +68,13 @@ $ run examples/tables.clr
 name        kind    folder  size  modified
 documents   folder  /       0     2026-09-22T09:30:00.0000000+00:00
 examples    folder  /       0     2026-09-22T09:30:00.0000000+00:00
+guide       folder  /       0     2026-09-22T09:30:00.0000000+00:00
 projects    folder  /       0     2026-09-22T09:30:00.0000000+00:00
-readme.txt  text    /       41    2026-09-22T09:30:00.0000000+00:00
+readme.txt  text    /       192   2026-09-22T09:30:00.0000000+00:00
 > ls | where $row.kind eq folder | count
-3
+4
 > ls | sort name desc | first
-<row name=readme.txt kind=text folder=/ size=41 modified=2026-09-22T09:30:00.0000000+00:00/>
+<row name=readme.txt kind=text folder=/ size=192 modified=2026-09-22T09:30:00.0000000+00:00/>
 > ls | select name kind | take 2
 name       kind
 documents  folder
@@ -78,7 +109,7 @@ The rest of this page takes the same ideas one command at a time.
 ```
 CommandLineReimagined                    wasm      <- runtime status
 +--------------------------------------------+
-| A terminal running in this tab...          |     <- scrollback
+| A command line that runs in this tab...    |     <- scrollback
 |                                            |
 +--------------------------------------------+
   where · Keep the rows a predicate is true for   <- detail line
@@ -87,7 +118,7 @@ CommandLineReimagined                    wasm      <- runtime status
 | wh                                 | | Run |    <- input and Run/Stop
 +------------------------------------+ +-----+
   [where]                                        <- completions, while you type
-  [help] [ls] [where] [sort] [select] [count]    <- suggestions
+  [readme] [guide] [help] [ls] [where] [sort]    <- suggestions
 ```
 
 The scrollback keeps every command with its output. The line above the input shows the
@@ -106,8 +137,9 @@ $ ls
 name        kind    folder  size  modified
 documents   folder  /       0     2026-09-22T09:30:00.0000000+00:00
 examples    folder  /       0     2026-09-22T09:30:00.0000000+00:00
+guide       folder  /       0     2026-09-22T09:30:00.0000000+00:00
 projects    folder  /       0     2026-09-22T09:30:00.0000000+00:00
-readme.txt  text    /       41    2026-09-22T09:30:00.0000000+00:00
+readme.txt  text    /       192   2026-09-22T09:30:00.0000000+00:00
 ```
 
 That is a table, not a block of text: on the page it is drawn as one, and tapping a
@@ -119,16 +151,16 @@ A listing is a value you can question:
 
 ```
 $ ls | where $row.kind eq folder | count
-3
+4
 ```
 
 [Tables and predicates](tables.md) is the guide to that.
 
-Read a file:
+You have read one file already. A path reaches into a folder:
 
 ```
-$ cat readme.txt
-This filesystem lives in the browser tab.
+$ cat documents/notes.txt
+Try: ls, cd documents, mkdir scratch, echo "hello"
 ```
 
 Move around, and notice that the working directory line changes:
@@ -151,6 +183,7 @@ $ ls | select name
 name
 documents
 examples
+guide
 projects
 scratch
 readme.txt
@@ -160,6 +193,7 @@ $ ls | select name
 name
 documents
 examples
+guide
 projects
 readme.txt
 ```
@@ -194,12 +228,13 @@ $ ls | set files
 name        kind    folder  size  modified
 documents   folder  /       0     2026-09-22T09:30:00.0000000+00:00
 examples    folder  /       0     2026-09-22T09:30:00.0000000+00:00
+guide       folder  /       0     2026-09-22T09:30:00.0000000+00:00
 projects    folder  /       0     2026-09-22T09:30:00.0000000+00:00
 note.txt    text    /       2     2026-09-22T09:30:00.0000000+00:00
-readme.txt  text    /       41    2026-09-22T09:30:00.0000000+00:00
+readme.txt  text    /       192   2026-09-22T09:30:00.0000000+00:00
 $ vars
 name      value
-files     5 rows
+files     6 rows
 greeting  hello
 ```
 
@@ -209,7 +244,7 @@ typing its name, and pipe on like any other result:
 
 ```
 $ $files | count
-5
+6
 $ $greeting
 hello
 ```
@@ -219,7 +254,7 @@ every one you have bound, each with a line saying what it holds, and the detail 
 above the location shows the selected one's:
 
 ```
-$files · table · 5 rows · name, kind, folder…
+$files · table · 6 rows · name, kind, folder…
 $greeting · text · "hello"
 ```
 
@@ -286,6 +321,14 @@ with:
 │   ├── journal.clr
 │   ├── resilient.clr
 │   └── tables.clr
+├── guide/
+│   ├── 1-start.txt
+│   ├── 2-values.txt
+│   ├── 3-tables.txt
+│   ├── 4-places.txt
+│   ├── 5-failure.txt
+│   ├── 6-undo.txt
+│   └── 7-files.txt
 ├── projects/
 └── readme.txt
 ```
@@ -301,7 +344,7 @@ it, and so does `reset`:
 
 ```
 $ reset
-Reset. 9 files restored.
+Reset. 17 files restored.
 ```
 
 `reset` empties the log and starts again from the seeded files above. It is the only
@@ -342,7 +385,7 @@ $row.tag eq work
 
 $ ls
 name        kind  folder  size  modified                           tag
-readme.txt  text  /       41    2026-09-22T09:30:00.0000000+00:00  work
+readme.txt  text  /       192   2026-09-22T09:30:00.0000000+00:00  work
 
 $ up
 /

@@ -57,7 +57,7 @@ carry on and take it away again.
 
 ```
 $ reset
-Reset. 9 files restored.
+Reset. 17 files restored.
 ```
 
 It empties the log and seeds the filesystem again. It cannot be undone, which is why it
