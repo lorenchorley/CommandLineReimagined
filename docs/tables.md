@@ -144,6 +144,47 @@ is true as well.
 A comparison that touches a gap is false. Not less than, not greater than, not equal:
 a missing cell is not a small one. Two gaps are `eq`, and that is the only exception.
 
+### A predicate is a question about the row
+
+A predicate is asked once for every row, so it has to be a yes-or-no question about
+that row ([decision 0033](decisions/0033-a-predicate-is-a-question-about-the-row.md)).
+Two ways of writing one are not, and both fail with a message that says what to write
+instead. From a fresh tab:
+
+```
+$ ls | where kind eq folder
+kind eq folder never reads $row, so it is the same for every row. Did you mean $row.kind eq folder?
+
+$ ls | where $row.kind
+$row.kind is text (folder), not true or false. Compare it: $row.kind eq folder.
+```
+
+The first compares the word `kind` with the word `folder`, which is false whatever the
+row is, and never looks at a row at all. It is caught before any row is tested, and
+`find`, `cd` and `save-view` catch it the same way. The second asks whether a kind is
+true, and a kind is text. It is caught on the first row whose answer is neither true
+nor false, which here is `documents`, whose kind is `folder`. Both used to answer an
+empty table in silence, which reads as a real answer; `else` and `try` recover from
+them like any other fault.
+
+A column that really holds true or false can be read on its own. `history`'s `undone`
+is one:
+
+```
+$ mkdir a
+a
+
+$ undo
+Undone: mkdir a
+
+$ history | where $row.undone
+seq  at        source   undone  compensates
+2    09:30:00  mkdir a  true
+```
+
+A row that has no value in the column counts as false, so a sparse column skips the
+rows without it rather than stopping the line.
+
 ### The reserved words
 
 These thirteen words are operators wherever they appear, and never arguments:
@@ -402,6 +443,18 @@ name  parameters               description
 sort  <column> [desc] [table]  Order the rows by a column
 ```
 
+- `help <command>` writes what the command does and answers a table of its
+  parameters, with `name`, `required`, `piped`, `takes` and `description`:
+
+```
+$ help sort
+Order the rows by a column
+name    required  piped  takes        description
+column  true      false  a column     The column to order by
+desc    false     false  desc or asc  Write 'desc' to order downwards
+table   false     true   a value      The table to work on; taken from the pipe when it is not written
+```
+
 - `find <predicate>` is a listing of everything in the terminal the predicate is true
   of, wherever it lives, with the same columns `ls` gives.
 
@@ -416,6 +469,11 @@ sort  <column> [desc] [table]  Order the rows by a column
 | `<items> is not a table: child 2 is <other> where the first is <item>.` | A tag whose children disagree about their type, or one that has children of its own. |
 | `Column 5: 'eq' is an operator; write "eq" to pass it as text` | A reserved word in argument position. The column is where the word starts. |
 | `'echo' takes a value for 'text', not an expression.` | A comparison was written for a command that does not take a predicate. |
+| `kind eq folder never reads $row, so it is the same for every row. Did you mean $row.kind eq folder?` | A predicate that compares two fixed words. Name the column with `$row.`. |
+| `$row.kind is text (folder), not true or false. Compare it: $row.kind eq folder.` | A predicate that is a value rather than a question. Compare it with something. |
+| `$row is the row a predicate is testing. It exists only inside where, find, cd and save-view: ls \| where $row.kind eq folder.` | `$row` read outside a predicate, where no row is being tested. |
+| `Column 16: a column name belongs after the stop, as in $row.kind` | `$row.` with no column after the full stop. |
+| `Column 23: eq needs a value to compare with, such as folder` | A comparison with nothing on its right. |
 | `Not well-formed XML : /stock/broken.xml line 1, position 16` | `from-xml` was given a file that is not XML. The line and position are where the parser gave up. |
 | `'to-xml' needs a tag, a table or a list of tags, not text.` | Only something with elements in it can be written as a document. |
 | `'first name' is not a name XML allows.` | A column name that XML cannot hold, often from a CSV header with a space in it. |

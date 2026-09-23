@@ -77,8 +77,24 @@ see a path containing `..`, the build predates that fix.
 
 Tab applies a completion, and there is nothing to apply when the word is already
 complete or nothing matches. The completion row above the suggestions shows what is
-available; when it is empty, Tab has nothing to do. Phone keyboards have no Tab key,
-so tapping a chip is the intended path there.
+available; when it is empty, Tab has nothing to do. Some places have nothing to pick
+by design, such as the count after `ls | take `: there the detail line above the
+location names what is wanted instead. Phone keyboards have no Tab key, so tapping a
+chip is the intended path there.
+
+## Tab put a different word in
+
+After the first Tab has filled in all the chips have in common, each further Tab puts
+the next chip in place, and Shift+Tab the one before. Escape puts back what you had
+typed before the first Tab.
+
+## `where` used to answer an empty table and now fails
+
+`ls | where kind eq folder` and `ls | where $row.kind` were never questions about the
+row, and answered an empty table whatever the rows held. They are faults now
+([decision 0033](decisions/0033-a-predicate-is-a-question-about-the-row.md)), and the
+message says what to write:
+[A predicate is a question about the row](tables.md#a-predicate-is-a-question-about-the-row).
 
 ## The Run button says Stop and will not run my line
 

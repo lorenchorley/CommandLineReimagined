@@ -73,8 +73,11 @@ A live view re-runs a line only when every command in it is declared read-only, 
 refuses any other line with `A live refresh only re-reads : <line>`. The read-only
 commands are the ones marked "no" above except `exit` and `progress`.
 
-A name that is not a command fails with `Unknown command : <name>`, and that includes
-`UnknownCommand`, the name the terminal uses internally to report one.
+A name that is not a command fails with `Unknown command : <name>`, followed by
+`Did you mean ...?` when a command or two are a slip away, as in
+`Unknown command : lss. Did you mean ls?`. That includes `UnknownCommand`, the name the
+terminal uses internally to report one. `help <command>` describes one command's
+parameters.
 
 `clear` is handled by the page rather than by a command: it is about the screen rather
 than about the filesystem. See
@@ -243,6 +246,7 @@ path ending in `..`. Entering a directory puts down whatever view was held.
 | Message | Cause |
 | --- | --- |
 | `'cd' needs an argument for 'TargetPath'.` | No path given and nothing piped in. |
+| `kind eq folder never reads $row, so it is the same for every row. Did you mean $row.kind eq folder?` | A question that never mentions the row, so it would hold of everything or nothing. |
 | `Directory does not exist : <path>` | No such directory, and no view file of that name. The path is shown as you wrote it. |
 | `'<path>' does not hold a predicate : <text>` | A view file whose content is not a predicate, such as `'/weekend' does not hold a predicate : monday`. |
 
@@ -510,6 +514,7 @@ transaction and `undo` reaches past it.
 | --- | --- |
 | `'find' needs a predicate, such as $row.kind eq note.` | A plain word was written instead of a question. |
 | `'find' needs an argument for 'predicate'.` | Nothing was written. |
+| `kind eq note never reads $row, so it is the same for every row. Did you mean $row.kind eq note?` | A question that never mentions the row. |
 
 ---
 
@@ -662,12 +667,18 @@ text    1 row
 
 ## help
 
-Every command, with its parameters and what it does.
+Every command, with its parameters and what it does; or one command, parameter by
+parameter.
 
-**Parameters** none.
+**Parameters**
 
-**Returns** a table of `name`, `parameters` and `description`. A required parameter is
-written `<name>`, an optional one `[name]`, and one that collects the rest `name...`.
+| Name | Notes |
+| --- | --- |
+| `command` | optional. The command to describe; every command when it is not written. |
+
+**Returns**, with no command, a table of `name`, `parameters` and `description`. A
+required parameter is written `<name>`, an optional one `[name]`, and one that collects
+the rest `name...`.
 
 ```
 $ help | take 4
@@ -680,6 +691,33 @@ $ help | where $row.name eq set | select name description
 name  description
 set   Bind a value, or whatever was piped in, to a variable
 ```
+
+With a command, it writes what the command does and answers a table of its parameters,
+in the order positional arguments fill them:
+
+| Column | Holds |
+| --- | --- |
+| `name` | The parameter's name. |
+| `required` | `true` when it has to be given, written or piped. |
+| `piped` | `true` when it takes the piped value if it is not written. |
+| `takes` | What kind of thing goes there: `a column`, `a predicate`, `desc or asc`, `a path`, `a value` and so on. |
+| `description` | What it is for. |
+
+```
+$ help where
+Keep the rows a predicate is true for
+name       required  piped  takes        description
+predicate  true      false  a predicate  An expression over $row, such as $row.kind eq folder
+table      false     true   a value      The table to work on; taken from the pipe when it is not written
+$ help where | count
+Keep the rows a predicate is true for
+2
+$ help lss
+Unknown command : lss. Did you mean ls?
+```
+
+The description is written above the table rather than being part of it, so the table
+can be questioned like any other: `help where | count` counts the parameters.
 
 It changes nothing and leaves nothing to undo.
 
@@ -1224,6 +1262,7 @@ directory; what it matches is not limited to that directory.
 | --- | --- |
 | `'save-view' needs a predicate, such as $row.kind eq note.` | A plain word was written instead of a question. |
 | `'save-view' needs an argument for 'predicate'.` | Only a name was written. |
+| `<predicate> never reads $row, so it is the same for every row.` | A question that never mentions the row, with the likely columns suggested. |
 | `Target file already exists : <path>` | Something of that name is already here. |
 | `A view needs a name.` | The name was empty. |
 
@@ -1295,7 +1334,7 @@ hello
 | --- | --- |
 | `'set' needs an argument for 'value'.` | No value written and nothing piped in. |
 | `'<name>' is not a valid variable name.` | Names take letters, digits and underscore. |
-| `Unknown variable : $<name>` | You wrote `set $x 1`; `$x` reads the variable rather than naming it. |
+| `Unknown variable: $<name>` | You wrote `set $x 1`; `$x` reads the variable rather than naming it. |
 
 ---
 
@@ -1665,8 +1704,13 @@ The operators are `eq ne gt ge lt le like has`, combined with `and`, `or` and `n
 
 | Message | Cause |
 | --- | --- |
-| `Unknown variable : $row` | A predicate written outside a table function, where nothing bound `$row`. |
 | `'where' needs an argument for 'predicate'.` | No predicate written. |
+| `kind eq folder never reads $row, so it is the same for every row. Did you mean $row.kind eq folder?` | A predicate that compares two fixed words and never reads the row. |
+| `$row.kind is text (folder), not true or false. Compare it: $row.kind eq folder.` | A predicate that is a value rather than a question. |
+| `$row is the row a predicate is testing. It exists only inside where, find, cd and save-view: ls \| where $row.kind eq folder.` | `$row` read outside a predicate, where no row is being tested. |
+
+[A predicate is a question about the row](tables.md#a-predicate-is-a-question-about-the-row)
+has examples of each.
 
 ---
 
