@@ -9,7 +9,7 @@ let echo =
             "echo"
             "Writes its argument, or whatever was piped into it"
             [ "print"; "write"; "output" ]
-            [ Parameter.create "text" "What to write" |> Parameter.piped ]
+            [ Parameter.create "text" "What to write" |> Parameter.piped |> Parameter.takes Takes.Value ]
         |> CommandSpec.readOnly
       Run = fun invocation -> async { return Invocation.pure' (Invocation.value "text" invocation) } }
 
@@ -27,8 +27,8 @@ let set =
             "set"
             "Bind a value, or whatever was piped in, to a variable"
             [ "set"; "variable"; "assign"; "bind"; "let" ]
-            [ Parameter.create "name" "The variable's name, without the $"
-              Parameter.create "value" "The value" |> Parameter.piped ]
+            [ Parameter.create "name" "The variable's name, without the $" |> Parameter.takes Takes.VariableName
+              Parameter.create "value" "The value" |> Parameter.piped |> Parameter.takes Takes.Value ]
       Run =
         fun invocation ->
             async {
@@ -79,7 +79,7 @@ let isFault =
             "is-fault"
             "Whether a value, or whatever was piped in, is a fault that try caught"
             [ "fault"; "failed"; "error"; "check"; "try" ]
-            [ Parameter.optional "value" "The value to ask about" |> Parameter.piped ]
+            [ Parameter.optional "value" "The value to ask about" |> Parameter.piped |> Parameter.takes Takes.Value ]
         |> CommandSpec.readOnly
       Run =
         fun invocation ->

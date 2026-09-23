@@ -10,7 +10,8 @@ open System
 open CommandLineReimagined.Core
 open CommandLineReimagined.Core.Commands.Files
 
-let private pathParameter description = Parameter.create "path" description |> Parameter.piped
+let private pathParameter description =
+    Parameter.create "path" description |> Parameter.piped |> Parameter.takes Takes.Path
 
 /// A reader: the file's text, handed to a parser that knows nothing about files.
 let private reader name description keywords extra (parse: Invocation -> string -> string -> Outcome<Value>) =
@@ -50,8 +51,8 @@ let private writer
             name
             description
             keywords
-            ([ Parameter.create "path" "The file to write"
-               Parameter.create "value" valueDescription |> Parameter.piped ]
+            ([ Parameter.create "path" "The file to write" |> Parameter.takes Takes.Path
+               Parameter.create "value" valueDescription |> Parameter.piped |> Parameter.takes Takes.Value ]
              @ extra)
       Run =
         fun invocation ->
@@ -67,6 +68,7 @@ let private option (name: string) (invocation: Invocation) =
 
 let private delimiterParameter =
     Parameter.withDefault (Value.Text ",") (Parameter.create "delimiter" "The character between fields; 'tab' for a tab")
+    |> Parameter.takes Takes.Text
 
 let private delimiterOf (invocation: Invocation) = Csv.delimiter (Invocation.textOr "," "delimiter" invocation)
 
@@ -91,9 +93,10 @@ let toXml (newId: IdSource) (now: unit -> DateTimeOffset) =
         [ "xml"; "write"; "save"; "export"; "document" ]
         "xml"
         "The tag, table or list to write"
-        [ Parameter.optional "root" "The root element's name"
-          Parameter.optional "row" "The name of a table's row elements; 'row' by default"
-          Parameter.optional "declaration" "Write '-declaration' to begin with an XML declaration" ]
+        [ Parameter.optional "root" "The root element's name" |> Parameter.takes Takes.Text
+          Parameter.optional "row" "The name of a table's row elements; 'row' by default" |> Parameter.takes Takes.Text
+          Parameter.optional "declaration" "Write '-declaration' to begin with an XML declaration"
+          |> Parameter.takes (Takes.Switch("declaration", None)) ]
         (fun invocation value ->
             Invocation.flag "declaration" invocation
             |> Outcome.bind (fun declaration ->

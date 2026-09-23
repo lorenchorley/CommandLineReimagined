@@ -188,7 +188,7 @@ let run (store: StoreAccess) =
             "run"
             "Run a script: every line in it, as if it had been typed"
             [ "script"; "execute"; "play"; "batch" ]
-            [ Parameter.create "path" "The script to run" |> Parameter.piped ]
+            [ Parameter.create "path" "The script to run" |> Parameter.piped |> Parameter.takes Takes.Path ]
         |> CommandSpec.meta
       Run =
         fun invocation ->

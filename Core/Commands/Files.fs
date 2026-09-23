@@ -111,7 +111,7 @@ let ls =
             "ls"
             "List files and directories in a directory, the current directory by default"
             [ "show"; "list"; "dir" ]
-            [ Parameter.optional "path" "Directory to list; defaults to the current one" ]
+            [ Parameter.optional "path" "Directory to list; defaults to the current one" |> Parameter.takes Takes.Place ]
         |> CommandSpec.readOnly
       Run =
         fun invocation ->
@@ -250,7 +250,8 @@ let cd =
             "Enter a directory, a saved view, or a predicate written out"
             [ "move"; "navigate"; "directory"; "folder"; "view"; "query" ]
             [ Parameter.predicate "TargetPath" "The directory, view or predicate to enter"
-              |> Parameter.piped ]
+              |> Parameter.piped
+              |> Parameter.takes Takes.Place ]
       Run =
         fun invocation ->
             async {
@@ -315,7 +316,7 @@ let mkdir (newId: IdSource) (now: unit -> DateTimeOffset) =
             "mkdir"
             "Create a directory"
             [ "create"; "make"; "directory"; "folder" ]
-            [ Parameter.create "FolderName" "The name of the directory to create" ]
+            [ Parameter.create "FolderName" "The name of the directory to create" |> Parameter.takes Takes.NewName ]
       Run =
         fun invocation ->
             async {
@@ -390,8 +391,8 @@ let write (newId: IdSource) (now: unit -> DateTimeOffset) =
             "write"
             "Write text to a file, replacing its contents"
             [ "write"; "save"; "file"; "create"; "text" ]
-            [ Parameter.create "path" "The file to write"
-              Parameter.create "text" "What to write" |> Parameter.piped ]
+            [ Parameter.create "path" "The file to write" |> Parameter.takes Takes.Path
+              Parameter.create "text" "What to write" |> Parameter.piped |> Parameter.takes Takes.Value ]
       Run =
         fun invocation ->
             let text = Invocation.value "text" invocation |> Value.display
@@ -427,7 +428,7 @@ let cat =
             "cat"
             "Read a file and return its text"
             [ "read"; "print"; "show"; "file"; "contents"; "type" ]
-            [ Parameter.create "path" "The file to read" |> Parameter.piped ]
+            [ Parameter.create "path" "The file to read" |> Parameter.piped |> Parameter.takes Takes.Path ]
         |> CommandSpec.readOnly
       Run =
         fun invocation ->
@@ -444,7 +445,7 @@ let rm =
             "rm"
             "Delete a file or an empty directory"
             [ "remove"; "delete"; "erase"; "file"; "directory" ]
-            [ Parameter.create "path" "What to delete" |> Parameter.piped ]
+            [ Parameter.create "path" "What to delete" |> Parameter.piped |> Parameter.takes Takes.Path ]
       Run =
         fun invocation ->
             async {
@@ -478,8 +479,8 @@ let cp (newId: IdSource) (now: unit -> DateTimeOffset) =
             "cp"
             "Copy a file into a directory"
             [ "copy"; "duplicate"; "file" ]
-            [ Parameter.create "sourcePathAndFile" "The file to copy"
-              Parameter.create "targetPath" "The directory to copy it into" ]
+            [ Parameter.create "sourcePathAndFile" "The file to copy" |> Parameter.takes Takes.Path
+              Parameter.create "targetPath" "The directory to copy it into" |> Parameter.takes Takes.Place ]
       Run =
         fun invocation ->
             async {
@@ -600,7 +601,7 @@ let attr (now: unit -> DateTimeOffset) =
             "attr"
             "Show a file's attributes, or set them with name=value"
             [ "attribute"; "tag"; "metadata"; "property"; "label" ]
-            [ Parameter.create "path" "The file" |> Parameter.piped
+            [ Parameter.create "path" "The file" |> Parameter.piped |> Parameter.takes Takes.Path
               Parameter.assignments "assignments" "Attributes to set, written name=value" ]
       Run =
         fun invocation ->
@@ -671,7 +672,7 @@ let save (newId: IdSource) (now: unit -> DateTimeOffset) =
             "save"
             "Create a file from a tag: its type is the kind, its name attribute the name"
             [ "save"; "store"; "record"; "create" ]
-            [ Parameter.create "tag" "The tag to save" |> Parameter.piped ]
+            [ Parameter.create "tag" "The tag to save" |> Parameter.piped |> Parameter.takes Takes.Value ]
       Run =
         fun invocation ->
             async {
@@ -732,7 +733,7 @@ let saveView (newId: IdSource) (now: unit -> DateTimeOffset) =
             "save-view"
             "Save a predicate as a view you can enter with cd"
             [ "view"; "save"; "query"; "bookmark"; "keep" ]
-            [ Parameter.create "name" "What to call the view"
+            [ Parameter.create "name" "What to call the view" |> Parameter.takes Takes.NewName
               Parameter.predicate "predicate" "The predicate the view stands for" ]
       Run =
         fun invocation ->

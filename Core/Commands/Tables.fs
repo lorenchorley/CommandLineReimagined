@@ -17,6 +17,7 @@ open CommandLineReimagined.Core
 let private tableParameter =
     Parameter.optional "table" "The table to work on; taken from the pipe when it is not written"
     |> Parameter.piped
+    |> Parameter.takes Takes.Value
 
 let private tableOf (invocation: Invocation) =
     Table.ofValue invocation.Spec.Name (Invocation.value "table" invocation)
@@ -68,7 +69,7 @@ let select =
         "select"
         "Keep only the named columns, in the order named"
         [ "columns"; "project"; "pick"; "only" ]
-        [ Parameter.rest "columns" "The columns to keep" ]
+        [ Parameter.rest "columns" "The columns to keep" |> Parameter.takes Takes.Column ]
         (fun invocation table ->
             match Invocation.list "columns" invocation |> List.map Value.display with
             | [] -> Error(Fault.create Binding "'select' needs at least one column.")
@@ -87,8 +88,10 @@ let sort =
         "sort"
         "Order the rows by a column"
         [ "order"; "arrange"; "by" ]
-        [ Parameter.create "column" "The column to order by"
-          Parameter.optional "desc" "Write 'desc' to order downwards" |> Parameter.withFlag "desc" ]
+        [ Parameter.create "column" "The column to order by" |> Parameter.takes Takes.Column
+          Parameter.optional "desc" "Write 'desc' to order downwards"
+          |> Parameter.withFlag "desc"
+          |> Parameter.takes (Takes.Switch("desc", Some "asc")) ]
         (fun invocation table ->
             outcome {
                 let! index = columnIndex invocation table (Invocation.text "column" invocation)
@@ -119,7 +122,7 @@ let take =
         "take"
         "Keep the first rows"
         [ "first"; "head"; "limit"; "top" ]
-        [ Parameter.create "count" "How many rows to keep" ]
+        [ Parameter.create "count" "How many rows to keep" |> Parameter.takes Takes.Count ]
         (fun invocation table ->
             countOf invocation
             |> Outcome.map (fun count -> Value.Table { table with Rows = table.Rows |> List.truncate count }))
@@ -129,7 +132,7 @@ let skip =
         "skip"
         "Drop the first rows and keep the rest"
         [ "drop"; "rest"; "tail"; "after" ]
-        [ Parameter.create "count" "How many rows to drop" ]
+        [ Parameter.create "count" "How many rows to drop" |> Parameter.takes Takes.Count ]
         (fun invocation table ->
             countOf invocation
             |> Outcome.map (fun count ->
@@ -165,7 +168,7 @@ let distinct =
         "distinct"
         "Unique rows, or the unique values of one column"
         [ "unique"; "different"; "dedupe" ]
-        [ Parameter.optional "column" "A column, to take the unique values of it" ]
+        [ Parameter.optional "column" "A column, to take the unique values of it" |> Parameter.takes Takes.Column ]
         (fun invocation table ->
             if not (Invocation.given "column" invocation) then
                 Ok(Value.Table { table with Rows = table.Rows |> List.distinctBy (List.map Value.display) })
@@ -189,7 +192,7 @@ let group =
         "group"
         "Gather the rows that share a column's value"
         [ "by"; "gather"; "bucket"; "collect" ]
-        [ Parameter.create "column" "The column to group by" ]
+        [ Parameter.create "column" "The column to group by" |> Parameter.takes Takes.Column ]
         (fun invocation table ->
             outcome {
                 let! index = columnIndex invocation table (Invocation.text "column" invocation)
