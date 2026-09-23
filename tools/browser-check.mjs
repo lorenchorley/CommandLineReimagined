@@ -602,7 +602,7 @@ async function main() {
       await tap('redo');
       if (!await standing()) note('tapping the redo button did not bring `mkdir tapped` back');
 
-      const kept = await page.inputValue('#cmd');
+      const kept = await page.evaluate(() => document.getElementById('cmd').value);
       if (kept !== 'half typed') note(`tapping undo and redo left the input as ${JSON.stringify(kept)}`);
     } catch {
       note('the location line does not offer working undo and redo buttons');
@@ -748,7 +748,7 @@ async function main() {
     await submit(page, 'ls');
     await page.fill('#cmd', 'cat');
     await page.locator('.entry').last().locator('.grid tbody td', { hasText: 'my notes.txt' }).first().click();
-    const tapped = await page.inputValue('#cmd');
+    const tapped = await page.evaluate(() => document.getElementById('cmd').value);
 
     if (tapped !== 'cat "/my notes.txt"') {
       note(`tapping 'my notes.txt' in a listing made the line ${JSON.stringify(tapped)}`);
@@ -765,7 +765,7 @@ async function main() {
     await page.press('#cmd', 'Tab');
     await page.waitForFunction(
       () => document.getElementById('cmd').value !== 'cd doc', null, { timeout: 10000 }).catch(() => {});
-    const completed = await page.inputValue('#cmd');
+    const completed = await page.evaluate(() => document.getElementById('cmd').value);
 
     if (completed !== 'cd documents/') {
       note(`completing 'cd doc' made the line ${JSON.stringify(completed)}`);
@@ -860,7 +860,7 @@ async function main() {
 
         if (!reached) {
           note(`${key} in the chips of ${JSON.stringify(base)} made the line ` +
-               `${JSON.stringify(await page.inputValue('#cmd'))} with ${JSON.stringify(await selectedChip(page))} ` +
+               `${JSON.stringify(await page.evaluate(() => document.getElementById('cmd').value))} with ${JSON.stringify(await selectedChip(page))} ` +
                `selected; expected ${JSON.stringify(line)}` + (chip ? ` with '${chip}' selected` : ''));
           break;
         }
@@ -881,7 +881,7 @@ async function main() {
 
       if (!kept || caret !== 'cat readme.txt'.length) {
         note(`applying 'readme.txt' in 'cat re| documents' made the line ` +
-             `${JSON.stringify(await page.inputValue('#cmd'))} with the caret at ${caret}`);
+             `${JSON.stringify(await page.evaluate(() => document.getElementById('cmd').value))} with the caret at ${caret}`);
       }
     }
 
@@ -973,6 +973,36 @@ async function main() {
     if (!await focused()) note('with the keyboard up, running ls from it closed it');
 
     await page.setViewportSize(VIEWPORT);
+
+    // Chrome on Android puts its autofill bar above the keyboard for any input or
+    // textarea, whatever autocomplete says, so the page has neither.
+    const fields = await page.evaluate(() => document.querySelectorAll('input, textarea, select').length);
+    if (fields > 0) note(`the page has ${fields} form field(s), which bring Chrome's autofill bar with the keyboard`);
+
+    // The line is typed into key by key as a person types, not filled.
+    await page.fill('#cmd', '');
+    await page.focus('#cmd');
+    await page.keyboard.type('ls | cou', { delay: 20 });
+    const typed = await page.evaluate(() => document.getElementById('cmd').value);
+    if (typed !== 'ls | cou') note(`typing 'ls | cou' key by key made the line ${JSON.stringify(typed)}`);
+
+    try {
+      await page.waitForFunction(
+        () => [...document.querySelectorAll('#complete .key')].some(k => k.textContent === 'count'), null, { timeout: 10000 });
+      await page.keyboard.press('Tab');
+      await page.waitForFunction(
+        () => document.getElementById('cmd').value.startsWith('ls | count'), null, { timeout: 10000 });
+      await page.keyboard.press('Backspace');
+      await page.keyboard.press('Backspace');
+      await page.keyboard.type('t');
+      const edited = await page.evaluate(() => document.getElementById('cmd').value);
+      if (edited !== 'ls | coun' + 't' && edited !== 'ls | count') {
+        note(`editing the typed line by key left ${JSON.stringify(edited)}`);
+      }
+    } catch {
+      note(`typing 'ls | cou' did not offer 'count', or Tab did not put it in the line`);
+    }
+    await page.fill('#cmd', '');
     console.log('Checked that the keyboard, the input and the scrollback stay put on a phone.');
 
     if (consoleErrors.length > 0) {

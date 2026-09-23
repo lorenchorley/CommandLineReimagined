@@ -11,7 +11,7 @@ the page's rather than the language's.
 | Scrollback | Every command you have run, with its live output, errors and results. |
 | Detail line | One line above the location line. While you type, it shows the parameters of the command you are writing an argument of, what the selected completion is, or a parse error already behind the word; after a tap, what the tapped word is. See [The detail line](#the-detail-line). |
 | Location line | Where you are: a directory as its path, or a view as the question it is. Undo (↶) and redo (↷) buttons always come before it, and anywhere but the root an `up` button too. |
-| Input | A transparent text field over a coloured mirror of what you type. |
+| Input | A transparent line over a coloured mirror of what you type. It is an editable line rather than a form field, so Chrome on Android shows no autofill bar (key, card, pin) above the keyboard. |
 | Run button | Runs the line. It becomes a red Stop button while a command is running. |
 | Completion row | Appears below the input while you type, offering what the word under the caret could become: commands, variables, members, columns, values, operators, flags, keywords and paths. |
 | Suggestion row | Fixed examples you can tap to fill the input. |

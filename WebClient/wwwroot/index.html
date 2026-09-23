@@ -189,10 +189,19 @@
     white-space:pre; overflow:hidden;
   }
   #mirror { position:absolute; inset:0; background:var(--panel); pointer-events:none; color:var(--fg); }
+  /*
+    An editable div rather than an input: Chrome on Android puts its autofill bar (a key,
+    a card and a pin) above the keyboard for every input and textarea, whatever their
+    autocomplete says, and a command line has nothing for it to fill.
+  */
   #cmd {
     position:relative; width:100%; background:transparent; color:transparent;
     caret-color:var(--fg); border-color:transparent;
+    box-sizing:border-box; height:calc(16px * 1.4 + 24px);
+    overflow-x:auto; overflow-y:hidden; scrollbar-width:none; outline:none;
   }
+  #cmd::-webkit-scrollbar { display:none; }
+  #cmd br { display:none; }
   #cmd:focus { outline:2px solid var(--accent); outline-offset:-2px; border-radius:9px; }
   button {
     font:13px ui-monospace,monospace; font-weight:600; padding:0 14px; border-radius:9px;
@@ -238,8 +247,9 @@
     <div class="inputrow">
       <div class="field">
         <div id="mirror"></div>
-        <input id="cmd" disabled autocapitalize="off" autocorrect="off"
-               autocomplete="off" spellcheck="false" enterkeyhint="enter">
+        <div id="cmd" contenteditable="false" role="textbox" aria-label="Command"
+             aria-multiline="false" autocapitalize="off" autocorrect="off"
+             spellcheck="false" enterkeyhint="enter" inputmode="text"></div>
       </div>
       <button id="run" disabled>Run</button>
     </div>
@@ -253,6 +263,78 @@
 <script>
 const $ = id => document.getElementById(id);
 const scroll = $('scroll'), cmd = $('cmd'), mirror = $('mirror'), runButton = $('run');
+
+/*
+  The command line is an editable div (see #cmd's style for why), and everything else
+  on the page talks to it as it talked to an input: `value`, `selectionStart` and
+  `selectionEnd`, `setSelectionRange` and `disabled`. It holds one line of plain text.
+*/
+(function asALine(line) {
+  try { line.contentEditable = 'plaintext-only'; } catch {}
+  const editable = line.contentEditable === 'plaintext-only' ? 'plaintext-only' : 'true';
+  line.contentEditable = 'false';
+
+  /// The offset of a point in the line, counted in characters from its start.
+  const offsetOf = (node, offset) => {
+    const range = document.createRange();
+    range.selectNodeContents(line);
+    range.setEnd(node, offset);
+    return range.toString().length;
+  };
+
+  /// The text node and offset in it for a character offset, for placing the caret.
+  const pointAt = offset => {
+    const walker = document.createTreeWalker(line, NodeFilter.SHOW_TEXT);
+    let node, left = offset;
+    while ((node = walker.nextNode())) {
+      if (left <= node.length) return [node, left];
+      left -= node.length;
+    }
+    return [line, line.childNodes.length];
+  };
+
+  const selection = () => {
+    const current = document.getSelection();
+    if (!current || !current.rangeCount) return null;
+    const range = current.getRangeAt(0);
+    return line.contains(range.startContainer) ? range : null;
+  };
+
+  Object.defineProperty(line, 'value', {
+    get: () => line.textContent.replace(/[\r\n]/g, ''),
+    set: text => { line.textContent = String(text).replace(/[\r\n]/g, ' '); },
+  });
+  Object.defineProperty(line, 'selectionStart', {
+    get: () => { const r = selection(); return r ? offsetOf(r.startContainer, r.startOffset) : line.value.length; },
+  });
+  Object.defineProperty(line, 'selectionEnd', {
+    get: () => { const r = selection(); return r ? offsetOf(r.endContainer, r.endOffset) : line.value.length; },
+  });
+  line.setSelectionRange = (start, end = start) => {
+    const range = document.createRange();
+    range.setStart(...pointAt(start));
+    range.setEnd(...pointAt(end));
+    const current = document.getSelection();
+    current.removeAllRanges();
+    current.addRange(range);
+  };
+  Object.defineProperty(line, 'disabled', {
+    get: () => line.contentEditable === 'false',
+    set: off => { line.contentEditable = off ? 'false' : editable; },
+  });
+
+  // One line: a return runs it (the keydown handler), and a pasted line break is a space.
+  line.addEventListener('beforeinput', e => {
+    if (e.inputType === 'insertParagraph' || e.inputType === 'insertLineBreak') e.preventDefault();
+  });
+  line.addEventListener('input', () => {
+    if (/[\r\n]/.test(line.textContent)) {
+      const caret = line.selectionStart;
+      line.value = line.textContent;
+      line.setSelectionRange(Math.min(caret, line.value.length));
+    }
+  });
+})(cmd);
 
 let ready = false;
 let history = [];        // previously executed lines
