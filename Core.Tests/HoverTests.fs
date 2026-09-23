@@ -42,6 +42,11 @@ type HoverTests() =
         Assert.AreEqual<string>("$v", number.Text)
         Assert.AreEqual<string option>(Some(Summary.ofValue (Value.Number 5.0)), number.Detail)
 
+        // The tokens keep `$` apart from the name, and a tap on either is the variable.
+        let sigil = expect (describe harness "echo $‸v")
+        Assert.AreEqual<string>("$v", sigil.Text)
+        Assert.AreEqual<string option>(number.Detail, sigil.Detail)
+
         // The same words `Summary` gives, whatever it gives, so hover and the chips agree.
         let table = expect (describe harness "$files‸ | count")
         Assert.AreEqual<string option>(Some(Summary.ofValue (harness.Variable "files").Value), table.Detail)

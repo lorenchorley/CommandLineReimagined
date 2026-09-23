@@ -223,8 +223,13 @@ module Hover =
                 | Place.Variable inPredicate ->
                     // The variable alone, not the members after it: `$row` in `$row.kind`
                     // is tapped as a token of its own.
-                    let reference = context.Word.Prefix.TrimStart('<')
-                    let name = reference.TrimStart('$').Split('.')[0]
+                    // The page may tap the `$` alone, which the tokens keep apart from
+                    // the name, and then the name is after the cursor.
+                    let reference =
+                        if context.Word.Prefix.TrimStart('<').TrimStart('$').Length = 0 then text
+                        else context.Word.Prefix
+
+                    let name = reference.TrimStart('<').TrimStart('$').Split('.')[0]
                     return Some(variable request ("$" + name) name inPredicate)
                 | Place.Member(name, path, stage) ->
                     // Up to the cursor, which is the end of the member tapped: the

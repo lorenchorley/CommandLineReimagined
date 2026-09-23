@@ -146,7 +146,18 @@
 
   /* Input ----------------------------------------------------------------- */
   #bar { flex:none; margin-top:8px; }
-  #detail { font-size:11px; color:var(--dim); min-height:16px; margin-bottom:4px; }
+  /*
+    The detail line has one job at a time: the signature while in an argument, else the
+    selected chip's detail, else a parse error that is behind the word being typed. A
+    tapped token takes it over until the next keystroke.
+  */
+  #detail { font-size:11px; color:var(--dim); min-height:16px; margin-bottom:4px; word-break:break-word; }
+  #detail .t { cursor:default; }
+  #detail .param { color:var(--dim); }
+  #detail .param.on { color:var(--fg); font-weight:700; }
+  #detail .problem { color:var(--bad); }
+  /* An error already behind the word being typed. A half-written word is never marked. */
+  #mirror .bad { text-decoration:underline wavy var(--bad); text-decoration-skip-ink:none; text-underline-offset:3px; }
   #prompt { font-size:11px; color:var(--dim); margin-bottom:4px; word-break:break-all;
             display:flex; align-items:center; gap:6px; min-height:22px; }
   #prompt .up, #prompt .step {
@@ -192,10 +203,15 @@
   #complete .key.operator { color:var(--operator); }
   #complete .key.member { color:var(--member); }
   #complete .key.keyword { color:var(--keyword); font-style:italic; }
+  #complete .key.flag { color:var(--flag); }
+  /* The chip Tab puts in place next, and whose detail the detail line shows. */
+  #complete .key.sel { background:rgba(107,138,253,.22); box-shadow:inset 0 0 0 1px var(--accent); }
+  #complete .key.more { color:var(--dim); border-style:dashed; }
   .keys { display:flex; gap:5px; overflow-x:auto; padding-top:6px; scrollbar-width:none; }
   .keys::-webkit-scrollbar { display:none; }
+  /* 44 pixels tall, like a result chip: every chip is a tap target on a phone. */
   .key {
-    flex:none; font:12px ui-monospace,monospace; padding:5px 9px; border-radius:6px;
+    flex:none; font:12px ui-monospace,monospace; padding:0 12px; min-height:44px; border-radius:6px;
     border:1px solid var(--line); background:var(--panel); color:var(--dim); cursor:pointer; white-space:nowrap;
   }
 </style>
@@ -245,14 +261,21 @@ let completions = [];    // what the last word could become
 const escape = s => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 
 /// Renders a token stream as spans. Each token carries the role the grammar gave it,
-/// which is what makes them individually inspectable.
+/// which is what makes them individually inspectable, and where it ends in the line the
+/// tokens spell, which is the offset a tap asks the core about.
 function tokenHtml(tokens) {
-  return (tokens || []).map((t, i) =>
-    t.kind === 'whitespace' || t.kind === 'newline'
+  let offset = 0;
+  return (tokens || []).map(t => {
+    offset += t.text.length;
+    return t.kind === 'whitespace' || t.kind === 'newline'
       ? escape(t.text)
-      : `<span class="t ${t.kind}" data-kind="${t.kind}" data-text="${escape(t.text)}">${escape(t.text)}</span>`
-  ).join('');
+      : `<span class="t ${t.kind}" data-kind="${t.kind}" data-text="${escape(t.text)}" data-end="${offset}">${escape(t.text)}</span>`;
+  }).join('');
 }
+
+/// The line a token stream spells. The tokens come from the tree, so this is the line as
+/// the parser writes it back, and it is what the offsets in `tokenHtml` count through.
+const tokenText = tokens => (tokens || []).map(t => t.text).join('');
 
 function addEntry(html) {
   const div = document.createElement('div');
@@ -406,13 +429,14 @@ function forgetTables(element) {
 /// go before the result arrives.
 function startEntry(id, text) {
   let echoed = escape(text);
+  let source = '';
   try {
     const parsed = JSON.parse(DotNet.invokeMethod('WebClient', 'Parse', text));
-    if (!parsed.error) echoed = tokenHtml(parsed.tokens);
+    if (!parsed.error) { echoed = tokenHtml(parsed.tokens); source = tokenText(parsed.tokens); }
   } catch {}
 
   const entry = addEntry(
-    `<div class="echo"><span class="sigil">$ </span>${echoed}</div>` +
+    `<div class="echo" data-source="${escape(source)}"><span class="sigil">$ </span>${echoed}</div>` +
     `<div class="live"></div><div class="tail"></div><div class="watch"></div>`);
   entry.classList.add('running');
   entry.dataset.id = id;
@@ -602,8 +626,11 @@ window.terminal = {
 
 // ---- the live input mirror ------------------------------------------------
 
+let lineError = null;     // { column, end, sentence }: a parse error behind the word being typed
+
 function refreshMirror() {
   const text = cmd.value;
+  lineError = null;
 
   if (!ready || text.length === 0) {
     mirror.innerHTML = text.length ? escape(text) : '<span class="hint">type a command…</span>';
@@ -612,14 +639,65 @@ function refreshMirror() {
 
   try {
     const parsed = JSON.parse(DotNet.invokeMethod('WebClient', 'Parse', text));
-    // While a command is half-typed it is usually not valid yet, so an error is
-    // expected and shown by leaving the text plain rather than by complaining.
-    mirror.innerHTML = parsed.error ? escape(text) : tokenHtml(parsed.tokens);
+
+    if (!parsed.error) {
+      mirror.innerHTML = tokenHtml(parsed.tokens);
+    } else {
+      // While a command is half-typed it is usually not valid yet, so an error at the
+      // word being typed is expected, and shown by leaving the text plain. One that is
+      // already behind that word will not go away by typing on, so it is marked.
+      lineError = errorBehind(parsed.error, text, caretOf());
+      mirror.innerHTML = lineError
+        ? escape(text.slice(0, lineError.column)) +
+          `<span class="bad">${escape(text.slice(lineError.column, lineError.end))}</span>` +
+          escape(text.slice(lineError.end))
+        : escape(text);
+    }
   } catch {
     mirror.innerHTML = escape(text);
   }
 
   mirror.scrollLeft = cmd.scrollLeft;
+}
+
+const caretOf = () => cmd.selectionStart ?? cmd.value.length;
+
+/// Where the word under the caret begins, found the way the core finds it: back to the
+/// nearest whitespace, `|`, `(` or `,`, or to the quote an unclosed string opened with.
+function wordStart(text, caret) {
+  const before = text.slice(0, caret);
+  if ((before.match(/"/g) || []).length % 2 === 1) return before.lastIndexOf('"');
+  let start = caret;
+  while (start > 0 && !/[\s|(,]/.test(text[start - 1])) start--;
+  return start;
+}
+
+/// A parse error, when it is behind the word being typed: its column, the end of the
+/// token it is at, and its sentence. A message without a position has nowhere to go.
+function errorBehind(error, text, caret) {
+  if (!error || (error.kind !== 'syntax' && error.kind !== 'lexical')) return null;
+  const column = error.column;
+  if (!(column >= 0 && column < wordStart(text, caret))) return null;
+
+  let start = column, end = column + 1;
+  if (/\s/.test(text[column])) {
+    // The parser stopped at a gap: what it could not go on from is the token before it,
+    // as in `echo a= b`, where `a=` has no value.
+    while (start > 0 && !/\s/.test(text[start - 1])) start--;
+    if (start < column) end = column;
+  } else if (!/[|(),<>"]/.test(text[column])) {
+    while (end < text.length && !/[\s|(),<>"]/.test(text[end])) end++;
+  }
+  return { column: start, end, sentence: errorSentence(error) };
+}
+
+/// The sentence a failed line shows for the same error, worded the way
+/// `TerminalSession.Describe(ParseErrorInfo)` words it, so that what the detail line
+/// says while typing is what running the line would say.
+function errorSentence(error) {
+  if (error.explanation) return `Column ${error.column}: ${error.explanation}`;
+  const where = `${error.kind === 'lexical' ? 'Lexical' : 'Syntax'} error at column ${error.column}`;
+  return error.expected && error.expected.length ? `${where}: expected ${error.expected.join(', ')}.` : where + '.';
 }
 
 // ---- completion -----------------------------------------------------------
@@ -630,39 +708,121 @@ function refreshMirror() {
 let completionSeq = 0;
 let completionPending = Promise.resolve();
 
-function refreshCompletions() {
+let signature = null;    // the command the caret is in an argument of, when the core says
+let answeredFor = null;  // { text, caret } the chips were asked for: their start and end count through it
+let selected = 0;        // the chip whose detail is shown, and the one Tab puts in place
+let showAll = false;     // whether the `+N` chip has been opened
+let stepping = false;    // whether Tab now steps through the chips, filling having done all it can
+let tabOrigin = null;    // { text, caret } before the first Tab of a run: what Escape puts back
+let seen = null;         // { text, caret } the page last asked about or put there itself
+let describeSeq = 0;     // taps are numbered too, so a typed key wins over a slow answer
+
+/// How many chips show before the rest fold into a `+N` chip.
+const CHIP_LIMIT = 12;
+
+/// Asks again for the line as it is now. Anything a person does to the line ends a run
+/// of Tabs; the page's own filling passes `keepTab`, so Escape can still undo it.
+function refreshCompletions(keepTab = false) {
+  if (!keepTab) { tabOrigin = null; stepping = false; }
+  seen ={ text: cmd.value, caret: caretOf() };
   completionPending = loadCompletions();
   return completionPending;
 }
 
 async function loadCompletions() {
-  const row = $('complete');
   const seq = ++completionSeq;
-  if (!ready || !cmd.value.length) { completions = []; row.innerHTML = ''; return; }
+  if (!ready || !cmd.value.length) {
+    completions = []; signature = null; answeredFor = null; stepping = false;
+    drawChips(); drawDetail();
+    return;
+  }
 
   const text = cmd.value;
-  const cursor = cmd.selectionStart ?? text.length;
-  let items = [];
+  const cursor = caretOf();
+  let items = [], sig = null;
   try {
     const response = JSON.parse(await DotNet.invokeMethodAsync('WebClient', 'Complete', text, cursor));
     items = response.items || [];
+    sig = response.signature || null;
   } catch { items = []; }
   if (seq !== completionSeq) return;
 
   completions = items;
-  row.innerHTML = '';
+  signature = sig;
+  answeredFor = { text, caret: cursor };
+  selected = 0; showAll = false; stepping = false;
 
   // Nothing to offer when the word is already exactly the only completion.
   if (completions.length === 1 && text.slice(completions[0].start, completions[0].end) === completions[0].text) {
-    completions = []; return;
+    completions = [];
   }
 
-  for (const c of completions.slice(0, 12)) {
+  drawChips(); drawDetail();
+}
+
+/// The chips: the first twelve, and a `+N` chip that opens the rest into the same row.
+/// The selected one is marked, and kept in view as Tab steps along a row that scrolls.
+function drawChips() {
+  const row = $('complete');
+  row.innerHTML = '';
+  const shown = showAll ? completions.length : Math.min(completions.length, CHIP_LIMIT);
+
+  completions.slice(0, shown).forEach((c, index) => {
     const b = document.createElement('button');
-    b.className = `key ${c.kind}`; b.textContent = c.text;
+    b.className = `key ${c.kind}` + (index === selected ? ' sel' : '');
+    b.textContent = c.text;
     b.onclick = () => applyCompletion(c);
     row.appendChild(b);
+  });
+
+  if (shown < completions.length) {
+    const more = document.createElement('button');
+    more.className = 'key more';
+    more.textContent = `+${completions.length - shown}`;
+    more.title = `${completions.length - shown} more`;
+    // It opens the row rather than changing the line, so the caret stays where it was.
+    more.onmousedown = e => e.preventDefault();
+    more.onclick = () => { showAll = true; drawChips(); cmd.focus(); };
+    row.appendChild(more);
   }
+
+  const current = row.querySelector('.sel');
+  if (current && current.scrollIntoView) current.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+}
+
+/// The detail line, which does one job at a time, in this order: the signature while the
+/// caret is in an argument; the selected chip's detail; a parse error already behind the
+/// word being typed. Drawing it also drops the answer to a tap still on its way.
+function drawDetail() {
+  describeSeq++;
+  const detail = $('detail');
+  const chip = completions[selected];
+
+  if (signature) detail.innerHTML = signatureHtml(signature);
+  else if (chip && chip.detail) detail.innerHTML = `<b class="t ${chip.kind}">${escape(chip.text)}</b> · ${escape(chip.detail)}`;
+  else if (lineError) detail.innerHTML = `<span class="problem">${escape(lineError.sentence)}</span>`;
+  else detail.innerHTML = '';
+}
+
+/// `sort <column> [desc] [table] · The column to order by`: the parameter being written
+/// is bold and its description follows; with none being written, the command's does.
+function signatureHtml(sig) {
+  const parameters = sig.parameters || [];
+  const params = parameters.map((p, index) => {
+    const shown = escape(p.optional ? `[${p.name}]` : `<${p.name}>`);
+    return index === sig.active ? `<b class="param on">${shown}</b>` : `<span class="param">${shown}</span>`;
+  }).join(' ');
+
+  const active = sig.active != null ? parameters[sig.active] : null;
+  const about = active ? active.description : sig.description;
+  return `<span class="sig"><span class="t command">${escape(sig.command)}</span>${params ? ' ' + params : ''}</span>` +
+         (about ? ` · ${escape(about)}` : '');
+}
+
+/// What a completion writes: a path is quoted when it needs to be.
+function completionText(c) {
+  const place = c.kind === 'folder' || c.kind === 'file' || c.kind === 'view';
+  return place ? asWord(c.text) : c.text;
 }
 
 // A folder completes to `documents/` and stops there, so the next tap can go deeper;
@@ -670,16 +830,86 @@ async function loadCompletions() {
 // said `directory`, so a folder was never coloured and always got a space. A
 // completion replaces its word only, from `start` to `end`, so the rest of the line
 // stays, and the caret lands after what was put in.
-function applyCompletion(c) {
-  const place = c.kind === 'folder' || c.kind === 'file' || c.kind === 'view';
-  const text = place ? asWord(c.text) : c.text;
-  const rest = cmd.value.slice(c.end);
+function applyCompletion(c, keepTab = false) {
+  const text = completionText(c);
+  // While Tab is stepping, the line holds a chip rather than what the chips were asked
+  // for, and their start and end count through what they were asked for.
+  const base = stepping && answeredFor ? answeredFor.text : cmd.value;
+  const rest = base.slice(c.end);
   const trailing = (c.kind === 'folder' && text === c.text) || rest.startsWith(' ') ? '' : ' ';
   const inserted = text + trailing;
-  cmd.value = cmd.value.slice(0, c.start) + inserted + rest;
+  cmd.value = base.slice(0, c.start) + inserted + rest;
   const caret = c.start + inserted.length;
   cmd.setSelectionRange(caret, caret);
-  refreshMirror(); refreshCompletions(); cmd.focus();
+  refreshMirror(); refreshCompletions(keepTab); cmd.focus();
+}
+
+/// Puts one chip in place while stepping: no space after it, and nothing asked again,
+/// so the next Tab replaces it with the next chip.
+function placeCompletion(c) {
+  const base = answeredFor.text;
+  const text = completionText(c);
+  cmd.value = base.slice(0, c.start) + text + base.slice(c.end);
+  const caret = c.start + text.length;
+  cmd.setSelectionRange(caret, caret);
+  seen = { text: cmd.value, caret };
+  refreshMirror();
+}
+
+/*
+  Tab fills the common prefix of the chips the first time, as shells do, and once
+  filling does nothing more it steps through them, putting each in place in turn;
+  Shift+Tab steps back. Escape puts back what was there before the first Tab.
+*/
+function tab(back) {
+  if (!completions.length || !answeredFor) return;
+  if (!tabOrigin) tabOrigin = { text: cmd.value, caret: caretOf() };
+
+  if (!stepping && !back) {
+    if (completions.length === 1) { applyCompletion(completions[0], true); return; }
+
+    const first = completions[0];
+    let prefix = first.text;
+    for (const c of completions) while (!c.text.toLowerCase().startsWith(prefix.toLowerCase())) prefix = prefix.slice(0, -1);
+
+    if (prefix.length > first.end - first.start) {
+      const base = answeredFor.text;
+      cmd.value = base.slice(0, first.start) + prefix + base.slice(first.end);
+      const caret = first.start + prefix.length;
+      cmd.setSelectionRange(caret, caret);
+      refreshMirror(); refreshCompletions(true);
+      return;
+    }
+  }
+
+  const count = completions.length;
+  if (!stepping) { stepping = true; selected = back ? count - 1 : 0; }
+  else selected = (selected + (back ? count - 1 : 1)) % count;
+
+  if (selected >= CHIP_LIMIT) showAll = true;
+  placeCompletion(completions[selected]);
+  drawChips(); drawDetail();
+}
+
+/// Escape: puts back what was there before the first Tab.
+function untab() {
+  if (!tabOrigin) return false;
+  const origin = tabOrigin;
+  cmd.value = origin.text;
+  cmd.setSelectionRange(origin.caret, origin.caret);
+  stepping = false;
+  refreshMirror(); refreshCompletions();
+  return true;
+}
+
+/// The caret moved without the text changing: a click, or an arrow key. The word under
+/// it is a different word, so the chips are asked for again.
+function caretMoved() {
+  if (!ready || document.activeElement !== cmd || cmd.selectionStart !== cmd.selectionEnd) return;
+  const now = { text: cmd.value, caret: caretOf() };
+  if (!seen || now.text !== seen.text || now.caret === seen.caret) return;
+  stepping = false;
+  refreshMirror(); refreshCompletions();
 }
 
 // ---- executing ------------------------------------------------------------
@@ -832,34 +1062,82 @@ cmd.addEventListener('keydown', e => {
     return;
   }
 
-  // Tab takes the only completion, or the common prefix of several. It waits for the
-  // answer to the last keystroke first, which may still be on its way.
+  // Tab takes the only completion, or the common prefix of several, and after that
+  // steps through them. It waits for the answer to the last keystroke first, which may
+  // still be on its way.
   if (e.key === 'Tab') {
     e.preventDefault();
-    completionPending.then(() => {
-      if (!completions.length) return;
-      if (completions.length === 1) { applyCompletion(completions[0]); return; }
-      const first = completions[0];
-      let prefix = first.text;
-      for (const c of completions) while (!c.text.toLowerCase().startsWith(prefix.toLowerCase())) prefix = prefix.slice(0, -1);
-      if (prefix.length > first.end - first.start) {
-        cmd.value = cmd.value.slice(0, first.start) + prefix + cmd.value.slice(first.end);
-        const caret = first.start + prefix.length;
-        cmd.setSelectionRange(caret, caret);
-        refreshMirror(); refreshCompletions();
-      }
-    });
+    const back = e.shiftKey;
+    completionPending.then(() => tab(back));
+    return;
   }
+
+  // Escape puts back what was typed before Tab changed it. While a command runs it
+  // stops the command instead, above.
+  if (e.key === 'Escape' && tabOrigin) { e.preventDefault(); untab(); }
 });
 
-// Tapping a token says what the grammar decided it was; tapping a result inserts it.
+// The caret can move without the text changing, and then it is in a different word.
+// `selectionchange` says so where the browser raises it for an input; the key and the
+// click are there for where it does not. Each asks only when the caret really moved.
+document.addEventListener('selectionchange', caretMoved);
+cmd.addEventListener('keyup', e => {
+  if (['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(e.key)) caretMoved();
+});
+cmd.addEventListener('click', caretMoved);
+
+/*
+  Tapping a token says what it means where it stands: what a variable holds, what a
+  command takes, what type a column is, what an operator compares. The core answers,
+  from the line the token is in, read the way completion reads it. Where it has nothing
+  to say, the token's grammar role is shown, as it always was.
+*/
+/// Where to ask about a token: the end of the word it is part of, so the core reads the
+/// whole word. The tokens keep a sigil apart from what follows it (`$` `row` `.` `kind`,
+/// `-` `desc`, `"` `my notes.txt` `"`), so a sigil is asked about at the end of the
+/// token after it, and a string's closing quote from inside the quote.
+function tokenOffset(token) {
+  const end = Number(token.dataset.end);
+  const text = token.dataset.text || '';
+  const next = token.nextElementSibling;
+  const adjacent = next && next.classList.contains('t') &&
+    Number(next.dataset.end) - (next.dataset.text || '').length === end ? next : null;
+
+  if (token.dataset.kind === 'string' && text === '"') {
+    return adjacent && adjacent.dataset.kind === 'string' && adjacent.dataset.text !== '"'
+      ? Number(adjacent.dataset.end)
+      : end - 1;
+  }
+  if ((text === '$' || text === '.' || text === '-') && adjacent) return Number(adjacent.dataset.end);
+  return end;
+}
+
+async function describeToken(token) {
+  const kind = token.dataset.kind, text = token.dataset.text || '';
+  const role = `<b class="t ${kind}">${escape(kind)}</b> — ${escape(text)}`;
+  const echo = token.closest('.echo');
+  const source = echo ? echo.dataset.source : '';
+
+  const seq = ++describeSeq;
+  if (!source || kind === 'punctuation') { $('detail').innerHTML = role; return; }
+
+  let hover = null;
+  try { hover = JSON.parse(await DotNet.invokeMethodAsync('WebClient', 'Describe', source, tokenOffset(token))); } catch {}
+  if (seq !== describeSeq) return;
+
+  $('detail').innerHTML =
+    !hover ? role
+    : hover.signature ? signatureHtml(hover.signature)
+    : `<b class="t ${kind}">${escape(hover.text)}</b>` + (hover.detail ? ` · ${escape(hover.detail)}` : ` — ${escape(kind)}`);
+}
+
+// Tapping a token says what it is; tapping a result inserts it.
 document.addEventListener('click', e => {
-  const token = e.target.closest('.t');
+  const token = e.target.closest('.echo .t');
   if (token) {
     document.querySelectorAll('.t.sel').forEach(el => el.classList.remove('sel'));
     token.classList.add('sel');
-    $('detail').innerHTML =
-      `<b class="t ${token.dataset.kind}">${token.dataset.kind}</b> — ${escape(token.dataset.text)}`;
+    describeToken(token);
     return;
   }
 
