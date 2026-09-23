@@ -252,6 +252,46 @@ anyone can see: every existing completion test passes unchanged.
 **Done when** the build is clean, every suite passes, `ContextTests` passes, the
 browser check passes, and the page completes exactly as before. One commit per step.
 
+### What 8.0 laid down
+
+Where the foundation differs from the sketch above, or adds to it. The streams code
+against this.
+
+- **Two more files, both 8.0's.** `Completion/Request.fs` holds `Completion`,
+  `Signature`, `CompletionResult` and `Request`, the record every provider is given
+  (the specs, the projection, the `Context`, `Shapes: Stage -> Async<Shape>` and a
+  cancellation token), with `Request.item` to build a completion that replaces the
+  word. `Completion/Lexical.fs` is today's `Completion.fs`, whole: the fallback.
+- **Every provider answers `Lexical.answer request` until its stream replaces it,**
+  which is why the page completes exactly as before. The dispatcher in
+  `Completion.fs` calls: `CommandCompletion.suggest` (A), `VariableCompletion.variables`,
+  `.members`, `.tagTypes`, `.tagAttributes` (C), `ArgumentCompletion.suggest` and
+  `.signature`, and `PathCompletion.suggest` (D), `PredicateCompletion.suggest` (E),
+  `Shape.ofUpstream` (F), `Hover.describe` (G). The modules are named so because a
+  module called `Commands` would collide with the `Commands` namespace.
+- **The union types are `RequireQualifiedAccess`:** `Place.Argument`,
+  `Slot.Parameter`, `Expression.Operand`, `Takes.Column`. `Stage` has a `Name` field
+  as well, the name as written, for a stage whose `Spec` is `None`.
+- **`Word.Prefix`** is what is written of the word before the cursor, sigils
+  included (`$row.ki`, `-de`); for a quoted word, `Start` is at the quote and `Prefix`
+  follows it. A `$`, `<` or `-` word is classified by its form, and the parse supplies
+  the stage.
+- **`ShapeSource`** is `{ Projection; Preview; Cancel }`. `Preview` already runs a line
+  through `Evaluator.Refresh`, refusing one that writes; F adds the budget and cache.
+- **Session:** `Complete(text, cursor) : Async<CompletionResult>`, which cancels the
+  previous request's token; `Complete(text)`, synchronous, for tests;
+  `Describe(text, offset) : Async<Hover option>`.
+- **Wire:** `TerminalSession.CompleteAsync(text, cursor)` returns
+  `CompletionResponse(Items, Signature)`; `Completion(Kind, Text, Start, End, Detail)`;
+  `SignatureInfo(Command, Description, Parameters, Active)`. The bridge's
+  `Complete(text, cursor)` is a task.
+- **Two narrow permissions.** Stream A may change the two `help` rows of
+  `ContextTests.fs` once `help` takes a command. Stream B may change the stage walk in
+  `Context.fs` (`inStage`) and `Evaluator.IsReadOnly` if a value stage changes the
+  shape of `CommandExpression.Expression`; nothing else in either file.
+- **Browser check:** in this container, run it with
+  `PLAYWRIGHT_CHROMIUM=/opt/pw-browsers/chromium`.
+
 ## Parallel workstreams
 
 After 8.0, streams A to G start together. None waits for another to finish. Where
@@ -592,7 +632,7 @@ can pick up where the last one stopped. States: `not started`, `in progress`,
 
 | Work | Done by | State | Commit |
 | --- | --- | --- | --- |
-| 8.0 Foundation | orchestrator | in progress | |
+| 8.0 Foundation | orchestrator | merged | e5ca02d |
 | A. Commands and help | stream agent | not started | |
 | B. Value stages and parse wording | stream agent | not started | |
 | C. Variables and values | stream agent | not started | |
