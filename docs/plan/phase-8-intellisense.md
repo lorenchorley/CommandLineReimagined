@@ -633,13 +633,13 @@ can pick up where the last one stopped. States: `not started`, `in progress`,
 | Work | Done by | State | Commit |
 | --- | --- | --- | --- |
 | 8.0 Foundation | orchestrator | merged | e5ca02d |
-| A. Commands and help | stream agent | not started | |
-| B. Value stages and parse wording | stream agent | not started | |
-| C. Variables and values | stream agent | not started | |
-| D. Arguments by parameter | stream agent | not started | |
-| E. Predicates | stream agent | not started | |
-| F. What flows in | stream agent | not started | |
-| G. The page | stream agent | not started | |
+| A. Commands and help | stream agent | in progress | |
+| B. Value stages and parse wording | stream agent | in progress | |
+| C. Variables and values | stream agent | in progress | |
+| D. Arguments by parameter | stream agent | in progress | |
+| E. Predicates | stream agent | in progress | |
+| F. What flows in | stream agent | in progress | |
+| G. The page | stream agent | in progress | |
 | 8.9 docs, spec, check | three sub-agents | not started | |
 | 8.9 index, verifier, republish, As built | orchestrator | not started | |
 
