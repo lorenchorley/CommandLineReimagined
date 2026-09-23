@@ -633,7 +633,7 @@ can pick up where the last one stopped. States: `not started`, `in progress`,
 | Work | Done by | State | Commit |
 | --- | --- | --- | --- |
 | 8.0 Foundation | orchestrator | merged | e5ca02d |
-| A. Commands and help | stream agent | in progress | |
+| A. Commands and help | stream agent | merged | 8e2bf93 |
 | B. Value stages and parse wording | stream agent | merged | b3e6c21 |
 | C. Variables and values | stream agent | merged (vars pending the owner) | 0e20841 |
 | D. Arguments by parameter | stream agent | merged | db3c1a9 |
