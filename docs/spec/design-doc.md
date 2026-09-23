@@ -129,7 +129,9 @@ its display strings ([decision 0006](../decisions/0006-functional-core-in-fsharp
    one. See [Execution model](execution-model.md#argument-binding).
 4. **Evaluate.** `Evaluator` folds the pipeline, resolving each expression to a `Value`.
    Each command reads the current projection and returns a value and the events that
-   describe its change. Tags build values without calling a command. `else`, `try` and
+   describe its change. Tags build values without calling a command, and a variable
+   standing as a stage is its value
+   ([decision 0032](../decisions/0032-a-stage-may-be-a-value.md)). `else`, `try` and
    `??` decide which branch's events survive.
 5. **Commit.** When the line has succeeded, its events are appended to the log as one
    transaction, and the projection moves. A line that failed commits nothing, and a line
@@ -180,7 +182,10 @@ reads into the same tree, so a table-shaped document is a table for the same rea
 Word operators leave `<`, `>` and `|` to tags and pipes with no lookahead tricks
 ([decision 0007](../decisions/0007-notation-conflicts.md)), and `$row` is explicit so a
 predicate reads the same in `where`, `cd` and a saved view
-([decision 0008](../decisions/0008-explicit-row-variable.md)).
+([decision 0008](../decisions/0008-explicit-row-variable.md)). A predicate is a
+yes-or-no question about the row, so one that never reads `$row`, or answers a row with
+something other than true or false, is a fault rather than an empty table
+([decision 0033](../decisions/0033-a-predicate-is-a-question-about-the-row.md)).
 
 **Output is an interface, not a console.** Long-running commands need to say something
 before they finish. `IOutput` gives them a line to write and mutate. The browser host
@@ -370,9 +375,8 @@ selection work. Colour is never the only carrier of meaning: an error is a sente
 its kind as a word beside it, a caught fault is drawn differently from a failed line and
 says so, results are structurally distinct from output, and the token inspector names a
 role in words. The layout targets a 390 pixel wide viewport without horizontal page
-scrolling. The input, the run button, result chips and table cells are at least 44
-pixels tall; the suggestion and completion chips are about 26, which is below that
-target and **should** be raised.
+scrolling. The input, the run button, result chips, table cells and the suggestion and
+completion chips are at least 44 pixels tall.
 
 ### Internationalisation
 
@@ -386,7 +390,11 @@ be revisited.
 
 The payload is about 10 MB on a first visit, once the precompressed copies are set
 aside, and cached afterwards. Parsing runs on every keystroke for colouring and
-completion, which is comfortably fast because the input is one short line. A reload
+completion, which is comfortably fast because the input is one short line. Completion
+may also run the stages before the cursor to learn what flows into the one being
+written; that run is read-only, cached until the next commit, cancelled by the next
+keystroke, and given 150 milliseconds before completion answers without it
+([decision 0031](../decisions/0031-completion-reads-the-line.md)). A reload
 replays the whole log before the input is enabled; that is a fold over small events and
 is not noticeable at the sizes a tab reaches. Live output is coalesced to about one
 update every 40 milliseconds so that a fast-updating command does not spend more time

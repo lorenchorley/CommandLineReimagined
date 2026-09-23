@@ -17,7 +17,9 @@ highlighter needs.
 ## Requirements and the tests that prove them
 
 This table maps each normative area to the test class that covers it. The counts are
-test methods; data-driven methods expand to more cases at run time.
+test methods, read from the suites by counting each `TestMethod` and `DataTestMethod`
+attribute in the class; data-driven methods expand to more cases at run time, which the
+second table counts from `dotnet test`.
 
 | Requirement | Test class | Methods |
 | --- | --- | --- |
@@ -30,6 +32,7 @@ test methods; data-driven methods expand to more cases at run time.
 | Round-trip serialisation | `Parser.Tests/SerialisationTests` | 9 |
 | Word operators, precedence, member access, reserved words, nested pipelines, the expression entry point | `Parser.Tests/ExpressionTests` | 21 |
 | `else`, `try`, `??`, pipelines in parentheses as stages and operands, the adjacent function parenthesis, reserved command names | `Parser.Tests/RecoveryTests` | 23 |
+| Value stages, the stop that must be followed by a name, the operator with nothing to compare with | `Parser.Tests/ValueStageTests` | 15 |
 | Agreement with the retained GOLD parser | `Parser.Tests/ParserEquivalenceTests` | 4 |
 | The two string forms of every value, and number formatting | `Core.Tests/ValueTests` | 17 |
 | The Table value: coercion, columns, types, gaps, rows, display | `Core.Tests/TableTests` | 23 |
@@ -37,23 +40,33 @@ test methods; data-driven methods expand to more cases at run time.
 | Folding events, and that every event inverts back to where it started | `Core.Tests/ProjectionTests` | 13 |
 | Path resolution over the projection, and kind inference | `Core.Tests/FilesTests` | 16 |
 | Committing, undo, redo, history, replay determinism, blobs, the store's own checks on names and folders | `Core.Tests/StoreTests` | 28 |
-| Binding, pipes, command forms, variables, tags, atomic lines | `Core.Tests/ExecutionTests` | 43 |
+| Binding, pipes, command forms, variables, tags, atomic lines, value stages, `$row` outside a predicate | `Core.Tests/ExecutionTests` | 51 |
 | File commands, attributes, saving tags, the name rule, renaming a folder with what it holds, and their undo | `Core.Tests/FileCommandTests` | 55 |
 | Variables and their undo | `Core.Tests/VariableCommandTests` | 14 |
 | Asynchronous commands, live output, cancellation | `Core.Tests/AsyncCommandTests` | 14 |
-| `undo`, `redo` and `history` as commands, including what each compensation reverses | `Core.Tests/MetaCommandTests` | 17 |
-| The table functions, as whole command lines | `Core.Tests/TableCommandTests` | 32 |
-| Views: `cd` on a predicate, `ls` across folders, `up`, `find`, `save-view`, refreshing | `Core.Tests/ViewTests` | 40 |
-| Recovery: `else`, `try`, `??`, nested pipelines, fault values and their members, `is-fault`, what a refresh refuses | `Core.Tests/RecoveryTests` | 33 |
+| `undo`, `redo`, `history` and `help` as commands, `help <command>`, and the nearest names an unknown command is given | `Core.Tests/MetaCommandTests` | 28 |
+| What a line says it did to the log: the lines it committed, undid and redid | `Core.Tests/LogChangesTests` | 11 |
+| The table functions, as whole command lines, and the two predicate faults of decision 0033 | `Core.Tests/TableCommandTests` | 42 |
+| Views: `cd` on a predicate, `ls` across folders, `up`, `find`, `save-view`, refreshing, and the bound check in each | `Core.Tests/ViewTests` | 45 |
+| Recovery: `else`, `try`, `??`, nested pipelines, fault values and their members, `is-fault`, what a refresh refuses, recovery around a value stage | `Core.Tests/RecoveryTests` | 37 |
 | XML documents: reading, text content, namespaces, refusals, writing, round trips, and the two commands | `Core.Tests/XmlTests` | 41 |
 | CSV files: RFC 4180 reading, column typing, gaps, faults naming the line, writing, round trips, and the two commands | `Core.Tests/CsvTests` | 33 |
 | The example programs, against their golden results, and `run` | `Core.Tests/ExampleProgramTests` | 22 |
-| Completion over the projection, the operators, the columns, the places and the keywords | `Core.Tests/CompletionTests` | 25 |
+| The lexical rules: completion over the projection, the operators, the columns, the places and the keywords | `Core.Tests/CompletionTests` | 25 |
+| Where the cursor is: the place for every line of the Phase 8 finding table | `Core.Tests/ContextTests` | 4 |
+| Command names: after a pipe, by keyword, by edit distance, with descriptions | `Core.Tests/CommandCompletionTests` | 20 |
+| Variables, `$row` only in a predicate, members by what a variable holds, tag types and attributes, the summaries | `Core.Tests/VariableCompletionTests` | 18 |
+| Every parameter of every command by what it takes, flags, assignments, quoted paths, the signature | `Core.Tests/ArgumentCompletionTests` | 45 |
+| Inside a predicate: operands, operators, a column's values, `and` and `or` | `Core.Tests/PredicateCompletionTests` | 22 |
+| What flows into a stage: the upstream run, refusals, the budget, the cache | `Core.Tests/ShapeTests` | 23 |
+| What a tapped token is: variables, members, commands, operators, arguments | `Core.Tests/HoverTests` | 12 |
 | The phase's acceptance list, from a fresh session | `Core.Tests/AcceptanceTests` | 10 |
 | Replaying a log, seeding once, and `reset` | `Core.Tests/PersistenceTests` | 13 |
 | The stored shape of a transaction, every event and value case, versioning | `Web.Core.Tests/LogFormatTests` | 24 |
 | The browser's IndexedDB module, including a browser without it | `tools/store-check.mjs` | 20 |
-| DTO shapes including tables, views, refreshing, caught faults, documents, streaming, cancellation, completion, tokens | `Web.Core.Tests/TerminalSessionTests` | 50 |
+| DTO shapes including tables, views, refreshing, caught faults, documents, streaming, cancellation, completion, tokens | `Web.Core.Tests/TerminalSessionTests` | 52 |
+| A parse error in words: the phrase table, the explanations, the sentence carried with the parse | `Web.Core.Tests/ParseWordingTests` | 14 |
+| The hover record as the page receives it | `Web.Core.Tests/DescribeTests` | 7 |
 | Path and naming helpers | `Terminal.Tests/ValidCommandTests` | 2 |
 | The published page, in a browser at phone size | `tools/browser-check.mjs` | 1 session |
 
@@ -61,11 +74,11 @@ Cases actually run, which is what the suite reports:
 
 | Project | Cases |
 | --- | --- |
-| `Parser.Tests` | 342 |
-| `Core.Tests` | 561 |
-| `Web.Core.Tests` | 74 |
+| `Parser.Tests` | 375 |
+| `Core.Tests` | 754 |
+| `Web.Core.Tests` | 137 |
 | `Terminal.Tests` | 32 |
-| Total | 1009 |
+| Total | 1298 |
 
 Run them with:
 
@@ -108,6 +121,12 @@ does not govern. They run in CI with the rest.
       whole comparison after it.
 - [ ] An operand with no operator around it produces the operand's own node, not a
       wrapper.
+- [ ] A variable reference, with or without members, may stand as a stage, and takes
+      no arguments.
+- [ ] A stop after a variable is followed by a name, or the parse fails there and says
+      a column name belongs after it.
+- [ ] A comparison operator with nothing after it fails where the operand should be,
+      and says what the operator needs.
 
 **Runtime**
 
@@ -122,7 +141,16 @@ does not govern. They run in CI with the rest.
 - [ ] Piped input reaches only parameters that accept it and that were not written out.
 - [ ] Arity and missing-argument messages match the wording in
       [Execution model](execution-model.md#argument-binding).
-- [ ] An unknown name is reported as a fault of kind `UnknownCommand`.
+- [ ] An unknown name is reported as a fault of kind `UnknownCommand`, naming at most
+      three commands near it.
+- [ ] A value stage answers the variable's value, ignores its input, and counts as
+      read-only for a refresh.
+- [ ] `$row` read outside a predicate is a `NotFound` fault that says where it exists;
+      any other unknown variable is `Unknown variable: $name`.
+- [ ] A predicate that wrote an operator and never reads `$row` is a `Binding` fault
+      when it is bound, suggesting its bare words as columns.
+- [ ] A predicate's value for an item is `true`, `false` or absent, or the stage fails
+      with an `Invalid` fault on the first item that answers anything else.
 - [ ] A pipeline threads values and stops at the first failure.
 - [ ] Tags evaluate as values, as pipeline stages and as arguments, and bind their
       variable in every position.
@@ -173,7 +201,12 @@ does not govern. They run in CI with the rest.
 - [ ] One command at a time, with the documented refusal message.
 - [ ] Cancellation reports `Stopped.` and keeps the command's own output.
 - [ ] Output changes are raised with the complete line set and an execution id.
-- [ ] Completion follows the context table, offsets included.
+- [ ] Completion reads the place by parsing, answers each place by its own rule,
+      replaces from `start` to `end`, and a newer request cancels the one before it.
+- [ ] What flows into a stage is learned by previewing the upstream read-only, under
+      the budget, and a miss answers the current folder's columns rather than an error.
+- [ ] A tapped token is described by `Describe`, and a parse error carries a sentence
+      that names no grammar label.
 - [ ] Wire formats match [Host interfaces](host-interfaces.md#wire-formats).
 - [ ] A stored location carries its view, so a replay comes back into the query it was
       in.
@@ -195,7 +228,10 @@ case.
 | A reserved word in argument position is described as an operator even when it is `try` or `else`, as in `'try' is an operator; write "try" to pass it as text`. | Cosmetic. The advice is right for all thirteen words. |
 | The retained GOLD parser reports column 12 where the combinator parser reports 11 on one truncated input. | Documented in `ParserEquivalenceTests`. The combinator position is correct. |
 | A pipeline in parentheses inside a predicate runs once, and the predicate keeps its value, so a view saved with one does not re-run it. | Intended. A view is a question about records, and a question that changed its own terms each time it was asked would be a different question. |
-| Suggestion and completion chips are 26 pixels tall, below the usual 44 pixel touch target. | Known. Worth raising; the input, the run button and a table's cells already meet it. |
+| A saved view whose text never reads `$row`, such as a `view` record holding `kind eq folder`, is entered by `cd` and lists nothing, without the bound check of [decision 0033](../decisions/0033-a-predicate-is-a-question-about-the-row.md). The check is made where an argument is bound, and a view read back from its record is not an argument. | Open, raised with the owner. |
+| The text `true` or `false`, read bare in a predicate, drops the item without a fault, so `where $row.done` passes over a record whose `done` was set with `attr f done=true`, which stores the word. | Open, raised with the owner: the code keeps the answer it gave before decision 0033 until it is decided whether the word counts as a boolean. |
+| The operands of `and`, `or` and `not` are not held to the run check of decision 0033: only `Boolean true` is true in them, so `where not $row.kind` keeps every row. | As decision 0033 is worded, which is about the predicate's value. Raised with the owner. |
+| `vars` holds each value itself in its `value` column, not the one-line summary completion gives the same variable. | Pending the owner's decision. |
 | `Scope` supports nesting, but no host creates a child scope outside a predicate. | Intended. The model is ahead of the shell. |
 | `attr` is not marked read-only, so a live listing cannot be an `attr`. | Intended. The same command reads with no assignments and writes with them, and a refresh is decided by name before it runs. |
 | XML element text is read as an attribute `text` and written back as content, so mixed content comes back with its text gathered before the children, trimmed; an XML attribute called `text` on an element with content is replaced by it; comments and processing instructions are dropped. | Intended for this release; see [decision 0025](../decisions/0025-xml-text-content.md). |
