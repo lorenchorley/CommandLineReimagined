@@ -446,7 +446,7 @@ Not errors from the language, but from the session.
 | `No variables. Try: set greeting hello` | `vars` with nothing bound writes this above its empty table. Not an error. |
 | `Undone: <line>` | Undo reversed that line. Lines that changed nothing are not recorded, so they are never what it names. |
 | `Redone: <line>` | Redo put that line back. It names the original line, not the undo. |
-| `Reset. <n> files restored.` | `reset` emptied the log and seeded it again; in the browser that is 9 files. A host that seeds nothing gets `Reset. The filesystem is empty.` |
+| `Reset. <n> files restored.` | `reset` emptied the log and seeded it again; in the browser that is 17 files. A host that seeds nothing gets `Reset. The filesystem is empty.` |
 | `The session has not been initialised. Call Initialize first.` | A host executed a line before replaying the log. A defect in the host, not in what you typed. |
 | `A live refresh only re-reads : <line>` | A live listing was asked to re-run a line that could change something, including one that moves you, such as `up`. You will not see this on the page: it keeps only lines starting with `ls` or `find` live, and when a refresh is refused it leaves the table as it was. |
 

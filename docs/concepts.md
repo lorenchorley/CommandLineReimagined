@@ -5,6 +5,9 @@ arranged this way. You do not need any of this to use the terminal, but it expla
 behaviour that would otherwise look arbitrary. The normative version, with every rule
 spelled out, is the [execution model](spec/execution-model.md).
 
+To learn to use the terminal rather than how it works, start in the terminal itself:
+`cat readme.txt` points to the `guide` folder, which explains it one idea per file.
+
 ## The short version
 
 A line goes through five stages:
@@ -223,6 +226,7 @@ $ ls | select name
 name
 documents
 examples
+guide
 projects
 scratch
 note.txt

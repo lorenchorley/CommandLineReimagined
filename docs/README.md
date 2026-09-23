@@ -8,6 +8,9 @@ The terminal runs in a browser tab. The parser, the commands and the filesystem 
 .NET compiled to WebAssembly, so nothing you type leaves the page, and the browser keeps
 your files between visits.
 
+The terminal teaches itself. Type `cat readme.txt` in it, and the readme leads to the
+`guide` folder, one file per idea, each read with `cat` and each naming the next.
+
 ## Start here
 
 | Document | Read it when you want to |

@@ -29,7 +29,16 @@ The name, then arguments separated by spaces.
 
 ```
 $ cat readme.txt
-This filesystem lives in the browser tab.
+This is a command line that runs in this browser tab.
+
+The guide folder explains how it works, one idea per file. Start with the first:
+
+  cat guide/1-start.txt
+
+or list them all:
+
+  ls guide
+
 ```
 
 A name may be several words joined by hyphens, as `save-view` is. The hyphen has to
@@ -45,7 +54,16 @@ against the name. Use `name: value` to pick a parameter by name.
 $ write(note.txt, hello)
 note.txt
 $ cat(path: readme.txt)
-This filesystem lives in the browser tab.
+This is a command line that runs in this browser tab.
+
+The guide folder explains how it works, one idea per file. Start with the first:
+
+  cat guide/1-start.txt
+
+or list them all:
+
+  ls guide
+
 ```
 
 Function form is the only form that takes `name: value`. In command line form, name an
@@ -59,7 +77,7 @@ argument:
 $ first(ls)
 'first' needs a table, not text.
 $ first (ls | sort name desc)
-<row name=readme.txt kind=text folder=/ size=41 modified=2026-09-22T09:30:00.0000000+00:00/>
+<row name=readme.txt kind=text folder=/ size=192 modified=2026-09-22T09:30:00.0000000+00:00/>
 ```
 
 The first line calls `first` with the word `ls`; the second runs `ls | sort name desc`
@@ -355,7 +373,7 @@ value it answered:
 ```
 $ ls | where $row.size gt (ls | count)
 name        kind  folder  size  modified
-readme.txt  text  /       41    2026-09-22T09:30:00.0000000+00:00
+readme.txt  text  /       192   2026-09-22T09:30:00.0000000+00:00
 ```
 
 ## How arguments reach parameters
@@ -390,8 +408,9 @@ $ ls | set files
 name        kind    folder  size  modified
 documents   folder  /       0     2026-09-22T09:30:00.0000000+00:00
 examples    folder  /       0     2026-09-22T09:30:00.0000000+00:00
+guide       folder  /       0     2026-09-22T09:30:00.0000000+00:00
 projects    folder  /       0     2026-09-22T09:30:00.0000000+00:00
-readme.txt  text    /       41    2026-09-22T09:30:00.0000000+00:00
+readme.txt  text    /       192   2026-09-22T09:30:00.0000000+00:00
 $ echo documents | cd
 documents
 $ cat notes.txt | write copy.txt
@@ -419,9 +438,9 @@ comparison, as a [default](#defaults-with-) or as a stage of its own.
 
 ```
 $ echo (ls | count)
-4
+5
 $ ls | (where $row.kind eq folder | count)
-3
+4
 ```
 
 As an argument it is given nothing through the pipe, because the pipe belongs to the
@@ -438,7 +457,7 @@ view saved with one asks the question as it stood when it was saved:
 $ save-view big $row.size gt (ls | count)
 big
 $ cd big
-$row.size gt 4
+$row.size gt 5
 ```
 
 The parenthesis has to be separated from a command name by a space. Against the name,
@@ -555,11 +574,12 @@ $ ls | set entries
 name        kind    folder  size  modified
 documents   folder  /       0     2026-09-22T09:30:00.0000000+00:00
 examples    folder  /       0     2026-09-22T09:30:00.0000000+00:00
+guide       folder  /       0     2026-09-22T09:30:00.0000000+00:00
 projects    folder  /       0     2026-09-22T09:30:00.0000000+00:00
-readme.txt  text    /       41    2026-09-22T09:30:00.0000000+00:00
+readme.txt  text    /       192   2026-09-22T09:30:00.0000000+00:00
 $ vars
 name      value
-entries   4 rows
+entries   5 rows
 greeting  hello
 ```
 
@@ -568,7 +588,7 @@ appears inside another table. It is still the table:
 
 ```
 $ echo $entries | count
-4
+5
 ```
 
 Names may contain letters, digits and underscore. Writing `set $x 1` does not name a
@@ -576,7 +596,7 @@ variable `x`; `$x` is read as a variable reference, so it reports
 `Unknown variable: $x`.
 
 On the page, typing `$` offers every bound variable as a completion, each saying what
-it holds, such as `table · 4 rows · name, kind, folder…`. See
+it holds, such as `table · 5 rows · name, kind, folder…`. See
 [The web terminal](web-terminal.md#completions).
 
 ### A variable as a stage
@@ -595,13 +615,14 @@ $ ls | set files
 name        kind    folder  size  modified
 documents   folder  /       0     2026-09-22T09:30:00.0000000+00:00
 examples    folder  /       0     2026-09-22T09:30:00.0000000+00:00
+guide       folder  /       0     2026-09-22T09:30:00.0000000+00:00
 projects    folder  /       0     2026-09-22T09:30:00.0000000+00:00
-readme.txt  text    /       41    2026-09-22T09:30:00.0000000+00:00
+readme.txt  text    /       192   2026-09-22T09:30:00.0000000+00:00
 $ $files | count
-4
+5
 $ $files | where $row.size gt 10
 name        kind  folder  size  modified
-readme.txt  text  /       41    2026-09-22T09:30:00.0000000+00:00
+readme.txt  text  /       192   2026-09-22T09:30:00.0000000+00:00
 $ try cat missing.txt | set problem
 File does not exist : /missing.txt
 $ $problem.kind
