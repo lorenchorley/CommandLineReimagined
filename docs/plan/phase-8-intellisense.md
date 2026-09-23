@@ -639,7 +639,7 @@ can pick up where the last one stopped. States: `not started`, `in progress`,
 | D. Arguments by parameter | stream agent | merged | db3c1a9 |
 | E. Predicates | stream agent | merged | 6b18395 |
 | F. What flows in | stream agent | merged | 06e18f8 |
-| G. The page | stream agent | in progress | |
+| G. The page | stream agent | merged | 7eae9cf |
 | 8.9 docs, spec, check | three sub-agents | not started | |
 | 8.9 index, verifier, republish, As built | orchestrator | not started | |
 
