@@ -644,7 +644,7 @@ can pick up where the last one stopped. States: `not started`, `in progress`,
 | F. What flows in | stream agent | merged | 06e18f8 |
 | G. The page | stream agent | merged | 7eae9cf |
 | 8.9 docs, spec, check | three sub-agents | merged | 2c08e65 |
-| 8.9 index, verifier, republish, As built | orchestrator | merged | this commit |
+| 8.9 index, verifier, republish, As built | orchestrator | merged | 4f62b9b |
 
 ## Acceptance
 
@@ -745,7 +745,8 @@ Every checkpoint and stream, with these differences and findings.
   offering it.
 - **Verification.** A verifier ran the acceptance table against the merged head: 28 of
   29 rows matched and `ls | ` was partial, which the fix above closes. On the final head
-  every project builds without warnings, 1302 tests pass (758 in Core.Tests), the four
+  every project builds without warnings, the 1302 tests of the four suites `conformance.md`
+  counts pass (758 in Core.Tests), and so do the smaller suites; the four
   example programs give their golden results, and the browser check passes at 390 by
   844 with Phase 8's chips, detail line, Tab, mid-line completion and tap. The payload
   is 9 MB as published.
