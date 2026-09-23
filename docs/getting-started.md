@@ -81,17 +81,20 @@ CommandLineReimagined                    wasm      <- runtime status
 | A terminal running in this tab...          |     <- scrollback
 |                                            |
 +--------------------------------------------+
-  identifier - notes.txt                          <- token inspector
+  where · Keep the rows a predicate is true for   <- detail line
   /                                               <- working directory, with `up` below the root
 +------------------------------------+ +-----+
-| type a command...                  | | Run |    <- input and Run/Stop
+| wh                                 | | Run |    <- input and Run/Stop
 +------------------------------------+ +-----+
+  [where]                                        <- completions, while you type
   [help] [ls] [where] [sort] [select] [count]    <- suggestions
 ```
 
 The scrollback keeps every command with its output. The line above the input shows the
-current directory. The row below the input holds tappable suggestions, and while you
-type it is joined by a row of completions.
+current directory. The rows below the input hold the completions for the word you are
+typing, and tappable suggestions. The small line at the top says what the selected
+completion is, which parameter of a command you are writing, or what a word you tapped
+in the scrollback is. [The web terminal](web-terminal.md#completions) covers all three.
 
 ## Your first commands
 
@@ -201,7 +204,26 @@ greeting  hello
 ```
 
 `$files` holds the table itself, not a printed copy of it, which is why `vars` says how
-many rows it has instead of drawing it again. `echo $files | count` answers 5.
+many rows it has instead of drawing it again. A variable is a value you can look at by
+typing its name, and pipe on like any other result:
+
+```
+$ $files | count
+5
+$ $greeting
+hello
+```
+
+To see your variables without running anything, type `$`. The completion row offers
+every one you have bound, each with a line saying what it holds, and the detail line
+above the location shows the selected one's:
+
+```
+$files · table · 5 rows · name, kind, folder…
+$greeting · text · "hello"
+```
+
+Tap one to put it in the line, or press Tab to step through them.
 
 ## Run something slow and stop it
 
@@ -231,6 +253,20 @@ $ help | where $row.name eq write
 name   parameters     description
 write  <path> <text>  Write text to a file, replacing its contents
 ```
+
+`help` with a command's name says what it does and what each parameter is for, and
+which one a pipe fills:
+
+```
+$ help write
+Write text to a file, replacing its contents
+name  required  piped  takes    description
+path  true      false  a path   The file to write
+text  true      true   a value  What to write
+```
+
+While you type an argument, the detail line shows the same thing in one line, with the
+parameter you are writing in bold: `write <path> <text> · The file to write`.
 
 Type `clear` to empty the screen. `clear` is not a command: the page handles it itself
 and it changes nothing but the scrollback. See
