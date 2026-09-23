@@ -79,7 +79,7 @@ const SCRIPT = [
   { line: 'set v 2', expect: ['2'] },
   { line: 'undo', hides: 'set v 2' },
   { line: 'undo', hides: 'set v 1' },
-  { line: 'echo $v', fault: 'notfound', expect: ['Unknown variable : $v'] },
+  { line: 'echo $v', fault: 'notfound', expect: ['Unknown variable: $v'] },
 
   { line: 'progress 3 1', expect: ['100'] },
 
