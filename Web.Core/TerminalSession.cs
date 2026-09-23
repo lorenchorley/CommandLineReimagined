@@ -224,15 +224,112 @@ public sealed class TerminalSession
                     Describe(pair.Item2)))
                 .ToList();
 
+    /// <summary>What each label the parser expects reads as, in the order a list names them.</summary>
+    /// <remarks>
+    /// Phase 8. The parser names what could have come next by grammar labels:
+    /// <c>identifier</c>, <c>&lt;$</c>, <c>{</c>. Those describe the grammar rather than
+    /// the line, and this is the one place they become words. Several labels read the
+    /// same (the three quotes are one quoted string), and a list names each phrase once.
+    /// A null phrase is left out: <c>/</c> is only ever expected because a word could go
+    /// on, which says nothing. A label that is not here is quoted as written, which is
+    /// right for a keyword a person types and never shows a rule's name.
+    /// </remarks>
+    private static readonly (string Label, string? Phrase)[] ExpectedPhrases =
+    {
+        ("identifier", "a command name"),
+        ("argument", "an argument"),
+        ("$", "a variable"),
+        ("variable name", "a variable name"),
+        ("-", "a flag"),
+        ("\"", "a quoted string"),
+        ("\"\"", "a quoted string"),
+        ("\"\"\"", "a quoted string"),
+        ("(", "a parenthesised pipeline"),
+        ("<", "a tag"),
+        ("<$", "a tag"),
+        ("{", "a component"),
+        ("tag type", "a tag type"),
+        ("attribute name", "an attribute name"),
+        ("property name", "a property name"),
+        ("column name", "a column name"),
+        ("not", "'not'"),
+        ("eq", "an operator"),
+        ("ne", "an operator"),
+        ("gt", "an operator"),
+        ("ge", "an operator"),
+        ("lt", "an operator"),
+        ("le", "an operator"),
+        ("like", "an operator"),
+        ("has", "an operator"),
+        ("and", "an operator"),
+        ("or", "an operator"),
+        ("try", "'try'"),
+        ("??", "'??'"),
+        ("else", "'else'"),
+        ("|", "a pipe"),
+        (",", "a comma"),
+        (")", "a closing parenthesis"),
+        ("]", "a closing bracket"),
+        ("/>", "the end of the tag"),
+        (">", "the end of the tag"),
+        ("/}", "the end of the component"),
+        ("}", "the end of the component"),
+        ("</", "a closing tag"),
+        ("{/", "a closing tag"),
+        ("[/", "a closing tag"),
+        ("/", null),
+        ("end of input", "the end of the line"),
+    };
+
+    /// <summary>What the parser expected, as one list of phrases: <c>a tag or a component</c>.</summary>
+    /// <remarks>
+    /// In the table's order rather than the parser's, so the same error always reads
+    /// the same way. Each phrase appears once, and the last two are joined with "or".
+    /// </remarks>
+    public static string DescribeExpected(IEnumerable<string> labels)
+    {
+        var written = new HashSet<string>(labels, StringComparer.Ordinal);
+        var phrases = new List<string>();
+
+        void Add(string? phrase)
+        {
+            if (phrase is not null && !phrases.Contains(phrase))
+            {
+                phrases.Add(phrase);
+            }
+        }
+
+        foreach (var (label, phrase) in ExpectedPhrases)
+        {
+            if (written.Remove(label))
+            {
+                Add(phrase);
+            }
+        }
+
+        foreach (var label in written.OrderBy(label => label, StringComparer.Ordinal))
+        {
+            Add($"'{label}'");
+        }
+
+        return phrases.Count switch
+        {
+            0 => string.Empty,
+            1 => phrases[0],
+            _ => $"{string.Join(", ", phrases.Take(phrases.Count - 1))} or {phrases[^1]}",
+        };
+    }
+
     /// <summary>
     /// Turns a parse failure into a sentence.
     /// </summary>
     /// <remarks>
     /// A mismatched closing tag arrives as a message rather than a position, and the
     /// old formatting rendered it as "error error at column 0", dropping the one part
-    /// that said what was wrong.
+    /// that said what was wrong. What was expected is said in words
+    /// (<see cref="DescribeExpected"/>), never in the grammar's labels.
     /// </remarks>
-    private static string Describe(ParseErrorInfo error)
+    public static string Describe(ParseErrorInfo error)
     {
         // A rule that knew why the input was wrong said so, and that sentence beats any
         // list of what could have appeared there. The column still comes with it,
@@ -252,9 +349,11 @@ public sealed class TerminalSession
         string kind = error.Kind == "lexical" ? "Lexical" : "Syntax";
         string where = $"{kind} error at column {error.Column}";
 
-        return error.Expected.Count == 0
+        string expected = DescribeExpected(error.Expected);
+
+        return expected.Length == 0
             ? where + "."
-            : $"{where}: expected {string.Join(", ", error.Expected)}.";
+            : $"{where}: expected {expected}.";
     }
 
     // An F# option is a reference whose None is null, so the null-conditional reads

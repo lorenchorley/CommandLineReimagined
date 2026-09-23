@@ -178,18 +178,40 @@ let private constant: P<Constant> =
 
 // ----------------------------------------------------------------- Names
 
-let private variableName: P<VariableName> = identifierText |>> fun n -> VariableName(Name = n)
-let private objectType: P<ObjectType> = identifierText |>> fun n -> ObjectType(Value = n)
-let private componentType: P<ComponentType> = identifierText |>> fun n -> ComponentType(Value = n)
-let private propertyName: P<ProperyName> = identifierText |>> fun n -> ProperyName(Name = n)
-let private attributeName: P<TagAttributeName> = identifierText |>> fun n -> TagAttributeName(Name = n)
+// Each name is labelled for what it names. A syntax error lists what could have come
+// next, and "identifier" after `$` or inside a tag says nothing a person can use; the
+// page turns these labels into phrases (Phase 8), and it can only do that if the label
+// says which name it was.
+let private variableName: P<VariableName> =
+    identifierText <?> "variable name" |>> fun n -> VariableName(Name = n)
 
-/// <MemberName> ::= '.' <Identifier>, carrying its own dot so the tokeniser sees
-/// `.size` as one thing. Attempted, so a `$v` with a full stop after it that is not a
-/// member — the end of a sentence in a quoted string is not one, but a stray dot could
-/// be — leaves the dot where it was.
+let private objectType: P<ObjectType> = identifierText <?> "tag type" |>> fun n -> ObjectType(Value = n)
+
+let private componentType: P<ComponentType> =
+    identifierText <?> "tag type" |>> fun n -> ComponentType(Value = n)
+
+let private propertyName: P<ProperyName> =
+    identifierText <?> "property name" |>> fun n -> ProperyName(Name = n)
+
+let private attributeName: P<TagAttributeName> =
+    identifierText <?> "attribute name" |>> fun n -> TagAttributeName(Name = n)
+
+/// The explanation for a stop with no name after it.
+let memberMissingExplanation = "a column name belongs after the stop, as in $row.kind"
+
+/// <summary><MemberName> ::= '.' <Identifier>, carrying its own dot so the tokeniser
+/// sees `.size` as one thing.</summary>
+/// <remarks>
+/// Decision 0032: a stop after a variable must be followed by a name. It used to be
+/// attempted, so `ls | where $row.` left the stop behind as a second argument, a path
+/// called `.`, and the line failed at run time with `'where' needs a table, not text`.
+/// Now the stop commits, and a stop with no name after it is a syntax error that says
+/// what belongs there. Fatal, so the explanation is not lost to whatever else could
+/// have followed the variable.
+/// </remarks>
 let private memberName: P<MemberName> =
-    attempt (pchar '.' >>. identifierText) |>> fun name -> MemberName(Name = name)
+    pchar '.' >>. ((identifierText <?> "column name") <|> failFatally memberMissingExplanation)
+    |>> fun name -> MemberName(Name = name)
 
 /// <VariableReference> ::= '$' <VariableName> ( '.' <Identifier> )*
 ///
@@ -213,7 +235,7 @@ let private value, valueRef = createParserForwardedToRef<Value, unit> ()
 let private simpleValue: P<SimpleValue> =
     choice [ constant |>> fun c -> c :> SimpleValue
              variableReference |>> fun v -> v :> SimpleValue
-             identifierText |>> fun n -> Identifier(Name = n) :> SimpleValue ]
+             identifierText <?> "argument" |>> fun n -> Identifier(Name = n) :> SimpleValue ]
 
 /// A value where a bare word is allowed: the same as <SimpleValue>, with the identifier
 /// widened to a word. Reads back as an Identifier so the tree and the tokeniser are
@@ -429,8 +451,41 @@ let private operand: P<Value> =
           argumentValue ]
     .>> ws
 
+/// <summary>An example of what a comparison operator can be given.</summary>
+/// <remarks>
+/// Only for the explanation below, so a number where the operator orders and a glob
+/// where it matches one, and a word everywhere else.
+/// </remarks>
+let private exampleFor (op: string) =
+    match op with
+    | "gt" | "ge" | "lt" | "le" -> "10"
+    | "like" -> "\"*.txt\""
+    | _ -> "folder"
+
+/// <summary>The right side of a comparison, which has to be there.</summary>
+/// <remarks>
+/// Phase 8: `ls | where $row.kind eq` used to fail with a list of every symbol that
+/// can start a value. What was missing is one thing, and the operator knows what it
+/// is, so the error says it: `eq needs a value to compare with, such as folder`. Only
+/// when nothing that could be an operand was started: an operand that began and went
+/// wrong, such as an unclosed quote or a reserved word, keeps its own error.
+/// </remarks>
+let private rightOperand (op: OperatorWord) : P<Value> =
+    fun stream ->
+        let before = stream.StateTag
+        let reply = operand stream
+
+        // A quote that never closes also fails without moving, and that is the
+        // string's error, not a missing value.
+        if reply.Status = Error && stream.StateTag = before && stream.Peek() <> '"' then
+            Reply(
+                FatalError,
+                messageError (sprintf "%s needs a value to compare with, such as %s" op.Name (exampleFor op.Name)))
+        else
+            reply
+
 let private comparison: P<Value> =
-    operand .>>. opt (comparisonOperator .>>. operand)
+    operand .>>. opt (comparisonOperator >>= fun op -> rightOperand op |>> fun right -> (op, right))
     |>> function
         | left, None -> left
         | left, Some(op, right) ->
@@ -465,7 +520,9 @@ let private argumentExpression: P<Value> = orExpression
 let private functionArgument: P<CommandArgument> =
     choice
         [ // <OptionalArgument> ::= <ID> ':' <Value>
-          attempt (identifierText .>> ws .>> pchar ':' .>> ws) .>>. argumentExpression
+          // Labelled as an argument: it is one, and "identifier" would read as a
+          // command name.
+          attempt ((identifierText <?> "argument") .>> ws .>> pchar ':' .>> ws) .>>. argumentExpression
           |>> fun (name, v) ->
                 OptionalCommandArgument(Name = OneOf.OneOf<CommandArgumentFlag, Identifier>.op_Implicit (Identifier(Name = name)), Value = v)
                 :> CommandArgument
@@ -507,7 +564,8 @@ let private functionExpression: P<FunctionExpression> =
 /// The no-space rule is what keeps `echo a = b` three ordinary words, so neither side
 /// may be padded and `ws` is deliberately absent between the three parts.
 let private assignmentArgument: P<CommandArgument> =
-    attempt (identifierText .>> pchar '=') .>>. argumentValue
+    // Labelled as an argument, which is what it is to the person writing it.
+    attempt ((identifierText <?> "argument") .>> pchar '=') .>>. argumentValue
     |>> fun (name, v) ->
             AssignmentArgument(Name = Identifier(Name = name), Value = v) :> CommandArgument
 
