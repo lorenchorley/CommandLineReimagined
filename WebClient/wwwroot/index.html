@@ -691,13 +691,13 @@ function errorBehind(error, text, caret) {
   return { column: start, end, sentence: errorSentence(error) };
 }
 
-/// The sentence a failed line shows for the same error, worded the way
-/// `TerminalSession.Describe(ParseErrorInfo)` words it, so that what the detail line
-/// says while typing is what running the line would say.
+/// The sentence a failed line shows for the same error. The core words it and sends
+/// it with the parse, so what the detail line says while typing is what running the
+/// line would say; the fallback is only for a response without one.
 function errorSentence(error) {
+  if (error.sentence) return error.sentence;
   if (error.explanation) return `Column ${error.column}: ${error.explanation}`;
-  const where = `${error.kind === 'lexical' ? 'Lexical' : 'Syntax'} error at column ${error.column}`;
-  return error.expected && error.expected.length ? `${where}: expected ${error.expected.join(', ')}.` : where + '.';
+  return `${error.kind === 'lexical' ? 'Lexical' : 'Syntax'} error at column ${error.column}.`;
 }
 
 // ---- completion -----------------------------------------------------------

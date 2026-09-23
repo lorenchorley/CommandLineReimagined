@@ -19,7 +19,16 @@ public sealed record ParseResponse(
 /// for; it is null when the parser only knew what could have appeared there.
 /// </remarks>
 public sealed record ParseErrorInfo(
-    string Kind, int Line, int Column, IReadOnlyList<string> Expected, string? Explanation = null);
+    string Kind, int Line, int Column, IReadOnlyList<string> Expected, string? Explanation = null)
+{
+    /// <summary>The sentence running the line would show, worded by <see cref="TerminalSession.Describe(ParseErrorInfo)"/>.</summary>
+    /// <remarks>
+    /// Carried with the parse so the page's detail line says, while the line is being
+    /// typed, exactly what running it would say, rather than keeping a second copy of
+    /// the wording in JavaScript.
+    /// </remarks>
+    public string? Sentence { get; init; }
+}
 
 /// <summary>
 /// Wraps the GOLD-engine interpreter for the web host.
@@ -54,7 +63,13 @@ public sealed class CommandParseService
 
                     return new ParseResponse("tokens", source, tokeniser.Tokens, serialiser.GetResult(), null);
                 },
-                error => new ParseResponse("tokens", source, Array.Empty<SemanticToken>(), null, Describe(error)));
+                error =>
+                {
+                    var info = Describe(error);
+                    return new ParseResponse(
+                        "tokens", source, Array.Empty<SemanticToken>(), null,
+                        info with { Sentence = TerminalSession.Describe(info) });
+                });
         }
     }
 

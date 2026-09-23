@@ -209,4 +209,18 @@ public class ParseWordingTests
             Assert.IsTrue(Phrases.Contains(phrase), $"'{line}' named '{phrase}': {error}");
         }
     }
+
+    /// <summary>The parse carries the sentence running the line would show.</summary>
+    /// <remarks>
+    /// So the page's detail line, while typing, says what running the line would say,
+    /// rather than keeping its own copy of the wording.
+    /// </remarks>
+    [TestMethod]
+    public void AParseCarriesTheSentenceRunningTheLineWouldShow()
+    {
+        var error = new CommandParseService().Parse("ls | where $row.").Error!;
+
+        Assert.AreEqual(TerminalSession.Describe(error), error.Sentence);
+        StringAssert.Contains(error.Sentence, "a column name belongs after the stop");
+    }
 }

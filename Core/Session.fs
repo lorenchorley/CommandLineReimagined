@@ -533,8 +533,12 @@ type Session(log: ILog, options: SessionOptions, seed: Seed) =
         (Async.RunSynchronously(this.Complete(text, text.Length))).Items
 
     /// What the token at an offset is, for the page's hover (Phase 8).
+    /// A tap is not a keystroke, so it has its own token rather than cancelling the
+    /// completion still being worked out for the line.
     member this.Describe(text: string, offset: int) : Async<Hover option> =
-        Hover.describe (this.CompletionRequest(text, offset))
+        let text = if isNull text then "" else text
+        let cancel = CancellationToken.None
+        Hover.describe (Completion.request evaluator.Specs (this.Shapes cancel) text offset cancel)
 
     /// The variables in scope, ordered by name.
     member _.Variables() = store.Current.Variables |> Map.toList
