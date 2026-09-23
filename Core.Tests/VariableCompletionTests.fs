@@ -179,20 +179,21 @@ type VariableCompletionTests() =
         Assert.AreEqual<string>("text · \"NotFound\"", detailOf harness "$problem." "$problem.kind")
         Assert.AreEqual<string list>([ "$problem.kind" ], texts harness "echo $problem.ki")
 
-    /// A table's members are its columns, each with its type.
+    /// A table has no members to offer: a column is read off a row, and `$files.name`
+    /// answers nothing, so offering it offered nothing real. `$row.` inside a predicate
+    /// still offers the table's columns, from what flows into the stage.
     [<TestMethod>]
-    member _.ATablesMembersAreItsColumns() =
+    member _.ATableOffersNoMembers() =
         let harness = accepted ()
-        let offered = details harness "$files."
 
-        Assert.AreEqual<string list>(
-            [ "$files.name"; "$files.kind"; "$files.folder"; "$files.size"; "$files.modified" ],
-            offered |> List.map fst |> List.truncate 5
-        )
+        for line in [ "$files."; "echo $files."; "$files.na" ] do
+            Assert.AreEqual<int>(0, (texts harness line).Length, line)
 
-        Assert.AreEqual<string>("file", detailOf harness "$files." "$files.name")
-        Assert.AreEqual<string>("text", detailOf harness "$files." "$files.kind")
-        Assert.AreEqual<string>("number", detailOf harness "$files." "$files.size")
+        Assert.AreEqual<string>("", harness.Text "echo $files.name")
+
+        CollectionAssert.IsSubsetOf(
+            [| "$row.name"; "$row.kind"; "$row.size" |],
+            texts harness "$files | where $row." |> Array.ofList)
 
     /// A tag's members are its attributes, in the order they were written, with what
     /// each holds; a path is followed the way the evaluator reads members.

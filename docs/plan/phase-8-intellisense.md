@@ -739,10 +739,11 @@ Every checkpoint and stream, with these differences and findings.
   - `ls | select name, size | where $row.` offers the listing's columns: the comma form
     does not parse, so completion falls back. Without the comma it offers `name` and
     `size`.
-- **Open, for the owner:** `$files.` offers the table's columns, as stream C's section
-  asks, but `$files.name` evaluates to nothing. Either a member of a table should read
-  something (a column's values, a change to the language) or completion should stop
-  offering it.
+- **Answered by the owner at the end:** `$files.` offered the table's columns, as
+  stream C's section asked, but `$files.name` evaluates to nothing, because a column is
+  read off a row. The owner chose not to give a table's member a meaning, so completion
+  no longer offers members for a table; `$files | where $row.` still offers its
+  columns. Nothing is left open.
 - **Verification.** A verifier ran the acceptance table against the merged head: 28 of
   29 rows matched and `ls | ` was partial, which the fix above closes. On the final head
   every project builds without warnings, the 1302 tests of the four suites `conformance.md`

@@ -89,7 +89,7 @@ column's type or a value's count comes with the chip but is not on the screen. S
 | A command name written another way, once three letters are typed | A command found by what it does, or one a slip away | `delete`: `rm · rm · matches "delete"`; `lss`: `ls` |
 | After `$` | The variables in name order, each saying what it holds | `$`: `$files · table · 4 rows · name, kind, folder…`, `$problem · fault · NotFound · File does not exist : /missing.txt`, `$v · number · 5` |
 | After `$` inside a predicate | `$row` first, then the variables | `ls \| where $`: `$row · the row being tested`, then `$files`, `$problem`, `$v` |
-| After `$name.` | The members of what the variable holds: a table's columns with their types, a tag's or a file's attributes, a fault's `kind`, `message`, `stage` and `path`; nothing for a number, a text or a boolean | `$problem.`: `$problem.kind · text · "NotFound"`, `$problem.message`, `$problem.stage · number · 1`, `$problem.path`; `$v.`: nothing |
+| After `$name.` | The members of what the variable holds: a tag's or a file's attributes, a fault's `kind`, `message`, `stage` and `path`; nothing for a number, a text, a boolean or a table | `$problem.`: `$problem.kind · text · "NotFound"`, `$problem.message`, `$problem.stage · number · 1`, `$problem.path`; `$v.`: nothing |
 | After `$row.` | The columns of what flows into the stage, with their types | `ls \| where $row.`: `$row.name · file`, `$row.kind · text`, `$row.folder`, `$row.size · number`, `$row.modified`; `ls \| select name \| where $row.`: `$row.name` only |
 | An argument that takes a column | The columns of what flows in, with their types; for `select`, the ones not yet written | `ls \| sort `: `name · file`, `kind · text`, `folder · text`, `size · number`, `modified · text` |
 | A switch | Its two words | `ls \| sort name `: `desc · Write 'desc' to order downwards`, `asc` |
@@ -112,9 +112,10 @@ An empty line offers nothing, because the suggestion row already covers that cas
 `$row` is offered only inside a predicate, because it exists nowhere else, so `echo $`
 does not offer it.
 
-A table offers its columns after `$files.`, but reading one off the table itself, as
-in `echo $files.name`, answers nothing: a column is read off one row, which is what
-`$row.` inside a predicate is for.
+A table offers nothing after `$files.`. Reading a column off the table itself, as in
+`echo $files.name`, answers nothing, because a column is read off one row, which is
+what `$row.` inside a predicate is for: `$files | where $row.` offers the table's
+columns.
 
 ### What a value is, in one line
 

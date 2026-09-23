@@ -51,17 +51,20 @@ module VariableCompletion =
 
     /// <summary>The members a value has, each with a line about it.</summary>
     /// <remarks>
-    /// A table's are its columns, with their types; a tag's its attributes, a file's
-    /// what `Expr.readMember` reads off one, and a fault's what decision 0014 lets a
-    /// script ask of it, each with the summary of what it holds. A number, a text or a
-    /// boolean has none, and offering a listing's columns for one was finding 5.
+    /// A tag's are its attributes, a file's what `Expr.readMember` reads off one, and a
+    /// fault's what decision 0014 lets a script ask of it, each with the summary of what
+    /// it holds. A number, a text or a boolean has none, and offering a listing's
+    /// columns for one was finding 5. Nor does a table: `Expr.readMember` reads nothing
+    /// off one, since a column is read off a row, so offering `$files.name` offered a
+    /// member that answers nothing. The owner chose on 2026-09-23 to stop offering
+    /// them rather than make a table's member mean something. `$row.` is unaffected:
+    /// a row is a tag, and its columns come from what flows into the stage.
     /// </remarks>
     let private membersOf (value: Value) : (string * string) list =
         let read names =
             names |> List.map (fun name -> name, Summary.ofValue (Expr.readMember name value))
 
         match value with
-        | Value.Table table -> table.Columns |> List.map (fun column -> column.Name, Summary.columnType column.Type)
         | Value.Object tag
         | Value.Component tag -> Value.orderedAttributes tag |> List.map (fun (name, v) -> name, Summary.ofValue v)
         | Value.File _ -> read [ "name"; "kind"; "folder"; "path"; "id" ]
