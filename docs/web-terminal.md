@@ -360,7 +360,9 @@ parse is echoed as plain text, with nothing to tap.
 ## The filesystem in the tab
 
 The root is `/`, seeded on first use with `documents/notes.txt`, `examples/` holding
-the four example programs, `projects/` and `readme.txt`. It is not a disk and not
+the four example programs, `guide/` holding one file per idea, `projects/` and
+`readme.txt`, which points to the guide. A log begun before the guide existed is given
+it once, on its next load ([decision 0036](decisions/0036-the-guide-is-in-the-filesystem.md)). It is not a disk and not
 Emscripten's filesystem: it is a projection folded from the log, so `mkdir`, `cp` and
 `write` describe changes and the store applies them, and `cd ..` at the root stays at
 the root. Files are attribute records rather than entries in a tree, and a query over

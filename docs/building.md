@@ -113,7 +113,7 @@ the runtime files keep stable names. With fingerprinting on, every publish write
 fresh set of hashed names and a host that keeps what it is not told to replace ends up
 storing the runtime several times over.
 
-The payload after this is 9.9 MB across 72 files, which is how the CI guard measures it.
+The payload after this is 10.1 MB across 72 files, which is how the CI guard measures it.
 
 ## Re-run the documentation's transcripts
 
