@@ -197,6 +197,33 @@ module Fault =
     let takesNoExpression command parameter =
         create Binding (sprintf "'%s' takes a value for '%s', not an expression." command parameter)
 
+    /// <summary>A predicate that never reads `$row` (decision 0033).</summary>
+    /// <remarks>
+    /// It is the same for every row, so it keeps all of them or none, and the empty
+    /// table it usually answers looks like a real answer. `suggestion` is the predicate
+    /// with the bare words it compared read as columns, when there were any.
+    /// </remarks>
+    let neverReadsTheRow (text: string) (suggestion: string option) =
+        let hint =
+            match suggestion with
+            | Some suggested -> sprintf " Did you mean %s?" suggested
+            | None -> ""
+
+        create Binding (sprintf "%s never reads $row, so it is the same for every row.%s" text hint)
+
+    /// <summary>A predicate whose value for a row is not true or false (decision 0033).</summary>
+    /// <remarks>
+    /// `kind` is the value's kind and `shown` what it displays as, both for the row it
+    /// was first seen on. `fix` is the line to write instead, when there is one.
+    /// </remarks>
+    let notTrueOrFalse (text: string) (kind: string) (shown: string) (fix: string option) =
+        let hint =
+            match fix with
+            | Some fix -> " " + fix
+            | None -> ""
+
+        create Invalid (sprintf "%s is %s (%s), not true or false.%s" text kind shown hint)
+
     // ---------------------------------------------------------------- Table errors
 
     /// Decision 0009: a tag that is not table-shaped names the child that broke the

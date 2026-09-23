@@ -54,7 +54,7 @@ let where =
                 // a variable of that name outside it is left alone (decision 0008).
                 let keep (row: Value list) =
                     let scope = invocation.Scope.Push().Bind "row" (Table.row table row)
-                    Expr.evaluate scope expr |> Outcome.map Expr.isTrue
+                    Expr.test scope expr
 
                 table.Rows
                 |> Outcome.traverse (fun row -> keep row |> Outcome.map (fun kept -> row, kept))
