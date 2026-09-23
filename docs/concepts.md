@@ -53,12 +53,15 @@ against each other in tests.
 
 Parsing produces a **semantic tree**: nodes such as `PipedCommandList`,
 `CommandExpressionCli`, `ObjectInstance`, `StringConstant` and `VariableReference`. A
-failed parse produces a syntax error with a column and the list of symbols the parser
-could have accepted there, which is what the message quotes:
+failed parse produces a syntax error with a column and what the parser could have
+accepted there. The web adapter says that in words rather than in the grammar's
+symbols, and where a rule knows why the input is wrong, it says that instead:
 
 ```
 $ <thing
-Syntax error at column 6: expected identifier, />, >.
+Syntax error at column 6: expected an attribute name or the end of the tag.
+$ ls | where $row.
+Column 16: a column name belongs after the stop, as in $row.kind
 ```
 
 A line that does not parse never reaches the other four stages, so it runs nothing and
@@ -68,11 +71,21 @@ Two visitors walk the tree:
 
 - **The tokeniser** produces a flat list of `(text, kind)` pairs, where kind is a role
   such as command, flag, string, variable, identifier, type, attribute, operator,
-  keyword or punctuation. That list is what the page colours, and what the token
-  inspector reads when you tap a word.
+  keyword or punctuation. That list is what the page colours, and what it falls back
+  on to name a word you tap when there is nothing more to say about it.
 - **The serialiser** turns the tree back into text. Both web front ends run it on every
   parse alongside the tokeniser, so a parse that lost information would show up as text
   that differs from what you typed.
+
+Completion reads the line with the same parser
+([decision 0031](decisions/0031-completion-reads-the-line.md)). The session replaces
+the word being typed with a placeholder, closes whatever the line left open, a quote,
+a parenthesis or a tag, and parses the result. Where the placeholder sits in the tree
+says what the word is: a command's name, one of its parameters, a member of a
+variable, a part of a predicate. To learn what flows into the stage, it runs the stages
+before it the way a live listing re-runs a line, read-only and committing nothing.
+[The web terminal](web-terminal.md#what-each-place-offers) shows what each place
+offers. Tapping a word is answered the same way.
 
 This is the project's central claim in practice: the command line is not a string, so
 every run of characters on screen knows what it is.
@@ -316,7 +329,7 @@ $ undo
 Undone: set v 1
 
 $ echo $v
-Unknown variable : $v
+Unknown variable: $v
 ```
 
 Variables live in a scope, which can nest and shadow. The terminal uses one global
