@@ -66,10 +66,12 @@ The first chip is selected, and the [detail line](#the-detail-line) says what it
 Twelve chips show at most; past that, a `+N` chip opens the rest into the same row.
 Chips are 44 pixels tall, a finger's width. Tapping one, or Tab, replaces the word under
 the caret from its start to its end, so a word in the middle of the line is completed
-and the rest of the line stays. The caret lands after what was put in, followed by a
-space unless one is already there. A directory completes to its name and a `/` with no space, so the next
-completion goes on into it. A name that is not a bare word, such as one with a space in
-it, is completed in quotes, and so is any name once you have typed the opening quote.
+and the rest of the line stays: with the caret after `re` in `cat re documents`, the
+chip is `readme.txt`, and taking it leaves ` documents` where it was. The caret lands after what was put in, followed by a
+space unless one is already there. A directory completes to its name and a `/` with no
+space, so the next completion goes on into it. A name that is not a bare word, such as
+one with a space in it, is completed in quotes, and so is any name once you have typed
+the opening quote.
 
 ### What each place offers
 
@@ -100,7 +102,7 @@ column's type or a value's count comes with the chip but is not on the screen. S
 | After `attr <file> ` | That record's attributes as `name=`, each with its value | `attr readme.txt `: `name= · text · "readme.txt"`, `kind= · text · "text"` |
 | Where a predicate's operand starts | `$row.`, `not` and `(` | `ls \| where `: `$row. · a column of the row being tested`, `not · true where what follows is false`, `( · a group, or a pipeline to compare with` |
 | After an operand | The eight comparisons | `ls \| where $row.kind `: `eq`, `ne`, `gt`, `ge`, `lt`, `le`, `like`, `has` |
-| After a comparison | The values the column holds in what flows in, most frequent first, at most twelve; after `like`, each with a `*` | `ls \| where $row.kind eq `: `folder · 3 rows`, `text · 1 row`; `ls \| where $row.name like `: `documents*`, `examples*`, `projects*`, `readme.txt*` |
+| After a comparison | The values the column holds in what flows in, most frequent first, at most twelve; after `like`, each with a `*`. Nothing for `cd`, `find` and `save-view`, which have no stage before them to read values from | `ls \| where $row.kind eq `: `folder · 3 rows`, `text · 1 row`; `ls \| where $row.name like `: `documents*`, `examples*`, `projects*`, `readme.txt*` |
 | After a whole comparison | `and` and `or` | `ls \| where $row.kind eq folder `: `and`, `or` |
 | After `<` | The tag types in use: the kinds of the records, and the types of the tags variables hold | `save <`: `<script · 4 records`, `<text · 2 records` |
 | Inside `<type ` | The attribute names records of that type carry, as `name=`, `name` first, leaving out any already written | after `save <note name=monday mood=good tag=work/>` and `save <note name=tuesday mood=better/>`, `save <note `: `name= · 2 of 2 carry it`, `mood= · 2 of 2 carry it`, `tag= · 1 of 2 carry it` |
@@ -329,8 +331,9 @@ back, not just on results. In the same tab as the examples above:
 | `and` in `$row.kind eq folder and $row.size gt 0` | `and · true when both sides are true` |
 | An argument: `folder` in `ls \| where $row.kind eq folder` | the command's parameters with the one it fills in bold: `where <predicate> [table] · An expression over $row, such as $row.kind eq folder` |
 
-Where there is nothing more to say about a word, such as a `|` or a closing quote, the
-line names its role and repeats its text, as `punctuation — |`. A line that did not
+A quote is answered for the string it belongs to. Where there is nothing more to say
+about a word, such as a `|`, the line names its role and repeats its text, as
+`punctuation — |`. A line that did not
 parse is echoed as plain text, with nothing to tap.
 
 ## The filesystem in the tab
