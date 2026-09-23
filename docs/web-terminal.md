@@ -9,11 +9,11 @@ the page's rather than the language's.
 | --- | --- |
 | Title bar | The project name, and a status that reads `wasm` in green once the runtime has loaded. |
 | Scrollback | Every command you have run, with its live output, errors and results. |
-| Token inspector | One line above the input, naming the role of the word you last tapped. |
+| Detail line | One line above the location line. While you type, it shows the parameters of the command you are writing an argument of, what the selected completion is, or a parse error already behind the word; after a tap, what the tapped word is. See [The detail line](#the-detail-line). |
 | Location line | Where you are: a directory as its path, or a view as the question it is. Undo (↶) and redo (↷) buttons always come before it, and anywhere but the root an `up` button too. |
 | Input | A transparent text field over a coloured mirror of what you type. |
 | Run button | Runs the line. It becomes a red Stop button while a command is running. |
-| Completion row | Appears while you type, offering commands, variables, columns, operators, keywords and paths. |
+| Completion row | Appears below the input while you type, offering what the word under the caret could become: commands, variables, members, columns, values, operators, flags, keywords and paths. |
 | Suggestion row | Fixed examples you can tap to fill the input. |
 
 The page is laid out for a phone first: a 390 by 844 screen fits the scrollback, the
@@ -23,55 +23,119 @@ input and both button rows without horizontal scrolling.
 
 The input is a real text field, so the phone keyboard, autocorrect settings and text
 selection behave normally. The colouring you see is a mirror rendered behind it, updated
-on every keystroke by parsing the line. While a line is half-typed it usually does not
-parse, and the mirror shows plain text rather than complaining.
+on every keystroke by parsing the line.
+
+While a line is half-typed it usually does not parse, and an error at the word you are
+typing is expected, so the mirror shows the line as plain text rather than complaining.
+An error that is already behind the word you are typing will not go away by typing on.
+The mirror underlines it in red, from where the parser stopped to the end of that
+token, and the [detail line](#the-detail-line) gives the sentence running the line
+would show. Typing `ls | where $row. eq folder` underlines `$row.` and says:
+
+```
+Column 16: a column name belongs after the stop, as in $row.kind
+```
 
 | Key | Effect |
 | --- | --- |
 | Enter | Run the line, or stop the one that is running. |
 | Up and Down | Walk back and forward through lines you have run. |
-| Tab | Apply the only completion, or extend to the common prefix of several. |
-| Escape | Stop a running command. |
+| Tab | The first time, apply the only completion, or extend the word to the common prefix of several. Once that does nothing more, step through the chips, putting each one in place in turn. |
+| Shift+Tab | Step back through the chips. |
+| Escape | Put back what was typed before the first Tab. While a command runs, stop it instead. |
 
 History keeps what you actually submitted, including `clear`, for as long as the page is
 open. A line submitted twice in a row is kept once.
 
 ## Completions
 
-As you type, the page asks the session what the last word could become and shows up to
-twelve of the answers as chips above the suggestions. Tapping one, or pressing Tab when
-there is only one, replaces that word and adds a space after it. A directory completes
-to its name and a `/` with no space, so the next completion goes on into it. A name
-that is not a bare word, such as one with a space in it, is completed in quotes.
+As you type, the page asks the session what the word under the caret could become, and
+shows the answers as chips below the input. The session reads the line rather than
+guessing from the last word
+([decision 0031](decisions/0031-completion-reads-the-line.md)). It parses the line
+with the word left out, so it knows which command and which parameter the word belongs
+to, or which part of a predicate it is. Where the answer depends on what flows into the
+stage, such as the columns after `ls | sort `, it runs the stages before it the way a
+[live listing](#live-listings) re-runs a line: only commands that change nothing, with
+nothing committed, nothing in the history and nothing on the screen, and for at most
+150 ms. When it cannot, because a stage could change something or the time ran out, it
+answers with what a listing of the current folder would have. An answer to an older
+keystroke is dropped once a newer one has been asked.
 
-| You type | You are offered |
+The first chip is selected, and the [detail line](#the-detail-line) says what it is.
+Twelve chips show at most; past that, a `+N` chip opens the rest into the same row.
+Chips are 44 pixels tall, a finger's width. Tapping one, or Tab, replaces the word under
+the caret from its start to its end, so a word in the middle of the line is completed
+and the rest of the line stays. The caret lands after what was put in, followed by a
+space unless one is already there. A directory completes to its name and a `/` with no space, so the next
+completion goes on into it. A name that is not a bare word, such as one with a space in
+it, is completed in quotes, and so is any name once you have typed the opening quote.
+
+### What each place offers
+
+Every example below is in a fresh tab after `set v 5`, `ls | set files` and
+`try cat missing.txt | set problem`. Each chip is shown with its detail after a `·`.
+The detail line shows the selected chip's detail, except while the caret is in an
+argument or a predicate, where it shows the command's parameters instead: there a
+column's type or a value's count comes with the chip but is not on the screen. See
+[The detail line](#the-detail-line).
+
+| Where the word is | Offered | For example |
+| --- | --- | --- |
+| The first word of a stage: the start of the line, and after `else`, `try` or `(` | Command names, each with its description, and `try` and the page's `clear` | `wh`: `where · Keep the rows a predicate is true for` |
+| Straight after a pipe | Only the commands that take the piped value, and `try` | `ls \| `: `attr`, `cat`, `cd`, `columns`, `count` … `where`, `write`, `try`; not `ls` or `mkdir`, which would ignore it |
+| A command name written another way, once three letters are typed | A command found by what it does, or one a slip away | `delete`: `rm · rm · matches "delete"`; `lss`: `ls` |
+| After `$` | The variables in name order, each saying what it holds | `$`: `$files · table · 4 rows · name, kind, folder…`, `$problem · fault · NotFound · File does not exist : /missing.txt`, `$v · number · 5` |
+| After `$` inside a predicate | `$row` first, then the variables | `ls \| where $`: `$row · the row being tested`, then `$files`, `$problem`, `$v` |
+| After `$name.` | The members of what the variable holds: a table's columns with their types, a tag's or a file's attributes, a fault's `kind`, `message`, `stage` and `path`; nothing for a number, a text or a boolean | `$problem.`: `$problem.kind · text · "NotFound"`, `$problem.message`, `$problem.stage · number · 1`, `$problem.path`; `$v.`: nothing |
+| After `$row.` | The columns of what flows into the stage, with their types | `ls \| where $row.`: `$row.name · file`, `$row.kind · text`, `$row.folder`, `$row.size · number`, `$row.modified`; `ls \| select name \| where $row.`: `$row.name` only |
+| An argument that takes a column | The columns of what flows in, with their types; for `select`, the ones not yet written | `ls \| sort `: `name · file`, `kind · text`, `folder · text`, `size · number`, `modified · text` |
+| A switch | Its two words | `ls \| sort name `: `desc · Write 'desc' to order downwards`, `asc` |
+| After `-` | The command's flags | `ls \| sort name -`: `-desc · Write 'desc' to order downwards` |
+| An argument that takes a path | Files and folders, in the current folder or in the folder typed so far | `cat re`: `readme.txt`; `cat documents/no`: `documents/notes.txt`; `cat "doc`: `"documents/"` |
+| An argument that takes a place | Folders and saved views | `cd doc`: `documents/` |
+| A variable's name, for `set` | The variables, to replace one | `set `: `files`, `problem`, `v`, each with what it holds |
+| A command's name, for `help` | The commands, with their descriptions | `help wh`: `where` |
+| A count, a number, a new name, a URL or text | Nothing, since there is nothing to pick; the detail line says what is wanted | `ls \| take `: no chips, and `take <count> [table] · How many rows to keep` |
+| After `attr <file> ` | That record's attributes as `name=`, each with its value | `attr readme.txt `: `name= · text · "readme.txt"`, `kind= · text · "text"` |
+| Where a predicate's operand starts | `$row.`, `not` and `(` | `ls \| where `: `$row. · a column of the row being tested`, `not · true where what follows is false`, `( · a group, or a pipeline to compare with` |
+| After an operand | The eight comparisons | `ls \| where $row.kind `: `eq`, `ne`, `gt`, `ge`, `lt`, `le`, `like`, `has` |
+| After a comparison | The values the column holds in what flows in, most frequent first, at most twelve; after `like`, each with a `*` | `ls \| where $row.kind eq `: `folder · 3 rows`, `text · 1 row`; `ls \| where $row.name like `: `documents*`, `examples*`, `projects*`, `readme.txt*` |
+| After a whole comparison | `and` and `or` | `ls \| where $row.kind eq folder `: `and`, `or` |
+| After `<` | The tag types in use: the kinds of the records, and the types of the tags variables hold | `save <`: `<script · 4 records`, `<text · 2 records` |
+| Inside `<type ` | The attribute names records of that type carry, as `name=`, `name` first, leaving out any already written | after `save <note name=monday mood=good tag=work/>` and `save <note name=tuesday mood=better/>`, `save <note `: `name= · 2 of 2 carry it`, `mood= · 2 of 2 carry it`, `tag= · 1 of 2 carry it` |
+| Two letters of `else`, where an argument goes | `else` | `cat x el`: `else` |
+
+An empty line offers nothing, because the suggestion row already covers that case.
+`$row` is offered only inside a predicate, because it exists nowhere else, so `echo $`
+does not offer it.
+
+A table offers its columns after `$files.`, but reading one off the table itself, as
+in `echo $files.name`, answers nothing: a column is read off one row, which is what
+`$row.` inside a predicate is for.
+
+### What a value is, in one line
+
+A variable's chip, and a tapped variable, describe its value in one line: the kind
+first, then what it carries. After these lines, run in this order in a fresh tab, `$`
+offers:
+
+| Bound by | Detail |
 | --- | --- |
-| `c` | `cat`, `cd`, `columns`, `count`, `cp`, `clear` |
-| `cat re` | `readme.txt` |
-| `cd doc` | `documents/` |
-| `cat documents/no` | `documents/notes.txt` |
-| `ls \| se` | `select`, `set` |
-| `echo $` | every bound variable, and `$row` |
-| `ls \| where $row.` | the columns a listing here would have |
-| `ls \| where $row.kind e` | `eq` |
-| `tr` | `try` |
-| `cat x else c` | `cat`, `cd`, `columns`, `count`, `cp`, `clear` |
-| `cat x el` | `else` |
+| `set v 5` | `number · 5` |
+| `ls \| set files` | `table · 4 rows · name, kind, folder…` |
+| `try cat missing.txt \| set problem` | `fault · NotFound · File does not exist : /missing.txt` |
+| `set b (is-fault $v)` | `boolean · false` |
+| `set t hello` | `text · "hello"` |
+| `set long "a sentence that runs on for rather more than forty characters"` | `text · "a sentence that runs on for rather more…"` |
+| `write x.txt hi \| set f` | `file · x.txt · text` |
+| `mkdir d \| set d` | `folder · d` |
+| `set tg <note a=1 b=2/>` | `tag · note · 2 attributes` |
+| `cd $row.kind eq folder \| set q` | `query · $row.kind eq folder` |
+| `ls \| rows \| set l` | `list · 6 items` |
 
-The first word of a stage completes to command names: the first word of the line, and
-the first word after a pipe, after `else`, after `try` and after an opening
-parenthesis. `try` is offered there too. `else` is offered where an argument would be,
-once two letters of it are typed.
-A word starting with `$` completes to variables — `$row` among them, although nothing
-bound it: it exists only inside a predicate, and it is the one variable you write
-without having bound it. After a full stop, a word starting with `$` completes to
-column names. Everything else completes to files and directories relative to the
-current one. An empty line offers nothing, because the suggestion row already covers
-that case.
-
-The word operators are offered too, but only where an expression is plainly being
-written — the test is a `$` earlier in the stage. Without it, `cat no` would offer
-`not` beside `notes.txt`.
+`vars` does not use these words yet: it still shows a table as `4 rows` and anything
+else as its text.
 
 ## Results on screen
 
@@ -90,6 +154,8 @@ A result is rendered by kind:
   quotes, so it stays one argument.
 - **Text** becomes a block with a rule down its left side, so `cat` output keeps its
   line breaks.
+- **A variable typed on its own**, such as `$files`, is drawn as whatever it holds,
+  as a table if it holds one ([decision 0032](decisions/0032-a-stage-may-be-a-value.md)).
 - **Errors** are shown in red under the command. A command you stopped shows
   `Stopped.` in amber instead.
 - **A caught fault** is drawn in amber: see [How a failure looks](#how-a-failure-looks).
@@ -216,20 +282,56 @@ It also appears in completions, so typing `cl` offers `clear` alongside real com
 
 `undo` and `help` used to be here too. Both are real commands now — `undo` with `redo`
 and `history`, `help` as a table you can question with
-`help | where $row.name eq set` — so they go through the evaluator like everything else
+`help | where $row.name eq set`, and `help where` for one command's parameters — so
+they go through the evaluator like everything else
 and can be piped. That also means the desktop shell and the browser get the same
 commands, rather than each having its own half of the feature.
 
 What `help` used to say about pipes, tags and variables is in the banner at the top of
 the scrollback, where it is visible before anything has been typed rather than after.
 
+## The detail line
+
+One line above the location line, in small type. It has one job at a time, in this
+order:
+
+1. **While the caret is in an argument or a predicate**, the command's parameters,
+   with the one the word would fill in bold and what it is for after it. Typing `ls | sort ` shows
+   `sort <column> [desc] [table] · The column to order by`, with `<column>` in bold. A
+   required parameter is written `<name>` and an optional one `[name]`. Where there is
+   nothing to pick, as after `ls | take `, this is how you find out what is wanted:
+   `take <count> [table] · How many rows to keep`. After a `-`, before a flag is
+   chosen, nothing is bold and the command's own description follows.
+2. **Otherwise, the selected chip's detail**: `where · Keep the rows a predicate is
+   true for` while typing `wh`, or `$files · table · 4 rows · name, kind, folder…`
+   while typing `$`.
+3. **Otherwise, a parse error already behind the word being typed**, in red: see
+   [Typing](#typing).
+
+Tapping a word in the scrollback takes it over until the next keystroke.
+
 ## Tapping a word
 
 Every word in the scrollback is a span tagged with the role the parser gave it. Tapping
-one highlights it and the inspector line names its role and repeats its text, for
-example `identifier` followed by `notes.txt`. This works on your input as it is echoed
-back, not just on results. A line that did not parse is echoed as plain text, with
-nothing to tap.
+one highlights it, and the detail line says what it is where it stands, read from the
+line it is in the way completion reads it. This works on your input as it is echoed
+back, not just on results. In the same tab as the examples above:
+
+| You tap | The detail line says |
+| --- | --- |
+| A variable: `$files` in `echo $files` | `$files · table · 4 rows · name, kind, folder…` |
+| A command: `where` in `ls \| where $row.kind eq folder` | `where <predicate> [table] · Keep the rows a predicate is true for` |
+| A column: `kind` in `ls \| where $row.kind eq folder` | `$row.kind · column · text` |
+| A member: `kind` in `echo $problem.kind` | `$problem.kind · text · "NotFound"` |
+| `$row` in a predicate | `$row · the row being tested` |
+| An operator: `eq` in `$row.kind eq folder` | `eq · true when $row.kind is equal to folder` |
+| `like` in `$row.name like *.txt` | `like · true when $row.name matches the pattern (* for anything) *.txt` |
+| `and` in `$row.kind eq folder and $row.size gt 0` | `and · true when both sides are true` |
+| An argument: `folder` in `ls \| where $row.kind eq folder` | the command's parameters with the one it fills in bold: `where <predicate> [table] · An expression over $row, such as $row.kind eq folder` |
+
+Where there is nothing more to say about a word, such as a `|` or a closing quote, the
+line names its role and repeats its text, as `punctuation — |`. A line that did not
+parse is echoed as plain text, with nothing to tap.
 
 ## The filesystem in the tab
 
