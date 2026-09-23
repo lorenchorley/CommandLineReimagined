@@ -717,6 +717,14 @@ let tabOrigin = null;    // { text, caret } before the first Tab of a run: what 
 let seen = null;         // { text, caret } the page last asked about or put there itself
 let describeSeq = 0;     // taps are numbered too, so a typed key wins over a slow answer
 
+/// Resolves once the answer to the latest request has been drawn. Waiting on the request
+/// pending when a key was pressed is not enough: a newer one (a caret that moved) makes
+/// its answer stale, it is dropped, and a Tab that ran then would find the old chips.
+async function completionSettled() {
+  let waited;
+  do { waited = completionPending; await waited; } while (waited !== completionPending);
+}
+
 /// How many chips show before the rest fold into a `+N` chip.
 const CHIP_LIMIT = 12;
 
@@ -1073,7 +1081,7 @@ cmd.addEventListener('keydown', e => {
   if (e.key === 'Tab') {
     e.preventDefault();
     const back = e.shiftKey;
-    completionPending.then(() => tab(back));
+    completionSettled().then(() => tab(back));
     return;
   }
 

@@ -757,8 +757,14 @@ async function main() {
     // A folder completes to its name and a slash and stops there, so the next tap can
     // go deeper. The core calls it `folder`; the page once waited for `directory`, and
     // added a space after every folder.
+    //
+    // Completion is asked asynchronously since Phase 8, and Tab waits for the answer to
+    // the last keystroke before it fills, so the line is read once it has changed rather
+    // than straight after the key: read at once, it is still what was typed.
     await page.fill('#cmd', 'cd doc');
     await page.press('#cmd', 'Tab');
+    await page.waitForFunction(
+      () => document.getElementById('cmd').value !== 'cd doc', null, { timeout: 10000 }).catch(() => {});
     const completed = await page.inputValue('#cmd');
 
     if (completed !== 'cd documents/') {
