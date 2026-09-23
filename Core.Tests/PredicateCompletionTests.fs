@@ -27,20 +27,19 @@ type PredicateCompletionTests() =
     /// Until stream F runs the upstream there are no rows, so the values a column holds
     /// are tested by handing the provider a shape that has them.
     /// </remarks>
-    let withRows (harness: Harness) (line: string) (rows: (string * Value) list list) =
+    let withShape (harness: Harness) (line: string) (shape: Shape) =
         let source: ShapeSource =
             { Projection = harness.Projection
               Preview = fun _ _ -> async.Return None
-              Cancel = CancellationToken.None }
+              Cancel = CancellationToken.None
+              Cache = ShapeCache() }
 
         let request = Completion.request harness.Session.Commands source line line.Length CancellationToken.None
-
-        let shape: Shape =
-            { Columns = []
-              Rows = Some(rows |> List.map Map.ofList) }
-
         let request = { request with Shapes = fun _ -> async.Return shape }
         Async.RunSynchronously(Completion.complete request).Items
+
+    let withRows (harness: Harness) (line: string) (rows: (string * Value) list list) =
+        withShape harness line { Columns = []; Rows = Some(rows |> List.map Map.ofList) }
 
     let kinds rows = rows |> List.map (fun (k: Value) -> [ "kind", k ])
 
@@ -130,14 +129,42 @@ type PredicateCompletionTests() =
 
     // -------------------------------------------------------- ComparisonRight
 
-    /// Finding 24, before stream F: with no rows there is nothing to offer, which is
-    /// better than the file names the lexical rules offered.
+    /// <summary>Finding 24, where nothing was run: no rows, no values.</summary>
+    /// <remarks>
+    /// Rather than a guess, or the file names the lexical rules offered. There are no
+    /// rows at the head of a pipeline, where nothing flows in; after a stage that would
+    /// write, which completion never runs (decision 0031); and whenever `Shape` answers
+    /// without them.
+    /// </remarks>
     [<TestMethod>]
     member _.WithoutRowsTheRightHandSideOffersNothing() =
         let harness = seeded ()
 
-        Assert.AreEqual<int>(0, (texts harness "ls | where $row.kind eq ").Length)
-        Assert.AreEqual<int>(0, (texts harness "ls | where $row.kind eq f").Length)
+        Assert.AreEqual<int>(0, (withShape harness "ls | where $row.kind eq " { Columns = []; Rows = None }).Length)
+        Assert.AreEqual<int>(0, (texts harness "where $row.kind eq ").Length)
+        Assert.AreEqual<int>(0, (texts harness "mkdir a | where $row.kind eq ").Length)
+        Assert.AreEqual<int>(0, (texts harness "mkdir a | where $row.kind eq f").Length)
+
+    /// Finding 24, the Acceptance row: the stages before the cursor are run, and their
+    /// rows give the column's values. The seed's root holds three folders and a text.
+    [<TestMethod>]
+    member _.TheRealLineOffersTheColumnsValues() =
+        let harness = seeded ()
+        let offered = complete harness "ls | where $row.kind eq "
+
+        Assert.AreEqual<string list>([ "folder"; "text" ], offered |> List.map (fun c -> c.Text))
+        Assert.IsTrue(offered |> List.forall (fun c -> c.Kind = "value"))
+        Assert.AreEqual<string list>([ "folder" ], texts harness "ls | where $row.kind eq f")
+        Assert.AreEqual<string list>([ "folder*"; "text*" ], texts harness "ls | where $row.kind like ")
+
+    /// A variable standing as the first stage (decision 0032) is read, not run, and its
+    /// rows give the values just the same.
+    [<TestMethod>]
+    member _.AVariablesRowsOfferTheColumnsValues() =
+        let harness = seeded ()
+        harness.Run "ls | set files" |> ignore
+
+        Assert.AreEqual<string list>([ "folder"; "text" ], texts harness "$files | where $row.kind eq ")
 
     /// Finding 24: the column's values, most frequent first.
     [<TestMethod>]
