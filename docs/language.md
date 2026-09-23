@@ -28,17 +28,8 @@ The same command can be written three ways. They produce the same call.
 The name, then arguments separated by spaces.
 
 ```
-$ cat readme.txt
-This is a command line that runs in this browser tab.
-
-The guide folder explains how it works, one idea per file. Start with the first:
-
-  cat guide/1-start.txt
-
-or list them all:
-
-  ls guide
-
+$ cat documents/notes.txt
+Try: ls, cd documents, mkdir scratch, echo "hello"
 ```
 
 A name may be several words joined by hyphens, as `save-view` is. The hyphen has to
@@ -53,17 +44,8 @@ against the name. Use `name: value` to pick a parameter by name.
 ```
 $ write(note.txt, hello)
 note.txt
-$ cat(path: readme.txt)
-This is a command line that runs in this browser tab.
-
-The guide folder explains how it works, one idea per file. Start with the first:
-
-  cat guide/1-start.txt
-
-or list them all:
-
-  ls guide
-
+$ cat(path: documents/notes.txt)
+Try: ls, cd documents, mkdir scratch, echo "hello"
 ```
 
 Function form is the only form that takes `name: value`. In command line form, name an
