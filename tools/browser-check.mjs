@@ -182,6 +182,24 @@ const PHASE_6 = [
  * checkable here is that the log reached IndexedDB at all, that the page waits for the
  * replay before enabling the input, and that a second visit finds the first one's work.
  */
+/**
+ * Phase 8: completion reads the line.
+ *
+ * Run from a fresh store at `/`, so `ls` is the four seeded rows. The first three lines
+ * are the session docs/plan/phase-8-intellisense.md's Acceptance section is written
+ * against; the rest are the lines of it that are run rather than typed. What is typed,
+ * the chips and the detail line, is checked after this, by hand, in main().
+ */
+const PHASE_8 = [
+  { line: 'set v 5', expect: ['5'] },
+  { line: 'ls | set files', expect: ['documents', 'readme.txt'] },
+  { line: 'try cat missing.txt | set problem', caught: 'NotFound' },
+  { line: '$v', expect: ['5'] },
+  { line: '$files | count', expect: ['4'] },
+  // A name that is not a command says which one it is near.
+  { line: 'lss', fault: 'unknowncommand', expect: ['Unknown command : lss. Did you mean ls?'] },
+];
+
 const BEFORE_RELOAD = [
   { line: 'mkdir persisted', expect: ['persisted'] },
   { line: 'write kept.txt remembered', expect: ['kept.txt'] },
@@ -389,6 +407,43 @@ async function submit(page, line) {
       ? await entry.locator('.caught').first().getAttribute('data-fault-kind')
       : null,
   };
+}
+
+/** The chips in the completion row, in order. */
+const chips = page => page.locator('#complete .key:not(.more)').allInnerTexts();
+
+/** The chip Tab puts in place next and whose detail is shown, or null. */
+const selectedChip = page => page.evaluate(() => document.querySelector('#complete .key.sel')?.textContent ?? null);
+
+/**
+ * Types a line with the caret `back` characters before its end, waits until the chip
+ * row offers `wanted`, and returns the row; null if it never did.
+ *
+ * Completion is asked asynchronously from Phase 8, and a slow answer to an earlier
+ * keystroke is dropped, so the row is known to answer this line only when it changes
+ * to what this line offers. The line is emptied first, which empties the row, so a row
+ * left over from the last case cannot be read as this one's. The caret is moved with
+ * the arrow keys, as a person moves it, which is what makes the page ask again there.
+ */
+async function offered(page, line, wanted, back = 0) {
+  await page.fill('#cmd', '');
+  await page.waitForFunction(() => document.querySelectorAll('#complete .key').length === 0, null, { timeout: 10000 });
+  await page.fill('#cmd', line);
+  for (let i = 0; i < back; i++) await page.press('#cmd', 'ArrowLeft');
+
+  const arrived = await page.waitForFunction(
+    wanted => [...document.querySelectorAll('#complete .key:not(.more)')].some(chip => chip.textContent === wanted),
+    wanted, { timeout: 10000 }).then(() => true, () => false);
+
+  return arrived ? chips(page) : null;
+}
+
+/** The detail line's text once it contains `needle`, or as it stands after ten seconds. */
+async function detailSays(page, needle) {
+  await page.waitForFunction(
+    needle => document.getElementById('detail').innerText.replace(/ /g, ' ').includes(needle),
+    needle, { timeout: 10000 }).catch(() => {});
+  return (await page.locator('#detail').innerText()).replace(/ /g, ' ').trim();
 }
 
 /**
@@ -711,6 +766,142 @@ async function main() {
     }
 
     await page.fill('#cmd', '');
+
+    // ---- Phase 8: completion that reads the line ----------------------------
+
+    await submit(page, 'reset');
+    await runScript(page, PHASE_8, note);
+
+    // `$files` alone is a value stage: the table it holds is drawn as a table.
+    await submit(page, '$files');
+    const drawn = page.locator('.entry').last();
+    const drawnHeaders = (await drawn.locator('.grid thead th').allInnerTexts()).join(' ');
+    const drawnRows = await drawn.locator('.grid tbody tr').count();
+
+    if (drawnHeaders !== 'name kind folder size modified' || drawnRows !== 4) {
+      note(`'$files' drew headers ${JSON.stringify(drawnHeaders)} and ${drawnRows} row(s), not the four-row listing`);
+    }
+
+    // What is typed. Completion is asked asynchronously, so each case empties the line
+    // first, which empties the chip row, and then waits for the chip it expects to
+    // arrive, rather than sleeping and hoping the answer came.
+
+    // `$` offers the variables, and the first chip's detail is the detail line's job
+    // when the caret is not in an argument. The detail line is read as `#detail`'s text.
+    const dollar = await offered(page, '$', '$files');
+
+    if (!dollar) {
+      note(`'$' did not offer '$files'. The chips were ${JSON.stringify(await chips(page))}`);
+    } else {
+      if (dollar.includes('$row')) note(`'$' offered '$row' outside a predicate: ${JSON.stringify(dollar)}`);
+
+      // Tab steps to `$files` if it is not the chip already selected.
+      for (let step = 0; step < dollar.length && await selectedChip(page) !== '$files'; step++) {
+        const was = await selectedChip(page);
+        await page.press('#cmd', 'Tab');
+        await page.waitForFunction(
+          was => document.querySelector('#complete .key.sel')?.textContent !== was,
+          was, { timeout: 10000 }).catch(() => {});
+      }
+
+      const detail = await detailSays(page, 'table · 4 rows');
+      if (!detail.includes('$files') || !detail.includes('table · 4 rows')) {
+        note(`with '$files' selected after '$', the detail line read ${JSON.stringify(detail)}`);
+      }
+    }
+
+    // A column is offered where `sort` takes one, and the signature says which it is.
+    const sortable = await offered(page, 'ls | sort ', 'name');
+
+    if (!sortable) {
+      note(`'ls | sort ' did not offer 'name'. The chips were ${JSON.stringify(await chips(page))}`);
+    } else {
+      const active = await detailSays(page, '<column>');
+      const bold = (await page.locator('#detail .param.on').allInnerTexts()).join(' ');
+      if (!active.startsWith('sort') || bold !== '<column>') {
+        note(`after 'ls | sort ' the detail line read ${JSON.stringify(active)}, bold ${JSON.stringify(bold)}`);
+      }
+    }
+
+    // The right of a comparison offers the values the column holds.
+    const kinds = await offered(page, 'ls | where $row.kind eq ', 'folder');
+
+    if (!kinds) {
+      note(`'ls | where $row.kind eq ' did not offer 'folder'. The chips were ${JSON.stringify(await chips(page))}`);
+    }
+
+    // Tab steps through the chips, each put in place in turn; Shift+Tab steps back and
+    // Escape puts back what was typed. With nothing typed of the word there is no
+    // common prefix to fill, so the first Tab already steps.
+    const base = 'ls | where $row.kind eq ';
+
+    if (!kinds || kinds.length < 2) {
+      note(`Tab could not be checked: 'ls | where $row.kind eq ' offered ${JSON.stringify(kinds)}`);
+    } else {
+      const steps = [
+        ['Tab', base + kinds[0], kinds[0]],
+        ['Tab', base + kinds[1], kinds[1]],
+        ['Shift+Tab', base + kinds[0], kinds[0]],
+        ['Escape', base, null],
+      ];
+
+      for (const [key, line, chip] of steps) {
+        await page.press('#cmd', key);
+        const reached = await page.waitForFunction(
+          ({ line, chip }) => document.getElementById('cmd').value === line &&
+            (chip === null || document.querySelector('#complete .key.sel')?.textContent === chip),
+          { line, chip }, { timeout: 10000 }).then(() => true, () => false);
+
+        if (!reached) {
+          note(`${key} in the chips of ${JSON.stringify(base)} made the line ` +
+               `${JSON.stringify(await page.inputValue('#cmd'))} with ${JSON.stringify(await selectedChip(page))} ` +
+               `selected; expected ${JSON.stringify(line)}` + (chip ? ` with '${chip}' selected` : ''));
+          break;
+        }
+      }
+    }
+
+    // Completing mid-line replaces the word at the caret and keeps the rest of the line.
+    const middle = await offered(page, 'cat re documents', 'readme.txt', ' documents'.length);
+
+    if (!middle) {
+      note(`'cat re| documents' did not offer 'readme.txt'. The chips were ${JSON.stringify(await chips(page))}`);
+    } else {
+      await page.locator('#complete .key', { hasText: 'readme.txt' }).first().click();
+      const kept = await page.waitForFunction(
+        () => document.getElementById('cmd').value === 'cat readme.txt documents', null, { timeout: 10000 })
+        .then(() => true, () => false);
+      const caret = await page.evaluate(() => document.getElementById('cmd').selectionStart);
+
+      if (!kept || caret !== 'cat readme.txt'.length) {
+        note(`applying 'readme.txt' in 'cat re| documents' made the line ` +
+             `${JSON.stringify(await page.inputValue('#cmd'))} with the caret at ${caret}`);
+      }
+    }
+
+    await page.fill('#cmd', '');
+
+    // Tapping a variable in a line already run says what it holds.
+    await submit(page, '$files | count');
+    const echoed = page.locator('.entry').last().locator('.echo .t', { hasText: 'files' }).first();
+
+    // Running the line empties the input and so the detail line; were it still showing
+    // `$files` from the typing above, the tap would prove nothing.
+    const beforeTap = (await page.locator('#detail').innerText()).trim();
+
+    if (await echoed.count() === 0) {
+      note(`the line '$files | count' has no 'files' token to tap`);
+    } else if (beforeTap.includes('table · 4 rows')) {
+      note(`before the tap the detail line already read ${JSON.stringify(beforeTap)}`);
+    } else {
+      await echoed.click();
+      const hover = await detailSays(page, 'table · 4 rows');
+      if (!hover.includes('$files') || !hover.includes('table · 4 rows')) {
+        note(`tapping '$files' in a finished line made the detail line read ${JSON.stringify(hover)}`);
+      }
+    }
+
+    console.log(`Ran ${PHASE_8.length + 1} more for Phase 8, then checked the chips, the detail line, Tab and a tap.`);
 
     if (consoleErrors.length > 0) {
       for (const error of consoleErrors) note(`console error: ${error}`);
