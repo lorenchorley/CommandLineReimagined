@@ -284,6 +284,9 @@ type Evaluator(commands: Command list, store: Store, blobs: IBlobs) =
                             match find name with
                             | Some command -> return! runCommand command arguments input
                             | None ->
+                                let nearest =
+                                    Nearest.names [ for command in byName.Values -> command.Spec.Name ] name
+
                                 // Reported through a command rather than by failing
                                 // here, so an unknown name renders the same way as any
                                 // other failure.
@@ -291,10 +294,11 @@ type Evaluator(commands: Command list, store: Store, blobs: IBlobs) =
                                 | Some command ->
                                     let arguments = Tree.Arguments()
 
-                                    arguments.Arguments.Add(Tree.ArgumentValue(Value = Tree.Identifier(Name = name)))
+                                    for written in name :: nearest do
+                                        arguments.Arguments.Add(Tree.ArgumentValue(Value = Tree.Identifier(Name = written)))
 
                                     return! runCommand command arguments Value.Empty
-                                | None -> return Error(Fault.unknownCommand name)
+                                | None -> return Error(Fault.unknownCommand name nearest)
                         }
 
                     return!
