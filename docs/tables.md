@@ -17,8 +17,9 @@ $ ls
 name        kind    folder  size  modified
 documents   folder  /       0     2026-09-22T09:30:00.0000000+00:00
 examples    folder  /       0     2026-09-22T09:30:00.0000000+00:00
+guide       folder  /       0     2026-09-22T09:30:00.0000000+00:00
 projects    folder  /       0     2026-09-22T09:30:00.0000000+00:00
-readme.txt  text    /       41    2026-09-22T09:30:00.0000000+00:00
+readme.txt  text    /       192   2026-09-22T09:30:00.0000000+00:00
 ```
 
 Five columns are always there: `name`, `kind`, `folder`, `size` and `modified`. Any
@@ -62,6 +63,7 @@ $ ls | where $row.kind eq folder
 name       kind    folder  size  modified
 documents  folder  /       0     2026-09-22T09:30:00.0000000+00:00
 examples   folder  /       0     2026-09-22T09:30:00.0000000+00:00
+guide      folder  /       0     2026-09-22T09:30:00.0000000+00:00
 projects   folder  /       0     2026-09-22T09:30:00.0000000+00:00
 ```
 
@@ -213,7 +215,7 @@ dishes  task  /chores  0     2026-09-22T09:30:00.0000000+00:00
 ```
 
 Each side of an `and` or an `or`, and what follows a `not`, is held to the same rule,
-and the fault names the part that was not a question:
+and the fault names the part that was not a question. Back in a fresh tab, at the root:
 
 ```
 $ ls | where not $row.kind
@@ -269,21 +271,23 @@ question, and asking a question leaves nothing to undo.
 | `rows` | — | a list of objects |
 | `table` | — | the same table, coerced explicitly |
 
-From a fresh tab again, where the four seeded entries are the whole of the root:
+From a fresh tab again, where the five seeded entries are the whole of the root:
 
 ```
 $ ls | select name size
 name        size
 documents   0
 examples    0
+guide       0
 projects    0
-readme.txt  41
+readme.txt  192
 
 $ ls | sort size desc | select name size
 name        size
-readme.txt  41
+readme.txt  192
 documents   0
 examples    0
+guide       0
 projects    0
 
 $ ls | take 2 | select name
@@ -293,10 +297,11 @@ examples
 
 $ ls | skip 3 | select name
 name
+projects
 readme.txt
 
 $ ls | where $row.kind eq folder | count
-3
+4
 
 $ ls | distinct kind
 kind
@@ -305,7 +310,7 @@ text
 
 $ ls | group kind
 key     rows
-folder  3 rows
+folder  4 rows
 text    1 row
 ```
 
@@ -322,7 +327,7 @@ it as a tag:
 
 ```
 $ ls | sort name desc | first
-<row name=readme.txt kind=text folder=/ size=41 modified=2026-09-22T09:30:00.0000000+00:00/>
+<row name=readme.txt kind=text folder=/ size=192 modified=2026-09-22T09:30:00.0000000+00:00/>
 ```
 
 Nothing to answer is an answer: `first` on an empty table gives nothing rather than
@@ -330,7 +335,7 @@ failing. `rows` turns the whole table into a list of those objects:
 
 ```
 $ ls | select name kind | rows
-<row name=documents kind=folder/> <row name=examples kind=folder/> <row name=projects kind=folder/> <row name=readme.txt kind=text/>
+<row name=documents kind=folder/> <row name=examples kind=folder/> <row name=guide kind=folder/> <row name=projects kind=folder/> <row name=readme.txt kind=text/>
 ```
 
 ## Tags are tables
