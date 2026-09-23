@@ -56,10 +56,19 @@ public sealed class TerminalSession
     /// has completed is a fault rather than an empty filesystem, so a page that forgets
     /// to await it says so instead of quietly losing the user's files.
     /// </remarks>
-    public Task InitializeAsync() => FSharpAsync.StartAsTask(
-        _session.Initialize(),
-        FSharpOption<TaskCreationOptions>.None,
-        FSharpOption<CancellationToken>.None);
+    public async Task InitializeAsync()
+    {
+        await FSharpAsync.StartAsTask(
+            _session.Initialize(),
+            FSharpOption<TaskCreationOptions>.None,
+            FSharpOption<CancellationToken>.None);
+
+        // A log begun before the guide existed gets it now, once (decision 0036).
+        await FSharpAsync.StartAsTask(
+            _session.BringUpToDate(),
+            FSharpOption<TaskCreationOptions>.None,
+            FSharpOption<CancellationToken>.None);
+    }
 
     /// <summary>
     /// How many transactions the log held when it was replayed.

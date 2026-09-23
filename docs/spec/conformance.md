@@ -61,7 +61,7 @@ second table counts from `dotnet test`.
 | What flows into a stage: the upstream run, refusals, the budget, the cache | `Core.Tests/ShapeTests` | 23 |
 | What a tapped token is: variables, members, commands, operators, arguments | `Core.Tests/HoverTests` | 12 |
 | The phase's acceptance list, from a fresh session | `Core.Tests/AcceptanceTests` | 10 |
-| Replaying a log, seeding once, and `reset` | `Core.Tests/PersistenceTests` | 13 |
+| Replaying a log, seeding once, `reset`, and giving an older log the guide once | `Core.Tests/PersistenceTests` | 17 |
 | The stored shape of a transaction, every event and value case, versioning | `Web.Core.Tests/LogFormatTests` | 24 |
 | The browser's IndexedDB module, including a browser without it | `tools/store-check.mjs` | 20 |
 | DTO shapes including tables, views, refreshing, caught faults, documents, streaming, cancellation, completion, tokens | `Web.Core.Tests/TerminalSessionTests` | 52 |
@@ -75,10 +75,10 @@ Cases actually run, which is what the suite reports:
 | Project | Cases |
 | --- | --- |
 | `Parser.Tests` | 375 |
-| `Core.Tests` | 760 |
+| `Core.Tests` | 764 |
 | `Web.Core.Tests` | 137 |
 | `Terminal.Tests` | 32 |
-| Total | 1304 |
+| Total | 1308 |
 
 Run them with:
 

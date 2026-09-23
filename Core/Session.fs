@@ -345,6 +345,29 @@ type Session(log: ILog, options: SessionOptions, seed: Seed) =
             initialised <- true
         }
 
+    /// <summary>Adds what the standard seed has gained since this log was begun.</summary>
+    /// <remarks>
+    /// Today that is the guide (decision 0036), added once, as a transaction that is
+    /// nobody's to undo, like the seed. Answers how many records it created. A host
+    /// that seeds the standard filesystem calls it after `Initialize`; on a fresh log it
+    /// finds the guide already there and does nothing.
+    /// </remarks>
+    member _.BringUpToDate() =
+        async {
+            let! events = Seed.guideFor options.NewId options.Clock store.Transactions store.Current blobsForSeed
+
+            if List.isEmpty events then
+                return 0
+            else
+                let! _ = store.CommitSystem "guide" events
+
+                return
+                    events
+                    |> List.sumBy (function
+                        | FileCreated _ -> 1
+                        | _ -> 0)
+        }
+
     /// How many transactions the log had when it was replayed. The page reports it, so
     /// that a restore that silently found nothing is visible rather than looking like
     /// a fresh session.

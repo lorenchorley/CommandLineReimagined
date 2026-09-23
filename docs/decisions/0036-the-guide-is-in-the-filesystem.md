@@ -35,6 +35,12 @@ the way the example programs are, so the browser build carries them. Every line 
 guide shows as an example is run by a test from a fresh session, and must succeed,
 except the three shown failing on purpose, which must fail.
 
+The seed runs only on an empty log, so a visitor who came before the guide would never
+get it without `reset`, which would cost them their files. So a log that has never had a
+`/guide` is given one, once, on its next load, as a transaction nobody can undo, like
+the seed. A guide deleted on purpose is not added again, and `readme.txt` is replaced
+only if it still says exactly what the old seed wrote.
+
 ## Consequences
 
 Learning the terminal is done with the terminal, which is its own first exercise.

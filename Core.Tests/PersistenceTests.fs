@@ -56,6 +56,24 @@ type PersistenceTests() =
             | Some value -> Value.display value
             | None -> ""
 
+    /// A log as the terminal seeded it before decision 0036: no guide, and the old readme.
+    let beforeTheGuide () =
+        let log = InMemoryLog()
+        let options = SessionOptions.defaults
+
+        let files =
+            Seed.standardFiles
+            |> List.filter (fun file -> file.Folder <> "/guide" && not (file.Folder = "/" && file.Name = "guide"))
+            |> List.map (fun file ->
+                if file.Name = "readme.txt" then
+                    { file with Content = Some "This filesystem lives in the browser tab." }
+                else
+                    file)
+
+        let session = Session(log, options, Seed.ofFiles options.NewId options.Clock files)
+        run (session.Initialize())
+        log
+
     // ----------------------------------------------------------------- replaying
 
     /// <summary>A reload brings back what was there.</summary>
@@ -205,3 +223,60 @@ type PersistenceTests() =
 
         Assert.AreEqual<string>("Reset. The filesystem is empty.", harness.Text "reset")
         Assert.AreEqual<int>(0, List.length (harness.Table "ls").Rows)
+
+    // ------------------------------------------------ a log begun before the guide
+
+    /// A visitor who came before the guide gets it on their next visit, without `reset`,
+    /// and their readme points to it; their own files are untouched.
+    [<TestMethod>]
+    member _.AnOldLogIsGivenTheGuideOnce() =
+        let log = beforeTheGuide ()
+        let first = reopen log
+        run (first.Execute "write mine.txt kept") |> ignore
+
+        Assert.AreEqual<int>(Seed.guideFiles.Length + 1, run (first.BringUpToDate()))
+        Assert.AreEqual<string>("documents examples guide projects mine.txt readme.txt", names first "ls")
+        StringAssert.Contains(display first "cat readme.txt", "cat guide/1-start.txt")
+        Assert.AreEqual<string>("kept", display first "cat mine.txt")
+
+        // Once only: the next visit finds it there.
+        let second = reopen log
+        Assert.AreEqual<int>(0, run (second.BringUpToDate()))
+        Assert.AreEqual<int>(Seed.guideFiles.Length, (names second "ls guide").Split(' ').Length)
+
+    /// Adding the guide is not a line anyone typed, so `undo` does not take it back.
+    [<TestMethod>]
+    member _.TheGuideAddedLaterCannotBeUndone() =
+        let session = reopen (beforeTheGuide ())
+        run (session.BringUpToDate()) |> ignore
+
+        Assert.AreEqual<string>("Nothing to undo.", display session "undo")
+        Assert.AreEqual<string>("documents examples guide projects readme.txt", names session "ls")
+
+    /// A guide deleted on purpose stays deleted: it is added only to a log that never had one.
+    [<TestMethod>]
+    member _.ADeletedGuideIsNotAddedAgain() =
+        let log = beforeTheGuide ()
+        let first = reopen log
+        run (first.BringUpToDate()) |> ignore
+
+        for guide in Seed.guideFiles do
+            display first ("rm guide/" + guide.Name) |> ignore
+
+        display first "rm guide" |> ignore
+
+        let second = reopen log
+        Assert.AreEqual<int>(0, run (second.BringUpToDate()))
+        Assert.AreEqual<string>("documents examples projects readme.txt", names second "ls")
+
+    /// A readme someone has rewritten is theirs, and is left as it is.
+    [<TestMethod>]
+    member _.ARewrittenReadmeIsKept() =
+        let log = beforeTheGuide ()
+        let first = reopen log
+        run (first.Execute "echo mine | write readme.txt") |> ignore
+
+        let second = reopen log
+        run (second.BringUpToDate()) |> ignore
+        Assert.AreEqual<string>("mine", display second "cat readme.txt")
+        Assert.AreEqual<string>("documents examples guide projects readme.txt", names second "ls")

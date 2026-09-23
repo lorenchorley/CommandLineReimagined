@@ -764,6 +764,14 @@ Seeding happens **only** when the replayed log is empty, or a reload would lay a
 copy of the seed over what was restored. The seed is one transaction, with the source
 `seed`, marked not undoable.
 
+A log begun before the seed had a `/guide` folder is given it once, after replay
+(`Session.BringUpToDate`, [decision 0036](../decisions/0036-the-guide-is-in-the-filesystem.md)):
+one transaction with the source `guide`, marked not undoable, creating the folder and its
+files. It **must not** be added to a log that has ever created a `/guide`, so one deleted
+on purpose stays deleted, and `/readme.txt` is given the new text **only** if it still
+holds the old seed's text exactly. A host that seeds the standard filesystem calls it
+after `Initialize`; on any other log it does nothing.
+
 A session runs one line at a time. A line submitted while another is running **must**
 be refused with a fault of kind `Invalid`, `A command is already running. Stop it
 first.`, rather than interleaved.

@@ -116,3 +116,52 @@ module Seed =
         @ guideFiles
 
     let standard newId now : Seed = ofFiles newId now standardFiles
+
+    /// What `readme.txt` said before the guide existed, so a log begun then can be told
+    /// apart from one whose readme someone has rewritten.
+    let private readmeBeforeTheGuide = "This filesystem lives in the browser tab."
+
+    /// Whether a log has ever had a `/guide`, even one since deleted.
+    let private everHadTheGuide (history: Transaction list) =
+        history
+        |> List.exists (fun transaction ->
+            transaction.Events
+            |> List.exists (function
+                | FileCreated record -> Record.name record = "guide" && Record.folder record = Files.root
+                | _ -> false))
+
+    /// <summary>What a log begun before the guide needs to have it (decision 0036).</summary>
+    /// <remarks>
+    /// The seed runs only on an empty log, so a visitor who came before the guide existed
+    /// would never get it without `reset`, which would cost them their files. This adds
+    /// it once, and never to a log that has ever created a `/guide`, so one deleted on
+    /// purpose stays deleted. `readme.txt` is brought up to date only if it still says
+    /// exactly what the old seed wrote; a readme someone has changed is theirs.
+    /// </remarks>
+    let guideFor newId now (history: Transaction list) (projection: Projection) : Seed =
+        fun blobs ->
+            async {
+                if everHadTheGuide history then
+                    return []
+                else
+                    let! guide = ofFiles newId now ({ Name = "guide"; Folder = "/"; Content = None } :: guideFiles) blobs
+
+                    let! readmeEvents =
+                        match Files.tryFindIn projection Files.root "readme.txt" with
+                        | Some record ->
+                            async {
+                                let! old =
+                                    match record.Content with
+                                    | Some hash -> blobs.Get hash
+                                    | None -> async.Return None
+
+                                if old = Some readmeBeforeTheGuide then
+                                    let! hash = blobs.Put readme
+                                    return [ ContentChanged(record.Id, record.Content, Some hash) ]
+                                else
+                                    return []
+                            }
+                        | None -> async.Return []
+
+                    return guide @ readmeEvents
+            }
