@@ -198,6 +198,16 @@ What decides whether `cd` takes a name or a question is whether an operator was
 written. `cd journal` is a name. `cd $row.mood eq great` has `eq` in it, so it is a
 question. Nothing else distinguishes them, and there is no separate command.
 
+A question has to be about the row. One with an operator that never mentions `$row`
+would hold of everything or of nothing, so `cd`, `find` and `save-view` refuse it and
+say which columns it probably meant
+([decision 0033](decisions/0033-a-predicate-is-a-question-about-the-row.md)):
+
+```
+$ cd mood eq great
+mood eq great never reads $row, so it is the same for every row. Did you mean $row.mood eq great?
+```
+
 ## Asking once: `find`
 
 `find` is `ls` over the whole terminal with a predicate written on the spot, and it
