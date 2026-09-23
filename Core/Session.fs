@@ -242,7 +242,7 @@ type Session(log: ILog, options: SessionOptions, seed: Seed) =
           Commands.Meta.history storeAccess
           Commands.Meta.reset storeAccess
           Commands.Meta.run storeAccess
-          Commands.Meta.help (fun () -> specs)
+          Commands.Meta.helpWith Nearest.names (fun () -> specs)
           Commands.Meta.exit storeAccess
           Commands.Meta.unknown ]
 

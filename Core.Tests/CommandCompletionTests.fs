@@ -26,7 +26,8 @@ type CommandCompletionTests() =
         let source =
             { Projection = harness.Projection
               Preview = fun _ _ -> async.Return None
-              Cancel = CancellationToken.None }
+              Cancel = CancellationToken.None
+              Cache = ShapeCache() }
 
         Completion.request harness.Session.Commands source line line.Length CancellationToken.None
 
