@@ -28,6 +28,34 @@ type ParamKind =
     /// Every `name=value` written on the line, in order (decision 0017).
     | Assignments
 
+/// <summary>What a parameter's argument is, for completion and the signature hint (Phase 8).</summary>
+/// <remarks>
+/// Declared on the parameter rather than kept in a second list beside the commands, so
+/// a command's own declaration is the one place that says what `sort`'s first word
+/// can be. It changes nothing about binding: the binder never reads it.
+/// </remarks>
+[<RequireQualifiedAccess>]
+type Takes =
+    /// Files and folders: what every argument was offered before Phase 8.
+    | Anything
+    | Path
+    /// Somewhere to be: a folder or a saved view.
+    | Place
+    /// A name that does not exist yet, so there is nothing to offer.
+    | NewName
+    | Url
+    /// A column of the table flowing into the stage.
+    | Column
+    | Count
+    | Number
+    | Text
+    /// A word that turns something on, and the word for off when there is one.
+    | Switch of on: string * off: string option
+    | VariableName
+    | CommandName
+    /// Any value: the variables in scope are the things worth offering.
+    | Value
+
 type Parameter =
     { Name: string
       Description: string
@@ -38,7 +66,9 @@ type Parameter =
       /// Whether this parameter takes the previous stage's value when nothing was
       /// written for it. At most one parameter should, or a pipe becomes ambiguous.
       AcceptsPipe: bool
-      Kind: ParamKind }
+      Kind: ParamKind
+      /// What the argument is, for completion. `Anything` unless the command says.
+      Takes: Takes }
 
 type CommandSpec =
     { Name: string
@@ -149,7 +179,8 @@ module Parameter =
           Flag = None
           Default = Value.Empty
           AcceptsPipe = false
-          Kind = Single }
+          Kind = Single
+          Takes = Takes.Anything }
 
     /// Optional with no default beyond `Empty`, which is what a command checks for
     /// when it wants to know whether anything was written.
@@ -162,6 +193,9 @@ module Parameter =
     let piped parameter = { parameter with AcceptsPipe = true }
 
     let withFlag flag parameter = { parameter with Flag = Some flag }
+
+    /// Says what the argument is, so completion can offer the right things for it.
+    let takes (what: Takes) (parameter: Parameter) = { parameter with Takes = what }
 
     /// The one parameter that collects `name=value` arguments.
     let assignments name description =

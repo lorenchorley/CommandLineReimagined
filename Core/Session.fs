@@ -268,6 +268,7 @@ type Session(log: ILog, options: SessionOptions, seed: Seed) =
                 }
 
     let mutable running: CancellationTokenSource option = None
+    let mutable completing: CancellationTokenSource option = None
     let mutable initialised = false
     let mutable replayed = 0
 
@@ -467,8 +468,62 @@ type Session(log: ILog, options: SessionOptions, seed: Seed) =
             true
         | _ -> false
 
-    member this.Complete(text: string) =
-        Completion.suggest evaluator.Specs store.Current text
+    /// <summary>What a line could be previewed as, for completion (decision 0031).</summary>
+    /// <remarks>
+    /// The same path as `Refresh`: a line that would write is refused before it runs,
+    /// and nothing is committed or shown. Any failure is `None`, because completion that
+    /// cannot learn what flows in falls back rather than failing.
+    /// </remarks>
+    member private _.Preview (source: string) (cancel: CancellationToken) : Async<Value option> =
+        async {
+            let parsed = parser.Parse<Tree.Node> source
+
+            if not initialised || not parsed.IsT0 then
+                return None
+            else
+                try
+                    let! result = evaluator.Refresh parsed.AsT0 source (CapturingOutput ignore) cancel
+
+                    match result with
+                    | Ok execution -> return Some execution.Value
+                    | Error _ -> return None
+                with _ ->
+                    return None
+        }
+
+    /// Everything a provider is given for one line and cursor. A newer request cancels
+    /// the one before it, so an upstream run for a stale keystroke stops.
+    member private this.CompletionRequest(text: string, cursor: int) =
+        let text = if isNull text then "" else text
+
+        completing |> Option.iter (fun (previous: CancellationTokenSource) -> previous.Cancel())
+        let current = new CancellationTokenSource()
+        completing <- Some current
+
+        let source =
+            { Projection = store.Current
+              Preview = this.Preview
+              Cancel = current.Token }
+
+        Completion.request evaluator.Specs source text cursor current.Token
+
+    /// <summary>What the word at the cursor could become, and the signature it is in.</summary>
+    /// <remarks>
+    /// Asynchronous because completion may run the stages before the cursor to learn
+    /// what flows into it (decision 0031). A host keeps only the newest answer.
+    /// </remarks>
+    member this.Complete(text: string, cursor: int) : Async<CompletionResult> =
+        Completion.complete (this.CompletionRequest(text, cursor))
+
+    /// What the end of the text could become, waited for. For tests, and a host that
+    /// cannot await.
+    member this.Complete(text: string) : Completion list =
+        let text = if isNull text then "" else text
+        (Async.RunSynchronously(this.Complete(text, text.Length))).Items
+
+    /// What the token at an offset is, for the page's hover (Phase 8).
+    member this.Describe(text: string, offset: int) : Async<Hover option> =
+        Hover.describe (this.CompletionRequest(text, offset))
 
     /// The variables in scope, ordered by name.
     member _.Variables() = store.Current.Variables |> Map.toList
