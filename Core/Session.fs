@@ -269,6 +269,11 @@ type Session(log: ILog, options: SessionOptions, seed: Seed) =
 
     let mutable running: CancellationTokenSource option = None
     let mutable completing: CancellationTokenSource option = None
+
+    /// What completion has learned about upstreams (decision 0031). A commit can change
+    /// what any line answers, so every commit forgets it all.
+    let shapes = ShapeCache()
+    do store.Changed.Add(fun _ -> shapes.Clear())
     let mutable initialised = false
     let mutable replayed = 0
 
@@ -500,12 +505,18 @@ type Session(log: ILog, options: SessionOptions, seed: Seed) =
         let current = new CancellationTokenSource()
         completing <- Some current
 
-        let source =
-            { Projection = store.Current
-              Preview = this.Preview
-              Cancel = current.Token }
+        Completion.request evaluator.Specs (this.Shapes current.Token) text cursor current.Token
 
-        Completion.request evaluator.Specs source text cursor current.Token
+    /// <summary>What `Shape` may use to learn what flows in, as the store stands now.</summary>
+    /// <remarks>
+    /// The session's cache goes with it, so a request finds what the one before it
+    /// learned. Public so a test can watch the preview and the cache at work.
+    /// </remarks>
+    member this.Shapes(cancel: CancellationToken) : ShapeSource =
+        { Projection = store.Current
+          Preview = this.Preview
+          Cancel = cancel
+          Cache = shapes }
 
     /// <summary>What the word at the cursor could become, and the signature it is in.</summary>
     /// <remarks>
