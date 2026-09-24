@@ -49,6 +49,7 @@ a later record, **Rejected**.
 | [0037](0037-in-out-back-and-read.md) | Places are entered with `in`, left with `out`, retraced with `back`; files are read with `read` | Accepted |
 | [0038](0038-a-wrong-call-shows-its-help.md) | A command called wrongly shows its help | Accepted |
 | [0039](0039-the-pipe-comes-first.md) | After a complete stage, completion offers the pipe first | Accepted |
+| [0040](0040-seeded-files-follow-the-seed.md) | A seeded file nobody has changed follows the seed | Accepted |
 
 Retrospective records document decisions taken before the log existed, so that the
 log is the one place to look. Their alternatives are the ones weighed at the time, as

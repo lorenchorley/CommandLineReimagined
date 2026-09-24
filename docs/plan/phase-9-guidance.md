@@ -101,12 +101,21 @@ After 9.1, A, B and C start together from its commit.
 - The move is an event like the others, so it is replayed, inverted by `undo` (which
   puts the place back on the trail) and kept across a reload. If a new event case is
   needed, the store's serialisation and its round-trip tests carry it.
-- `back` is not read-only, as `in` and `out` are not.
+- `back` is not read-only, as `in` and `out` are not. Take `back` out of `out`'s
+  keywords, where it came from `up`, so `back` offers only `back`.
+- Decision [0040](../decisions/0040-seeded-files-follow-the-seed.md): in
+  `Session.BringUpToDate`, a seeded file that no undoable transaction has touched is
+  brought to the seed's current content, in one system transaction with the source
+  `seed update`. Returning visitors then read the renamed guide. Tests in
+  `PersistenceTests.fs`: an untouched guide file and readme are updated; an edited one,
+  a renamed or tagged one and a deleted one are left alone; a second load changes
+  nothing.
 - **Tests** in `ViewTests.fs` or a new class: in, in, back, back; back from a view to
   the folder; back after out; back at the start; undo of a back; back across a reload.
 - **Owns** `back` in `Core/Commands/Files.fs`, the trail in `Core/Projection.fs`,
-  any new case in `Core/Events.fs` and its serialisation. **Touches** the command list
-  in `Core/Session.fs`, one line.
+  any new case in `Core/Events.fs` and its serialisation, `Core/Seed.fs` and
+  `BringUpToDate` in `Core/Session.fs`. **Touches** the command list in
+  `Core/Session.fs`, one line.
 
 ### B. Guidance in the core
 
@@ -116,7 +125,10 @@ After 9.1, A, B and C start together from its commit.
   the value `help <command>` answers; `ExecutionResponse.Guide` maps it. Not for
   faults raised while a command runs, and not for unknown commands.
 - `Unknown command : cd. Did you mean in?`: the nearest names consider keywords, so an
-  old name leads to the new one.
+  old name leads to the new one. 9.1 made a keyword that is the whole word match at any
+  length, so `cd` offers `in`; keep that, and stop a short common word matching a
+  keyword it merely equals by accident (`by` offering `sort`) if a rule can tell them
+  apart, or report that it cannot.
 - 0039 in completion: `|` first after a complete stage, detail `send the result on`;
   a command with nothing left to take offers only `|`. `vars ` offers `|` and nothing
   else; `ls ` offers `|` first and then what it offered before; `sort ` offers columns
@@ -200,11 +212,11 @@ After 9.1, A, B and C start together from its commit.
 
 | Work | Done by | State | Commit |
 | --- | --- | --- | --- |
-| 9.0 Foundation | orchestrator | merged | this commit |
-| 9.1 The rename | sub-agent | in progress | |
-| A. `back` | stream agent | not started | |
-| B. Guidance in the core | stream agent | not started | |
-| C. The page | stream agent | not started | |
+| 9.0 Foundation | orchestrator | merged | aef5fea |
+| 9.1 The rename | sub-agent | merged | 75d105f |
+| A. `back` | stream agent | in progress | |
+| B. Guidance in the core | stream agent | in progress | |
+| C. The page | stream agent | in progress | |
 | 9.9 docs, spec | two sub-agents | not started | |
 | 9.9 verifier, republish, As built | orchestrator | not started | |
 

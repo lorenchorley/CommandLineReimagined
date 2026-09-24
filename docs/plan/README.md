@@ -34,6 +34,7 @@ permission.
 | [phase-7-consolidation.md](phase-7-consolidation.md) | Specification rewrite, user documentation, conformance, browser check in CI. |
 | [phase-8-intellisense.md](phase-8-intellisense.md) | Completion that reads the line: the command, parameter and value at the cursor; value stages; predicate faults; hints and hover on the page. Seven parallel streams after one foundation checkpoint. |
 | [phase-9-guidance.md](phase-9-guidance.md) | The owner's requests from using it on a phone: `in`, `out`, `back` and `read`; help on a wrong call; the pipe first; live listings, copying and history buttons on the page. |
+| [phase-10-help-towards-understanding.md](phase-10-help-towards-understanding.md) | After Phase 9: did-you-mean for files and columns, empty answers that explain themselves, fixes as chips, and guidance drawn apart from output. |
 | [examples.md](examples.md) | Four one-screen programs, one per pillar, with golden results. The proof that the whole works as imagined. |
 | [scene-editor-direction.md](scene-editor-direction.md) | Not a phase. A proposed direction, pending [0029](../decisions/0029-scene-editor-direction.md): the ECS as a scene the command line edits, rendered on a canvas beside a DOM terminal. |
 
