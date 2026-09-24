@@ -11,6 +11,8 @@ CSV and XML are read as data and written from it, so a table can go out to a fil
   ls | to-xml listing.xml
   from-xml listing.xml | table
 
+An XML file nested deeper than a table is read the same way, as a tree, and pick finds the elements in it, as in guide/3-tables.txt.
+
 A script is a file of lines, and run runs it one line at a time. The examples folder holds four small ones, each built around one of the ideas in this guide:
 
   ls examples

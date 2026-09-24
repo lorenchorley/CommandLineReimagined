@@ -26,4 +26,16 @@ A question that is asked properly and matches nothing answers an empty table, an
 
 Tapping a column header re-sorts the table on screen. Tapping a cell puts it in the line.
 
+A tag whose children have children of their own is a tree, not a table. pick reads one. Give it a CSS selector, the kind a web page's stylesheet uses, and it answers a table of every element that matches: @tag is each one's name, then come its attributes, and @children is what is inside it. A space means anywhere inside, and > means directly inside.
+
+  set d <library><book title=dune year=1965><author name=herbert/></book><book title=emma year=1815><author name=austen/></book></library>
+  $d | pick book
+  $d | pick "book > author" | select name
+  $d | pick book | where $row.year gt 1900 | select title
+
+A tag's own name and children are read with @, since no attribute can start with one.
+
+  echo $d.@tag
+  $d.@children
+
 Next: read guide/4-places.txt
