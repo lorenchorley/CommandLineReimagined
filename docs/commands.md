@@ -66,7 +66,7 @@ The four document commands — `from-csv`, `from-xml`, `to-csv` and `to-xml` —
 in [Reading and writing files](tables.md#reading-and-writing-files).
 
 `in`, `out` and `read` were called `cd`, `up` and `cat`; typing an old name offers the
-new one, and running it says which to use
+new one, and running it names the new one in a note, with the line to run
 ([decision 0037](decisions/0037-in-out-back-and-read.md)). `back` is new with them.
 
 The column says whether the command produces events. A line made only of commands that
@@ -78,13 +78,33 @@ A live view re-runs a line only when every command in it is declared read-only, 
 refuses any other line with `A live refresh only re-reads : <line>`. The read-only
 commands are the ones marked "no" above except `exit` and `progress`.
 
-A name that is not a command fails with `Unknown command : <name>`, followed by
-`Did you mean ...?` when a command or two are a slip away, as in
-`Unknown command : lss. Did you mean ls?`, or when the name is one of a command's
-keywords: an old name, as in `Unknown command : cd. Did you mean in?`, or a word for
-what it does, as in `Unknown command : delete. Did you mean rm?`. That includes `UnknownCommand`, the name the
-terminal uses internally to report one. `help <command>` describes one command's
-parameters.
+A name that is not a command fails with `Unknown command : <name>`. That includes
+`UnknownCommand`, the name the terminal uses internally to report one. When a command
+or two are a slip away, or the name is one of a command's keywords, an old name such as
+`cd` or a word for what it does such as `delete`, a note under the message says
+`Did you mean …?` and offers the line with each in its place. `help <command>` describes
+one command's parameters.
+
+What the terminal adds of its own comes beside the answer as a **note**, never inside a
+message ([decision 0041](decisions/0041-guidance-is-drawn-apart-from-output.md)). A
+**suggestion** is under a fault: the command, file, folder or variable you probably
+meant ([decision 0042](decisions/0042-a-missing-name-names-the-nearest.md)), or the
+question a predicate probably meant to ask. An **explanation** is under an empty answer:
+why `where`, `find` or a view kept no row of a table that had some
+([decision 0043](decisions/0043-an-empty-filter-explains-itself.md)). Either can offer
+**fixes**, whole corrected lines, which the page draws as chips that fill the input and
+do not run it ([decision 0044](decisions/0044-a-fault-may-carry-fixes.md)). In the
+examples here, a note is shown indented under the answer:
+
+```
+$ lss
+Unknown command : lss
+  suggestion: Did you mean ls?
+  fix: ls
+```
+
+A note is not part of any value: `try`, `else` and `$problem.message` see the message
+alone. [Notes beside a message](errors.md#notes-beside-a-message) has the rules.
 
 A command called wrongly shows its help
 ([decision 0038](decisions/0038-a-wrong-call-shows-its-help.md)). When what you wrote
@@ -105,8 +125,9 @@ $ read
 
 A fault raised while the command runs is not a wrong call, and shows no help:
 `read missing.txt` says `File does not exist : /missing.txt` and nothing more. Nor does an
-unknown command, which already says what it probably meant, nor a question that never
-reads `$row`, which says what to write instead. `else` and `try` see the same fault
+unknown command, whose note says what it probably meant. A question that never reads
+`$row` is a wrong call of `where`, `find`, `in` or `save-view`, and shows both: the note
+that says what to write, and the help under it. `else` and `try` see the same fault
 either way.
 
 `clear` is handled by the page rather than by a command: it is about the screen rather
@@ -535,7 +556,16 @@ saturday  note  /journal  0     2026-09-22T09:30:00.0000000+00:00  great  home
 
 $ find $row.kind eq note and $row.tag eq work | count
 2
+
+$ find $row.mood eq grate
+name  kind  folder  size  modified
+  explanation: mood is great, good or tired
+  fix: find $row.mood eq great
 ```
+
+When nothing answers, a note says why: here, the moods there are, and the one a slip
+from what was written, as a fix. [An empty answer says why](tables.md#an-empty-answer-says-why)
+says what is explained.
 
 `find` asks a question once; [`in`](#in) on the same predicate moves into it, so every
 `ls` afterwards asks it again. Asking changes nothing, so a `find` leaves no
@@ -547,7 +577,7 @@ transaction and `undo` reaches past it.
 | --- | --- |
 | `'find' needs a predicate, such as $row.kind eq note.` | A plain word was written instead of a question. |
 | `'find' needs an argument for 'predicate'.` | Nothing was written. |
-| `kind eq note never reads $row, so it is the same for every row. Did you mean $row.kind eq note?` | A question that never mentions the row. |
+| `kind eq note never reads $row, so it is the same for every row.` | A question that never mentions the row. A note offers `find $row.kind eq note`. |
 
 ---
 
@@ -564,12 +594,17 @@ The first row of a table.
 **Returns** the row as an object of type `row`, or nothing when the table is empty.
 Nothing is an answer, not a failure, and `??` is how to give it a default.
 
+From a fresh tab:
+
 ```
 $ ls | sort name desc | first
 <row name=readme.txt kind=text folder=/ size=193 modified=2026-09-22T09:30:00.0000000+00:00/>
 $ first (ls | where $row.kind eq view) ?? "no views yet"
 no views yet
+  explanation: kind is folder or text
 ```
+
+The explanation is the `where`'s, which kept nothing: a note, not part of the answer.
 
 The table can be written as a [pipeline in parentheses](language.md#pipelines-in-parentheses),
 with a space before it: `first (ls)`. Written against the name, `first(ls)` is the
@@ -746,7 +781,9 @@ $ help where | count
 Keep the rows a predicate is true for
 2
 $ help lss
-Unknown command : lss. Did you mean ls?
+Unknown command : lss
+  suggestion: Did you mean ls?
+  fix: help ls
 ```
 
 The description is written above the table rather than being part of it, so the table
@@ -862,8 +899,8 @@ are is no move, and leaves nothing on it.
 | Message | Cause |
 | --- | --- |
 | `'in' needs an argument for 'TargetPath'.` | No path given and nothing piped in. The page shows `in`'s help under it. |
-| `kind eq folder never reads $row, so it is the same for every row. Did you mean $row.kind eq folder?` | A question that never mentions the row, so it would hold of everything or nothing. |
-| `Directory does not exist : <path>` | No such directory, and no view file of that name. The path is shown as you wrote it. |
+| `kind eq folder never reads $row, so it is the same for every row.` | A question that never mentions the row, so it would hold of everything or nothing. A note offers `in $row.kind eq folder`. |
+| `Directory does not exist : <path>` | No such directory, and no view file of that name. The path is shown as you wrote it. A note names the nearest folders, if any. |
 | `'<path>' does not hold a predicate : <text>` | A view file whose content is not a predicate, such as `'/weekend' does not hold a predicate : monday`. |
 
 ---
@@ -1145,11 +1182,26 @@ or list them all:
 
 ```
 
+A file that is not there names the nearest ones, when there are any: one a slip away in
+the folder it was looked for in, or else the same name, or a name it is the start of,
+anywhere. The fix writes it where the path was, however the path was given:
+
+```
+$ read notes
+File does not exist : /notes
+  suggestion: Did you mean documents/notes.txt?
+  fix: read documents/notes.txt
+$ echo notes | read
+File does not exist : /notes
+  suggestion: Did you mean documents/notes.txt?
+  fix: echo documents/notes.txt | read
+```
+
 **Errors**
 
 | Message | Cause |
 | --- | --- |
-| `File does not exist : <path>` | Nothing at that path. |
+| `File does not exist : <path>` | Nothing at that path. A note names the nearest files, if any. |
 | `That is a directory, not a file : <path>` | The path names a directory. |
 
 ---
@@ -1441,7 +1493,7 @@ directory; what it matches is not limited to that directory.
 | --- | --- |
 | `'save-view' needs a predicate, such as $row.kind eq note.` | A plain word was written instead of a question. |
 | `'save-view' needs an argument for 'predicate'.` | Only a name was written. |
-| `<predicate> never reads $row, so it is the same for every row.` | A question that never mentions the row, with the likely columns suggested. |
+| `<predicate> never reads $row, so it is the same for every row.` | A question that never mentions the row. A note suggests the likely columns. |
 | `Target file already exists : <path>` | Something of that name is already here. |
 | `A view needs a name.` | The name was empty. |
 
@@ -1837,6 +1889,20 @@ $ ls | where $row.kind eq folder | count
 4
 ```
 
+A predicate that keeps no row answers the empty table, and a note says why. From a
+fresh tab:
+
+```
+$ ls | where $row.kind eq foldr
+name  kind  folder  size  modified
+  explanation: kind is folder or text
+  fix: ls | where $row.kind eq folder
+$ ls | where $row.knd eq folder
+name  kind  folder  size  modified
+  explanation: No row has knd; did you mean kind?
+  fix: ls | where $row.kind eq folder
+```
+
 A predicate can compare two columns. In `/stock`, after `run examples/inventory.clr`:
 
 ```
@@ -1862,8 +1928,8 @@ The operators are `eq ne gt ge lt le like has`, combined with `and`, `or` and `n
 | Message | Cause |
 | --- | --- |
 | `'where' needs an argument for 'predicate'.` | No predicate written. |
-| `kind eq folder never reads $row, so it is the same for every row. Did you mean $row.kind eq folder?` | A predicate that compares two fixed words and never reads the row. |
-| `$row.kind is text (folder), not true or false. Compare it: $row.kind eq folder.` | A predicate that is a value rather than a question. |
+| `kind eq folder never reads $row, so it is the same for every row.` | A predicate that compares two fixed words and never reads the row. A note offers `ls \| where $row.kind eq folder`. |
+| `$row.kind is text (folder), not true or false.` | A predicate that is a value rather than a question. A note offers a comparison, `$row.kind eq folder`. |
 | `$row is the row a predicate is testing. It exists only inside where, find, in and save-view: ls \| where $row.kind eq folder.` | `$row` read outside a predicate, where no row is being tested. |
 
 [A predicate is a question about the row](tables.md#a-predicate-is-a-question-about-the-row)
