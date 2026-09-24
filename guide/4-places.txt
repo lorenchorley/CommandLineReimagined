@@ -19,6 +19,13 @@ find asks once without going anywhere, and save-view keeps a question as a file 
   in texts
   out
 
-The newest listing stays live: change something and it redraws. Tap live under it to stop it.
+in and out are moves, and back retraces them: it goes to where you were before the last one, a folder or a view, and each back goes one step further. When there is nowhere further back it says so. undo takes a back back, like any other move.
+
+  in documents
+  in /examples
+  back
+  back
+
+A listing stays live: change something and it redraws. The newest starts live. Tap live under one to pause it, and paused to make it live again, so as many as you like can be live at once.
 
 Next: read guide/5-failure.txt

@@ -4,6 +4,8 @@ A failure is a value too, not a crash. A line that fails stops, changes nothing,
 
   read missing.txt
 
+A command called wrongly, with an argument missing, one too many or a flag it does not have, fails the same way, and under the error the page shows that command's help, in a panel labelled help: what help with the command's name would say. Run read on its own, with no file named, to see it. A file that is not there is not a wrong call, so read missing.txt shows no help. A name the terminal does not know says which command it probably meant, so cd says to use in.
+
 else runs something instead when the line before it fails:
 
   read missing.txt else echo "no such file"
