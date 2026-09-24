@@ -167,6 +167,6 @@ all with the option recommended:
 | 11.0 Foundation | orchestrator | merged | 2e4b57f |
 | A. `@` members | stream agent | merged | ec21f8a |
 | B. `pick` | stream agent | merged | 7f8936f |
-| Owner's answers (0050 to 0052) | orchestrator, stream B | in progress | |
+| Owner's answers (0050 to 0052) | orchestrator, stream B | merged | d96eabc, d519d77 |
 | 11.9 docs, spec | two sub-agents | not started | |
 | 11.9 verifier, republish, As built | orchestrator | not started | |
