@@ -4,7 +4,7 @@ A failure is a value too, not a crash. A line that fails stops, changes nothing,
 
   read missing.txt
 
-A command called wrongly, with an argument missing, one too many or a flag it does not have, fails the same way, and under the error the page shows that command's help, in a panel labelled help: what help with the command's name would say. Run read on its own, with no file named, to see it. A file that is not there is not a wrong call, so read missing.txt shows no help. A name the terminal does not know says which command it probably meant, so cd says to use in.
+A command called wrongly, with an argument missing, one too many or a flag it does not have, fails the same way, and under the error the page shows that command's help, in a panel labelled help: what help with the command's name would say. Run read on its own, with no file named, to see it. A file that is not there is not a wrong call, so read missing.txt shows no help. When the terminal can tell what you probably meant, a command, a file, a folder or a variable, it says so in a panel under the error, labelled did you mean, with the corrected line as a chip: read notes offers read documents/notes.txt, and cd offers in. Tapping the chip puts the line in the input; it does not run it.
 
 else runs something instead when the line before it fails:
 
@@ -15,6 +15,8 @@ try keeps the failure as a value, so it can be looked at:
   try read missing.txt | set problem
   $problem.kind
   $problem.message
+
+What the terminal says under an error is for you, not for the line: $problem.message is the message alone.
 
 ?? gives a default when a stage answered nothing at all:
 
