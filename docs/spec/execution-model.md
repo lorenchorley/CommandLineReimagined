@@ -502,7 +502,9 @@ A member is read off a value like this (`Expr.readMember`):
   `@children` its children as a `List`, in order, the empty list when it has none
   ([decision 0048](../decisions/0048-a-tags-own-parts-are-read-with-at.md)). Neither
   the tag notation nor XML can write an attribute whose name begins with `@`, so on a
-  tag either one always reads the tag's own part; only a row can hold such a column.
+  tag written or read either one always reads the tag's own part; only a row, whose
+  attributes are a table's columns, can hold one. A gap is no attribute, so on a row
+  whose `@tag` cell is a gap `$row.@tag` is the row's own type, `row`.
 - From a `File`, `name`, `kind`, `folder`, `path` or `id`; from a `Fault`, `message`,
   `kind`, `path`, `stage` or `cause`.
 

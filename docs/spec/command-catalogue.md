@@ -623,7 +623,8 @@ Errors: `'<name>' is not a valid variable name.` (`Invalid`);
 | Marks | `ReadOnly` |
 
 One row per variable in scope, ordered by name, its `value` cell the value itself, so a
-table reads as `4 rows` and a fault as its message. With nothing bound it **must** still
+table reads as `4 rows`, a list as `2 items`
+([Displaying a table](execution-model.md#displaying-a-table)) and a fault as its message. With nothing bound it **must** still
 return a table, so that `vars | count` is 0 rather than a fault, and writes one output
 line, `No variables. Try: set greeting hello`. It does not use the one-line summaries
 completion gives a variable ([Host interfaces](host-interfaces.md#a-value-in-one-line)).
