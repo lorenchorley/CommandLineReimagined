@@ -274,6 +274,11 @@ type Response =
 - `Refresh` **must** fill `Notes` by the same rules as `Execute`, so a live listing that
   keeps nothing carries its explanation. It fills no `Guide`, and its `Changes` is
   empty.
+- `RefreshAt(source, location)` **must** run the line as if from `location` against the
+  current store, and answer that `Location`; `Refresh` is `RefreshAt` from where the
+  session is. `RefreshFrom(source, folder, view)` is the same for a host that kept the
+  place as text, `view` being the predicate as `Expr.display` wrote it, or empty for
+  none (decision 0047).
 - A line with nothing to say has an empty list: a parse failure, a refusal, a
   cancellation and an `Internal` fault have no notes.
 
@@ -293,6 +298,7 @@ The reference host-side object, shared by both web front ends.
 | `StoreChanged` | `Action<long>`, raised after every committed transaction with its sequence number. |
 | `ExecuteAsync(source, executionId, cancellation)` | Parses and runs one line; never throws. The response carries the line's notes. |
 | `RefreshAsync(source)` | Re-runs a read-only line for a live listing. Same response shape, notes included; commits nothing; refuses a line that names any command that could change something. |
+| `RefreshAsync(source, folder, view)` | `RefreshAsync(source)` run from the folder and view given, as a response's `location` carries them (`view` null or empty for none), rather than from where the session is (decision 0047). A view that no longer reads as a predicate is the refresh's fault. |
 | `Cancel()` | Cancels the running command; returns whether there was one. |
 | `CompleteAsync(text, cursor)` | What the word at the cursor could become, and the signature of the command it is in, as a `CompletionResponse`. Asynchronous; see [Completion](#completion). |
 | `DescribeAsync(text, offset)` | What the token ending at `offset` is, as a `HoverInfo`, or null. Asynchronous; see [Hover](#hover). |
@@ -832,6 +838,7 @@ layer.
 | `Parse(source)` | Parse response, as a JSON string. Synchronous. |
 | `Execute(source, executionId)` | Execution response, as a JSON string. Asynchronous. |
 | `Refresh(source)` | Execution response for a re-read, as a JSON string. Asynchronous. Commits nothing, and answers a fault for a line that is not read-only. |
+| `RefreshAt(source, folder, view)` | `Refresh` from the folder and view given, as the listing's first response carried them (decision 0047). What the reference page calls for a live listing. |
 | `Cancel()` | `true` when a command was running. |
 | `Initialize()` | Opens the store and replays the log. Asynchronous, and **must** be awaited before the input is enabled. Answers with the store's status. |
 | `Status()` | The store's status again, as a JSON string. The page asks after every line, so storage that stops answering mid-session shows as `not persisted` when it happens. |
@@ -885,8 +892,12 @@ table starts live, and
 the ones above it that were live because they were newest pause when it arrives. Tapping
 `paused` makes a listing live again and asks its question at once, and tapping `live`
 pauses it; one made live by a tap stays live when a newer listing arrives. After a
-`storeChanged`, every live listing is asked again through `Refresh`, one after another,
-and a listing whose answer changed is redrawn in place. A listing's answer is its
+`storeChanged`, every live listing is asked again through `RefreshAt`, one after
+another, from the `location` of its first response
+([decision 0047](../decisions/0047-a-live-listing-stays-where-it-was-run.md)), and a
+listing whose answer changed is redrawn in place. A page **must not** re-ask a listing
+from wherever the session has moved since: `in`, `out` and `back` change where the next
+line runs, not what a listing on screen shows. A listing's answer is its
 `result` and its `notes` together, and its notes **must** be redrawn with its table,
 since they are about this answer and not the last: an explanation goes when a row comes
 back, and comes when the last one goes. A refusal or a failure leaves what is on screen

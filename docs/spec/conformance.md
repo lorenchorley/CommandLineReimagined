@@ -71,7 +71,7 @@ second table counts from `dotnet test`.
 | Replaying a log, seeding once, `reset`, giving an older log the guide once, and bringing the seeded files nobody changed to the seed (decision 0040) | `Core.Tests/PersistenceTests` | 29 |
 | The stored shape of a transaction, every event and value case, the trail's events, versioning up to 3 | `Web.Core.Tests/LogFormatTests` | 27 |
 | The browser's IndexedDB module, including a browser without it | `tools/store-check.mjs` | 20 |
-| DTO shapes including tables, views, refreshing, caught faults, documents, streaming, cancellation, completion, tokens, the guide, and no notes on a line with nothing to say | `Web.Core.Tests/TerminalSessionTests` | 55 |
+| DTO shapes including tables, views, refreshing and refreshing from where a listing was run (decision 0047), caught faults, documents, streaming, cancellation, completion, tokens, the guide, and no notes on a line with nothing to say | `Web.Core.Tests/TerminalSessionTests` | 57 |
 | A parse error in words: the phrase table, the explanations, the sentence carried with the parse | `Web.Core.Tests/ParseWordingTests` | 14 |
 | The hover record as the page receives it | `Web.Core.Tests/DescribeTests` | 7 |
 | Path and naming helpers | `Terminal.Tests/ValidCommandTests` | 2 |
@@ -83,9 +83,9 @@ Cases actually run, which is what the suite reports:
 | --- | --- |
 | `Parser.Tests` | 375 |
 | `Core.Tests` | 881 |
-| `Web.Core.Tests` | 143 |
+| `Web.Core.Tests` | 145 |
 | `Terminal.Tests` | 32 |
-| Total | 1431 |
+| Total | 1433 |
 
 Run them with:
 

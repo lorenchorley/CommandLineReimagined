@@ -623,9 +623,34 @@ type Session(log: ILog, options: SessionOptions, seed: Seed) =
     /// all exactly as they would have been. A line that would change something is
     /// refused, by name, before it runs.
     /// </remarks>
-    member _.Refresh(source: string) =
+    member this.Refresh(source: string) = this.RefreshAt(source, None)
+
+    /// <summary>Re-runs a line that only reads, from where it was first run (decision 0047).</summary>
+    /// <remarks>
+    /// `location` is the place the listing was answered in, which the host remembers
+    /// from its first response. `None` is where the session is now, which is `Refresh`.
+    /// </remarks>
+    member this.RefreshAt(source: string, location: Location option) = this.RefreshWhere(source, Ok location)
+
+    /// <summary>`RefreshAt` for a host that kept the place as text, as a response gives it.</summary>
+    /// <remarks>
+    /// `folder` is the folder and `view` the view's predicate as `Expr.display` wrote it,
+    /// or empty for none. A view that no longer reads as a predicate is the refresh's
+    /// fault, so a listing stays as it was rather than being asked somewhere else.
+    /// </remarks>
+    member this.RefreshFrom(source: string, folder: string, view: string) =
+        let place =
+            if String.IsNullOrWhiteSpace view then
+                Ok(Some { Folder = folder; View = None })
+            else
+                Expr.parse "view" view |> Result.map (fun expr -> Some { Folder = folder; View = Some expr })
+
+        this.RefreshWhere(source, place)
+
+    member private _.RefreshWhere(source: string, place: Outcome<Location option>) =
         async {
             let source = if isNull source then "" else source
+            let location = match place with Ok location -> location | Error _ -> None
             // A refresh is nobody's line, so its output goes nowhere: a progress bar
             // from a re-read would appear under an entry that nobody submitted.
             let output = CapturingOutput ignore
@@ -635,7 +660,7 @@ type Session(log: ILog, options: SessionOptions, seed: Seed) =
                   Output = output.Lines
                   Result = result
                   Fault = fault
-                  Location = store.Current.Location
+                  Location = defaultArg location store.Current.Location
                   Changes = LogChanges.none
                   Guide = None
                   Notes =
@@ -648,11 +673,12 @@ type Session(log: ILog, options: SessionOptions, seed: Seed) =
             else
                 let parsed = parser.Parse<Tree.Node> source
 
-                match parsed.Match((fun tree -> Ok tree), (fun error -> Error(Fault.ofParseError error))) with
-                | Error fault -> return respond (Some fault) None
-                | Ok tree ->
+                match parsed.Match((fun tree -> Ok tree), (fun error -> Error(Fault.ofParseError error))), place with
+                | Error fault, _
+                | _, Error fault -> return respond (Some fault) None
+                | Ok tree, Ok _ ->
                     try
-                        let! result = evaluator.Refresh tree source output CancellationToken.None
+                        let! result = evaluator.RefreshAt tree source output CancellationToken.None location
 
                         match result with
                         | Error fault -> return respond (Some fault) None

@@ -847,8 +847,10 @@ function applyChanges(entry, r) {
 
   A listing is a question about the store, and the store changes under it: `mkdir x`
   in the next entry makes the answer above it wrong. Because the log says when it
-  changed, the page can ask the question again — through `Refresh`, which re-reads and
-  commits nothing — and replace the table in place.
+  changed, the page can ask the question again — through `RefreshAt`, which re-reads and
+  commits nothing — and replace the table in place. It is asked again where it was first
+  asked, the folder and view of its first response, so `in documents` afterwards leaves a
+  listing of `/` a listing of `/` (decision 0047).
 
   Every listing keeps its badge. The newest starts live; the ones above it pause when
   a newer one arrives, which is what a scrollback is for, and read `paused`. Tapping
@@ -856,7 +858,7 @@ function applyChanges(entry, r) {
   be live at once, each asked again whenever the store changes. One made live by a tap
   stays live when a newer listing arrives: it was asked for, not left over.
 */
-const watches = new Set();   // { entry, source, on, chosen, shown } for every listing on screen
+const watches = new Set();   // { entry, source, where, on, chosen, shown } for every listing on screen
 let refreshWanted = false;
 
 /// Which lines are worth keeping live: the two that ask what is there.
@@ -875,7 +877,10 @@ function markLive(entry, source, response) {
     if (other.on && !other.chosen) { other.on = false; drawWatch(other); }
   }
 
-  const watch = { entry, source, on: true, chosen: false, shown: answerOf(response) };
+  // Where it was answered: a listing is a question asked in one place, and `in` or
+  // `out` afterwards does not move it (decision 0047).
+  const where = response.location || { folder: '/', view: null };
+  const watch = { entry, source, where, on: true, chosen: false, shown: answerOf(response) };
   watches.add(watch);
   drawWatch(watch);
 }
@@ -922,7 +927,8 @@ async function refreshListing(watch) {
   const asked = watch.asked = (watch.asked || 0) + 1;
 
   try {
-    const response = JSON.parse(await DotNet.invokeMethodAsync('WebClient', 'Refresh', watch.source));
+    const response = JSON.parse(await DotNet.invokeMethodAsync(
+      'WebClient', 'RefreshAt', watch.source, watch.where.folder, watch.where.view || null));
     if (response.error || !watch.on || asked !== watch.asked || !watches.has(watch)) return;
 
     const answer = answerOf(response);

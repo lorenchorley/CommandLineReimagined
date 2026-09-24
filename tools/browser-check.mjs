@@ -877,6 +877,42 @@ async function checkPhase10(page, note) {
 
 }
 
+/**
+ * Decision 0047: a live listing is asked again where it was first asked. A listing of
+ * `/` stays a listing of `/` after `in documents`, and a view's listing stays the view's
+ * after `out`; each still refreshes when the store changes.
+ */
+async function checkListingsStayPut(page, note) {
+  const lastId = () => page.evaluate(() => Number(document.body.dataset.finished || 0));
+  const names = id => page.locator(`.entry[data-id="${id}"] .grid tbody tr td:first-child`).allInnerTexts();
+  const gains = (id, name) => page.waitForFunction(
+    ({ id, name }) => [...document.querySelectorAll(`.entry[data-id="${id}"] .grid tbody tr td:first-child`)]
+      .some(cell => cell.textContent.trim() === name),
+    { id, name }, { timeout: 10000 }).then(() => true, () => false);
+
+  // A folder's listing, then somewhere else.
+  await submit(page, 'ls');
+  const root = await lastId();
+  await submit(page, 'in documents');
+  await submit(page, 'mkdir /made-from-documents');
+  if (!await gains(root, 'made-from-documents')) note('a live listing of / did not gain a folder made at / from inside documents');
+  const shown = await names(root);
+  if (!shown.includes('readme.txt') || shown.includes('notes.txt')) {
+    note(`after 'in documents' the listing of / shows ${JSON.stringify(shown)}: it moved with the location`);
+  }
+
+  // A view's listing, then out of the view.
+  await submit(page, 'out');
+  await submit(page, 'in $row.kind eq folder');
+  await submit(page, 'ls');
+  const view = await lastId();
+  await submit(page, 'out');
+  await submit(page, 'mkdir made-outside-the-view');
+  if (!await gains(view, 'made-outside-the-view')) note("a live view listing did not gain a folder made after 'out'");
+  const inView = await names(view);
+  if (inView.includes('readme.txt')) note(`after 'out' the view's listing shows ${JSON.stringify(inView)}: it left the view`);
+}
+
 /** The chips in the completion row, in order. */
 const chips = page => page.locator('#complete .key:not(.more)').allInnerTexts();
 
@@ -1409,6 +1445,10 @@ async function main() {
     await submit(page, 'reset');
     await checkPhase10(page, note);
     console.log('Checked Phase 10: a suggestion and its fix chip, an explanation kept by a live listing, the guidance style.');
+
+    await submit(page, 'reset');
+    await checkListingsStayPut(page, note);
+    console.log('Checked that a live listing stays where it was run, through in and out.');
 
     // ---- On a phone: nothing moves, opens or closes on its own ----------------
 

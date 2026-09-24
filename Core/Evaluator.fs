@@ -129,7 +129,7 @@ type Evaluator(commands: Command list, store: Store, blobs: IBlobs) =
     /// surfaces as a message rather than ending the session.
     /// </remarks>
     member this.Execute (tree: Tree.Node) (source: string) (output: IOutput) (cancel: CancellationToken) =
-        this.Run tree source output cancel true
+        this.Run tree source output cancel true None
 
     /// <summary>Re-reads a line without committing anything (Phase 4).</summary>
     /// <remarks>
@@ -139,8 +139,24 @@ type Evaluator(commands: Command list, store: Store, blobs: IBlobs) =
     /// rather than run.
     /// </remarks>
     member this.Refresh (tree: Tree.Node) (source: string) (output: IOutput) (cancel: CancellationToken) =
+        this.RefreshAt tree source output cancel None
+
+    /// <summary>Re-reads a line as if it were run from `location` (decision 0047).</summary>
+    /// <remarks>
+    /// A live listing is the answer to a question asked in one place, so it is asked
+    /// again there, whatever `in` and `out` have done since: the store is the current
+    /// one, and only where the line stands is the listing's own. `None` is where the
+    /// session is now.
+    /// </remarks>
+    member this.RefreshAt
+        (tree: Tree.Node)
+        (source: string)
+        (output: IOutput)
+        (cancel: CancellationToken)
+        (location: Location option)
+        =
         if this.IsReadOnly tree then
-            this.Run tree source output cancel false
+            this.Run tree source output cancel false location
         else
             async.Return(Error(Fault.refreshMustOnlyRead source))
 
@@ -150,11 +166,15 @@ type Evaluator(commands: Command list, store: Store, blobs: IBlobs) =
         (output: IOutput)
         (cancel: CancellationToken)
         (commit: bool)
+        (location: Location option)
         =
         async {
             /// The projection a stage reads: the committed one with this line's events
-            /// so far folded in.
-            let mutable working = store.Current
+            /// so far folded in, standing where the line is run from.
+            let mutable working =
+                match location with
+                | Some place -> { store.Current with Location = place }
+                | None -> store.Current
             let mutable pending: Event list = []
             let mutable notes: Note list = []
 

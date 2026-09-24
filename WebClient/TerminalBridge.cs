@@ -75,6 +75,22 @@ public static class TerminalBridge
         return JsonSerializer.Serialize(response, Options);
     }
 
+    /// <summary>
+    /// Re-reads a live listing from the folder and view it was first run in (decision
+    /// 0047), and returns the result as JSON.
+    /// </summary>
+    /// <remarks>
+    /// The page passes the <c>location</c> the listing's first response carried, so a
+    /// listing of <c>/</c> is still a listing of <c>/</c> after <c>in documents</c>.
+    /// </remarks>
+    [JSInvokable]
+    public static async Task<string> RefreshAt(string source, string folder, string? view)
+    {
+        var response = await Session.RefreshAsync(source ?? string.Empty, folder ?? "/", view);
+
+        return JsonSerializer.Serialize(response, Options);
+    }
+
     /// <summary>Stops the running command. Returns whether there was one.</summary>
     [JSInvokable]
     public static bool Cancel() => Session.Cancel();

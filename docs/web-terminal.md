@@ -277,6 +277,13 @@ comes and goes with the rows. The re-run leaves no entry in the scrollback, no t
 nothing in `history`. A line naming any command that could change something, such as
 `ls | set files`, is refused rather than re-run, and the table it drew stays as it was.
 
+A listing is asked again where it was first run
+([decision 0047](decisions/0047-a-live-listing-stays-where-it-was-run.md)): run `ls` at
+`/`, then `in documents`, and the listing above is still the listing of `/`, gaining
+whatever is made there; a view's listing is still the view's after `out`. Moving changes
+where the next line runs, not what a listing already on screen shows. A listing whose
+folder has since gone stays as it was drawn.
+
 Every listing has a badge under it that says which it is: `live` while it is kept up
 to date, `paused` while it is not. The newest listing starts live, and the ones above it
 pause when a newer one arrives, which is what a scrollback is for. Tapping `paused` makes

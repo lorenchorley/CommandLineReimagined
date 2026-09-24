@@ -138,6 +138,26 @@ public sealed class TerminalSession
         return Describe(source, response, new CommandParseService().Parse(source));
     }
 
+    /// <summary>
+    /// Re-reads a line from the place it was first answered in (decision 0047).
+    /// </summary>
+    /// <remarks>
+    /// <paramref name="folder"/> and <paramref name="view"/> are the <c>location</c> of
+    /// the listing's first response, so a live listing keeps showing where it was run,
+    /// whatever <c>in</c> and <c>out</c> have done since. A null or empty view is none.
+    /// </remarks>
+    public async Task<ExecutionResponse> RefreshAsync(string source, string folder, string? view)
+    {
+        source ??= string.Empty;
+
+        var response = await FSharpAsync.StartAsTask(
+            _session.RefreshFrom(source, folder ?? "/", view ?? string.Empty),
+            FSharpOption<TaskCreationOptions>.None,
+            FSharpOption<CancellationToken>.None);
+
+        return Describe(source, response, new CommandParseService().Parse(source));
+    }
+
     /// <summary>One response, as the page's JSON.</summary>
     private static ExecutionResponse Describe(string source, Response response, ParseResponse parse)
     {

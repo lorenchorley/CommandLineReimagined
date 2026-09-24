@@ -301,6 +301,44 @@ public class TerminalSessionTests
             "appeared");
     }
 
+    /// Decision 0047: a listing is asked again where it was first answered, so going
+    /// into a folder afterwards does not turn a listing of `/` into one of the folder.
+    [TestMethod]
+    public async Task ARefreshStaysInTheFolderItWasRunIn()
+    {
+        var run = await _session.ExecuteAsync("ls");
+        await _session.ExecuteAsync("in documents");
+        await _session.ExecuteAsync("mkdir /appeared");
+
+        var refreshed = await _session.RefreshAsync("ls", run.Location.Folder, run.Location.View);
+        var names = Names(refreshed.Result!.Single());
+
+        Assert.IsNull(refreshed.Error);
+        CollectionAssert.Contains((System.Collections.ICollection)names, "readme.txt");
+        CollectionAssert.Contains((System.Collections.ICollection)names, "appeared");
+        CollectionAssert.DoesNotContain((System.Collections.ICollection)names, "notes.txt");
+        Assert.AreEqual("/", refreshed.Location.Folder);
+        Assert.AreEqual("/documents", (await _session.ExecuteAsync("pwd")).ResultText);
+    }
+
+    /// A view's listing stays the view's after `out`, read back from the text of its
+    /// predicate as the first response gave it.
+    [TestMethod]
+    public async Task ARefreshStaysInTheViewItWasRunIn()
+    {
+        await _session.ExecuteAsync("in $row.kind eq folder");
+        var run = await _session.ExecuteAsync("ls");
+        await _session.ExecuteAsync("out");
+
+        Assert.IsNotNull(run.Location.View);
+        var refreshed = await _session.RefreshAsync("ls", run.Location.Folder, run.Location.View);
+        var names = Names(refreshed.Result!.Single());
+
+        Assert.IsNull(refreshed.Error);
+        CollectionAssert.Contains((System.Collections.ICollection)names, "documents");
+        CollectionAssert.DoesNotContain((System.Collections.ICollection)names, "readme.txt");
+    }
+
     /// The page asks for this behind the user's back, so it must not be able to write.
     [TestMethod]
     public async Task ARefreshRefusesALineThatWouldChangeSomething()

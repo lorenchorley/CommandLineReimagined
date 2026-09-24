@@ -56,6 +56,7 @@ a later record, **Rejected**.
 | [0044](0044-a-fault-may-carry-fixes.md) | A fault may carry fixes, which the page offers as chips | Accepted |
 | [0045](0045-a-near-value-offers-a-fix.md) | A value no row has offers the nearest one that a row does | Accepted |
 | [0046](0046-restore-messages-are-guidance.md) | What the page says about restoring a session is guidance | Accepted |
+| [0047](0047-a-live-listing-stays-where-it-was-run.md) | A live listing stays where it was run | Accepted |
 
 Retrospective records document decisions taken before the log existed, so that the
 log is the one place to look. Their alternatives are the ones weighed at the time, as
