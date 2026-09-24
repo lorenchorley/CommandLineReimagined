@@ -100,7 +100,8 @@ module Hover =
     /// <remarks>
     /// `$row.` reads a column of what flows into the stage, so its type comes from
     /// `Shape`. Any other variable is read: a table's column by its type, a tag's, a
-    /// file's or a fault's member by its value.
+    /// file's or a fault's member by its value. A tag's `@tag` and `@children` say what
+    /// they read, then what that is: `the tag's name · text · "thing"`.
     /// </remarks>
     let private memberOf (request: Request) (text: string) (name: string) (path: string list) (stage: Stage option) =
         async {
@@ -130,9 +131,21 @@ module Hover =
                         | Value.Table table ->
                             async.Return(columnIn (table.Columns |> List.map (fun c -> c.Name, c.Type)))
                         | other ->
-                            match Expr.readMember wanted other with
-                            | Value.None -> async.Return None
-                            | value -> async.Return(Some(Summary.ofValue value))
+                            // Decision 0048: a tag's own part says what it reads before
+                            // what it holds, since `@tag` names no attribute.
+                            let reads =
+                                match other with
+                                | Value.Object _
+                                | Value.Component _ when wanted = Expr.tagMember -> Some VariableCompletion.tagDetail
+                                | Value.Object _
+                                | Value.Component _ when wanted = Expr.childrenMember ->
+                                    Some VariableCompletion.childrenDetail
+                                | _ -> None
+
+                            match Expr.readMember wanted other, reads with
+                            | Value.None, _ -> async.Return None
+                            | value, Some reads -> async.Return(Some(reads + " · " + Summary.ofValue value))
+                            | value, None -> async.Return(Some(Summary.ofValue value))
 
             return
                 { Kind = "member"

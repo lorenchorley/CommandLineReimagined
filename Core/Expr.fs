@@ -100,19 +100,35 @@ module Expr =
 
     // ------------------------------------------------------------------- Members
 
+    /// The member that reads a tag's name (decision 0048).
+    let tagMember = "@tag"
+
+    /// The member that reads a tag's children (decision 0048).
+    let childrenMember = "@children"
+
     /// <summary>Reads `.name` off a value.</summary>
     /// <remarks>
     /// A name the value does not have is `None` rather than a failure, because a sparse
     /// table's gaps are exactly that (decision 0009) and a predicate over a table where
     /// one row is missing a column should skip that row, not stop the line.
+    ///
+    /// Decision 0048: a name with `@` before it is one of the tag's own parts, not an
+    /// attribute. `@tag` is its name as text and `@children` its children as a list.
+    /// A row answers its columns first, so a row with an `@tag` or `@children` column,
+    /// as `pick`'s rows have, reads that column. Any other `@` name, and either one on
+    /// a value that is not a tag, is `None`, as a missing attribute is.
     /// </remarks>
     let readMember (name: string) (value: Value) : Value =
         match value with
         | Value.Object tag
         | Value.Component tag ->
+            let own = name.StartsWith "@"
+
             match Map.tryFind name tag.Attributes with
-            | Some found -> found
-            | Option.None -> Value.None
+            | Some found when not own || name = tagMember || name = childrenMember -> found
+            | _ when name = tagMember -> Value.Text tag.TypeName
+            | _ when name = childrenMember -> Value.List tag.Children
+            | _ -> Value.None
 
         | Value.File file ->
             match name with

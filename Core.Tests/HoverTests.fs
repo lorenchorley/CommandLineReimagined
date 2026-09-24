@@ -122,6 +122,32 @@ type HoverTests() =
 
         Assert.AreEqual<string option>(Some(Summary.ofValue (Value.Text "NotFound")), hover.Detail)
 
+    /// Decision 0048: a tag's own parts say what they read, then what that is.
+    [<TestMethod>]
+    member _.ATagsOwnPartsSayWhatTheyRead() =
+        let harness = seeded ()
+        harness.Run "set v <thing a=1><b/><c/></thing>" |> ignore
+
+        let tag = expect (describe harness "echo $v.@tag‸")
+        Assert.AreEqual<string>("member", tag.Kind)
+        Assert.AreEqual<string>("$v.@tag", tag.Text)
+        Assert.AreEqual<string option>(Some "the tag's name · text · \"thing\"", tag.Detail)
+
+        let children = expect (describe harness "echo $v.@children‸")
+        Assert.AreEqual<string option>(Some "its children · list · 2 items", children.Detail)
+
+        let attribute = expect (describe harness "echo $v.a‸")
+        Assert.AreEqual<string option>(Some "number · 1", attribute.Detail)
+
+    /// Any other `@` name reads nothing, so there is nothing to say about what it holds.
+    [<TestMethod>]
+    member _.AnyOtherAtMemberSaysNothingOfWhatItHolds() =
+        let harness = seeded ()
+        harness.Run "set v <thing a=1/>" |> ignore
+
+        let other = expect (describe harness "echo $v.@other‸")
+        Assert.AreEqual<string option>(None, other.Detail)
+
     [<TestMethod>]
     member _.AnOperatorSaysWhatItCompares() =
         let harness = seeded ()

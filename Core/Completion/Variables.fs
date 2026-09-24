@@ -49,6 +49,15 @@ module VariableCompletion =
 
     // ---------------------------------------------------------------- Members
 
+    /// What `@tag` reads, as its chip and its hover say.
+    let tagDetail = "the tag's name"
+
+    /// What `@children` reads, as its chip and its hover say.
+    let childrenDetail = "its children"
+
+    /// A tag's own parts, which every tag has (decision 0048).
+    let private ownParts = [ Expr.tagMember, tagDetail; Expr.childrenMember, childrenDetail ]
+
     /// <summary>The members a value has, each with a line about it.</summary>
     /// <remarks>
     /// A tag's are its attributes, a file's what `Expr.readMember` reads off one, and a
@@ -59,6 +68,10 @@ module VariableCompletion =
     /// member that answers nothing. The owner chose on 2026-09-23 to stop offering
     /// them rather than make a table's member mean something. `$row.` is unaffected:
     /// a row is a tag, and its columns come from what flows into the stage.
+    ///
+    /// Decision 0048: after a tag's attributes come its own parts, `@tag` and
+    /// `@children`, each saying what it reads rather than what it holds. Typing `$v.@`
+    /// leaves only them, since no attribute starts with `@`.
     /// </remarks>
     let private membersOf (value: Value) : (string * string) list =
         let read names =
@@ -66,7 +79,9 @@ module VariableCompletion =
 
         match value with
         | Value.Object tag
-        | Value.Component tag -> Value.orderedAttributes tag |> List.map (fun (name, v) -> name, Summary.ofValue v)
+        | Value.Component tag ->
+            (Value.orderedAttributes tag |> List.map (fun (name, v) -> name, Summary.ofValue v))
+            @ ownParts
         | Value.File _ -> read [ "name"; "kind"; "folder"; "path"; "id" ]
         | Value.Fault fault -> read ([ "kind"; "message"; "stage"; "path" ] @ (if fault.Cause.IsSome then [ "cause" ] else []))
         | _ -> []
