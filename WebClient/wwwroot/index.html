@@ -1111,9 +1111,16 @@ function drawDetail() {
   // the command has what it needs, so the parameters are no longer the question.
   if (chip && chip.text === '|' && chip.detail) detail.innerHTML = `<b class="t ${chip.kind}">|</b> · ${escape(chip.detail)}`;
   else if (signature) detail.innerHTML = signatureHtml(signature);
-  else if (chip && chip.detail) detail.innerHTML = `<b class="t ${chip.kind}">${escape(chip.text)}</b> · ${escape(chip.detail)}`;
+  else if (chip && chip.detail) detail.innerHTML = `<b class="t ${chip.kind}">${escape(chip.text)}</b> · ${escape(ownPart(chip))}`;
   else if (lineError) detail.innerHTML = `<span class="problem">${escape(lineError.sentence)}</span>`;
   else detail.innerHTML = '';
+}
+
+/// A chip's detail without the chip's own name in front: a command found by its keyword
+/// says `in · matches "cd"`, and the line already starts with the bold `in`.
+function ownPart(chip) {
+  const named = `${chip.text} · `;
+  return chip.detail.startsWith(named) ? chip.detail.slice(named.length) : chip.detail;
 }
 
 /// `sort <column> [desc] [table] · The column to order by`: the parameter being written
@@ -1493,11 +1500,20 @@ function insert(text) {
 /// puts it at the start, so a key's text was typed in front of. The caret is placed only
 /// when the line has the focus: placing it in a line without it would give it the
 /// focus, and on a phone that opens the keyboard, which the page never does on its own.
+/// Without the focus, the caret goes to the end when the line next gets it.
 function setLine(text) {
   cmd.value = text;
-  if (document.activeElement === cmd) cmd.setSelectionRange(cmd.value.length);
+  caretToEndOnFocus = document.activeElement !== cmd;
+  if (!caretToEndOnFocus) cmd.setSelectionRange(cmd.value.length);
   refreshMirror(); refreshCompletions();
 }
+let caretToEndOnFocus = false;
+cmd.addEventListener('focus', () => {
+  if (!caretToEndOnFocus) return;
+  caretToEndOnFocus = false;
+  cmd.setSelectionRange(cmd.value.length);
+});
+cmd.addEventListener('input', () => { caretToEndOnFocus = false; });
 
 /// Up, and the ↑ button: one line further back through what has been run. What was
 /// being typed is kept, and comes back at the end of the walk.

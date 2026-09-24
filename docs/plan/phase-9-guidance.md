@@ -7,8 +7,9 @@ offers what can come next, the pipe first. On the page, any listing can be made 
 again, text selected in the scrollback is copied, the history can be walked with
 buttons, and the title bar goes.
 
-**Status: planned.** Run it as [running.md](running.md) describes, with the layout in
-[Running it](#running-it) and the state in [Progress](#progress).
+**Status: complete.** Built on 2026-09-24; where the result differs from the plan is in
+[As built](#as-built). It was run as [running.md](running.md) describes, with the
+layout in [Running it](#running-it) and the state in [Progress](#progress).
 
 ## Requests
 
@@ -217,8 +218,9 @@ After 9.1, A, B and C start together from its commit.
 | A. `back` | stream agent | merged | e62c9df |
 | B. Guidance in the core | stream agent | merged | 2dc822f |
 | C. The page | stream agent | merged | cebe5a2 |
-| 9.9 docs, spec | two sub-agents | in progress | |
-| 9.9 verifier, republish, As built | orchestrator | not started | |
+| 9.9 docs, spec | two sub-agents | merged | ef242a3, 7a69f41 |
+| 9.9 gaps the documents found | orchestrator | merged | d6c6194 |
+| 9.9 verifier, republish, As built | orchestrator | done | this commit |
 
 ## Acceptance
 
@@ -249,3 +251,50 @@ From a fresh tab, at 390 by 844:
 
 Plus: every suite green, the four example programs at their golden results with the
 new names, the guide's examples all running, and the payload under 20 MB.
+
+## As built
+
+Every checkpoint and stream, with these differences and findings.
+
+- **How it ran.** One orchestrator did 9.0 and handed 9.1, the rename, to one
+  sub-agent, since every later stream reads the new names. Streams A, B and C then ran
+  together in their own worktrees and merged without conflict. 9.9's documents and
+  specification went to two sub-agents, and each wrote down where the code did not do
+  what it was describing, which is how the gaps below were found. Nothing waited on the
+  owner.
+- **Found by the documents and fixed:**
+  - A value of the wrong kind for a parameter, like `ls | take x`, is an `Invalid`
+    fault, and it carried no help. A fault whose message names the parameter
+    (`'count' must be a whole number`) now does, as 0038 asks of every wrong call.
+  - The pipe was not offered after `in documents ` or `$files `: the first is a
+    predicate place that answered a constant, and the second a value stage completion
+    saw as an unknown place. Both now offer `|` first, as 0039 asks.
+  - The page never showed the pipe chip's detail, because the signature took the line
+    first. With `|` selected, the line reads `| · send the result on`.
+  - `undo` still had the keyword `back`, which is now a command of its own.
+  - `'read' takes 1 argument, but 2 were given` read `1 were given` when one was given.
+    It says `was`.
+- **Found by the verifier and fixed:**
+  - A command found by a keyword named itself twice in the detail line,
+    `in · in · matches "cd"`, since Phase 8. The page no longer repeats a name the
+    detail already starts with.
+  - A palette key tapped with the keyboard down left the caret at the start of the
+    line, so typing after focusing it went in front. The caret now goes to the end when
+    the line next gets the focus. The browser check tests both.
+- **Kept as they are, and why:**
+  - `Did you mean in?` is still part of the fault's own text, drawn as an error. Phase
+    10 moves suggestions into notes drawn as guidance
+    ([decision 0041](phase-10-help-towards-understanding.md#decision-records)), and
+    changing the sentence before then would change it twice.
+  - The two new deviations `conformance.md` lists are intended, and each has its record.
+- **Not verifiable here.** A real long press and its selection handles, and a real
+  on-screen keyboard, cannot be run headless. The browser check makes a selection in
+  code, as the handles do, and emulates a phone at 390 by 844 with touch. The owner's
+  phone is the check that remains.
+- **Verification.** A verifier ran the acceptance table against d6c6194: 20 of 20 rows
+  matched, on the core and on the published page. On the final head every project
+  builds without warnings, the 1372 tests of the four suites `conformance.md` counts
+  pass (823 in Core.Tests), and so do the smaller suites; the four example programs
+  give their golden results and every example in the guide runs; the browser check
+  passes. The payload is 10.7 MB the way `build.yml` measures it, and 18.5 MB as the
+  whole `wwwroot`, both under 20 MB. The Artifact was republished as version 18.

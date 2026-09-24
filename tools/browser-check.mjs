@@ -663,6 +663,20 @@ async function checkPhase9(page, note) {
   await page.locator('#keys .key', { hasText: /^readme$/ }).tap();
   if (await focused()) note('tapping a palette key with the keyboard down brought it up');
   if (await value() !== 'read readme.txt') note(`the readme key with the keyboard down wrote ${JSON.stringify(await value())}`);
+  await page.focus('#cmd');
+  await page.keyboard.type('Y');
+  const later = await value();
+  if (later !== 'read readme.txtY') note(`typing once the line had the focus after the readme key made it ${JSON.stringify(later)}; the caret was not at its end`);
+  await page.fill('#cmd', '');
+
+  // A command found by a keyword names itself once in the detail line.
+  await page.focus('#cmd');
+  await page.keyboard.type('cd');
+  const shown = await page.waitForFunction(() => {
+    const text = document.getElementById('detail').textContent.trim();
+    return /matches/.test(text) ? text : null;
+  }, null, { timeout: 5000 }).then(h => h.jsonValue()).catch(() => null);
+  if (shown !== 'in · matches "cd"') note(`with cd typed the detail line read ${JSON.stringify(shown)}, not in · matches "cd"`);
   await page.fill('#cmd', '');
 }
 

@@ -4,7 +4,7 @@
 something to tap. Everything the terminal says of its own, rather than what a command
 answered, looks unmistakably like the terminal talking.
 
-**Status: planned, after Phase 9.** Chosen by the owner on 2026-09-24 from a list of
+**Status: planned; Phase 9 is complete.** Chosen by the owner on 2026-09-24 from a list of
 suggestions. It builds on Phase 9's `guide` and its distinct panel (R13), and is run
 as [running.md](running.md) describes.
 
