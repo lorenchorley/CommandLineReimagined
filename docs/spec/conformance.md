@@ -47,14 +47,14 @@ second table counts from `dotnet test`.
 | `undo`, `redo`, `history` and `help` as commands, `help <command>`, and the nearest names an unknown command is given | `Core.Tests/MetaCommandTests` | 28 |
 | What a line says it did to the log: the lines it committed, undid and redid | `Core.Tests/LogChangesTests` | 11 |
 | The table functions, as whole command lines, the two predicate faults of decision 0033, and what answers a predicate (decision 0034) | `Core.Tests/TableCommandTests` | 44 |
-| Views: `cd` on a predicate, `ls` across folders, `up`, `find`, `save-view`, refreshing, and the bound check in each, a view read back from its record included | `Core.Tests/ViewTests` | 46 |
+| Views: `in` on a predicate, `ls` across folders, `out`, `find`, `save-view`, refreshing, and the bound check in each, a view read back from its record included | `Core.Tests/ViewTests` | 46 |
 | Recovery: `else`, `try`, `??`, nested pipelines, fault values and their members, `is-fault`, what a refresh refuses, recovery around a value stage | `Core.Tests/RecoveryTests` | 37 |
 | XML documents: reading, text content, namespaces, refusals, writing, round trips, and the two commands | `Core.Tests/XmlTests` | 41 |
 | CSV files: RFC 4180 reading, column typing, gaps, faults naming the line, writing, round trips, and the two commands | `Core.Tests/CsvTests` | 33 |
 | The example programs, against their golden results, and `run`; the guide's examples and its chain of readmes | `Core.Tests/ExampleProgramTests` | 24 |
 | The lexical rules: completion over the projection, the operators, the columns, the places and the keywords | `Core.Tests/CompletionTests` | 25 |
 | Where the cursor is: the place for every line of the Phase 8 finding table | `Core.Tests/ContextTests` | 4 |
-| Command names: after a pipe, not a path command after a table, by keyword, by edit distance, with descriptions | `Core.Tests/CommandCompletionTests` | 21 |
+| Command names: after a pipe, not a path command after a table, by keyword, by edit distance, with descriptions | `Core.Tests/CommandCompletionTests` | 22 |
 | Variables, `$row` only in a predicate, members by what a variable holds, tag types and attributes, the summaries | `Core.Tests/VariableCompletionTests` | 18 |
 | Every parameter of every command by what it takes, flags, assignments, quoted paths, the signature | `Core.Tests/ArgumentCompletionTests` | 45 |
 | Inside a predicate: operands, operators, a column's values, `and` and `or` | `Core.Tests/PredicateCompletionTests` | 22 |
@@ -64,7 +64,7 @@ second table counts from `dotnet test`.
 | Replaying a log, seeding once, `reset`, and giving an older log the guide once | `Core.Tests/PersistenceTests` | 17 |
 | The stored shape of a transaction, every event and value case, versioning | `Web.Core.Tests/LogFormatTests` | 24 |
 | The browser's IndexedDB module, including a browser without it | `tools/store-check.mjs` | 20 |
-| DTO shapes including tables, views, refreshing, caught faults, documents, streaming, cancellation, completion, tokens | `Web.Core.Tests/TerminalSessionTests` | 52 |
+| DTO shapes including tables, views, refreshing, caught faults, documents, streaming, cancellation, completion, tokens | `Web.Core.Tests/TerminalSessionTests` | 53 |
 | A parse error in words: the phrase table, the explanations, the sentence carried with the parse | `Web.Core.Tests/ParseWordingTests` | 14 |
 | The hover record as the page receives it | `Web.Core.Tests/DescribeTests` | 7 |
 | Path and naming helpers | `Terminal.Tests/ValidCommandTests` | 2 |
@@ -75,10 +75,10 @@ Cases actually run, which is what the suite reports:
 | Project | Cases |
 | --- | --- |
 | `Parser.Tests` | 375 |
-| `Core.Tests` | 764 |
-| `Web.Core.Tests` | 137 |
+| `Core.Tests` | 765 |
+| `Web.Core.Tests` | 138 |
 | `Terminal.Tests` | 32 |
-| Total | 1308 |
+| Total | 1310 |
 
 Run them with:
 
@@ -179,11 +179,11 @@ does not govern. They run in CI with the rest.
 - [ ] `sort` is stable in both directions.
 - [ ] `run` commits one transaction per line, skips blank and commented lines while
       counting them, and names the script and the line in a fault.
-- [ ] `cd` on an argument that used an operator sets the view and leaves the folder
+- [ ] `in` on an argument that used an operator sets the view and leaves the folder
       alone; on a plain name it enters a folder, or the view a `view` record holds.
 - [ ] `ls` in a view lists across folders, and its columns are the matching records'
       attributes rather than the whole store's.
-- [ ] `up` clears the view before it moves, and undo restores the whole location.
+- [ ] `out` clears the view before it moves, and undo restores the whole location.
 - [ ] A record created while a view is set is created in the folder.
 - [ ] A refresh is refused, before running, unless every stage names a read-only
       command, and commits nothing when it does run.
@@ -222,7 +222,7 @@ case.
 | Deviation | Status |
 | --- | --- |
 | Property assignments parse but raise `Cannot evaluate a child PropertyAssignment.` | Intended for now. The grammar keeps them because the original did; evaluation has no meaning to give them yet. |
-| `cd` and `ls` name a missing folder as it was written (`Directory does not exist : nowhere`), where other commands name the resolved path. | Intended. What you need to see after a failed `cd` is your own spelling; `FilesTests.AMissingFolderIsNamedAsItWasWritten` pins it. |
+| `in` and `ls` name a missing folder as it was written (`Directory does not exist : nowhere`), where other commands name the resolved path. | Intended. What you need to see after a failed `in` is your own spelling; `FilesTests.AMissingFolderIsNamedAsItWasWritten` pins it. |
 | `run` shows its last line's result twice: once as that line's output, and once as the result of `run`. | Intended. The output is the script's transcript, and the result is what `run` answers, which a pipe after it receives. |
 | `??` defaults a stage that answered nothing, not one that failed, so `echo $missing ?? x` is a `NotFound` fault. | Intended. A missing variable is a failure, and recovering from failure is `else`'s job ([decision 0014](../decisions/0014-recovery-operator.md)). |
 | A reserved word in argument position is described as an operator even when it is `try` or `else`, as in `'try' is an operator; write "try" to pass it as text`. | Cosmetic. The advice is right for all thirteen words. |

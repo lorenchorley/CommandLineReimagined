@@ -169,8 +169,8 @@ undone ([decision 0018](../decisions/0018-the-seed-is-not-a-line-anyone-typed.md
 **Files are attribute records.** A directory is a record whose `kind` is `folder`, and
 the root is implicit ([decisions 0013](../decisions/0013-attribute-filesystem.md) and
 [0016](../decisions/0016-folders-as-records.md)). Because the hierarchy is one attribute
-among many, `cd` on a predicate sets a view, `ls` in a view lists across folders, and
-`save-view` stores the question as a file you can `cd` into later.
+among many, `in` on a predicate sets a view, `ls` in a view lists across folders, and
+`save-view` stores the question as a file you can go into with `in` later.
 
 **Tables are values, and a tag can be one.** `ls` returns a table. A tag whose children
 all have the same type and no children of their own coerces to a table wherever a table is expected,
@@ -181,7 +181,7 @@ reads into the same tree, so a table-shaped document is a table for the same rea
 **Predicates use words and name the row.** `where $row.qty lt 10 and $row.kind eq part`.
 Word operators leave `<`, `>` and `|` to tags and pipes with no lookahead tricks
 ([decision 0007](../decisions/0007-notation-conflicts.md)), and `$row` is explicit so a
-predicate reads the same in `where`, `cd` and a saved view
+predicate reads the same in `where`, `in` and a saved view
 ([decision 0008](../decisions/0008-explicit-row-variable.md)). A predicate is a
 yes-or-no question about the row, so one that never reads `$row`, or answers a row with
 something other than true or false, is a fault rather than an empty table
