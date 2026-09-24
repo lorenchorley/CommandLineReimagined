@@ -301,7 +301,9 @@ type MetaCommandTests() =
               Cancel = System.Threading.CancellationToken.None }
 
         match Async.RunSynchronously(command.Run invocation) with
-        | Error fault -> Assert.AreEqual<string>("Unknown command : lss. Did you mean ls?", fault.Message)
+        | Error fault ->
+            Assert.AreEqual<string>("Unknown command : lss", fault.Message)
+            Assert.AreEqual<string list>([ "Did you mean ls?" ], fault.Notes |> List.map (fun note -> note.Text))
         | Ok _ -> Assert.Fail "Expected a fault."
 
     /// Finding 9: a mistyped command says which one was meant.
@@ -311,13 +313,17 @@ type MetaCommandTests() =
         let fault = harness.Fail "lss"
 
         Assert.AreEqual<FaultKind>(UnknownCommand, fault.Kind)
-        Assert.AreEqual<string>("Unknown command : lss. Did you mean ls?", fault.Message)
+        Assert.AreEqual<string>("Unknown command : lss", fault.Message)
+        Assert.AreEqual<string list>([ "Did you mean ls?" ], fault.Notes |> List.map (fun note -> note.Text))
 
     [<TestMethod>]
     member _.SeveralNearCommandsAreAllNamed() =
         let harness = seeded ()
 
-        Assert.AreEqual<string>("Unknown command : rn. Did you mean in, rm or run?", harness.Error "rn")
+        let fault = harness.Fail "rn"
+
+        Assert.AreEqual<string>("Unknown command : rn", fault.Message)
+        Assert.AreEqual<string list>([ "Did you mean in, rm or run?" ], fault.Notes |> List.map (fun note -> note.Text))
 
     /// A name nothing is near is only named as unknown.
     [<TestMethod>]

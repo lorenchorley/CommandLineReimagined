@@ -343,9 +343,11 @@ type ViewTests() =
 
         Assert.AreEqual<FaultKind>(Binding, fault.Kind)
 
-        Assert.AreEqual<string>(
-            "mood eq great never reads $row, so it is the same for every row. Did you mean $row.mood eq great?",
-            fault.Message)
+        Assert.AreEqual<string>("mood eq great never reads $row, so it is the same for every row.", fault.Message)
+
+        Assert.AreEqual<string list>(
+            [ "Did you mean $row.mood eq great?" ],
+            fault.Notes |> List.map (fun note -> note.Text))
 
         Assert.AreEqual<Expr option>(None, harness.View)
 
@@ -451,9 +453,11 @@ type ViewTests() =
 
         Assert.AreEqual<FaultKind>(Binding, fault.Kind)
 
-        Assert.AreEqual<string>(
-            "mood eq great never reads $row, so it is the same for every row. Did you mean $row.mood eq great?",
-            fault.Message)
+        Assert.AreEqual<string>("mood eq great never reads $row, so it is the same for every row.", fault.Message)
+
+        Assert.AreEqual<string list>(
+            [ "Did you mean $row.mood eq great?" ],
+            fault.Notes |> List.map (fun note -> note.Text))
 
     /// `in` with an operator in it is a view, so it is checked, and the location is
     /// left where it was.
@@ -465,9 +469,11 @@ type ViewTests() =
 
         Assert.AreEqual<FaultKind>(Binding, fault.Kind)
 
-        Assert.AreEqual<string>(
-            "mood eq great never reads $row, so it is the same for every row. Did you mean $row.mood eq great?",
-            fault.Message)
+        Assert.AreEqual<string>("mood eq great never reads $row, so it is the same for every row.", fault.Message)
+
+        Assert.AreEqual<string list>(
+            [ "Did you mean $row.mood eq great?" ],
+            fault.Notes |> List.map (fun note -> note.Text))
 
         Assert.AreEqual<string>("/journal", harness.Location)
         Assert.AreEqual<Expr option>(None, harness.View)
@@ -488,9 +494,11 @@ type ViewTests() =
 
         Assert.AreEqual<FaultKind>(Binding, fault.Kind)
 
-        Assert.AreEqual<string>(
-            "tag eq work never reads $row, so it is the same for every row. Did you mean $row.tag eq work?",
-            fault.Message)
+        Assert.AreEqual<string>("tag eq work never reads $row, so it is the same for every row.", fault.Message)
+
+        Assert.AreEqual<string list>(
+            [ "Did you mean $row.tag eq work?" ],
+            fault.Notes |> List.map (fun note -> note.Text))
 
         Assert.IsFalse(harness.Exists "/work")
 

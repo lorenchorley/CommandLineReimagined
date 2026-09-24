@@ -646,20 +646,31 @@ type GuidanceTests() =
     member _.AnOldNameSaysWhichCommandToUse() =
         let harness = seeded ()
 
-        Assert.AreEqual<string>("Unknown command : cd. Did you mean in?", harness.Error "cd documents")
-        Assert.AreEqual<string>("Unknown command : up. Did you mean out?", harness.Error "up")
-        Assert.AreEqual<string>("Unknown command : cat. Did you mean read?", harness.Error "cat readme.txt")
-        Assert.AreEqual<string>("Unknown command : cd. Did you mean in?", harness.Error "help cd")
-        Assert.AreEqual<string>("Unknown command : delete. Did you mean rm?", harness.Error "delete readme.txt")
+        let said line =
+            let fault = harness.Fail line
+            fault.Message, fault.Notes |> List.map (fun note -> note.Text)
+
+        Assert.AreEqual<string * string list>(("Unknown command : cd", [ "Did you mean in?" ]), said "cd documents")
+        Assert.AreEqual<string * string list>(("Unknown command : up", [ "Did you mean out?" ]), said "up")
+        Assert.AreEqual<string * string list>(("Unknown command : cat", [ "Did you mean read?" ]), said "cat readme.txt")
+        Assert.AreEqual<string * string list>(("Unknown command : cd", [ "Did you mean in?" ]), said "help cd")
+
+        Assert.AreEqual<string * string list>(
+            ("Unknown command : delete", [ "Did you mean rm?" ]),
+            said "delete readme.txt")
 
     /// Slips are corrected as they were, and a word two commands are described by names neither.
     [<TestMethod>]
     member _.ASlipIsStillCorrected() =
         let harness = seeded ()
 
-        Assert.AreEqual<string>("Unknown command : lss. Did you mean ls?", harness.Error "lss")
-        Assert.AreEqual<string>("Unknown command : rn. Did you mean in, rm or run?", harness.Error "rn")
-        Assert.AreEqual<string>("Unknown command : by", harness.Error "by")
+        let said line =
+            let fault = harness.Fail line
+            fault.Message, fault.Notes |> List.map (fun note -> note.Text)
+
+        Assert.AreEqual<string * string list>(("Unknown command : lss", [ "Did you mean ls?" ]), said "lss")
+        Assert.AreEqual<string * string list>(("Unknown command : rn", [ "Did you mean in, rm or run?" ]), said "rn")
+        Assert.AreEqual<string * string list>(("Unknown command : by", []), said "by")
 
     // ------------------------------------------------------------ 0041
 
