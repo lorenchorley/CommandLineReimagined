@@ -50,6 +50,65 @@ type ExpressionTests() =
         Assert.AreEqual<Value>(Value.Text "notes.txt", Expr.readMember "name" file)
         Assert.AreEqual<Value>(Value.Text "/documents/notes.txt", Expr.readMember "path" file)
 
+    // ------------------------------------------------------- A tag's own parts
+
+    /// Decision 0048: `@tag` is a tag's name, and `@children` its children in order.
+    [<TestMethod>]
+    member _.ATagAnswersItsNameAndChildrenWithAt() =
+        let first = Value.Object(Tag.create "b" [] [])
+        let second = Value.Text "words"
+        let tag = Value.Object(Tag.create "thing" [ "a", Value.Number 1.0 ] [ first; second ])
+
+        Assert.AreEqual<Value>(Value.Text "thing", Expr.readMember "@tag" tag)
+        Assert.AreEqual<Value>(Value.List [ first; second ], Expr.readMember "@children" tag)
+        Assert.AreEqual<Value>(Value.Number 1.0, Expr.readMember "a" tag)
+
+    [<TestMethod>]
+    member _.ATagWithNoChildrenAnswersAnEmptyList() =
+        Assert.AreEqual<Value>(Value.List [], Expr.readMember "@children" (Value.Object(Tag.create "thing" [] [])))
+
+    [<TestMethod>]
+    member _.AComponentAnswersItsOwnPartsAsATagDoes() =
+        let tag = Value.Component(Tag.create "panel" [] [ Value.Text "x" ])
+
+        Assert.AreEqual<Value>(Value.Text "panel", Expr.readMember "@tag" tag)
+        Assert.AreEqual<Value>(Value.List [ Value.Text "x" ], Expr.readMember "@children" tag)
+
+    /// A row answers its columns first, as `pick`'s rows need: the column, not the
+    /// row's own type name.
+    [<TestMethod>]
+    member _.ARowAnswersItsAtColumnsFirst() =
+        let children = Value.List [ Value.Object(Tag.create "author" [] []) ]
+        let picked = row [ "@tag", Value.Text "book"; "title", Value.Text "dune"; "@children", children ]
+
+        Assert.AreEqual<Value>(Value.Text "book", Expr.readMember "@tag" picked)
+        Assert.AreEqual<Value>(children, Expr.readMember "@children" picked)
+        Assert.AreEqual<Value>(Value.Text "row", Expr.readMember "@tag" (row [ "title", Value.Text "dune" ]))
+
+    /// And a predicate reads them the same way.
+    [<TestMethod>]
+    member _.APredicateComparesARowsTag() =
+        Assert.IsTrue(isTrue [ "@tag", Value.Text "book" ] (Expr.Compare("eq", column "@tag", constant (Value.Text "book"))))
+
+    [<TestMethod>]
+    member _.AnyOtherAtNameIsNone() =
+        let tag = Value.Object(Tag.create "thing" [ "other", Value.Text "x" ] [])
+
+        Assert.AreEqual<Value>(Value.None, Expr.readMember "@other" tag)
+        Assert.AreEqual<Value>(Value.None, Expr.readMember "@name" tag)
+        Assert.AreEqual<Value>(Value.None, Expr.readMember "@" tag)
+
+    /// Only a tag has its own parts: on any other value either one is `None`, as a
+    /// missing attribute is.
+    [<TestMethod>]
+    member _.AtMembersOnAnythingButATagAreNone() =
+        let file = Value.File { Id = "id"; Name = "notes.txt"; Kind = "text"; Folder = "/documents" }
+        let table = Value.Table(Table.ofColumns [ "a" ] [ [ Value.Number 1.0 ] ])
+
+        for value in [ Value.Text "thing"; Value.Number 1.0; Value.List [ Value.Text "a" ]; file; table; Value.None ] do
+            Assert.AreEqual<Value>(Value.None, Expr.readMember "@tag" value, sprintf "@tag of %s" (Value.kind value))
+            Assert.AreEqual<Value>(Value.None, Expr.readMember "@children" value, sprintf "@children of %s" (Value.kind value))
+
     /// Decision 0032: with no row in scope, `$row` is not merely unknown, and the fault
     /// says where it does exist.
     [<TestMethod>]

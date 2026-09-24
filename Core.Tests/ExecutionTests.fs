@@ -481,6 +481,33 @@ type ExecutionTests() =
 
         Assert.AreEqual<string>("readme.txt", harness.Names "ls | where $row.kind eq text")
 
+    // ------------------------------------------------------------ 0048
+
+    /// The Acceptance line: a tag's name is read with `@tag`, through the session, and
+    /// its attributes read as they did.
+    [<TestMethod>]
+    member _.ATagsNameIsReadWithAt() =
+        let harness = seeded ()
+        harness.Run "set v <thing a=1/>" |> ignore
+
+        Assert.AreEqual<string>("thing", harness.Text "echo $v.@tag")
+        Assert.AreEqual<string>("1", harness.Text "echo $v.a")
+
+    /// `@children` is the children as a list, in order; any other `@` name is a gap.
+    [<TestMethod>]
+    member _.ATagsChildrenAreReadWithAt() =
+        let harness = seeded ()
+        harness.Run "set d <a><b/><c x=1/></a>" |> ignore
+
+        match harness.Run "echo $d.@children" with
+        | Value.List [ Value.Object b; Value.Object c ] ->
+            Assert.AreEqual<string>("b", b.TypeName)
+            Assert.AreEqual<string>("c", c.TypeName)
+        | other -> Assert.Fail(sprintf "Expected two children, got %A" other)
+
+        Assert.AreEqual<Value>(Value.None, harness.Run "echo $d.@other")
+        Assert.AreEqual<Value>(Value.None, harness.Run "echo $d.@tag.@tag")
+
 /// <summary>Guidance when a line goes wrong (Phase 9, stream B).</summary>
 /// <remarks>
 /// Decision 0038: a line that called a command wrongly fails with the same fault as
