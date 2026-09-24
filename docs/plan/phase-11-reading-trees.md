@@ -93,6 +93,24 @@ After 11.0, A and B start together from its commit.
   **Touches** the command list in `Core/Session.fs` (one line) and
   `Core.Tests/ArgumentCompletionTests.fs` (new tests only).
 
+## The owner's answers
+
+The streams' reports raised four questions, asked together and answered on 2026-09-24,
+all with the option recommended:
+
+- A bare word may start with `@`, so `select @tag` works, and a row answers any `@`
+  column by name ([0050](../decisions/0050-at-names-are-words-and-columns.md)). The
+  orchestrator: the grammar and `readMember`.
+- A list in a table cell is summarised, `2 children` or `3 items`
+  ([0051](../decisions/0051-a-list-in-a-table-cell-is-summarised.md)). The orchestrator:
+  the core's table display.
+- `pick` answers each element once when the documents given overlap
+  ([0052](../decisions/0052-pick-answers-each-element-once.md)). Stream B, sent back,
+  with completion after any upstream (0049), which needs `Shape` to keep the value it
+  previewed, and `pick` taken out of `select`'s keywords.
+- Children made into a table keep the type `row`, so `$row.@tag` there reads `row`;
+  `pick` is the way to read elements as rows, and this stays as it is.
+
 ## Who touches what
 
 | File | 11.0 | A | B | 11.9 |
@@ -149,5 +167,6 @@ After 11.0, A and B start together from its commit.
 | 11.0 Foundation | orchestrator | merged | 2e4b57f |
 | A. `@` members | stream agent | merged | ec21f8a |
 | B. `pick` | stream agent | merged | 7f8936f |
+| Owner's answers (0050 to 0052) | orchestrator, stream B | in progress | |
 | 11.9 docs, spec | two sub-agents | not started | |
 | 11.9 verifier, republish, As built | orchestrator | not started | |

@@ -57,8 +57,11 @@ a later record, **Rejected**.
 | [0045](0045-a-near-value-offers-a-fix.md) | A value no row has offers the nearest one that a row does | Accepted |
 | [0046](0046-restore-messages-are-guidance.md) | What the page says about restoring a session is guidance | Accepted |
 | [0047](0047-a-live-listing-stays-where-it-was-run.md) | A live listing stays where it was run | Accepted |
-| [0048](0048-a-tags-own-parts-are-read-with-at.md) | A tag's own parts are read with `@` | Accepted |
+| [0048](0048-a-tags-own-parts-are-read-with-at.md) | A tag's own parts are read with `@` | Accepted; one sentence superseded by 0050 |
 | [0049](0049-pick-selects-elements-with-css-selectors.md) | `pick` selects elements with CSS selectors | Accepted |
+| [0050](0050-at-names-are-words-and-columns.md) | An `@` name is a word, and a row answers any `@` column | Accepted |
+| [0051](0051-a-list-in-a-table-cell-is-summarised.md) | A list in a table cell is summarised | Accepted |
+| [0052](0052-pick-answers-each-element-once.md) | `pick` answers each element once, when the documents overlap | Accepted |
 
 Retrospective records document decisions taken before the log existed, so that the
 log is the one place to look. Their alternatives are the ones weighed at the time, as
