@@ -581,7 +581,7 @@ let private commandArgument: P<CommandArgument> =
 /// <summary>`else` ends an argument list rather than being refused by it.</summary>
 /// <remarks>
 /// A reserved word in argument position is a fatal error (decision 0019), which is
-/// right for `echo eq` and wrong for `cat x else echo none`: there the word is not an
+/// right for `echo eq` and wrong for `read x else echo none`: there the word is not an
 /// argument at all, it is where the pipeline stops. So the list looks for it first and
 /// ends there, and the line grammar takes it from there.
 /// </remarks>
@@ -610,7 +610,7 @@ type private StageForm =
 /// </summary>
 /// <remarks>
 /// The fourth alternative is Phase 5's: a pipeline in parentheses can stand as a stage,
-/// so `try (cat notes.txt) | set r` marks exactly the part that may fail.
+/// so `try (read notes.txt) | set r` marks exactly the part that may fail.
 ///
 /// The last is Phase 8's (decision 0032): a variable, with or without members, can
 /// stand as a stage the way a tag already could, so `$files | count`, `$problem.kind`
@@ -637,8 +637,8 @@ let private tryKeyword: P<unit> =
 
 /// <summary><Stage> ::= "try"? <CommandExpression> ( "??" <Operand> )?</summary>
 /// <remarks>
-/// Decision 0014. Both markers belong to one stage, not to the pipeline: `try cat x |
-/// set problem` turns `cat`'s failure into a value that `set` receives, and `first (ls)
+/// Decision 0014. Both markers belong to one stage, not to the pipeline: `try read x |
+/// set problem` turns `read`'s failure into a value that `set` receives, and `first (ls)
 /// ?? "none"` defaults what `first` answered. `?` is not a word character, so an
 /// argument list always stops in front of `??` without being told to.
 /// </remarks>
@@ -696,7 +696,7 @@ let program: P<RootNode> =
 /// <remarks>
 /// Phase 4: a saved view is a file whose content is the predicate text, so reading one
 /// back means parsing a predicate that was never part of a command line. The same
-/// grammar rule serves both, so a view saved from `cd $row.kind eq note` reads back as
+/// grammar rule serves both, so a view saved from `in $row.kind eq note` reads back as
 /// exactly the expression that was written.
 /// </remarks>
 let expressionOnly: P<Value> = ws >>. argumentExpression .>> ws .>> eof

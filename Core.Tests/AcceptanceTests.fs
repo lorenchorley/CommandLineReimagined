@@ -25,7 +25,7 @@ type AcceptanceTests() =
     member _.AFailedLineIsAtomic() =
         let harness = seeded ()
 
-        Assert.AreEqual<string>("Directory does not exist : nowhere", harness.Error "mkdir a | cd nowhere")
+        Assert.AreEqual<string>("Directory does not exist : nowhere", harness.Error "mkdir a | in nowhere")
         Assert.AreEqual<string>("documents examples guide projects readme.txt", harness.Names "ls")
 
     [<TestMethod>]
@@ -49,7 +49,7 @@ type AcceptanceTests() =
         Assert.AreEqual<string>("note.txt", harness.Text "write note.txt first")
         Assert.AreEqual<string>("note.txt", harness.Text "write note.txt second")
         Assert.AreEqual<string>("Undone: write note.txt second", harness.Text "undo")
-        Assert.AreEqual<string>("first", harness.Text "cat note.txt")
+        Assert.AreEqual<string>("first", harness.Text "read note.txt")
 
     [<TestMethod>]
     member _.AttributesAreWrittenAndReadBack() =
@@ -73,7 +73,7 @@ type AcceptanceTests() =
         let harness = seeded ()
 
         Assert.AreEqual<string>("todo", harness.Text "save <note name=todo due=2026-10-01/>")
-        Assert.AreEqual<string>("", harness.Text "cat todo")
+        Assert.AreEqual<string>("", harness.Text "read todo")
         Assert.AreEqual<string>("note", harness.Attribute "todo" "kind")
         Assert.AreEqual<string>("2026-10-01", harness.Attribute "todo" "due")
 

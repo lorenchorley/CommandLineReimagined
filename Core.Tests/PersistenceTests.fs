@@ -88,12 +88,12 @@ type PersistenceTests() =
         display first "mkdir persisted" |> ignore
         display first "write note.txt hello" |> ignore
         display first "set greeting hi" |> ignore
-        display first "cd persisted" |> ignore
+        display first "in persisted" |> ignore
 
         let second = reopen log
 
         Assert.AreEqual<string>("documents examples guide persisted projects note.txt readme.txt", names second "ls /")
-        Assert.AreEqual<string>("hello", display second "cat /note.txt")
+        Assert.AreEqual<string>("hello", display second "read /note.txt")
         Assert.AreEqual<string>("hi", display second "echo $greeting")
         Assert.AreEqual<string>("/persisted", second.Location.Folder)
 
@@ -149,9 +149,9 @@ type PersistenceTests() =
 
         let second = reopen log
 
-        Assert.AreEqual<string>("second", display second "cat a.txt")
+        Assert.AreEqual<string>("second", display second "read a.txt")
         display second "undo" |> ignore
-        Assert.AreEqual<string>("first", display second "cat a.txt", "The previous version is in the blob store.")
+        Assert.AreEqual<string>("first", display second "read a.txt", "The previous version is in the blob store.")
 
     // --------------------------------------------------------------------- reset
 
@@ -186,7 +186,7 @@ type PersistenceTests() =
     member _.ResetClearsVariablesAndReturnsToTheRoot() =
         let harness = seeded ()
         harness.Run "set v 1" |> ignore
-        harness.Run "cd documents" |> ignore
+        harness.Run "in documents" |> ignore
 
         harness.Run "reset" |> ignore
 
@@ -236,8 +236,8 @@ type PersistenceTests() =
 
         Assert.AreEqual<int>(Seed.guideFiles.Length + 1, run (first.BringUpToDate()))
         Assert.AreEqual<string>("documents examples guide projects mine.txt readme.txt", names first "ls")
-        StringAssert.Contains(display first "cat readme.txt", "cat guide/1-start.txt")
-        Assert.AreEqual<string>("kept", display first "cat mine.txt")
+        StringAssert.Contains(display first "read readme.txt", "read guide/1-start.txt")
+        Assert.AreEqual<string>("kept", display first "read mine.txt")
 
         // Once only: the next visit finds it there.
         let second = reopen log
@@ -278,5 +278,5 @@ type PersistenceTests() =
 
         let second = reopen log
         run (second.BringUpToDate()) |> ignore
-        Assert.AreEqual<string>("mine", display second "cat readme.txt")
+        Assert.AreEqual<string>("mine", display second "read readme.txt")
         Assert.AreEqual<string>("documents examples guide projects readme.txt", names second "ls")

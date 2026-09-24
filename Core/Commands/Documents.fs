@@ -1,6 +1,6 @@
 /// XML and CSV files, read as the values the language already has and written back.
 ///
-/// Decision 0011: a document is a real file in the store. The readers are `cat` with a
+/// Decision 0011: a document is a real file in the store. The readers are `read` with a
 /// parser behind it, and change nothing; the writers are `write` with a serialiser in
 /// front of it, and emit exactly the events `write` does, so undo, redo and history
 /// treat a document like any other file.

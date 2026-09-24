@@ -252,7 +252,7 @@ module Value =
     /// <remarks>
     /// A query is a value, so it has to read back as something a person could type
     /// again — which is exactly what Phase 4 needs, since a location's view is shown in
-    /// the prompt and `cd` on it has to mean the same thing twice.
+    /// the prompt and `in` on it has to mean the same thing twice.
     /// </remarks>
     and exprText (expr: Expr) : string =
         match expr with
@@ -270,7 +270,7 @@ module Value =
     /// <summary>What the value means when a command is given it as an argument.</summary>
     /// <remarks>
     /// The two-string rule: a file shows its name but argues its path, so `ls` reads
-    /// as a list of names and `ls | cd` still lands somewhere.
+    /// as a list of names and `ls | in` still lands somewhere.
     /// </remarks>
     let argument (value: Value) : string =
         match value with

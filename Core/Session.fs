@@ -205,14 +205,14 @@ type Session(log: ILog, options: SessionOptions, seed: Seed) =
 
     let commands =
         [ Commands.Files.ls
-          Commands.Files.cd
-          Commands.Files.up
+          Commands.Files.into
+          Commands.Files.out
           Commands.Files.pwd
           Commands.Files.find
           Commands.Files.saveView options.NewId options.Clock
           Commands.Files.mkdir options.NewId options.Clock
           Commands.Files.cp options.NewId options.Clock
-          Commands.Files.cat
+          Commands.Files.read
           Commands.Files.write options.NewId options.Clock
           Commands.Files.rm
           Commands.Files.attr options.Clock

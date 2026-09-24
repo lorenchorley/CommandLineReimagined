@@ -317,7 +317,7 @@ type MetaCommandTests() =
     member _.SeveralNearCommandsAreAllNamed() =
         let harness = seeded ()
 
-        Assert.AreEqual<string>("Unknown command : ct. Did you mean cat, cd or cp?", harness.Error "ct")
+        Assert.AreEqual<string>("Unknown command : rn. Did you mean in, rm or run?", harness.Error "rn")
 
     /// A name nothing is near is only named as unknown.
     [<TestMethod>]

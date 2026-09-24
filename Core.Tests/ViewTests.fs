@@ -4,10 +4,10 @@ open Microsoft.VisualStudio.TestTools.UnitTesting
 open CommandLineReimagined.Core
 open CommandLineReimagined.Core.Tests.SessionHarness
 
-/// <summary>Queries as places: `cd` a predicate, `find`, `save-view`, live refresh.</summary>
+/// <summary>Queries as places: `in` on a predicate, `find`, `save-view`, live refresh.</summary>
 /// <remarks>
 /// Decision 0013's last step. A folder is one question among many — "which records say
-/// they are in /journal" — so the thing `cd` takes is a question rather than a path,
+/// they are in /journal" — so the thing `in` takes is a question rather than a path,
 /// and a folder path is the answer you get when the question is a plain name. These
 /// tests are about the difference between the two and about what stays true across it:
 /// new files still land in a folder, undo still restores where you were, and asking a
@@ -21,19 +21,19 @@ type ViewTests() =
     let journal () =
         let harness = seeded ()
         harness.Run "mkdir journal" |> ignore
-        harness.Run "cd journal" |> ignore
+        harness.Run "in journal" |> ignore
         harness.Run "save <note name=monday mood=good tag=work/>" |> ignore
         harness.Run "save <note name=saturday mood=great tag=home/>" |> ignore
-        harness.Run "up" |> ignore
+        harness.Run "out" |> ignore
         harness.Run "save <note name=stray mood=great tag=home/>" |> ignore
         harness
 
-    // ------------------------------------------------------------------- cd
+    // ------------------------------------------------------------------- in
 
     [<TestMethod>]
-    member _.CdOnAPlainNameIsStillAFolder() =
+    member _.InOnAPlainNameIsStillAFolder() =
         let harness = seeded ()
-        harness.Run "cd documents" |> ignore
+        harness.Run "in documents" |> ignore
 
         Assert.AreEqual<string>("/documents", harness.Location)
         Assert.AreEqual<Expr option>(None, harness.View)
@@ -41,28 +41,28 @@ type ViewTests() =
     /// A folder is answered as the record, so the result is a chip you can tap and a
     /// value you can pipe, rather than a string that happens to look like a path.
     [<TestMethod>]
-    member _.CdAnswersTheFolderItEntered() =
+    member _.InAnswersTheFolderItEntered() =
         let harness = seeded ()
 
-        match harness.Run "cd documents" with
+        match harness.Run "in documents" with
         | Value.File file ->
             Assert.AreEqual<string>("documents", file.Name)
             Assert.AreEqual<string>(Value.folderKind, file.Kind)
-        | other -> Assert.Fail(sprintf "cd answered %s, not a folder." (Value.kind other))
+        | other -> Assert.Fail(sprintf "in answered %s, not a folder." (Value.kind other))
 
     /// The root has no record (decision 0016), so it is the one folder that answers
     /// with its path.
     [<TestMethod>]
-    member _.CdToTheRootAnswersItsPath() =
+    member _.InToTheRootAnswersItsPath() =
         let harness = seeded ()
-        harness.Run "cd documents" |> ignore
+        harness.Run "in documents" |> ignore
 
-        Assert.AreEqual<Value>(Value.Text "/", harness.Run "cd /")
+        Assert.AreEqual<Value>(Value.Text "/", harness.Run "in /")
 
     [<TestMethod>]
-    member _.CdOnAPredicateSetsTheView() =
+    member _.InOnAPredicateSetsTheView() =
         let harness = journal ()
-        harness.Run "cd $row.mood eq great" |> ignore
+        harness.Run "in $row.mood eq great" |> ignore
 
         Assert.AreEqual<string>("$row.mood eq great", harness.ViewText)
 
@@ -70,23 +70,23 @@ type ViewTests() =
     [<TestMethod>]
     member _.AViewLeavesTheFolderWhereItWas() =
         let harness = journal ()
-        harness.Run "cd journal" |> ignore
-        harness.Run "cd $row.mood eq great" |> ignore
+        harness.Run "in journal" |> ignore
+        harness.Run "in $row.mood eq great" |> ignore
 
         Assert.AreEqual<string>("/journal", harness.Location)
 
     [<TestMethod>]
-    member _.CdOnAPredicateAnswersThePredicate() =
+    member _.InOnAPredicateAnswersThePredicate() =
         let harness = journal ()
 
-        Assert.AreEqual<string>("$row.mood eq great", harness.Text "cd $row.mood eq great")
+        Assert.AreEqual<string>("$row.mood eq great", harness.Text "in $row.mood eq great")
 
     /// Entering a folder puts down whatever view was held: `ls` cannot list two things.
     [<TestMethod>]
     member _.EnteringAFolderClearsTheView() =
         let harness = journal ()
-        harness.Run "cd $row.mood eq great" |> ignore
-        harness.Run "cd journal" |> ignore
+        harness.Run "in $row.mood eq great" |> ignore
+        harness.Run "in journal" |> ignore
 
         Assert.AreEqual<Expr option>(None, harness.View)
 
@@ -97,7 +97,7 @@ type ViewTests() =
     [<TestMethod>]
     member _.AViewListsAcrossFolders() =
         let harness = journal ()
-        harness.Run "cd $row.mood eq great" |> ignore
+        harness.Run "in $row.mood eq great" |> ignore
 
         Assert.AreEqual<string>("saturday stray", harness.Names "ls")
 
@@ -110,7 +110,7 @@ type ViewTests() =
     [<TestMethod>]
     member _.AViewsColumnsAreTheMatchingRecordsAttributes() =
         let harness = journal ()
-        harness.Run "cd $row.kind eq note and $row.tag eq work" |> ignore
+        harness.Run "in $row.kind eq note and $row.tag eq work" |> ignore
 
         Assert.AreEqual<string list>(
             [ "name"; "kind"; "folder"; "size"; "modified"; "mood"; "tag" ],
@@ -120,7 +120,7 @@ type ViewTests() =
     [<TestMethod>]
     member _.APathOverridesTheViewWithoutLeavingIt() =
         let harness = journal ()
-        harness.Run "cd $row.mood eq great" |> ignore
+        harness.Run "in $row.mood eq great" |> ignore
 
         Assert.AreEqual<string>("monday saturday", harness.Names "ls /journal")
         Assert.AreEqual<string>("$row.mood eq great", harness.ViewText)
@@ -129,20 +129,20 @@ type ViewTests() =
     [<TestMethod>]
     member _.NewFilesStillLandInTheFolder() =
         let harness = journal ()
-        harness.Run "cd journal" |> ignore
-        harness.Run "cd $row.mood eq great" |> ignore
+        harness.Run "in journal" |> ignore
+        harness.Run "in $row.mood eq great" |> ignore
         harness.Run "mkdir inbox" |> ignore
 
         Assert.AreEqual<string>("/journal", harness.Attribute "/journal/inbox" "folder")
 
-    // ------------------------------------------------------------------- up
+    // ------------------------------------------------------------------ out
 
     [<TestMethod>]
-    member _.UpClearsTheView() =
+    member _.OutClearsTheView() =
         let harness = journal ()
-        harness.Run "cd journal" |> ignore
-        harness.Run "cd $row.mood eq great" |> ignore
-        harness.Run "up" |> ignore
+        harness.Run "in journal" |> ignore
+        harness.Run "in $row.mood eq great" |> ignore
+        harness.Run "out" |> ignore
 
         Assert.AreEqual<Expr option>(None, harness.View)
         Assert.AreEqual<string>("/journal", harness.Location)
@@ -150,29 +150,29 @@ type ViewTests() =
     /// Putting the view down answers where you turn out to be, which is a path rather
     /// than a record: it is the folder you were already in, not one you just entered.
     [<TestMethod>]
-    member _.UpFromAViewAnswersTheFolderPath() =
+    member _.OutFromAViewAnswersTheFolderPath() =
         let harness = journal ()
-        harness.Run "cd journal" |> ignore
-        harness.Run "cd $row.mood eq great" |> ignore
+        harness.Run "in journal" |> ignore
+        harness.Run "in $row.mood eq great" |> ignore
 
-        Assert.AreEqual<Value>(Value.Text "/journal", harness.Run "up")
+        Assert.AreEqual<Value>(Value.Text "/journal", harness.Run "out")
 
-    /// Two `up`s from a view over a subfolder come out in the order they went in.
+    /// Two `out`s from a view over a subfolder come out in the order they went in.
     [<TestMethod>]
-    member _.UpTwiceLeavesTheViewThenTheFolder() =
+    member _.OutTwiceLeavesTheViewThenTheFolder() =
         let harness = journal ()
-        harness.Run "cd journal" |> ignore
-        harness.Run "cd $row.mood eq great" |> ignore
-        harness.Run "up" |> ignore
-        harness.Run "up" |> ignore
+        harness.Run "in journal" |> ignore
+        harness.Run "in $row.mood eq great" |> ignore
+        harness.Run "out" |> ignore
+        harness.Run "out" |> ignore
 
         Assert.AreEqual<string>("/", harness.Location)
 
     [<TestMethod>]
-    member _.UpWithoutAViewStillMovesUp() =
+    member _.OutWithoutAViewStillMovesUp() =
         let harness = seeded ()
-        harness.Run "cd documents" |> ignore
-        harness.Run "up" |> ignore
+        harness.Run "in documents" |> ignore
+        harness.Run "out" |> ignore
 
         Assert.AreEqual<string>("/", harness.Location)
 
@@ -181,7 +181,7 @@ type ViewTests() =
     [<TestMethod>]
     member _.PwdAnswersTheViewWhenThereIsOne() =
         let harness = journal ()
-        harness.Run "cd $row.mood eq great" |> ignore
+        harness.Run "in $row.mood eq great" |> ignore
 
         match harness.Run "pwd" with
         | Value.Query expr -> Assert.AreEqual<string>("$row.mood eq great", Expr.display expr)
@@ -190,7 +190,7 @@ type ViewTests() =
     [<TestMethod>]
     member _.PwdAnswersTheFolderWhenThereIsNoView() =
         let harness = seeded ()
-        harness.Run "cd documents" |> ignore
+        harness.Run "in documents" |> ignore
 
         Assert.AreEqual<Value>(Value.Text "/documents", harness.Run "pwd")
 
@@ -201,8 +201,8 @@ type ViewTests() =
     [<TestMethod>]
     member _.UndoRestoresWhereYouWere() =
         let harness = journal ()
-        harness.Run "cd journal" |> ignore
-        harness.Run "cd $row.mood eq great" |> ignore
+        harness.Run "in journal" |> ignore
+        harness.Run "in $row.mood eq great" |> ignore
         harness.Run "undo" |> ignore
 
         Assert.AreEqual<Expr option>(None, harness.View)
@@ -211,8 +211,8 @@ type ViewTests() =
     [<TestMethod>]
     member _.UndoPutsAClearedViewBack() =
         let harness = journal ()
-        harness.Run "cd $row.mood eq great" |> ignore
-        harness.Run "up" |> ignore
+        harness.Run "in $row.mood eq great" |> ignore
+        harness.Run "out" |> ignore
         harness.Run "undo" |> ignore
 
         Assert.AreEqual<string>("$row.mood eq great", harness.ViewText)
@@ -225,12 +225,12 @@ type ViewTests() =
 
         Assert.AreEqual<string>("saturday stray", harness.Names "find $row.mood eq great")
 
-    /// The whole difference between `find` and `cd`: asking a question is not going
+    /// The whole difference between `find` and `in`: asking a question is not going
     /// anywhere, so nothing is committed and `undo` reaches past it.
     [<TestMethod>]
     member _.FindDoesNotChangeTheLocation() =
         let harness = journal ()
-        harness.Run "cd journal" |> ignore
+        harness.Run "in journal" |> ignore
         harness.Run "find $row.mood eq great" |> ignore
 
         Assert.AreEqual<string>("/journal", harness.Location)
@@ -276,10 +276,10 @@ type ViewTests() =
         StringAssert.Contains(harness.Names "ls", "weekend")
 
     [<TestMethod>]
-    member _.CdOnASavedViewEntersIt() =
+    member _.InOnASavedViewEntersIt() =
         let harness = journal ()
         harness.Run "save-view weekend $row.mood eq great" |> ignore
-        harness.Run "cd weekend" |> ignore
+        harness.Run "in weekend" |> ignore
 
         Assert.AreEqual<string>("$row.mood eq great", harness.ViewText)
         Assert.AreEqual<string>("saturday stray", harness.Names "ls")
@@ -314,12 +314,12 @@ type ViewTests() =
         harness.Run "save-view weekend $row.mood eq great" |> ignore
         harness.Run "echo \"not a predicate at all\" | write weekend" |> ignore
 
-        let fault = harness.Fail "cd weekend"
+        let fault = harness.Fail "in weekend"
 
         Assert.AreEqual<FaultKind>(Invalid, fault.Kind)
         StringAssert.Contains(fault.Message, "/weekend")
 
-    /// Text that parses but asks nothing — one word — is not a view either. `cd` used to
+    /// Text that parses but asks nothing — one word — is not a view either. `in` used to
     /// enter it as a question every record answered `false` to, where `save-view` and
     /// `find` refuse the same text.
     [<TestMethod>]
@@ -328,10 +328,10 @@ type ViewTests() =
         harness.Run "save-view weekend $row.mood eq great" |> ignore
         harness.Run "echo monday | write weekend" |> ignore
 
-        Assert.AreEqual<string>("'/weekend' does not hold a predicate : monday", harness.Error "cd weekend")
+        Assert.AreEqual<string>("'/weekend' does not hold a predicate : monday", harness.Error "in weekend")
         Assert.AreEqual<Expr option>(None, harness.View)
 
-    /// A view file whose question never reads `$row` gets the check `cd` makes on a
+    /// A view file whose question never reads `$row` gets the check `in` makes on a
     /// predicate written out (decision 0033), rather than listing nothing in silence.
     [<TestMethod>]
     member _.AViewFileThatNeverReadsTheRowIsRefused() =
@@ -339,7 +339,7 @@ type ViewTests() =
         harness.Run "save-view weekend $row.mood eq great" |> ignore
         harness.Run "echo \"mood eq great\" | write weekend" |> ignore
 
-        let fault = harness.Fail "cd weekend"
+        let fault = harness.Fail "in weekend"
 
         Assert.AreEqual<FaultKind>(Binding, fault.Kind)
 
@@ -356,7 +356,7 @@ type ViewTests() =
     [<TestMethod>]
     member _.RefreshReReadsAListing() =
         let harness = journal ()
-        harness.Run "cd journal" |> ignore
+        harness.Run "in journal" |> ignore
 
         let response = harness.Refresh "ls"
 
@@ -369,7 +369,7 @@ type ViewTests() =
     [<TestMethod>]
     member _.RefreshSeesWhatHasChangedSince() =
         let harness = journal ()
-        harness.Run "cd journal" |> ignore
+        harness.Run "in journal" |> ignore
         harness.Run "mkdir inbox" |> ignore
 
         match (harness.Refresh "ls").Result with
@@ -399,16 +399,16 @@ type ViewTests() =
 
         Assert.IsFalse(harness.Exists "/sneaky", "The refused refresh must not have created anything.")
 
-    /// `up` moves you, which is a change: it lands in `history` and `undo` takes it back.
+    /// `out` moves you, which is a change: it lands in `history` and `undo` takes it back.
     /// It used to be marked read-only, which let a live refresh name it.
     [<TestMethod>]
-    member _.RefreshRefusesUp() =
+    member _.RefreshRefusesOut() =
         let harness = journal ()
-        harness.Run "cd journal" |> ignore
+        harness.Run "in journal" |> ignore
 
-        match (harness.Refresh "up").Fault with
-        | Some fault -> Assert.AreEqual<string>("A live refresh only re-reads : up", fault.Message)
-        | None -> Assert.Fail "A refresh of 'up' should have been refused."
+        match (harness.Refresh "out").Fault with
+        | Some fault -> Assert.AreEqual<string>("A live refresh only re-reads : out", fault.Message)
+        | None -> Assert.Fail "A refresh of 'out' should have been refused."
 
     /// Refused for the whole line, not stage by stage: a pipeline that reads and then
     /// writes is a writing line.
@@ -423,7 +423,7 @@ type ViewTests() =
     [<TestMethod>]
     member _.RefreshAllowsAWholeReadingPipeline() =
         let harness = journal ()
-        harness.Run "cd journal" |> ignore
+        harness.Run "in journal" |> ignore
 
         let response = harness.Refresh "ls | where $row.mood eq great | count"
 
@@ -455,13 +455,13 @@ type ViewTests() =
             "mood eq great never reads $row, so it is the same for every row. Did you mean $row.mood eq great?",
             fault.Message)
 
-    /// `cd` with an operator in it is a view, so it is checked, and the location is
+    /// `in` with an operator in it is a view, so it is checked, and the location is
     /// left where it was.
     [<TestMethod>]
-    member _.CdRefusesAPredicateThatNeverReadsTheRow() =
+    member _.InRefusesAPredicateThatNeverReadsTheRow() =
         let harness = journal ()
-        harness.Run "cd journal" |> ignore
-        let fault = harness.Fail "cd mood eq great"
+        harness.Run "in journal" |> ignore
+        let fault = harness.Fail "in mood eq great"
 
         Assert.AreEqual<FaultKind>(Binding, fault.Kind)
 
@@ -472,11 +472,11 @@ type ViewTests() =
         Assert.AreEqual<string>("/journal", harness.Location)
         Assert.AreEqual<Expr option>(None, harness.View)
 
-    /// `cd` with a plain operand is a path (decision 0013), and is not checked.
+    /// `in` with a plain operand is a path (decision 0013), and is not checked.
     [<TestMethod>]
-    member _.CdOnAPlainOperandIsNotChecked() =
+    member _.InOnAPlainOperandIsNotChecked() =
         let harness = journal ()
-        harness.Run "cd journal" |> ignore
+        harness.Run "in journal" |> ignore
 
         Assert.AreEqual<string>("/journal", harness.Location)
 

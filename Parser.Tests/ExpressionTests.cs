@@ -115,11 +115,11 @@ public class ExpressionTests
     /// </summary>
     /// <remarks>
     /// This is what keeps every line written before Phase 3 parsing to the tree it
-    /// always did: `cd documents` has not become an expression because expressions
+    /// always did: `in documents` has not become an expression because expressions
     /// exist.
     /// </remarks>
     [TestMethod]
-    [DataRow("cd documents")]
+    [DataRow("in documents")]
     [DataRow("echo 5")]
     [DataRow("echo $v")]
     public void AnOperandWithNoOperatorIsNotAnExpression(string source)

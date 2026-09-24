@@ -124,7 +124,7 @@ module Lexical =
             // <summary>Operators, but only where an expression is plainly being written.</summary>
             //
             // The test is a `$` earlier in this stage. A predicate names its row
-            // (decision 0008), so one is always there, and without the test `cat no`
+            // (decision 0008), so one is always there, and without the test `read no`
             // would offer `not` beside `notes.txt` — which is the commoner line by far
             // and the one that must not be made worse. Never straight after another
             // operator, because two in a row is not a thing.
@@ -161,12 +161,12 @@ module Lexical =
                     else
                         Files.normalise projection.Location.Folder written
 
-                // After `cd `, only the things you can be in: folders, and the saved
+                // After `in `, only the things you can be in: folders, and the saved
                 // views that are places too (decision 0013). Offering every file after
                 // a word that takes a place is offering answers that cannot be right.
                 let places =
                     (stage.TrimStart().Split(' ', '\t') |> Array.tryHead |> Option.defaultValue "")
-                        .Equals("cd", StringComparison.OrdinalIgnoreCase)
+                        .Equals("in", StringComparison.OrdinalIgnoreCase)
 
                 let keywords =
                     if not firstWord && word.Length >= 2 && written = "" then
@@ -192,7 +192,7 @@ module Lexical =
                               Start = start; End = text.Length; Detail = None }
                         else
                             // A view is a place without being a path, so it completes as
-                            // its own name: `cd weekend/` would name nothing.
+                            // its own name: `in weekend/` would name nothing.
                             { Kind = (if Record.kind record = Value.viewKind then Value.viewKind else "file")
                               Text = written + Record.name record
                               Start = start; End = text.Length; Detail = None }))

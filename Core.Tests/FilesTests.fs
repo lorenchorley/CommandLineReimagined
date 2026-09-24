@@ -41,7 +41,7 @@ type FilesTests() =
     member _.PathsResolveAgainstWhereYouAre(here: string, written: string, expected: string) =
         Assert.AreEqual<string>(expected, Files.normalise here written)
 
-    /// `..` at the root stays at the root. `cd ..` at the top is a no-op, not an error,
+    /// `..` at the root stays at the root. `in ..` at the top is a no-op, not an error,
     /// which is what every shell does.
     [<DataTestMethod>]
     [<DataRow("/", "..", "/")>]
@@ -117,14 +117,14 @@ type FilesTests() =
     member _.TheRootIsAlwaysAFolder() =
         Assert.AreEqual<string>("/", expectOk (Files.resolveFolder Projection.empty (at "/") "/"))
 
-    /// A file is not a folder, and `cd` has to say so rather than moving into it.
+    /// A file is not a folder, and `in` has to say so rather than moving into it.
     [<TestMethod>]
     member _.AFileDoesNotResolveAsAFolder() =
         let fault = expectFault NotFound (Files.resolveFolder projection (at "/") "readme.txt")
 
         Assert.AreEqual<string>("Directory does not exist : readme.txt", fault.Message)
 
-    /// `cd` reports the target as written, because what you usually need to see there
+    /// `in` reports the target as written, because what you usually need to see there
     /// is your own spelling.
     [<TestMethod>]
     member _.AMissingFolderIsNamedAsItWasWritten() =

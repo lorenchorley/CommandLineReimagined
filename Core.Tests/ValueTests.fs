@@ -6,7 +6,7 @@ open CommandLineReimagined.Core
 /// <summary>The two strings every value can answer with, and how numbers are written.</summary>
 /// <remarks>
 /// The distinction between `display` and `argument` is the whole of why a value is not
-/// just a string: `ls` shows `notes.txt` and `ls | cat` has to hand over
+/// just a string: `ls` shows `notes.txt` and `ls | read` has to hand over
 /// `/documents/notes.txt`. A test for each case keeps the two from collapsing into one.
 /// </remarks>
 [<TestClass>]

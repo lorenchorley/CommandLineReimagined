@@ -25,10 +25,10 @@ public class RecoveryTests
     [TestMethod]
     public void ElseJoinsTwoPipelines()
     {
-        var line = Recovery("cat notes.txt else echo none");
+        var line = Recovery("read notes.txt else echo none");
 
         Assert.AreEqual(2, line.Pipelines.Count);
-        CollectionAssert.AreEqual(new[] { "cat" }, Names(line.Pipelines[0]));
+        CollectionAssert.AreEqual(new[] { "read" }, Names(line.Pipelines[0]));
         CollectionAssert.AreEqual(new[] { "echo" }, Names(line.Pipelines[1]));
     }
 
@@ -85,9 +85,9 @@ public class RecoveryTests
 
     [TestMethod]
     [DataRow("else echo x")]
-    [DataRow("cat x else")]
-    [DataRow("cat x else else echo y")]
-    [DataRow("cat x | else echo y")]
+    [DataRow("read x else")]
+    [DataRow("read x else else echo y")]
+    [DataRow("read x | else echo y")]
     [DataRow("echo (a else b)")]
     public void ElseNeedsAPipelineOnBothSides(string source)
     {
@@ -99,11 +99,11 @@ public class RecoveryTests
     [TestMethod]
     public void TryMarksOneStage()
     {
-        var pipeline = (PipedCommandList)ParserHarness.Parse("try cat x | set problem");
+        var pipeline = (PipedCommandList)ParserHarness.Parse("try read x | set problem");
 
         Assert.IsTrue(pipeline.OrderedCommands[0].Try);
         Assert.IsFalse(pipeline.OrderedCommands[1].Try);
-        Assert.AreEqual("cat", pipeline.OrderedCommands[0].Expression.AsT1.Name.Name);
+        Assert.AreEqual("read", pipeline.OrderedCommands[0].Expression.AsT1.Name.Name);
     }
 
     [TestMethod]
@@ -118,7 +118,7 @@ public class RecoveryTests
     [TestMethod]
     public void TryCanMarkAParenthesisedPipeline()
     {
-        var stage = ((PipedCommandList)ParserHarness.Parse("try (cat notes.txt) | set r")).OrderedCommands[0];
+        var stage = ((PipedCommandList)ParserHarness.Parse("try (read notes.txt) | set r")).OrderedCommands[0];
 
         Assert.IsTrue(stage.Try);
         Assert.IsTrue(stage.Expression.IsT3);
@@ -136,7 +136,7 @@ public class RecoveryTests
     [TestMethod]
     [DataRow("try")]
     [DataRow("try | echo")]
-    [DataRow("cat try")]
+    [DataRow("read try")]
     public void TryNeedsAStageAfterIt(string source)
     {
         ParserHarness.ParseError(source);
@@ -223,13 +223,13 @@ public class RecoveryTests
     // ----------------------------------------------------------- round trips
 
     [TestMethod]
-    [DataRow("cat notes-from-yesterday.txt else echo \"starting fresh\"")]
-    [DataRow("cat notes-from-yesterday.txt else echo \"starting fresh\" | write today.txt")]
-    [DataRow("try cat nowhere.txt | set problem")]
+    [DataRow("read notes-from-yesterday.txt else echo \"starting fresh\"")]
+    [DataRow("read notes-from-yesterday.txt else echo \"starting fresh\" | write today.txt")]
+    [DataRow("try read nowhere.txt | set problem")]
     [DataRow("first (ls | where $row.kind eq view) ?? \"no views yet\"")]
     [DataRow("first (ls | where $row.kind eq view) ?? \"no views yet\" | set latest")]
-    [DataRow("mkdir today | cd nowhere else echo \"the whole line was rolled back\"")]
-    [DataRow("try (cat notes.txt) | set r")]
+    [DataRow("mkdir today | in nowhere else echo \"the whole line was rolled back\"")]
+    [DataRow("try (read notes.txt) | set r")]
     [DataRow("a else b else c")]
     [DataRow("ls | (where $row.kind eq folder | count)")]
     [DataRow("try first ?? (echo none)")]

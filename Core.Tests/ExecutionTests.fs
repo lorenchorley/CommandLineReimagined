@@ -21,14 +21,14 @@ type ExecutionTests() =
     [<TestMethod>]
     member _.UnquotedArgumentBinds() =
         let harness = seeded ()
-        harness.Run "cd documents" |> ignore
+        harness.Run "in documents" |> ignore
 
         Assert.AreEqual<string>("/documents", harness.Location)
 
     [<TestMethod>]
     member _.QuotedArgumentBinds() =
         let harness = seeded ()
-        harness.Run "cd \"documents\"" |> ignore
+        harness.Run "in \"documents\"" |> ignore
 
         Assert.AreEqual<string>("/documents", harness.Location)
 
@@ -43,7 +43,7 @@ type ExecutionTests() =
     [<TestMethod>]
     member _.MissingRequiredArgumentIsReported() =
         let harness = seeded ()
-        let message = harness.Error "cd"
+        let message = harness.Error "in"
 
         StringAssert.Contains(message, "needs an argument")
         StringAssert.Contains(message, "TargetPath")
@@ -54,7 +54,7 @@ type ExecutionTests() =
     member _.TooManyArgumentsAreReported() =
         let harness = seeded ()
 
-        StringAssert.Contains(harness.Error "cd documents extra", "takes 1 argument, but 2 were given")
+        StringAssert.Contains(harness.Error "in documents extra", "takes 1 argument, but 2 were given")
 
     [<TestMethod>]
     member _.UnknownNamedArgumentIsReported() =
@@ -72,8 +72,8 @@ type ExecutionTests() =
     member _.AFaultCarriesItsKind() =
         let harness = seeded ()
 
-        Assert.AreEqual<FaultKind>(Binding, (harness.Fail "cd").Kind)
-        Assert.AreEqual<FaultKind>(NotFound, (harness.Fail "cd nowhere").Kind)
+        Assert.AreEqual<FaultKind>(Binding, (harness.Fail "in").Kind)
+        Assert.AreEqual<FaultKind>(NotFound, (harness.Fail "in nowhere").Kind)
         Assert.AreEqual<FaultKind>(UnknownCommand, (harness.Fail "nosuchcommand").Kind)
 
     /// The stage number is stamped by the evaluator, which is the only thing that
@@ -82,8 +82,8 @@ type ExecutionTests() =
     member _.AFaultKnowsWhichStageFailed() =
         let harness = seeded ()
 
-        Assert.AreEqual<int option>(Some 1, (harness.Fail "cd nowhere").Stage)
-        Assert.AreEqual<int option>(Some 2, (harness.Fail "echo nowhere | cd").Stage)
+        Assert.AreEqual<int option>(Some 1, (harness.Fail "in nowhere").Stage)
+        Assert.AreEqual<int option>(Some 2, (harness.Fail "echo nowhere | in").Stage)
 
     // ------------------------------------------------------------------------ pipes
 
@@ -101,7 +101,7 @@ type ExecutionTests() =
     [<TestMethod>]
     member _.PipeThreadsValueBetweenCommands() =
         let harness = seeded ()
-        harness.Run "echo documents | cd" |> ignore
+        harness.Run "echo documents | in" |> ignore
 
         Assert.AreEqual<string>("/documents", harness.Location)
 
@@ -109,11 +109,11 @@ type ExecutionTests() =
     member _.LaterPipeStageFailureIsReported() =
         let harness = seeded ()
 
-        StringAssert.Contains(harness.Error "echo nowhere | cd", "Directory does not exist")
+        StringAssert.Contains(harness.Error "echo nowhere | in", "Directory does not exist")
 
     /// <summary>A line is one transaction (decision 0015).</summary>
     /// <remarks>
-    /// The case the record was written for. The `mkdir` succeeded and the `cd` did not,
+    /// The case the record was written for. The `mkdir` succeeded and the `in` did not,
     /// and the folder must not survive: a failed line leaves no trace, so the user does
     /// not have to know how many stages ran before the failure in order to undo it.
     /// </remarks>
@@ -121,7 +121,7 @@ type ExecutionTests() =
     member _.AFailedLineLeavesNothingBehind() =
         let harness = seeded ()
 
-        StringAssert.Contains(harness.Error "mkdir a | cd nowhere", "Directory does not exist")
+        StringAssert.Contains(harness.Error "mkdir a | in nowhere", "Directory does not exist")
         Assert.IsFalse(harness.Exists "a", "The mkdir should have been rolled back with the line.")
         Assert.AreEqual<string list>([ "seed" ], harness.History())
 
@@ -130,14 +130,14 @@ type ExecutionTests() =
     [<TestMethod>]
     member _.ALaterStageSeesAnEarlierStagesEffect() =
         let harness = seeded ()
-        harness.Run "mkdir scratch | cd" |> ignore
+        harness.Run "mkdir scratch | in" |> ignore
 
         Assert.AreEqual<string>("/scratch", harness.Location)
 
     [<TestMethod>]
     member _.AWholeLineIsUndoneAtOnce() =
         let harness = seeded ()
-        harness.Run "mkdir one | cd" |> ignore
+        harness.Run "mkdir one | in" |> ignore
 
         harness.Run "undo" |> ignore
 
@@ -349,7 +349,7 @@ type ExecutionTests() =
     member _.FailingCommandReportsWhyRatherThanSilentlyDoingNothing() =
         let harness = seeded ()
 
-        StringAssert.Contains(harness.Error "cd nowhere", "Directory does not exist")
+        StringAssert.Contains(harness.Error "in nowhere", "Directory does not exist")
 
     /// A parse failure is a fault like any other, so the session boundary never raises.
     [<TestMethod>]
@@ -384,9 +384,9 @@ type ExecutionTests() =
 
     /// <summary>A listing is records and nothing else (Phase 3).</summary>
     /// <remarks>
-    /// Until Phase 3 a listing below the root began with a `up` entry that navigated
+    /// Until Phase 3 a listing below the root began with a parent entry that navigated
     /// rather than naming a record. A table has nowhere to put one — every row is a
-    /// record — so the page offers `up` in the location line instead, and the `up`
+    /// record — so the page offers `out` in the location line instead, and the `out`
     /// command is what it runs.
     /// </remarks>
     [<TestMethod>]
@@ -395,16 +395,16 @@ type ExecutionTests() =
 
         Assert.AreEqual<string>("documents examples guide projects readme.txt", harness.Names "ls")
 
-        harness.Run "cd documents" |> ignore
+        harness.Run "in documents" |> ignore
         Assert.AreEqual<string>("notes.txt", harness.Names "ls")
 
-    /// `ls | cd` with no quoting rule: the parent entry argues where it goes.
+    /// `ls | in` with no quoting rule: the parent entry argues where it goes.
     [<TestMethod>]
     member _.TheParentEntryNavigates() =
         let harness = seeded ()
-        harness.Run "cd documents" |> ignore
+        harness.Run "in documents" |> ignore
 
-        harness.Run "up" |> ignore
+        harness.Run "out" |> ignore
 
         Assert.AreEqual<string>("/", harness.Location)
 
@@ -432,7 +432,7 @@ type ExecutionTests() =
     [<TestMethod>]
     member _.AVariableStageReadsItsMembers() =
         let harness = seeded ()
-        harness.Run "try cat missing.txt | set problem" |> ignore
+        harness.Run "try read missing.txt | set problem" |> ignore
 
         Assert.AreEqual<string>("NotFound", harness.Text "$problem.kind")
 
@@ -462,7 +462,7 @@ type ExecutionTests() =
         let fault = harness.Fail "$row"
 
         Assert.AreEqual<string>(
-            "$row is the row a predicate is testing. It exists only inside where, find, cd and save-view: ls | where $row.kind eq folder.",
+            "$row is the row a predicate is testing. It exists only inside where, find, in and save-view: ls | where $row.kind eq folder.",
             fault.Message)
         Assert.AreEqual(NotFound, fault.Kind)
 

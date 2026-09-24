@@ -55,7 +55,7 @@ type ContextTests() =
           "delete", "CommandName"
           "try c", "CommandName"
           "ls | try c", "CommandName afterPipe"
-          "cat x else c", "CommandName"
+          "read x else c", "CommandName"
           "first (c", "CommandName"
           "echo (ls | c", "CommandName afterPipe"
           "ls | where $row.size gt (ls | c", "CommandName afterPipe"
@@ -82,7 +82,7 @@ type ContextTests() =
           "ls | where ", "Predicate(where, Operand)"
           "find ", "Predicate(find, Operand)"
           "save-view x ", "Predicate(save-view, Operand)"
-          "cd doc", "Predicate(cd, Operand)"
+          "in doc", "Predicate(in, Operand)"
           "ls | where not ", "Predicate(where, Operand)"
           "ls | where $row.kind eq folder and ", "Predicate(where, Operand)"
           // 17, 18: assignments and flags
@@ -92,12 +92,12 @@ type ContextTests() =
           "ls | sort name -", "Argument(sort, flag)"
           "ls | sort name -de", "Argument(sort, flag)"
           // 20: a quoted word, and paths
-          "cat \"doc", "Argument(cat, path)"
-          "cat re", "Argument(cat, path)"
-          "cat documents/no", "Argument(cat, path)"
-          "cd ", "Predicate(cd, Operand)"
+          "read \"doc", "Argument(read, path)"
+          "read re", "Argument(read, path)"
+          "read documents/no", "Argument(read, path)"
+          "in ", "Predicate(in, Operand)"
           "cp readme.txt ", "Argument(cp, targetPath)"
-          "cat x el", "Argument(cat, surplus)"
+          "read x el", "Argument(read, surplus)"
           "frob x", "Argument(frob, surplus)"
           // 21: tags
           "save <", "TagType"
@@ -116,7 +116,7 @@ type ContextTests() =
           "ls | where not $row.done ", "Predicate(where, AfterOperand $row.done)"
           "ls | where $row.a eq b and $row.c ", "Predicate(where, AfterOperand $row.c)"
           // 32: the cursor in the middle of a line
-          "cat re‸ documents", "Argument(cat, path)"
+          "read re‸ documents", "Argument(read, path)"
           "ls | sort ‸ | take 2", "Argument(sort, column)"
           "ls‸ | sort name", "CommandName" ]
 
@@ -144,7 +144,7 @@ type ContextTests() =
         Assert.AreEqual<string option>(Some "ls documents", upstream "ls documents | where $row.")
         Assert.AreEqual<string option>(Some "ls | select name", upstream "ls | select name | where $row.")
         Assert.AreEqual<string option>(None, upstream "sort ")
-        Assert.AreEqual<string option>(Some "ls", upstream "cat x else ls | sort ")
+        Assert.AreEqual<string option>(Some "ls", upstream "read x else ls | sort ")
 
     [<TestMethod>]
     member _.AStageKnowsWhatIsWrittenAlready() =
@@ -161,8 +161,8 @@ type ContextTests() =
     member _.TheWordRunsToItsEnd() =
         let word line = (analyse line).Word
 
-        Assert.AreEqual<Word>({ Start = 4; End = 6; Prefix = "re"; Quoted = false }, word "cat re‸ documents")
-        Assert.AreEqual<Word>({ Start = 4; End = 14; Prefix = "re"; Quoted = false }, word "cat re‸adme.txt")
-        Assert.AreEqual<Word>({ Start = 4; End = 8; Prefix = "doc"; Quoted = true }, word "cat \"doc")
+        Assert.AreEqual<Word>({ Start = 5; End = 7; Prefix = "re"; Quoted = false }, word "read re‸ documents")
+        Assert.AreEqual<Word>({ Start = 5; End = 15; Prefix = "re"; Quoted = false }, word "read re‸adme.txt")
+        Assert.AreEqual<Word>({ Start = 5; End = 9; Prefix = "doc"; Quoted = true }, word "read \"doc")
         Assert.AreEqual<Word>({ Start = 11; End = 18; Prefix = "$row.ki"; Quoted = false }, word "ls | where $row.ki")
         Assert.AreEqual<Word>({ Start = 5; End = 5; Prefix = ""; Quoted = false }, word "ls | ")

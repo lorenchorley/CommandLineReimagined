@@ -19,7 +19,7 @@ type TableCommandTests() =
     let notes () =
         let harness = seeded ()
         harness.Run "mkdir journal" |> ignore
-        harness.Run "cd journal" |> ignore
+        harness.Run "in journal" |> ignore
         harness.Run "save <note name=monday mood=good tag=work/>" |> ignore
         harness.Run "save <note name=tuesday mood=tired tag=work/>" |> ignore
         harness.Run "save <note name=saturday mood=great tag=home/>" |> ignore
@@ -277,7 +277,7 @@ type TableCommandTests() =
     member _.SortIsNumericOnNumbers() =
         let harness = seeded ()
         harness.Run "mkdir sizes" |> ignore
-        harness.Run "cd sizes" |> ignore
+        harness.Run "in sizes" |> ignore
         harness.Run "write small.txt 123456789" |> ignore
         harness.Run "write big.txt 1234567890123" |> ignore
 

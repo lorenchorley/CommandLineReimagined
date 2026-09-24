@@ -3,7 +3,7 @@ using System.Collections.Generic;
 
 namespace Commands.Parser.SemanticTree
 {
-    /// <summary>Pipelines joined by <c>else</c>: <c>cat notes.txt else echo "none"</c>.</summary>
+    /// <summary>Pipelines joined by <c>else</c>: <c>read notes.txt else echo "none"</c>.</summary>
     /// <remarks>
     /// Decision 0014. <c>else</c> binds looser than <c>|</c>, so each entry is a whole
     /// pipeline, and the line runs the next one only when the one before it failed,

@@ -131,7 +131,7 @@ module Files =
     /// <remarks>
     /// Pure, and over strings alone: nothing here asks whether a path exists. `.` and
     /// `..` are resolved textually, and `..` at the root stays at the root rather than
-    /// failing, which is what makes `cd ..` at the top a no-op instead of an error.
+    /// failing, which is what makes `in ..` at the top a no-op instead of an error.
     /// </remarks>
     let normalise (baseFolder: string) (path: string) : string =
         let combined =
@@ -245,6 +245,6 @@ module Files =
             Error(Fault.directoryDoesNotExist path)
 
     /// Every folder at or under a path, used by `rm` to refuse a folder with anything
-    /// in it and by `cd` to know whether it has been deleted from under itself.
+    /// in it and by `in` to know whether it has been deleted from under itself.
     let isAncestorOf (ancestor: string) (path: string) =
         path = ancestor || path.StartsWith(if ancestor = root then root else ancestor + "/")

@@ -50,7 +50,7 @@ public class TerminalSessionTests
     public async Task ALineThatBindsCarriesNoGuide()
     {
         Assert.IsNull((await _session.ExecuteAsync("ls")).Guide);
-        Assert.IsNull((await _session.ExecuteAsync("cat missing.txt")).Guide);
+        Assert.IsNull((await _session.ExecuteAsync("read missing.txt")).Guide);
     }
 
     [TestMethod]
@@ -102,7 +102,7 @@ public class TerminalSessionTests
     [TestMethod]
     public async Task ReadingAFileReturnsAText()
     {
-        var response = await _session.ExecuteAsync("cat readme.txt");
+        var response = await _session.ExecuteAsync("read readme.txt");
 
         Assert.IsNull(response.Error);
         Assert.AreEqual("text", response.Result!.Single().Kind);
@@ -138,7 +138,7 @@ public class TerminalSessionTests
     [TestMethod]
     public async Task ACommandErrorIsReturnedNotThrown()
     {
-        var response = await _session.ExecuteAsync("cd nowhere");
+        var response = await _session.ExecuteAsync("in nowhere");
 
         StringAssert.Contains(response.Error, "Directory does not exist");
     }
@@ -152,7 +152,7 @@ public class TerminalSessionTests
     [TestMethod]
     public async Task AFailureCarriesItsKindBesideTheMessage()
     {
-        var response = await _session.ExecuteAsync("cd nowhere");
+        var response = await _session.ExecuteAsync("in nowhere");
 
         Assert.AreEqual("NotFound", response.Fault!.Kind);
         Assert.AreEqual(response.Error, response.Fault.Message);
@@ -162,7 +162,7 @@ public class TerminalSessionTests
     [TestMethod]
     public async Task AFailureInALaterStageSaysWhichOne()
     {
-        var response = await _session.ExecuteAsync("echo nowhere | cd");
+        var response = await _session.ExecuteAsync("echo nowhere | in");
 
         Assert.AreEqual(2, response.Fault!.Stage);
     }
@@ -183,7 +183,7 @@ public class TerminalSessionTests
     {
         Assert.AreEqual("/", (await _session.ExecuteAsync("ls")).Location.Folder);
 
-        var response = await _session.ExecuteAsync("cd documents");
+        var response = await _session.ExecuteAsync("in documents");
 
         Assert.AreEqual("/documents", response.Location.Folder);
         Assert.IsNull(response.Location.View);
@@ -200,9 +200,9 @@ public class TerminalSessionTests
     [TestMethod]
     public async Task TheResponseSaysWhichViewTheSessionIsIn()
     {
-        await _session.ExecuteAsync("cd documents");
+        await _session.ExecuteAsync("in documents");
 
-        var response = await _session.ExecuteAsync("cd $row.kind eq folder");
+        var response = await _session.ExecuteAsync("in $row.kind eq folder");
 
         Assert.AreEqual("$row.kind eq folder", response.Location.View);
         Assert.AreEqual("/documents", response.Location.Folder);
@@ -212,9 +212,9 @@ public class TerminalSessionTests
     [TestMethod]
     public async Task LeavingAViewClearsItFromTheResponse()
     {
-        await _session.ExecuteAsync("cd $row.kind eq folder");
+        await _session.ExecuteAsync("in $row.kind eq folder");
 
-        Assert.IsNull((await _session.ExecuteAsync("up")).Location.View);
+        Assert.IsNull((await _session.ExecuteAsync("out")).Location.View);
     }
 
     /// <summary>
@@ -228,7 +228,7 @@ public class TerminalSessionTests
     [TestMethod]
     public async Task TheWireFormatCarriesLocationAndNoWorkingDirectory()
     {
-        var response = await _session.ExecuteAsync("cd documents");
+        var response = await _session.ExecuteAsync("in documents");
 
         var json = System.Text.Json.JsonSerializer.Serialize(
             response, new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web));
@@ -587,7 +587,7 @@ public class TerminalSessionTests
     [TestMethod]
     public void RecoveryWordsAreTokenisedAsThemselves()
     {
-        const string source = "try cat x | set p else first (ls) ?? none";
+        const string source = "try read x | set p else first (ls) ?? none";
         var parse = new CommandLineReimagined.Web.Parsing.CommandParseService().Parse(source);
 
         string[] ofKind(string kind) =>
@@ -597,14 +597,14 @@ public class TerminalSessionTests
         Assert.AreEqual(source, parse.Reserialised);
         CollectionAssert.AreEqual(new[] { "try", "else" }, ofKind("keyword"));
         CollectionAssert.AreEqual(new[] { "??" }, ofKind("operator"));
-        CollectionAssert.AreEqual(new[] { "cat", "set", "first", "ls" }, ofKind("command"));
+        CollectionAssert.AreEqual(new[] { "read", "set", "first", "ls" }, ofKind("command"));
     }
 
     /// <summary>A fault that <c>try</c> caught is a result item of kind <c>fault</c>, with its kind beside it.</summary>
     [TestMethod]
     public async Task ACaughtFaultIsAResultNotAnError()
     {
-        var response = await _session.ExecuteAsync("try cat nowhere.txt");
+        var response = await _session.ExecuteAsync("try read nowhere.txt");
 
         Assert.IsNull(response.Error);
         var item = response.Result!.Single();
@@ -657,8 +657,8 @@ public class TerminalSessionTests
     {
         var texts = _session.Complete("c").Select(c => c.Text).ToList();
 
-        CollectionAssert.Contains(texts, "cat");
-        CollectionAssert.Contains(texts, "cd");
+        CollectionAssert.Contains(texts, "count");
+        CollectionAssert.Contains(texts, "columns");
         CollectionAssert.Contains(texts, "cp");
         CollectionAssert.Contains(texts, "clear");
         Assert.IsTrue(_session.Complete("c").All(c => c.Kind == "command" && c.Start == 0));
@@ -667,22 +667,22 @@ public class TerminalSessionTests
     [TestMethod]
     public void AnArgumentCompletesToEntriesInTheCurrentDirectory()
     {
-        var completions = _session.Complete("cat re");
+        var completions = _session.Complete("read re");
 
         var only = completions.Single();
         Assert.AreEqual("file", only.Kind);
         Assert.AreEqual("readme.txt", only.Text);
-        Assert.AreEqual(4, only.Start);
+        Assert.AreEqual(5, only.Start);
     }
 
     [TestMethod]
     public void DirectoriesCompleteWithATrailingSeparatorAndDescend()
     {
-        var top = _session.Complete("cd doc").Single();
+        var top = _session.Complete("in doc").Single();
         Assert.AreEqual("documents/", top.Text);
         Assert.AreEqual("folder", top.Kind);
 
-        var inside = _session.Complete("cat documents/no").Single();
+        var inside = _session.Complete("read documents/no").Single();
         Assert.AreEqual("documents/notes.txt", inside.Text);
     }
 

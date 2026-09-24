@@ -144,7 +144,7 @@ public class ParseWordingTests
         var response = await _session.ExecuteAsync(line);
 
         Assert.AreEqual(
-            "$row is the row a predicate is testing. It exists only inside where, find, cd and save-view: ls | where $row.kind eq folder.",
+            "$row is the row a predicate is testing. It exists only inside where, find, in and save-view: ls | where $row.kind eq folder.",
             response.Error);
     }
 

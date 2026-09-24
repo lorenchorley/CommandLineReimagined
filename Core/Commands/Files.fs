@@ -68,7 +68,7 @@ let private measure (blobs: IBlobs) (records: FileRecord list) =
 
 /// <summary>Everything in the store, which is the whole of what a view asks about.</summary>
 /// <remarks>
-/// A view is not a folder and is not scoped to one (decision 0013): `cd $row.tag eq
+/// A view is not a folder and is not scoped to one (decision 0013): `in $row.tag eq
 /// work` is a question about the terminal, not about where you happen to be standing,
 /// so `ls` in one lists across folders and shows the `folder` column to say where each
 /// row came from.
@@ -139,7 +139,7 @@ let ls =
                     // From Phase 3 there is no parent row: a table of records has
                     // nowhere to put one, and a row that navigates rather than naming a
                     // record would be a row with no record behind it. The page offers
-                    // `up` in the location line instead.
+                    // `out` in the location line instead.
                     return Invocation.pure' (Value.Table(Table.ofRecords size entries))
             } }
 
@@ -161,13 +161,13 @@ let find =
                 | Some expr when not (Expr.isPredicate expr) -> return Error(Fault.needsAPredicate "find")
                 | Some expr ->
                     // Asking a question is not going anywhere: `find` leaves the
-                    // location alone, which is the whole difference between it and `cd`.
+                    // location alone, which is the whole difference between it and `in`.
                     return! listMatching invocation expr
             } }
 
-// --------------------------------------------------------------------------- cd
+// --------------------------------------------------------------------------- in
 
-/// <summary>A folder as the value `cd` answers with.</summary>
+/// <summary>A folder as the value `in` answers with.</summary>
 /// <remarks>
 /// The record, so the answer is a chip you can tap and pipe like any other file. The
 /// root is the exception: it is implicit and has no record (decision 0016), so there
@@ -202,7 +202,7 @@ let private enterFolder (invocation: Invocation) (target: string) =
 /// <summary>Entering a query rather than a folder (decision 0013).</summary>
 /// <remarks>
 /// The folder is left as it was, because a view is a way of looking rather than a
-/// place to put things: new files still land in `Folder`, and `up` puts the view down
+/// place to put things: new files still land in `Folder`, and `out` puts the view down
 /// and leaves you where you already were.
 /// </remarks>
 let private enterView (invocation: Invocation) (expr: Expr) =
@@ -215,7 +215,7 @@ let private enterView (invocation: Invocation) (expr: Expr) =
 
 /// <summary>Entering something named: a folder, or a saved view.</summary>
 /// <remarks>
-/// A view file is a place (decision 0013), so `cd weekend` on one enters the query it
+/// A view file is a place (decision 0013), so `in weekend` on one enters the query it
 /// holds rather than failing because it is not a directory. Anything else is a path,
 /// and the failure is the same "Directory does not exist" it has always been.
 /// </remarks>
@@ -239,7 +239,7 @@ let private enterNamed (invocation: Invocation) (written: string) =
             // or retyped a note as a view, would otherwise be entered as a question
             // whose every answer is false.
             | Ok expr when not (Expr.isPredicate expr) -> return Error(Fault.notAPredicate path (text.Trim()))
-            // And the check `cd` makes on a predicate written out (decision 0033): a view
+            // And the check `in` makes on a predicate written out (decision 0033): a view
             // saved before 0033, or written by hand, whose question never reads `$row`
             // would otherwise list nothing and say nothing.
             | Ok expr ->
@@ -249,12 +249,14 @@ let private enterNamed (invocation: Invocation) (written: string) =
         | _ -> return enterFolder invocation written
     }
 
-let cd =
+/// Named `into` because `in` is an F# keyword; the command is `in` (decision 0037), and
+/// `cd`, its old name, is its first keyword so completion still finds it.
+let into =
     { Spec =
         CommandSpec.create
-            "cd"
-            "Enter a directory, a saved view, or a predicate written out"
-            [ "move"; "navigate"; "directory"; "folder"; "view"; "query" ]
+            "in"
+            "Go into a folder, a saved view, or a question written out"
+            [ "cd"; "move"; "navigate"; "directory"; "folder"; "view"; "query" ]
             [ Parameter.predicate "TargetPath" "The directory, view or predicate to enter"
               |> Parameter.piped
               |> Parameter.takes Takes.Place ]
@@ -270,20 +272,20 @@ let cd =
                     | Error fault -> return Error fault
                     | Ok value -> return! enterNamed invocation (Value.argument value)
                 | Some value -> return! enterNamed invocation (Value.argument value)
-                | Option.None -> return Error(Fault.needsArgument "cd" "TargetPath")
+                | Option.None -> return Error(Fault.needsArgument "in" "TargetPath")
             } }
 
-/// Not read-only, for the same reason `cd` is not: it emits `LocationChanged`, so it
+/// Not read-only, for the same reason `in` is not: it emits `LocationChanged`, so it
 /// is in `history` and `undo` takes it back, and a live refresh must not run it.
-let up =
+let out =
     { Spec =
-        CommandSpec.create "up" "Leave the current view, or move up one directory"
-            [ "move"; "parent"; "back"; "navigate"; "view" ] []
+        CommandSpec.create "out" "Come out of the current view, or up out of the folder"
+            [ "up"; "move"; "parent"; "back"; "navigate"; "view" ] []
       Run =
         fun invocation ->
             async {
                 match invocation.Location.View with
-                // A view is put down before the folder is left: two `up`s from a view
+                // A view is put down before the folder is left: two `out`s from a view
                 // over a subfolder take you out of the question and then out of the
                 // folder, which is the order they were entered in.
                 | Some _ ->
@@ -404,12 +406,12 @@ let write (newId: IdSource) (now: unit -> DateTimeOffset) =
             let text = Invocation.value "text" invocation |> Value.display
             writeContent newId now invocation (Invocation.text "path" invocation) None text }
 
-// -------------------------------------------------------------------------- cat
+// ------------------------------------------------------------------------- read
 
 /// <summary>A file's text, with the absolute path it was read from.</summary>
 /// <remarks>
 /// Shared with `from-xml` and `from-csv`, which need the path for their messages and
-/// the same answers to a folder or a missing file that `cat` gives.
+/// the same answers to a folder or a missing file that `read` gives.
 /// </remarks>
 let readContent (invocation: Invocation) (written: string) : Async<Outcome<string * string>> =
     async {
@@ -428,12 +430,12 @@ let readContent (invocation: Invocation) (written: string) : Async<Outcome<strin
                 return Ok(absolute, defaultArg content "")
     }
 
-let cat =
+let read =
     { Spec =
         CommandSpec.create
-            "cat"
-            "Read a file and return its text"
-            [ "read"; "print"; "show"; "file"; "contents"; "type" ]
+            "read"
+            "Show what a file says"
+            [ "cat"; "print"; "show"; "file"; "contents"; "type" ]
             [ Parameter.create "path" "The file to read" |> Parameter.piped |> Parameter.takes Takes.Path ]
         |> CommandSpec.readOnly
       Run =
@@ -730,14 +732,14 @@ let save (newId: IdSource) (now: unit -> DateTimeOffset) =
 /// <remarks>
 /// Decision 0013's last step: a view is an ordinary record of kind `view` whose content
 /// is the predicate text. It therefore appears in `ls`, can be tapped, renamed, undone
-/// and deleted like anything else, and `cd` on it enters the query it holds. Nothing in
-/// the store knows about views except this command and `cd`.
+/// and deleted like anything else, and `in` on it enters the query it holds. Nothing in
+/// the store knows about views except this command and `in`.
 /// </remarks>
 let saveView (newId: IdSource) (now: unit -> DateTimeOffset) =
     { Spec =
         CommandSpec.create
             "save-view"
-            "Save a predicate as a view you can enter with cd"
+            "Save a predicate as a view you can go into with in"
             [ "view"; "save"; "query"; "bookmark"; "keep" ]
             [ Parameter.create "name" "What to call the view" |> Parameter.takes Takes.NewName
               Parameter.predicate "predicate" "The predicate the view stands for" ]
@@ -760,7 +762,7 @@ let saveView (newId: IdSource) (now: unit -> DateTimeOffset) =
                         return Error(Fault.targetFileExists (Value.joinPath folder name))
                     else
                         // The predicate as it reads, not as it parsed: a view is a file
-                        // someone can `cat`, and the text has to be something they could
+                        // someone can `read`, and the text has to be something they could
                         // have typed.
                         let! hash = invocation.Blobs.Put(Expr.display expr)
 
