@@ -298,3 +298,9 @@ Every checkpoint and stream, with these differences and findings.
   the browser check passes. The payload is 10.7 MB the way `build.yml` measures it, and
   18.6 MB as the whole `wwwroot`, both under 20 MB. The Artifact was republished from
   the final head as version 20.
+- **After the phase.** The owner found that a live listing followed the session: `ls` at
+  `/`, then `in documents`, redrew the listing of `/` as a listing of `documents`. A
+  listing is now asked again from the folder and view of its first response
+  ([decision 0047](../decisions/0047-a-live-listing-stays-where-it-was-run.md)), in
+  127c62d, with two Web.Core tests and a browser check that fails on the old
+  behaviour. The Artifact was republished with it as version 21.
