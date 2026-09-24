@@ -7,14 +7,17 @@ the page's rather than the language's.
 
 | Area | What it is |
 | --- | --- |
-| Title bar | The project name, and a status that reads `wasm` in green once the runtime has loaded. |
-| Scrollback | Every command you have run, with its live output, errors and results. |
+| Scrollback | Every command you have run, with its live output, errors and results. It starts at the top of the screen with the banner, a `note` that says where to begin; what the terminal says of its own is drawn apart from output, as [The terminal's own words](#the-terminals-own-words) describes. |
 | Detail line | One line above the location line. While you type, it shows the parameters of the command you are writing an argument of, what the selected completion is, or a parse error already behind the word; after a tap, what the tapped word is. See [The detail line](#the-detail-line). |
-| Location line | Where you are: a directory as its path, or a view as the question it is. Undo (↶) and redo (↷) buttons always come before it, and anywhere but the root an `out` button too. |
+| Location line | Where you are: a directory as its path, or a view as the question it is. Before it come four buttons that are always there, undo (↶), redo (↷) and the history arrows ↑ and ↓, and anywhere but the root an `out` button too. See [The location line](#the-location-line). |
 | Input | A transparent line over a coloured mirror of what you type. It is an editable line rather than a form field, so Chrome on Android shows no autofill bar (key, card, pin) above the keyboard. |
 | Run button | Runs the line. It becomes a red Stop button while a command is running. |
-| Completion row | Appears below the input while you type, offering what the word under the caret could become: commands, variables, members, columns, values, operators, flags, keywords and paths. |
-| Suggestion row | Fixed examples you can tap to fill the input. |
+| Completion row | Appears below the input while you type, offering what the word under the caret could become: commands, variables, members, columns, values, operators, flags, keywords and paths, and `\|` first once a stage has what it needs. |
+| Suggestion row | Fixed examples you can tap to fill the input, with the caret left at the end of what they wrote. |
+
+There is no title bar and no status line: the scrollback takes the top of the screen,
+and what a status used to say, that the terminal is loading or restoring, or that this
+browser is not keeping your files, the banner says instead (see [Loading](#loading)).
 
 The page is laid out for a phone first: a 390 by 844 screen fits the scrollback, the
 input and both button rows without horizontal scrolling.
@@ -24,10 +27,10 @@ input and both button rows without horizontal scrolling.
 Nothing the page does on its own opens or closes the keyboard, or moves what is on
 screen:
 
-- The keyboard stays as you left it. Tapping Run, `out`, ↶, ↷, a chip, a suggestion key,
-  a table cell or a word neither closes it nor opens it, and a line run from the
-  keyboard leaves it up. The return key is a plain return, so it does not close the
-  keyboard either.
+- The keyboard stays as you left it. Tapping Run, `out`, ↶, ↷, ↑, ↓, a chip, a
+  suggestion key, a table cell, a listing's badge or a word neither closes it nor opens
+  it, and a line run from the keyboard leaves it up. The return key is a plain return,
+  so it does not close the keyboard either.
 - The terminal fits the part of the screen the keyboard leaves. The input sits just
   above the keyboard, and running a line does not move it.
 - The newest output is shown to its last line, even when something below it changes
@@ -35,8 +38,12 @@ screen:
   opening. If you have scrolled up to read, the scrollback stays where you are until
   you run the next line.
 
+A long press still selects text, and a selection made in the scrollback is copied
+when its handles stop moving: see [Copying](#copying).
+
 With a mouse, a tap on a button still puts the focus back in the input, since there
-is no keyboard to open, and pressing on a table still selects its text to copy.
+is no keyboard to open, and dragging across a table still selects its text, which
+copies it.
 
 ## Typing
 
@@ -58,13 +65,19 @@ Column 16: a column name belongs after the stop, as in $row.kind
 | Key | Effect |
 | --- | --- |
 | Enter | Run the line, or stop the one that is running. |
-| Up and Down | Walk back and forward through lines you have run. |
+| Up and Down | Walk back and forward through lines you have run. The ↑ and ↓ buttons do the same. |
 | Tab | The first time, apply the only completion, or extend the word to the common prefix of several. Once that does nothing more, step through the chips, putting each one in place in turn. |
 | Shift+Tab | Step back through the chips. |
 | Escape | Put back what was typed before the first Tab. While a command runs, stop it instead. |
 
 History keeps what you actually submitted, including `clear`, for as long as the page is
-open. A line submitted twice in a row is kept once.
+open. A line submitted twice in a row is kept once. Walking it keeps what you were
+typing: Down past the newest line puts it back.
+
+A suggestion key puts its whole line in the input with the caret at the end of it, so
+typing goes on from there: tap `readme` and the input holds `read readme.txt`, ready to
+run or to change. With the keyboard down on a phone the key does not bring it up; the
+line is there when you tap into the input.
 
 ## Completions
 
@@ -92,6 +105,30 @@ space, so the next completion goes on into it. A name that is not a bare word, s
 one with a space in it, is completed in quotes, and so is any name once you have typed
 the opening quote.
 
+### The pipe first
+
+Everything a command answers can be piped on, so once a stage has what it needs, the
+pipe is offered before anything else
+([decision 0039](decisions/0039-the-pipe-comes-first.md)). With the word under the caret
+empty and every required argument of the stage written, the first chip is `|`, with the
+detail `send the result on`, and what the next argument could be follows it. The caret is
+then after a command, so the [detail line](#the-detail-line) shows that command's
+parameters, as `vars · List the variables in scope`, rather than the chip's detail:
+
+| You have typed | The chips |
+| --- | --- |
+| `ls ` | `\| · send the result on`, then `documents/`, `examples/`, `guide/`, `projects/` |
+| `vars ` | `\|` and nothing else, since `vars` has nothing left to take |
+| `back ` | `\|` and nothing else |
+| `ls \| sort ` | the columns, `name · file`, `kind · text` and so on, and no `\|`: `sort` still needs its column |
+| `ls \| sort name ` | `\|`, then `desc · Write 'desc' to order downwards` and `asc` |
+| `ls \| where $row.kind eq folder ` | `\|`, then `and` and `or` |
+
+Tapping `|` writes `| `, and the chips move on to the commands that take what the stage
+answers, which is the whole of how a listing becomes a question. A command still
+missing a required argument offers what that argument takes and no pipe, and a place
+with nothing to pick still offers nothing, as after `ls | take `.
+
 ### What each place offers
 
 Every example below is in a fresh tab after `set v 5`, `ls | set files` and
@@ -111,10 +148,11 @@ column's type or a value's count comes with the chip but is not on the screen. S
 | After `$name.` | The members of what the variable holds: a tag's or a file's attributes, a fault's `kind`, `message`, `stage` and `path`; nothing for a number, a text, a boolean or a table | `$problem.`: `$problem.kind · text · "NotFound"`, `$problem.message`, `$problem.stage · number · 1`, `$problem.path`; `$v.`: nothing |
 | After `$row.` | The columns of what flows into the stage, with their types | `ls \| where $row.`: `$row.name · file`, `$row.kind · text`, `$row.folder`, `$row.size · number`, `$row.modified`; `ls \| select name \| where $row.`: `$row.name` only |
 | An argument that takes a column | The columns of what flows in, with their types; for `select`, the ones not yet written | `ls \| sort `: `name · file`, `kind · text`, `folder · text`, `size · number`, `modified · text` |
-| A switch | Its two words | `ls \| sort name `: `desc · Write 'desc' to order downwards`, `asc` |
+| A switch | Its two words, after the `\|` | `ls \| sort name `: `\|`, `desc · Write 'desc' to order downwards`, `asc` |
 | After `-` | The command's flags | `ls \| sort name -`: `-desc · Write 'desc' to order downwards` |
 | An argument that takes a path | Files and folders, in the current folder or in the folder typed so far | `read re`: `readme.txt`; `read documents/no`: `documents/notes.txt`; `read "doc`: `"documents/"` |
-| An argument that takes a place | Folders and saved views | `in doc`: `documents/` |
+| An argument that takes a place | Folders and saved views; after `ls `, with `\|` before them | `in doc`: `documents/` |
+| After a stage that has every required argument | `\|` first, then what the next argument could be; only `\|` when the command has nothing left to take | `vars `: `\| · send the result on` and nothing else. See [The pipe first](#the-pipe-first) |
 | A variable's name, for `set` | The variables, to replace one | `set `: `files`, `problem`, `v`, each with what it holds |
 | A command's name, for `help` | The commands, with their descriptions | `help wh`: `where` |
 | A count, a number, a new name, a URL or text | Nothing, since there is nothing to pick; the detail line says what is wanted | `ls \| take `: no chips, and `take <count> [table] · How many rows to keep` |
@@ -122,7 +160,7 @@ column's type or a value's count comes with the chip but is not on the screen. S
 | Where a predicate's operand starts | `$row.`, `not` and `(` | `ls \| where `: `$row. · a column of the row being tested`, `not · true where what follows is false`, `( · a group, or a pipeline to compare with` |
 | After an operand | The eight comparisons | `ls \| where $row.kind `: `eq`, `ne`, `gt`, `ge`, `lt`, `le`, `like`, `has` |
 | After a comparison | The values the column holds in what flows in, most frequent first, at most twelve; after `like`, each with a `*`. Nothing for `in`, `find` and `save-view`, which have no stage before them to read values from | `ls \| where $row.kind eq `: `folder · 3 rows`, `text · 1 row`; `ls \| where $row.name like `: `documents*`, `examples*`, `projects*`, `readme.txt*` |
-| After a whole comparison | `and` and `or` | `ls \| where $row.kind eq folder `: `and`, `or` |
+| After a whole comparison | `\|` first, then `and` and `or` | `ls \| where $row.kind eq folder `: `\| · send the result on`, `and`, `or` |
 | After `<` | The tag types in use: the kinds of the records, and the types of the tags variables hold | `save <`: `<script · 4 records`, `<text · 2 records` |
 | Inside `<type ` | The attribute names records of that type carry, as `name=`, `name` first, leaving out any already written | after `save <note name=monday mood=good tag=work/>` and `save <note name=tuesday mood=better/>`, `save <note `: `name= · 2 of 2 carry it`, `mood= · 2 of 2 carry it`, `tag= · 1 of 2 carry it` |
 | Two letters of `else`, where an argument goes | `else` | `read x el`: `else` |
@@ -178,8 +216,9 @@ A result is rendered by kind:
   line breaks.
 - **A variable typed on its own**, such as `$files`, is drawn as whatever it holds,
   as a table if it holds one ([decision 0032](decisions/0032-a-stage-may-be-a-value.md)).
-- **Errors** are shown in red under the command. A command you stopped shows
-  `Stopped.` in amber instead.
+- **Errors** are shown in red under the command, and a command called wrongly has its
+  help drawn under the error: see [How a failure looks](#how-a-failure-looks). A
+  command you stopped shows `Stopped.` in amber instead.
 - **A caught fault** is drawn in amber: see [How a failure looks](#how-a-failure-looks).
 
 Tapping a header sorts what you are looking at. `ls | sort size desc` is the one that
@@ -205,15 +244,23 @@ out of one thing at a time: the view first, then the directory. It is the page's
 to a listing having nowhere to put a parent row — every row of a table is a record, and
 the way out is not one.
 
-Before them both are two buttons that are always there: ↶ runs
+Before them both are four buttons that are always there. ↶ runs
 [`undo`](commands.md#undo) and ↷ runs [`redo`](commands.md#redo). They do exactly what
 typing the command does — the entry the undo takes back leaves the screen, and redo
 puts it back where it was — and they leave anything you were halfway through typing in
 the input. The `out` button does the same.
 
+↑ and ↓ walk the lines you have run, as the Up and Down keys do, for a phone keyboard
+that has neither: ↑ puts the line before in the input, ↓ the one after, and ↓ past the
+newest puts back what you were typing. They only change the line and run nothing, and
+like every button they neither open nor close the keyboard.
+
+There is no button for [`back`](commands.md#back), which goes to where you were before
+the last move: type it. `undo` takes a `back` back like any other move.
+
 ## Live listings
 
-The newest listing keeps itself up to date. A listing is a question about the
+A listing keeps itself up to date while it is live. A listing is a question about the
 filesystem, and the filesystem changes underneath it: `mkdir x` in the next entry makes
 the answer above it wrong.
 
@@ -224,10 +271,43 @@ see that it moved. The re-run leaves no entry in the scrollback, no transaction 
 nothing in `history`. A line naming any command that could change something, such as
 `ls | set files`, is refused rather than re-run, and the table it drew stays as it was.
 
-Only the newest listing refreshes. The ones above it froze when you moved on, which is
-what a scrollback is for, and say `frozen`. Underneath the live one is a badge reading
-`live`; tapping it says `paused` and stops the refreshing for that listing, and tapping
-it again resumes and redraws at once. `clear` ends it along with the scrollback.
+Every listing has a badge under it that says which it is: `live` while it is kept up
+to date, `paused` while it is not. The newest listing starts live, and the ones above it
+pause when a newer one arrives, which is what a scrollback is for. Tapping `paused` makes
+a listing live again, and it catches up at once rather than at the next change; tapping
+`live` pauses it. So any number of listings can be live at once, each asked again
+whenever the filesystem changes: make an older listing live again, run `mkdir`, and
+both it and the newest gain the new folder. One made live by a tap stays live when a
+newer listing arrives, since it was asked for rather than left over. `clear` ends them
+all along with the scrollback.
+
+## Copying
+
+Selecting text in the scrollback copies it to the clipboard, and a short `copied` note
+shows over the foot of the scrollback and fades. On a phone, where there is no copy key
+to reach for afterwards, that is the whole of copying: long-press, drag the handles, and
+once they have stopped moving for a moment the selection is on the clipboard. With a
+mouse it is copied when the button lifts.
+
+Only the scrollback is copied from. A selection in the input is for editing, and is left
+alone. A tap selects nothing, so tapping a cell, a chip or a word does what it always
+did, and the same selection is not copied twice.
+
+## The terminal's own words
+
+Everything the page shows that no command answered is drawn so that it cannot be taken
+for output: a panel of its own, with an accent border, heavier down its left side, and
+a tinted background, a small label saying what it is, and the interface's proportional
+font rather than the terminal's monospace. Output keeps the look it has always had.
+
+| Panel | Label | What it says |
+| --- | --- | --- |
+| The banner, at the top of the scrollback | `note` | Where to begin, whether this browser is keeping your files, and how loading went: see [Loading](#loading). |
+| Under a line that called a command wrongly | `help` | That command's help: see [How a failure looks](#how-a-failure-looks). |
+| The note after a selection | `note` | `copied`: see [Copying](#copying). |
+
+A failure's own message, `Did you mean` suggestions included, is the line's answer
+rather than the page's, and stays in red with its kind tag.
 
 ## Undo on screen
 
@@ -282,6 +362,37 @@ already taken at a glance. The [error reference](errors.md) lists every kind.
 Nothing the line did survives. A line is one transaction, so `mkdir a | in nowhere`
 leaves no folder behind.
 
+A command called wrongly shows its help
+([decision 0038](decisions/0038-a-wrong-call-shows-its-help.md)). When what was written
+does not fit what the command declared, an argument missing, one too many, a flag it
+does not have or a word a switch does not take, the error is followed by a panel
+labelled `help` holding what `help <command>` answers: the command's description, and
+the table of its parameters. Here the indented lines are that panel:
+
+```
+$ read
+'read' needs an argument for 'path'.
+  help
+  Show what a file says
+  name  required  piped  takes   description
+  path  true      true   a path  The file to read
+$ ls | sort name up
+'sort' takes 'desc' or 'asc' for 'desc', not 'up'.
+  help
+  Order the rows by a column
+  name    required  piped  takes        description
+  column  true      false  a column     The column to order by
+  desc    false     false  desc or asc  Write 'desc' to order downwards
+  table   false     true   a value      The table to work on; taken from the pipe when it is not written
+```
+
+The help is the called command's, so `help where extra` shows `help`'s own, since `help`
+is what was called wrongly. A failure while a command runs is not a wrong call and shows
+no panel: `read missing.txt` fails with `File does not exist : /missing.txt` alone. Nor
+does an unknown command, whose message already says what it probably meant
+(`Unknown command : cd. Did you mean in?`), nor a question that never reads `$row`,
+which says what to write instead.
+
 A fault that `try` caught, or that `else` handed on, is not a failure: the line went on
 and answered with it. The page draws it in amber, with a left rule like any other
 result and the same kind tag in front — `NotFound`, the word `$problem.kind` reads —
@@ -310,8 +421,8 @@ and can be piped. That also means the desktop shell and the browser get the same
 commands, rather than each having its own half of the feature.
 
 What `help` used to say about pipes, tags and variables is in the filesystem: the
-banner at the top of the scrollback points to `readme.txt`, and `readme.txt` points to
-the `guide` folder, one file per idea, read with `read`.
+banner at the top of the scrollback, a `note`, points to `readme.txt`, and `readme.txt`
+points to the `guide` folder, one file per idea, read with `read`.
 
 ## The detail line
 
@@ -362,7 +473,12 @@ parse is echoed as plain text, with nothing to tap.
 The root is `/`, seeded on first use with `documents/notes.txt`, `examples/` holding
 the four example programs, `guide/` holding one file per idea, `projects/` and
 `readme.txt`, which points to the guide. A log begun before the guide existed is given
-it once, on its next load ([decision 0036](decisions/0036-the-guide-is-in-the-filesystem.md)). It is not a disk and not
+it once, on its next load ([decision 0036](decisions/0036-the-guide-is-in-the-filesystem.md)).
+A seeded file nobody has changed follows the seed: when the terminal's own copy of the
+guide or the readme changes, a returning visitor's untouched copy is brought up to date
+on load, while one you have written to, renamed, moved or tagged is yours and is left
+alone, and one you deleted stays deleted
+([decision 0040](decisions/0040-seeded-files-follow-the-seed.md)). It is not a disk and not
 Emscripten's filesystem: it is a projection folded from the log, so `mkdir`, `cp` and
 `write` describe changes and the store applies them, and `in ..` at the root stays at
 the root. Files are attribute records rather than entries in a tree, and a query over
@@ -380,22 +496,25 @@ fetch over the network and is therefore subject to the remote host's CORS policy
 ## Loading
 
 The runtime is about 10 MB across about 70 files on a first visit, and is cached by the
-browser afterwards. Until it is ready the input stays disabled and the status reads
-`starting…`. If it has not started after about forty seconds, the status turns red and
-reads `failed to load`.
+browser afterwards. How the start goes is said in the banner, the `note` at the top of
+the scrollback, since there is no status line. Until the runtime is ready the input
+stays disabled and the banner reads `Loading the terminal…`. If it has not started after
+about forty seconds, the banner says `failed to load` in red, and that reloading the
+page may help.
 
 Once the runtime is up the page replays the session's log before enabling the input,
-showing `restoring…` while it does. Nothing may run until that has finished: an empty
-filesystem and a lost one look identical, so the page refuses to show one as the other.
-If the replay fails, the status turns red and reads `failed to restore`, the scrollback
-says `Could not restore the session:` and why, and the input stays disabled.
+and the banner reads `restoring…` while it does. Nothing may run until that has
+finished: an empty filesystem and a lost one look identical, so the page refuses to show
+one as the other. If the replay fails, the banner says `failed to restore` in red and
+that nothing can run until the session is restored, the scrollback says
+`Could not restore the session:` and why, and the input stays disabled.
 
 The banner then says what happened — a first visit, or how many lines came back —
 points to `read readme.txt` (the `readme` key writes it), and says whether this browser is
-keeping your files. The status line says `wasm`, with `not persisted` beside it when the browser is not
-keeping anything; hover it to see the reason the browser gave. That is said before you
-have typed, rather than after a morning's work turns out not to have been saved. If some
-stored lines could not be read, a red line in the scrollback says how many were skipped.
+keeping your files. When it is not, the banner says so and ends with a `not persisted`
+mark; hover it to see the reason the browser gave. That is said before you have typed,
+rather than after a morning's work turns out not to have been saved. If some stored
+lines could not be read, a red line in the scrollback says how many were skipped.
 
 ## Where the log is kept
 
@@ -409,9 +528,11 @@ chain is in the log rather than in memory.
 
 Storage can be unavailable — a private window — or go away mid-session, if site data is
 cleared while the page is open. Neither breaks the terminal: the log falls back to
-memory and the session keeps working for as long as the tab is open. The status line
-says `not persisted` in the first case as soon as the page loads, and in the second
-after the first line that runs once storage has gone.
+memory and the session keeps working for as long as the tab is open. The banner says
+`not persisted` in the first case as soon as the page loads, and in the second after the
+first line that runs once storage has gone: it then reads `This browser has stopped
+keeping your files: they go when the tab does.` If `clear` has taken the banner away,
+it comes back at the end of the scrollback to say so.
 
 `reset` empties the log and seeds it again. It is the only command that cannot be
 undone, which is why it is not one of the suggestion keys.
