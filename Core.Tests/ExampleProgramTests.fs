@@ -20,7 +20,7 @@ open CommandLineReimagined.Core.Tests.SessionHarness
 type ExampleProgramTests() =
 
     /// The lines a guide shows failing on purpose, to show how a failure reads.
-    let meantToFail = set [ "ls | where kind eq folder"; "ls | where $row.kind"; "cat missing.txt" ]
+    let meantToFail = set [ "ls | where kind eq folder"; "ls | where $row.kind"; "read missing.txt" ]
 
     /// The example lines of a guide: the lines indented by two spaces, in order.
     let examplesOf (text: string) =
@@ -37,11 +37,11 @@ type ExampleProgramTests() =
              examples    folder  /       0     *\n\
              guide       folder  /       0     *\n\
              projects    folder  /       0     *\n\
-             readme.txt  text    /       192   *"
+             readme.txt  text    /       193   *"
 
           "ls | where $row.kind eq folder | count", "4"
 
-          "ls | sort name desc | first", "<row name=readme.txt kind=text folder=/ size=192 modified=*/>"
+          "ls | sort name desc | first", "<row name=readme.txt kind=text folder=/ size=193 modified=*/>"
 
           "ls | select name kind | take 2",
           "name       kind\n\
@@ -64,17 +64,17 @@ type ExampleProgramTests() =
     /// <summary>The golden results for journal.clr, in the order the script runs them.</summary>
     /// <remarks>
     /// Phase 4's program. It is the one that only works once a predicate is somewhere
-    /// you can be: `cd` on a question, `ls` listing it across folders, `up` putting it
+    /// you can be: `in` on a question, `ls` listing it across folders, `out` putting it
     /// down again, and the event log giving the whole thing back with `undo`.
     /// </remarks>
     let journalProgram =
         [ "mkdir journal", "journal"
-          "cd journal", "journal"
+          "in journal", "journal"
           "save <note name=monday mood=good tag=work/>", "monday"
           "save <note name=tuesday mood=tired tag=work/>", "tuesday"
           "save <note name=saturday mood=great tag=home/>", "saturday"
           "echo \"Stand-up moved to ten.\" | write monday", "monday"
-          "cat monday", "Stand-up moved to ten."
+          "read monday", "Stand-up moved to ten."
           "attr tuesday mood=better", "tuesday"
 
           "ls",
@@ -85,13 +85,13 @@ type ExampleProgramTests() =
 
           "find $row.kind eq note and $row.tag eq work | count", "2"
 
-          "cd $row.mood eq great", "$row.mood eq great"
+          "in $row.mood eq great", "$row.mood eq great"
 
           "ls",
           "name      kind  folder    size  modified  mood   tag\n\
              saturday  note  /journal  0     *         great  home"
 
-          "up", "/journal"
+          "out", "/journal"
           "rm tuesday", "Removed tuesday"
           "undo", "Undone: rm tuesday"
           "history | where $row.undone eq true | count", "1" ]
@@ -103,16 +103,16 @@ type ExampleProgramTests() =
     /// an answer of nothing, and a failed left branch leaves nothing behind.
     /// </remarks>
     let resilientProgram =
-        [ "cat notes-from-yesterday.txt else echo \"starting fresh\"", "starting fresh"
-          "cat notes-from-yesterday.txt else echo \"starting fresh\" | write today.txt", "today.txt"
-          "cat today.txt", "starting fresh"
-          "try cat nowhere.txt | set problem", "File does not exist : /nowhere.txt"
+        [ "read notes-from-yesterday.txt else echo \"starting fresh\"", "starting fresh"
+          "read notes-from-yesterday.txt else echo \"starting fresh\" | write today.txt", "today.txt"
+          "read today.txt", "starting fresh"
+          "try read nowhere.txt | set problem", "File does not exist : /nowhere.txt"
           "echo $problem.kind", "NotFound"
           "echo $problem.message", "File does not exist : /nowhere.txt"
           "first (ls | where $row.kind eq view) ?? \"no views yet\"", "no views yet"
           "first (ls | where $row.kind eq view) ?? \"no views yet\" | set latest", "no views yet"
           "echo $latest", "no views yet"
-          "mkdir today | cd nowhere else echo \"the whole line was rolled back\"", "the whole line was rolled back"
+          "mkdir today | in nowhere else echo \"the whole line was rolled back\"", "the whole line was rolled back"
 
           "ls",
           "name        kind    folder  size  modified\n\
@@ -120,7 +120,7 @@ type ExampleProgramTests() =
              examples    folder  /       0     *\n\
              guide       folder  /       0     *\n\
              projects    folder  /       0     *\n\
-             readme.txt  text    /       192   *\n\
+             readme.txt  text    /       193   *\n\
              today.txt   text    /       14    *" ]
 
     /// <summary>The golden results for inventory.clr, in the order the script runs them.</summary>
@@ -128,11 +128,11 @@ type ExampleProgramTests() =
     /// Phase 6's program: a tag becomes a file of XML, the file reads back as a table
     /// with its number columns numeric, and a question asked of it is written out as CSV
     /// and read back again. Decision 0026 added `sort qty` to the sixth line, which the
-    /// golden result for `cat reorder.csv` had always assumed.
+    /// golden result for `read reorder.csv` had always assumed.
     /// </remarks>
     let inventoryProgram =
         [ "mkdir stock", "stock"
-          "cd stock", "stock"
+          "in stock", "stock"
 
           "<items><item sku=A1 name=bolts qty=120 min=50/><item sku=B2 name=nuts qty=12 min=40/><item sku=C3 name=washers qty=0 min=20/></items> | to-xml items.xml",
           "items.xml"
@@ -149,7 +149,7 @@ type ExampleProgramTests() =
 
           "from-csv reorder.csv | count", "2"
 
-          "cat reorder.csv",
+          "read reorder.csv",
           "sku,qty\n\
              C3,0\n\
              B2,12"
@@ -170,7 +170,7 @@ type ExampleProgramTests() =
     /// </remarks>
     ///
     /// One line break at the very end of an answer is not a line of it. A golden result
-    /// is written as the lines a person sees, and a file's text — which is what `cat`
+    /// is written as the lines a person sees, and a file's text — which is what `read`
     /// answers — ends in one, as every line of a CSV does; the exact text is pinned
     /// separately, where it is the point.
     let matches (expected: string) (actual: string) =
@@ -311,14 +311,14 @@ type ExampleProgramTests() =
 
     /// <summary>`try` answered a fault value, not an error: the line succeeded.</summary>
     /// <remarks>
-    /// The golden result for `try cat nowhere.txt | set problem` reads like an error
+    /// The golden result for `try read nowhere.txt | set problem` reads like an error
     /// message and is not one, which is the whole of the point; this is the half of it
     /// that the display string cannot show.
     /// </remarks>
     [<TestMethod>]
     member _.TryAnswersAFaultValueNotAnError() =
         let harness = seeded ()
-        let response = harness.Respond "try cat nowhere.txt | set problem"
+        let response = harness.Respond "try read nowhere.txt | set problem"
 
         Assert.AreEqual<Fault option>(None, response.Fault)
 
@@ -329,7 +329,7 @@ type ExampleProgramTests() =
     /// <summary>What the program is for, stated as an assertion.</summary>
     /// <remarks>
     /// The plan's sentence after the golden results: "No folder named `today` exists:
-    /// the left side of the `else` failed at `cd`, so the `mkdir` before it was never
+    /// the left side of the `else` failed at `in`, so the `mkdir` before it was never
     /// committed."
     /// </remarks>
     [<TestMethod>]
@@ -423,7 +423,7 @@ type ExampleProgramTests() =
     [<TestMethod>]
     member _.AFaultNamesTheScriptAndTheLine() =
         let harness = seeded ()
-        harness.Run "write broken.clr \"echo one\ncd nowhere\necho three\"" |> ignore
+        harness.Run "write broken.clr \"echo one\nin nowhere\necho three\"" |> ignore
 
         let fault = harness.Fail "run broken.clr"
 
@@ -435,7 +435,7 @@ type ExampleProgramTests() =
     [<TestMethod>]
     member _.SkippedLinesAreStillCounted() =
         let harness = seeded ()
-        harness.Run "write counted.clr \"# a comment\n\necho one\ncd nowhere\"" |> ignore
+        harness.Run "write counted.clr \"# a comment\n\necho one\nin nowhere\"" |> ignore
 
         StringAssert.Contains(harness.Error "run counted.clr", "line 4:")
 
@@ -467,10 +467,10 @@ type ExampleProgramTests() =
         let guides = harness.Column "ls guide" "name"
 
         Assert.AreEqual<int>(Seed.guideFiles.Length, guides.Length)
-        StringAssert.Contains(harness.Text "cat readme.txt", "cat guide/1-start.txt")
+        StringAssert.Contains(harness.Text "read readme.txt", "read guide/1-start.txt")
 
         for guide in guides |> List.take (guides.Length - 1) do
-            let next = Regex.Match(harness.Text("cat guide/" + guide), @"Next: cat guide/(\S+)")
+            let next = Regex.Match(harness.Text("read guide/" + guide), @"Next: read guide/(\S+)")
             Assert.IsTrue(next.Success, sprintf "%s names no next guide." guide)
             Assert.IsTrue(harness.Exists("/guide/" + next.Groups[1].Value), sprintf "%s names %s, which is not there." guide next.Groups[1].Value)
 

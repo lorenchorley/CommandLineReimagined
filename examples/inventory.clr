@@ -1,11 +1,11 @@
 # Stock levels as a table: built from a tag, saved as XML, queried, exported as CSV.
 # Needs Phase 6.
 mkdir stock
-cd stock
+in stock
 <items><item sku=A1 name=bolts qty=120 min=50/><item sku=B2 name=nuts qty=12 min=40/><item sku=C3 name=washers qty=0 min=20/></items> | to-xml items.xml
 from-xml items.xml | count
 from-xml items.xml | where $row.qty lt $row.min | sort qty | select sku name qty min
 from-xml items.xml | where $row.qty lt $row.min | sort qty | select sku qty | to-csv reorder.csv
 from-csv reorder.csv | count
-cat reorder.csv
+read reorder.csv
 from-xml items.xml | sort qty desc | first
