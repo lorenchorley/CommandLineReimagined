@@ -138,5 +138,37 @@ let toCsv (newId: IdSource) (now: unit -> DateTimeOffset) =
                 return Csv.write separator table
             })
 
+// -------------------------------------------------------------------------- pick
+
+/// <summary>Every element a CSS selector matches (decision 0049).</summary>
+/// <remarks>
+/// The selector first and the document from the pipe, the shape of the table
+/// functions, so `$d | pick book` reads as it looks. It changes nothing, so a live view
+/// may re-run it. The selector is read before the document, so a selector outside the
+/// subset is its own fault whatever was piped.
+/// </remarks>
+let pick =
+    { Spec =
+        CommandSpec.create
+            "pick"
+            "Answer a table of every element a CSS selector matches, such as book or \"book > author\""
+            [ "select"; "query"; "css"; "find"; "xpath"; "elements"; "descendants"; "search" ]
+            [ Parameter.create "selector" "A CSS selector: names, *, [attribute] tests, a space, > and commas"
+              |> Parameter.takes Takes.Selector
+              Parameter.optional "document" "The tag, list of tags or table of elements to read; taken from the pipe"
+              |> Parameter.piped
+              |> Parameter.takes Takes.Value ]
+        |> CommandSpec.readOnly
+      Run =
+        fun invocation ->
+            async {
+                return
+                    outcome {
+                        let! selector = Selector.parse (Invocation.text "selector" invocation)
+                        let! documents = Selector.documents "pick" (Invocation.value "document" invocation)
+                        return { Value = Value.Table(Selector.pick selector documents); Events = []; Notes = [] }
+                    }
+            } }
+
 /// Every document command, in the order `help` lists them.
-let all newId now = [ fromCsv; fromXml; toCsv newId now; toXml newId now ]
+let all newId now = [ fromCsv; fromXml; pick; toCsv newId now; toXml newId now ]

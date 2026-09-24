@@ -262,6 +262,7 @@ type Session(log: ILog, options: SessionOptions, seed: Seed) =
           Commands.Tables.table
           Commands.Documents.fromXml
           Commands.Documents.toXml options.NewId options.Clock
+          Commands.Documents.pick
           Commands.Documents.fromCsv
           Commands.Documents.toCsv options.NewId options.Clock
           Commands.Meta.undo storeAccess
