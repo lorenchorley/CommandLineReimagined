@@ -93,48 +93,24 @@ module ArgumentCompletion =
                     Request.item request "column" name |> Request.withDetail (typeName columnType))
         }
 
-    /// A variable standing alone as the upstream: `$d`, of `$d | pick `.
-    let private loneVariable =
-        System.Text.RegularExpressions.Regex(@"^\s*\$([A-Za-z_][A-Za-z0-9_-]*)\s*$")
-
     /// <summary>The documents flowing into a stage, as `pick` would read them.</summary>
     /// <remarks>
-    /// A lone variable is read from the projection, and nothing runs. Otherwise what
-    /// the upstream answers is known only as its shape, which keeps a table's rows but
-    /// not a tree: a table of elements, which is what `pick` answers, is read back as
-    /// them, and anything else offers nothing.
+    /// What the upstream answered, which its shape keeps whatever it was: a tree, a list
+    /// of tags, or a table of elements such as `pick` answers. Nothing, at the head of a
+    /// line, where nothing flows in, and when the upstream could not be run.
     /// </remarks>
-    let private flowingDocuments (request: Request) (stage: Stage) : Async<Tag list> =
-        let read (value: Value) =
-            match Selector.documents "pick" value with
-            | Ok documents -> documents
-            | Error _ -> []
-
-        match stage.Upstream |> Option.map loneVariable.Match with
-        | Some head when head.Success ->
-            request.Projection.Variables
-            |> Map.tryFind head.Groups[1].Value
-            |> Option.map read
-            |> Option.defaultValue []
-            |> async.Return
+    let private flowingDocuments (request: Request) (stage: Stage) : Async<Selector.Document list> =
+        match stage.Upstream with
+        | None -> async.Return []
         | Some _ ->
             async {
                 let! shape = request.Shapes stage
 
-                match shape.Rows with
-                | Some rows ->
-                    let table: Table =
-                        { Columns = shape.Columns |> List.map (fun (name, kind) -> Table.column name kind)
-                          Rows =
-                            rows
-                            |> List.map (fun row ->
-                                shape.Columns
-                                |> List.map (fun (name, _) -> Map.tryFind name row |> Option.defaultValue Value.None)) }
-
-                    return read (Value.Table table)
-                | None -> return []
+                return
+                    match shape.Value |> Option.map (Selector.documents "pick") with
+                    | Some(Ok documents) -> documents
+                    | _ -> []
             }
-        | None -> async.Return []
 
     /// <summary>The element names of the document flowing in, for a selector (decision 0049).</summary>
     /// <remarks>
