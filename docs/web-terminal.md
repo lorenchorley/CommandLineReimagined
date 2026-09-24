@@ -134,7 +134,9 @@ with nothing to pick still offers nothing, as after `ls | take `.
 ### What each place offers
 
 Every example below is in a fresh tab after `set v 5`, `ls | set files` and
-`try read missing.txt | set problem`. Each chip is shown with its detail after a `·`.
+`try read missing.txt | set problem`. The rows about tags also have `set t <thing a=1/>`
+and `$d`, the library of [Reading a tree with `pick`](tables.md#reading-a-tree-with-pick).
+Each chip is shown with its detail after a `·`.
 The detail line shows the selected chip's detail, except while the caret is in an
 argument or a predicate, where it shows the command's parameters instead: there a
 column's type or a value's count comes with the chip but is not on the screen. See
@@ -147,9 +149,11 @@ column's type or a value's count comes with the chip but is not on the screen. S
 | A command name written another way, once three letters are typed, or a whole keyword of any length | A command found by what it does, or one a slip away | `delete`: `rm · matches "delete"`; `cd`, the old name of `in`: `in · matches "cd"`; `lss`: `ls` |
 | After `$` | The variables in name order, each saying what it holds | `$`: `$files · table · 4 rows · name, kind, folder…`, `$problem · fault · NotFound · File does not exist : /missing.txt`, `$v · number · 5` |
 | After `$` inside a predicate | `$row` first, then the variables | `ls \| where $`: `$row · the row being tested`, then `$files`, `$problem`, `$v` |
-| After `$name.` | The members of what the variable holds: a tag's or a file's attributes, a fault's `kind`, `message`, `stage` and `path`; nothing for a number, a text, a boolean or a table | `$problem.`: `$problem.kind · text · "NotFound"`, `$problem.message`, `$problem.stage · number · 1`, `$problem.path`; `$v.`: nothing |
+| After `$name.` | The members of what the variable holds: a tag's or a file's attributes, a fault's `kind`, `message`, `stage` and `path`; nothing for a number, a text, a boolean or a table. A tag's attributes are followed by its own parts, `@tag` and `@children` | `$problem.`: `$problem.kind · text · "NotFound"`, `$problem.message`, `$problem.stage · number · 1`, `$problem.path`; `$v.`: nothing; `$t.`: `$t.a · number · 1`, `$t.@tag · the tag's name`, `$t.@children · its children` |
+| After `$name.@` | A tag's own parts alone, since no attribute starts with `@`; nothing on anything else | `$t.@`: `$t.@tag`, `$t.@children`; `$v.@`: nothing |
 | After `$row.` | The columns of what flows into the stage, with their types | `ls \| where $row.`: `$row.name · file`, `$row.kind · text`, `$row.folder`, `$row.size · number`, `$row.modified`; `ls \| select name \| where $row.`: `$row.name` only |
 | An argument that takes a column | The columns of what flows in, with their types; for `select`, the ones not yet written | `ls \| sort `: `name · file`, `kind · text`, `folder · text`, `size · number`, `modified · text` |
+| A selector, for `pick` | The element names of what flows in, in document order, each with how many there are. After a space or a `>` inside the quotes, the same names with what is already written before them. Nothing inside `[`, and nothing when what flows in has no elements, as a listing has none | `$d \| pick `: `library · 1 element`, `book · 2 elements`, `author · 2 elements`, `shelf · 1 element`; `$d \| pick "book > `: `"book > library"`, `"book > book"`, `"book > author"`, `"book > shelf"`; `$d \| pick book \| pick `: `book`, `author` |
 | A switch | Its two words, after the `\|` | `ls \| sort name `: `\|`, `desc · Write 'desc' to order downwards`, `asc` |
 | After `-` | The command's flags | `ls \| sort name -`: `-desc · Write 'desc' to order downwards` |
 | An argument that takes a path | Files and folders, in the current folder or in the folder typed so far | `read re`: `readme.txt`; `read documents/no`: `documents/notes.txt`; `read "doc`: `"documents/"` |
@@ -196,8 +200,8 @@ offers:
 | `in $row.kind eq folder \| set q` | `query · $row.kind eq folder` |
 | `ls \| rows \| set l` | `list · 6 items` |
 
-`vars` does not use these words yet: it still shows a table as `4 rows` and anything
-else as its text.
+`vars` does not use these words yet: it still shows a table as `4 rows`, a list as
+`6 items`, as any table cell does, and anything else as its text.
 
 ## Results on screen
 
@@ -208,7 +212,12 @@ A result is rendered by kind:
   screen, without running anything; tapping a cell appends it to the input. A wide
   table scrolls sideways inside its own entry rather than widening the page. Each cell
   is drawn by the rules below, so a folder in a listing is still coloured as a folder
-  and still carries its path.
+  and still carries its path. A cell is one line, so one that holds a table says how
+  many rows it has, as `group`'s `rows` cells do, and one that holds a list says how
+  many items: `3 children` in the `@children` column `pick` answers, `2 items` in any
+  other, and nothing for an empty list, where it used to write every item out
+  ([decision 0051](decisions/0051-a-list-in-a-table-cell-is-summarised.md)). The cell
+  still holds the list, and tapping it appends what it says, as any other cell does.
 - **Paths, objects, components, numbers and booleans** become chips, and a list becomes
   a row of them. Tapping a chip appends its text to the input — for a file, its full
   path — which is how you avoid typing a file name on a phone. A path that is not a bare
@@ -503,6 +512,7 @@ back, not just on results. In the same tab as the examples above:
 | A command: `where` in `ls \| where $row.kind eq folder` | `where <predicate> [table] · Keep the rows a predicate is true for` |
 | A column: `kind` in `ls \| where $row.kind eq folder` | `$row.kind · column · text` |
 | A member: `kind` in `echo $problem.kind` | `$problem.kind · text · "NotFound"` |
+| A tag's own part: `@tag` in `echo $t.@tag`, or `@children` in `echo $d.@children` | what it reads, then what it holds: `$t.@tag · the tag's name · text · "thing"`, `$d.@children · its children · list · 3 items` |
 | `$row` in a predicate | `$row · the row being tested` |
 | An operator: `eq` in `$row.kind eq folder` | `eq · true when $row.kind is equal to folder` |
 | `like` in `$row.name like *.txt` | `like · true when $row.name matches the pattern (* for anything) *.txt` |
