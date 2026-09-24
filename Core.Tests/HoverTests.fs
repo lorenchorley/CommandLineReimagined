@@ -116,7 +116,7 @@ type HoverTests() =
     [<TestMethod>]
     member _.AMemberOfAFaultShowsWhatItReads() =
         let harness = seeded ()
-        harness.Run "try cat missing.txt | set problem" |> ignore
+        harness.Run "try read missing.txt | set problem" |> ignore
 
         let hover = expect (describe harness "echo $problem.kind‸")
 

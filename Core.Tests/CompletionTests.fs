@@ -30,8 +30,8 @@ type CompletionTests() =
         let harness = seeded ()
         let suggestions = texts harness "c"
 
-        assertContains "cat" suggestions
-        assertContains "cd" suggestions
+        assertContains "count" suggestions
+        assertContains "columns" suggestions
         assertContains "cp" suggestions
         assertContains "clear" suggestions
 
@@ -55,7 +55,7 @@ type CompletionTests() =
     member _.AWordThatStartsAStageIsACommand() =
         let harness = seeded ()
 
-        for line in [ "cat x else c"; "try c"; "ls | try c"; "first (c"; "echo (ls | c" ] do
+        for line in [ "read x else c"; "try c"; "ls | try c"; "first (c"; "echo (ls | c" ] do
             assertContains "count" (texts harness line)
 
     [<TestMethod>]
@@ -71,8 +71,8 @@ type CompletionTests() =
     member _.ElseIsOfferedWhereAnArgumentIsWritten() =
         let harness = seeded ()
 
-        assertContains "else" (texts harness "cat x el")
-        Assert.IsFalse(List.contains "else" (texts harness "cat x e"))
+        assertContains "else" (texts harness "read x el")
+        Assert.IsFalse(List.contains "else" (texts harness "read x e"))
         Assert.IsFalse(List.contains "else" (texts harness "el"))
 
     [<TestMethod>]
@@ -86,7 +86,7 @@ type CompletionTests() =
     [<TestMethod>]
     member _.ALaterWordCompletesANameInTheCurrentFolder() =
         let harness = seeded ()
-        let suggestions = texts harness "cat re"
+        let suggestions = texts harness "read re"
 
         Assert.AreEqual<string list>([ "readme.txt" ], suggestions)
 
@@ -95,35 +95,35 @@ type CompletionTests() =
     member _.AFolderCompletesWithASeparator() =
         let harness = seeded ()
 
-        Assert.AreEqual<string list>([ "documents/" ], texts harness "cd doc")
+        Assert.AreEqual<string list>([ "documents/" ], texts harness "in doc")
 
     [<TestMethod>]
     member _.APathCompletesInsideTheFolderItNames() =
         let harness = seeded ()
 
-        Assert.AreEqual<string list>([ "documents/notes.txt" ], texts harness "cat documents/no")
+        Assert.AreEqual<string list>([ "documents/notes.txt" ], texts harness "read documents/no")
 
     [<TestMethod>]
     member _.AnUnknownFolderCompletesToNothing() =
         let harness = seeded ()
 
-        Assert.AreEqual<int>(0, (texts harness "cat nowhere/x").Length)
+        Assert.AreEqual<int>(0, (texts harness "read nowhere/x").Length)
 
     /// Completion follows the session, because it reads the same projection every
     /// other command does.
     [<TestMethod>]
     member _.CompletionFollowsTheCurrentFolder() =
         let harness = seeded ()
-        harness.Run "cd documents" |> ignore
+        harness.Run "in documents" |> ignore
 
-        Assert.AreEqual<string list>([ "notes.txt" ], texts harness "cat no")
+        Assert.AreEqual<string list>([ "notes.txt" ], texts harness "read no")
 
     [<TestMethod>]
     member _.CompletionSeesAFileMadeThisSession() =
         let harness = seeded ()
         harness.Run "write invented.txt x" |> ignore
 
-        Assert.AreEqual<string list>([ "invented.txt" ], texts harness "cat inv")
+        Assert.AreEqual<string list>([ "invented.txt" ], texts harness "read inv")
 
     /// The start index is where the word began, so the client replaces a word rather
     /// than having to work out where it started.
@@ -131,9 +131,9 @@ type CompletionTests() =
     member _.ACompletionSaysWhereTheWordBegan() =
         let harness = seeded ()
 
-        match harness.Session.Complete "cat re" with
+        match harness.Session.Complete "read re" with
         | [ completion ] ->
-            Assert.AreEqual<int>(4, completion.Start)
+            Assert.AreEqual<int>(5, completion.Start)
             Assert.AreEqual<string>("file", completion.Kind)
         | other -> Assert.Fail(sprintf "Expected one completion, got %A" other)
 
@@ -142,7 +142,7 @@ type CompletionTests() =
     /// <summary>Operators are offered where an expression is plainly being written.</summary>
     /// <remarks>
     /// The test is a `$` earlier in the stage. A predicate names its row, so one is
-    /// always there, and without it `cat no` would offer `not` beside `notes.txt`.
+    /// always there, and without it `read no` would offer `not` beside `notes.txt`.
     /// </remarks>
     [<TestMethod>]
     member _.AnOperatorIsOfferedAfterAnOperand() =
@@ -159,9 +159,9 @@ type CompletionTests() =
     [<TestMethod>]
     member _.NoOperatorIsOfferedWhereAPathIsBeingWritten() =
         let harness = seeded ()
-        harness.Run "cd documents" |> ignore
+        harness.Run "in documents" |> ignore
 
-        Assert.AreEqual<string list>([ "notes.txt" ], texts harness "cat no")
+        Assert.AreEqual<string list>([ "notes.txt" ], texts harness "read no")
 
     [<TestMethod>]
     member _.TwoOperatorsInARowAreNotOffered() =
@@ -193,25 +193,25 @@ type CompletionTests() =
 
     // ------------------------------------------------------------ Places (Phase 4)
 
-    /// After `cd` the word names somewhere you can be, so a file that is not a place
+    /// After `in` the word names somewhere you can be, so a file that is not a place
     /// is not an answer worth offering.
     [<TestMethod>]
-    member _.CdOffersOnlyPlaces() =
+    member _.InOffersOnlyPlaces() =
         let harness = seeded ()
 
-        Assert.AreEqual<string list>([ "documents/"; "examples/"; "guide/"; "projects/" ], texts harness "cd ")
+        Assert.AreEqual<string list>([ "documents/"; "examples/"; "guide/"; "projects/" ], texts harness "in ")
 
     [<TestMethod>]
     member _.OtherCommandsStillOfferEveryName() =
         let harness = seeded ()
 
-        assertContains "readme.txt" (texts harness "cat ")
+        assertContains "readme.txt" (texts harness "read ")
 
     /// A saved view is a place without being a path, so it completes as its own name
     /// rather than with a separator after it.
     [<TestMethod>]
-    member _.CdOffersASavedView() =
+    member _.InOffersASavedView() =
         let harness = seeded ()
         harness.Run "save-view weekend $row.kind eq folder" |> ignore
 
-        assertContains "weekend" (texts harness "cd we")
+        assertContains "weekend" (texts harness "in we")

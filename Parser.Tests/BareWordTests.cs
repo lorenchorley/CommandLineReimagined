@@ -16,12 +16,12 @@ namespace Parser.Tests;
 public class BareWordTests
 {
     [TestMethod]
-    [DataRow("cat notes.txt", "notes.txt")]
-    [DataRow("cd ..", "..")]
-    [DataRow("cd ../documents", "../documents")]
-    [DataRow("cd /home/terminal", "/home/terminal")]
-    [DataRow(@"cd C:\Users\me", @"C:\Users\me")]
-    [DataRow("cd ~/projects", "~/projects")]
+    [DataRow("read notes.txt", "notes.txt")]
+    [DataRow("in ..", "..")]
+    [DataRow("in ../documents", "../documents")]
+    [DataRow("in /home/terminal", "/home/terminal")]
+    [DataRow(@"in C:\Users\me", @"C:\Users\me")]
+    [DataRow("in ~/projects", "~/projects")]
     [DataRow("download https://example.com/file.tar.gz", "https://example.com/file.tar.gz")]
     [DataRow("echo not-a-url", "not-a-url")]
     [DataRow("echo user@host", "user@host")]
@@ -45,7 +45,7 @@ public class BareWordTests
     [TestMethod]
     public void BareWordsAreAcceptedAsNamedFunctionArguments()
     {
-        var function = ParserHarness.Function("cat(path: documents/notes.txt)");
+        var function = ParserHarness.Function("read(path: documents/notes.txt)");
         var argument = (OptionalCommandArgument)function.Arguments.Arguments[0];
 
         Assert.AreEqual("documents/notes.txt", ((Identifier)argument.Value).Name);
@@ -72,7 +72,7 @@ public class BareWordTests
     [TestMethod]
     public void APipeEndsAWord()
     {
-        var pipeline = (PipedCommandList)ParserHarness.Parse("cat notes.txt|echo");
+        var pipeline = (PipedCommandList)ParserHarness.Parse("read notes.txt|echo");
 
         Assert.AreEqual(2, pipeline.OrderedCommands.Count);
     }
@@ -80,7 +80,7 @@ public class BareWordTests
     [TestMethod]
     public void TheCommandNameItselfIsStillAnIdentifier()
     {
-        // The name stops at the dot; what follows starts a word, since `cd ..` needs a
+        // The name stops at the dot; what follows starts a word, since `in ..` needs a
         // leading dot to be one. So this is `now` with two arguments, not a syntax error.
         // (It was `not` until Phase 5, when a reserved word stopped being able to name a
         // command at all.)
@@ -216,7 +216,7 @@ public class BareWordTests
     [TestMethod]
     public void AColonStillBindsAParameter()
     {
-        var function = ParserHarness.Function("cat(path: notes.txt)");
+        var function = ParserHarness.Function("read(path: notes.txt)");
 
         Assert.IsInstanceOfType(function.Arguments.Arguments[0], typeof(OptionalCommandArgument));
     }
@@ -239,7 +239,7 @@ public class BareWordTests
         ParserHarness.Parse(source);
 
     [TestMethod]
-    [DataRow("cat documents/notes.txt")]
+    [DataRow("read documents/notes.txt")]
     [DataRow("<file path=documents/notes.txt/>")]
     [DataRow("<t path=a/>")]
     [DataRow("echo -5")]

@@ -22,4 +22,4 @@ A question has to read $row and answer true or false, so these two say what to w
 
 Tapping a column header re-sorts the table on screen. Tapping a cell puts it in the line.
 
-Next: cat guide/4-places.txt
+Next: read guide/4-places.txt

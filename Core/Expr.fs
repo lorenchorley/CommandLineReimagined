@@ -32,7 +32,7 @@ module Expr =
     /// <summary>Whether the expression asks a question rather than naming a thing.</summary>
     /// <remarks>
     /// The same distinction as `isExpression`, after the tree has been left behind.
-    /// `cd` is the reason it exists: one parameter that is a folder path when it is a
+    /// `in` is the reason it exists: one parameter that is a folder path when it is a
     /// plain operand and a view when it has an operator in it (decision 0013).
     /// </remarks>
     let isPredicate (expr: Expr) =
@@ -290,7 +290,7 @@ module Expr =
     /// <remarks>
     /// A predicate that uses an operator and never reads `$row` is the same for every
     /// row, so it is a binding fault that names the bare words it compared as the
-    /// likely columns. A plain operand is not checked: `cd documents` is a path
+    /// likely columns. A plain operand is not checked: `in documents` is a path
     /// (decision 0013), and `where $flag` asks nothing of the rows but is not wrong.
     /// </remarks>
     let asksAboutTheRow (expr: Expr) : Outcome<Expr> =
@@ -411,7 +411,7 @@ module Expr =
     /// <remarks>
     /// A saved view is a file whose content is the predicate as it was written
     /// (decision 0013), so entering one means parsing it again. It goes through the
-    /// same grammar the line went through, which is what makes `save-view` and `cd`
+    /// same grammar the line went through, which is what makes `save-view` and `in`
     /// agree about what the text meant.
     /// </remarks>
     let parse (path: string) (text: string) : Outcome<Expr> =

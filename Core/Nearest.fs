@@ -43,7 +43,7 @@ module Nearest =
     /// <summary>How far a word may be from a candidate and still be offered.</summary>
     /// <remarks>
     /// One slip in a word of up to four letters, two in a longer one. Two slips in `ls`
-    /// reach `cd`, `cp` and `rm`, which is guessing rather than correcting.
+    /// reach `in`, `cp` and `rm`, which is guessing rather than correcting.
     /// </remarks>
     let threshold (word: string) = if word.Length <= 4 then 1 else 2
 

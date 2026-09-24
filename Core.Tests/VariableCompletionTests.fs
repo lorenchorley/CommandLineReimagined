@@ -22,12 +22,12 @@ type VariableCompletionTests() =
         | Some completion -> defaultArg completion.Detail ""
         | None -> failwithf "'%s' offered no %s: %A" line text (texts harness line)
 
-    /// The Acceptance table's session: `set v 5`, `ls | set files`, `try cat missing.txt | set problem`.
+    /// The Acceptance table's session: `set v 5`, `ls | set files`, `try read missing.txt | set problem`.
     let accepted () =
         let harness = seeded ()
         harness.Run "set v 5" |> ignore
         harness.Run "ls | set files" |> ignore
-        harness.Run "try cat missing.txt | set problem" |> ignore
+        harness.Run "try read missing.txt | set problem" |> ignore
         harness
 
     /// The smoke test the foundation leaves: the stream fills in the rest.

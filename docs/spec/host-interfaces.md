@@ -69,7 +69,7 @@ would make a stored filesystem unreadable.
 
 Every document carries `"v"`, and a reader exists per version. This build writes
 version 2 and reads 1 and 2. Version 2 added the `query` and `fault` value kinds, which
-a variable can hold (`try cat x | set problem`); every version 1 document
+a variable can hold (`try read x | set problem`); every version 1 document
 is a valid version 2 one, so one reader serves both, and the version exists so that a
 build which only knew version 1 refuses a log it would misread rather than failing on
 an unknown kind halfway through it.
@@ -257,14 +257,14 @@ is `Unknown`.
 | Place | Where the word is | Offers |
 | --- | --- | --- |
 | `Blank` | The line is empty or white space. | Nothing. The page shows its suggestion chips instead. |
-| `CommandName` | Where a stage's command is named: the head of a line, after `\|`, `else`, `try` or `(`. | The commands whose name starts with the word, each with its description as the detail. From three letters, also the commands with a keyword that starts with the word, detail `rm · matches "delete"`, and then the names one edit away from the word, two for a word longer than four letters, each with its description. Then `clear`, which the page handles, and the keyword `try`. After a pipe, only the commands with a parameter that takes the pipe, and not `clear`. When the stages before it were previewed and answered a table, not the commands whose piped parameters all take a `Path` or a `Place` either: `ls \| ` offers no `cat`, `rm` or `cd`, and `echo readme.txt \| ` offers all three. A line that could not be previewed keeps them. |
+| `CommandName` | Where a stage's command is named: the head of a line, after `\|`, `else`, `try` or `(`. | The commands whose name starts with the word, each with its description as the detail. From three letters, also the commands with a keyword that starts with the word, detail `rm · matches "delete"`, and at any length the commands with a keyword that is the whole word, so `cd` offers `in · matches "cd"`, and then the names one edit away from the word, two for a word longer than four letters, each with its description. Then `clear`, which the page handles, and the keyword `try`. After a pipe, only the commands with a parameter that takes the pipe, and not `clear`. When the stages before it were previewed and answered a table, not the commands whose piped parameters all take a `Path` or a `Place` either: `ls \| ` offers no `read`, `rm` or `in`, and `echo readme.txt \| ` offers all three. A line that could not be previewed keeps them. |
 | `Variable` | `$` or `<$` and the start of a name. | The variables in scope whose name starts with what is written, ordered by name, each with its [summary](#a-value-in-one-line) as the detail, with the sigil written. Inside an argument handed to a *predicate* parameter, `$row` first, detail `the row being tested`; anywhere else `$row` **must not** be offered. |
 | `Member` | After `$name.`, and after any members written after it. | The members of what the variable holds, the written members read first: a tag's attributes and a file's `name`, `kind`, `folder`, `path` and `id`, each with its summary; a fault's `kind`, `message`, `stage` and `path`, and `cause` when it has one. A number, a text, a boolean, a table and anything else have none; a table's columns are read off a row, through `$row.`. For `$row`, the columns of [what flows into the stage](#what-flows-into-a-stage), or of a listing of the current folder outside a stage, and after `$row.column.` the members of that column's value in the first row that has one. Each item is the whole word, `$row.kind`. |
 | `Argument`, a parameter | An argument that would bind to a declared parameter. | By what the parameter [takes](#what-a-parameter-takes). |
 | `Argument`, a flag | A word that starts with `-`. | `-name` for each parameter of kind `Single` that is optional or a switch, does not take the pipe and is not already written, the flag's own name where it declares one, each with its description. |
 | `Argument`, an assignment | A plain word past the positional parameters of a command with an *assignments* parameter. | For `attr`, the attributes of the record its first plain argument names, as `name=`: its own attributes, then `name` and `kind`, leaving out `folder`, `created`, `modified` and `size` and those already assigned on the line, each with the summary of its value. Nothing once `name=` is written. |
 | `Argument`, surplus | More arguments than the command takes, or any argument of a name that is not a command. | Files and folders, as for a path. |
-| `Predicate`, an operand | Where a value starts in an argument handed to a *predicate* parameter: its start, after `not`, `and` or `or`. | `$row.`, `not` and `(`, each with a detail. For `cd`'s first word, where a plain operand is a path ([decision 0013](../decisions/0013-attribute-filesystem.md)), folders and views instead. |
+| `Predicate`, an operand | Where a value starts in an argument handed to a *predicate* parameter: its start, after `not`, `and` or `or`. | `$row.`, `not` and `(`, each with a detail. For `in`'s first word, where a plain operand is a path ([decision 0013](../decisions/0013-attribute-filesystem.md)), folders and views instead. |
 | `Predicate`, after an operand | An operand is written and nothing joins it to anything. | The eight comparison operators, `eq`, `ne`, `gt`, `ge`, `lt`, `le`, `like` and `has`. |
 | `Predicate`, the right of a comparison | After a comparison operator whose left side is `$row.column`. | The distinct display texts of that column in the rows that flow in, most frequent first and then by ordinal comparison, at most 12, each with its count as the detail, `3 rows`. After `like`, each is followed by `*`. A value that would not read back as one word is written quoted. Nothing when the rows are not known, or the left side is anything else. |
 | `Predicate`, after a comparison | A whole comparison is written. | `and` and `or`. |
@@ -393,7 +393,7 @@ reading the text before the cursor. They are kept as the fallback, not deleted:
 | A word starting with `$` and containing a `.` | column names after the stop: the record columns and every attribute in the current folder |
 | A word starting with `$` | variable names, including the `$`, and `$row` |
 | After an operand in a stage that has a `$` in it | the word operators |
-| After `cd` | folders, and files of kind `view` |
+| After `in` | folders, and files of kind `view` |
 | Anything else | files and folders in the current folder, folders ending in `/`; and `else` once two letters of it are typed |
 
 Their items replace from the start of the word to its end, as every other item does.
@@ -407,7 +407,7 @@ case a host shows the token's grammar role.
 
 | The token | `kind` | `detail` | `signature` |
 | --- | --- | --- | --- |
-| A variable | `variable` | Its summary, or `not set`. `$row` is `the row being tested` inside a predicate, and `the row a predicate is testing, only inside where, find, cd and save-view` anywhere else. | none |
+| A variable | `variable` | Its summary, or `not set`. `$row` is `the row being tested` inside a predicate, and `the row a predicate is testing, only inside where, find, in and save-view` anywhere else. | none |
 | A member | `member` | For `$row.column`, `column · <type>` from what flows into the stage. For another variable, a table's column as `column · <type>`, or the summary of the member read, and none when there is no such member. | none |
 | A command's name | `command` | The command's description. | The command's, with nothing active. |
 | An operator in a predicate | `operator` | `and`: `true when both sides are true`; `or`: `true when either side is true`; `not`: `true when what follows is false`; a comparison: `true when <left> <meaning> <right>`, with `the value before it` or `the value after it` for a side that is not there. | none |

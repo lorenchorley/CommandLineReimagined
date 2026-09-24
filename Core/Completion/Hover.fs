@@ -85,7 +85,7 @@ module Hover =
                 if inPredicate then
                     "the row being tested"
                 else
-                    "the row a predicate is testing, only inside where, find, cd and save-view"
+                    "the row a predicate is testing, only inside where, find, in and save-view"
             else
                 match Map.tryFind name request.Projection.Variables with
                 | Some value -> Summary.ofValue value

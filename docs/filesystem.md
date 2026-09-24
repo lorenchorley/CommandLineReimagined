@@ -5,7 +5,7 @@ record is a set of attributes, and `folder` is one of those attributes. A direct
 a record that says `kind = folder`, and being "in" one is a question the terminal keeps
 asking: *which records say their folder is this one?*
 
-Once being somewhere is a question, any question will do. `cd $row.mood eq great` is a
+Once being somewhere is a question, any question will do. `in $row.mood eq great` is a
 place in exactly the way `/journal` is a place, and `ls` answers it the same way.
 
 This page is about that model: what a record is, which attributes the terminal owns,
@@ -22,7 +22,7 @@ this page are one session, started in a fresh tab:
 $ mkdir journal
 journal
 
-$ cd journal
+$ in journal
 journal
 
 $ save <note name=monday mood=good tag=work/>
@@ -89,7 +89,7 @@ $ attr /readme.txt folder=/elsewhere
 ```
 
 `size` is not an attribute at all. It is the length of the content, worked out when a
-listing is built, so it can never disagree with what `cat` shows, and writing it is
+listing is built, so it can never disagree with what `read` shows, and writing it is
 refused too:
 
 ```
@@ -132,7 +132,7 @@ A directory is a record whose `kind` is `folder` and which has no content. That 
 whole of it — there is no second kind of thing in the store.
 
 ```
-$ cd /
+$ in /
 /
 
 $ ls | where $row.kind eq folder | count
@@ -141,7 +141,7 @@ $ ls | where $row.kind eq folder | count
 
 The root is the exception. `/` is implicit: nothing records it, because a record for it
 would need a `folder` attribute of its own and there is nothing above it. That is why
-`cd /` answers a path where `cd journal` answers the directory's record.
+`in /` answers a path where `in journal` answers the directory's record.
 
 Names are unique within a directory, across files and directories alike, so `mkdir
 readme.txt` beside the file of that name is refused with
@@ -155,7 +155,7 @@ A predicate over attributes is a place. With one more note saved at the root:
 $ save <note name=postcard mood=great tag=home/>
 postcard
 
-$ cd $row.mood eq great
+$ in $row.mood eq great
 $row.mood eq great
 
 $ pwd
@@ -172,7 +172,7 @@ Three things are worth noticing.
 **A view is not scoped to a directory.** `postcard` is in `/` and `saturday` is in
 `/journal`, and both are here, because the question was about moods and not about
 directories. The `folder` column is what says where each row came from; tapping one in
-the browser writes the `cd` that goes there.
+the browser writes the `in` that goes there.
 
 **A view does not replace the directory you are in.** It is a way of looking, not a
 place to put things, so a file created while a view is set still lands in the directory
@@ -182,7 +182,7 @@ underneath it:
 $ mkdir keepsakes
 keepsakes
 
-$ up
+$ out
 /
 
 $ ls | where $row.name eq keepsakes | select name folder
@@ -190,21 +190,21 @@ name       folder
 keepsakes  /
 ```
 
-**`up` comes back out of one thing at a time.** In a view it puts the view down and
+**`out` comes back out of one thing at a time.** In a view it puts the view down and
 leaves you in the directory you were already in; with no view it moves to the parent.
-Two `up`s from a view over a subdirectory come out in the order they went in.
+Two `out`s from a view over a subdirectory come out in the order they went in.
 
-What decides whether `cd` takes a name or a question is whether an operator was
-written. `cd journal` is a name. `cd $row.mood eq great` has `eq` in it, so it is a
+What decides whether `in` takes a name or a question is whether an operator was
+written. `in journal` is a name. `in $row.mood eq great` has `eq` in it, so it is a
 question. Nothing else distinguishes them, and there is no separate command.
 
 A question has to be about the row. One with an operator that never mentions `$row`
-would hold of everything or of nothing, so `cd`, `find` and `save-view` refuse it and
+would hold of everything or of nothing, so `in`, `find` and `save-view` refuse it and
 say which columns it probably meant
 ([decision 0033](decisions/0033-a-predicate-is-a-question-about-the-row.md)):
 
 ```
-$ cd mood eq great
+$ in mood eq great
 mood eq great never reads $row, so it is the same for every row. Did you mean $row.mood eq great?
 ```
 
@@ -218,7 +218,7 @@ folders
 $ echo "kind eq folder" | write folders
 folders
 
-$ cd folders
+$ in folders
 kind eq folder never reads $row, so it is the same for every row. Did you mean $row.kind eq folder?
 ```
 
@@ -232,7 +232,7 @@ $ find $row.kind eq note and $row.tag eq work | count
 2
 ```
 
-Use `find` for a question you are asking once and `cd` for one you want every `ls` to
+Use `find` for a question you are asking once and `in` for one you want every `ls` to
 keep asking. Neither changes anything, so neither leaves a transaction and `undo`
 reaches past both.
 
@@ -245,15 +245,15 @@ a file:
 $ save-view cheerful $row.mood eq great
 cheerful
 
-$ cat cheerful
+$ read cheerful
 $row.mood eq great
 
-$ cd cheerful
+$ in cheerful
 $row.mood eq great
 ```
 
 A view is a record of kind `view` whose content is the predicate as it was written.
-Nothing else about it is special: it appears in `ls`, `cat` shows what it asks, `attr`
+Nothing else about it is special: it appears in `ls`, `read` shows what it asks, `attr`
 renames it, `rm` deletes it and `undo` brings it back. The view is created in the
 current directory, which has nothing to do with what it matches. Inside the view, the view
 file itself is not one of the rows, because its `mood` is not `great`; out of it, the file
@@ -263,12 +263,13 @@ is in the directory like anything else:
 $ ls | where $row.kind eq view | select name
 name
 
-$ up
+$ out
 /
 
 $ ls | where $row.kind eq view | select name
 name
 cheerful
+folders
 ```
 
 ## Live listings
@@ -291,13 +292,13 @@ what a scrollback is for, and say `frozen`. The badge underneath the live one sa
 
 Paths are still text, and still work the way you expect: absolute from `/`, or relative
 to the current directory, with `.` and `..`. A path is resolved against
-`folder` attributes, which is why `cd ..` shows the parent's real name rather than a
+`folder` attributes, which is why `in ..` shows the parent's real name rather than a
 path ending in `..`.
 
 ```
-$ cd /journal
+$ in /journal
 journal
-$ cd ..
+$ in ..
 /
 ```
 

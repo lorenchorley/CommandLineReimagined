@@ -32,26 +32,26 @@ which takes a second or two on a first visit. The input is disabled until then.
 The first line in the scrollback says where to begin:
 
 ```
-A command line that runs in this tab. New here? Run cat readme.txt, or tap readme below. Your files stay in this browser.
+A command line that runs in this tab. New here? Run read readme.txt, or tap readme below. Your files stay in this browser.
 ```
 
 If this browser is not keeping your files, a private window for example, the line says
-that instead, and on a return visit it says how many lines it restored. Type `cat readme.txt`, or tap the `readme` suggestion:
+that instead, and on a return visit it says how many lines it restored. Type `read readme.txt`, or tap the `readme` suggestion:
 
 ```
-$ cat readme.txt
+$ read readme.txt
 This is a command line that runs in this browser tab.
 
 The guide folder explains how it works, one idea per file. Start with the first:
 
-  cat guide/1-start.txt
+  read guide/1-start.txt
 
 or list them all:
 
   ls guide
 ```
 
-The `guide` folder holds seven short files, read with `cat` like any other: getting
+The `guide` folder holds seven short files, read with `read` like any other: getting
 around, everything is a value, tables, records and views, failure as a value, undo and
 history, and files and scripts. Each ends by naming the next, and every example line in
 them can be typed as it stands. Reading them in the terminal is the first exercise; this page
@@ -70,11 +70,11 @@ documents   folder  /       0     2026-09-22T09:30:00.0000000+00:00
 examples    folder  /       0     2026-09-22T09:30:00.0000000+00:00
 guide       folder  /       0     2026-09-22T09:30:00.0000000+00:00
 projects    folder  /       0     2026-09-22T09:30:00.0000000+00:00
-readme.txt  text    /       192   2026-09-22T09:30:00.0000000+00:00
+readme.txt  text    /       193   2026-09-22T09:30:00.0000000+00:00
 > ls | where $row.kind eq folder | count
 4
 > ls | sort name desc | first
-<row name=readme.txt kind=text folder=/ size=192 modified=2026-09-22T09:30:00.0000000+00:00/>
+<row name=readme.txt kind=text folder=/ size=193 modified=2026-09-22T09:30:00.0000000+00:00/>
 > ls | select name kind | take 2
 name       kind
 documents  folder
@@ -98,7 +98,7 @@ set   Bind a value, or whatever was piped in, to a variable
 each line after `> ` and then its answer. The answers are values rather than text: a
 listing is a table you can filter and count, `vars` lists the variables the program
 set, and even `help` is a table you can ask a question of. The last answer appears
-twice because it is also the result of `run` itself. `cat examples/tables.clr` shows
+twice because it is also the result of `run` itself. `read examples/tables.clr` shows
 the program, and [Programs](examples.md#programs) has all four example programs with
 their output.
 
@@ -113,7 +113,7 @@ CommandLineReimagined                    wasm      <- runtime status
 |                                            |
 +--------------------------------------------+
   where · Keep the rows a predicate is true for   <- detail line
-  /                                               <- working directory, with `up` below the root
+  /                                               <- working directory, with `out` below the root
 +------------------------------------+ +-----+
 | wh                                 | | Run |    <- input and Run/Stop
 +------------------------------------+ +-----+
@@ -139,12 +139,12 @@ documents   folder  /       0     2026-09-22T09:30:00.0000000+00:00
 examples    folder  /       0     2026-09-22T09:30:00.0000000+00:00
 guide       folder  /       0     2026-09-22T09:30:00.0000000+00:00
 projects    folder  /       0     2026-09-22T09:30:00.0000000+00:00
-readme.txt  text    /       192   2026-09-22T09:30:00.0000000+00:00
+readme.txt  text    /       193   2026-09-22T09:30:00.0000000+00:00
 ```
 
 That is a table, not a block of text: on the page it is drawn as one, and tapping a
 cell inserts it into the input, which saves typing a path on a phone. Tapping a column
-header re-sorts what is on screen. Below the root the location line offers an `up`
+header re-sorts what is on screen. Below the root the location line offers an `out`
 button, and it always has ↶ and ↷ for undo and redo.
 
 A listing is a value you can question:
@@ -159,18 +159,20 @@ $ ls | where $row.kind eq folder | count
 You have read one file already. A path reaches into a folder:
 
 ```
-$ cat documents/notes.txt
-Try: ls, cd documents, mkdir scratch, echo "hello"
+$ read documents/notes.txt
+Try: ls, in documents, mkdir scratch, echo "hello"
 ```
 
-Move around, and notice that the working directory line changes:
+Go into a folder with `in` and come back out with `out`, and notice that the working
+directory line changes. (If you know a shell, these were `cd`, `up` and `cat` here once;
+typing an old name offers the new one.)
 
 ```
-$ cd documents
+$ in documents
 documents
 $ pwd
 /documents
-$ up
+$ out
 /
 ```
 
@@ -199,7 +201,7 @@ readme.txt
 ```
 
 `undo` steps back one line each time you use it, and names what it reversed. A line
-that changed nothing — an `ls`, a `cat`, any question about a table — was never
+that changed nothing — an `ls`, a `read`, any question about a table — was never
 recorded, so `undo` reaches past it to the last line that did something.
 
 ## Write a file with a pipe
@@ -209,7 +211,7 @@ The vertical bar sends one command's result into the next one:
 ```
 $ echo hi | write note.txt
 note.txt
-$ cat note.txt
+$ read note.txt
 hi
 ```
 
@@ -231,7 +233,7 @@ examples    folder  /       0     2026-09-22T09:30:00.0000000+00:00
 guide       folder  /       0     2026-09-22T09:30:00.0000000+00:00
 projects    folder  /       0     2026-09-22T09:30:00.0000000+00:00
 note.txt    text    /       2     2026-09-22T09:30:00.0000000+00:00
-readme.txt  text    /       192   2026-09-22T09:30:00.0000000+00:00
+readme.txt  text    /       193   2026-09-22T09:30:00.0000000+00:00
 $ vars
 name      value
 files     6 rows
@@ -375,19 +377,19 @@ name
 readme.txt
 ```
 
-And a question is somewhere you can go. `cd` takes a predicate as readily as a
+And a question is somewhere you can go. `in` takes a predicate as readily as a
 directory name, and once you are in one, `ls` answers it — across directories, because
 the question was not about directories:
 
 ```
-$ cd $row.tag eq work
+$ in $row.tag eq work
 $row.tag eq work
 
 $ ls
 name        kind  folder  size  modified                           tag
-readme.txt  text  /       192   2026-09-22T09:30:00.0000000+00:00  work
+readme.txt  text  /       193   2026-09-22T09:30:00.0000000+00:00  work
 
-$ up
+$ out
 /
 ```
 

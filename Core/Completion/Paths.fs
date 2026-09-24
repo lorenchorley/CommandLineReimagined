@@ -35,7 +35,7 @@ module PathCompletion =
     /// the rest is the prefix to match. `places` keeps to folders and saved views, the
     /// things you can be in (decision 0013), for a parameter that takes a place.
     ///
-    /// A quoted word completes quoted, `cat "doc` to `"documents/"`, and so does a name
+    /// A quoted word completes quoted, `read "doc` to `"documents/"`, and so does a name
     /// a bare word cannot carry. Each completion replaces the whole word, quotes
     /// included, from `Word.Start` to `Word.End`.
     /// </remarks>
@@ -70,6 +70,6 @@ module PathCompletion =
                     Request.item request "folder" (quoted (written + Record.name record + "/"))
                 else
                     // A view is a place without being a path, so it completes as its
-                    // own name: `cd weekend/` would name nothing.
+                    // own name: `in weekend/` would name nothing.
                     let kind = if Record.kind record = Value.viewKind then Value.viewKind else "file"
                     Request.item request kind (quoted (written + Record.name record)))

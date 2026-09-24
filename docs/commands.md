@@ -14,8 +14,6 @@ drive. `..` and `.` work.
 | Command | Purpose | Changes anything? |
 | --- | --- | --- |
 | [`attr`](#attr) | Show a file's attributes, or set them | only when given `name=value` |
-| [`cat`](#cat) | Read a file as text | no |
-| [`cd`](#cd) | Enter a directory, a saved view, or a predicate | yes, where you are |
 | [`columns`](#columns) | A table's columns and their types | no |
 | [`count`](#count) | How many rows a table has | no |
 | [`cp`](#cp) | Copy a file into a directory | yes |
@@ -30,12 +28,15 @@ drive. `..` and `.` work.
 | [`group`](#group) | Gather the rows that share a value | no |
 | [`help`](#help) | The commands, as a table | no |
 | [`history`](#history) | The lines that changed something | no |
+| [`in`](#in) | Go into a folder, a saved view, or a question | yes, where you are |
 | [`is-fault`](#is-fault) | Whether a value is a fault that `try` or `else` caught | no |
 | [`last`](#last) | The last row of a table | no |
 | [`ls`](#ls) | List a directory, or the view you are in | no |
 | [`mkdir`](#mkdir) | Create a directory | yes |
+| [`out`](#out) | Come out of the view, or up out of the folder | yes, where you are |
 | [`progress`](#progress) | Run a progress bar, to exercise long commands | no |
 | [`pwd`](#pwd) | Where you are: a directory, or a view | no |
+| [`read`](#read) | Show what a file says | no |
 | [`redo`](#redo) | Put back what `undo` took away | yes |
 | [`reset`](#reset) | Empty the log and start again | yes, and cannot be undone |
 | [`rm`](#rm) | Delete a file or empty directory | yes |
@@ -52,7 +53,6 @@ drive. `..` and `.` work.
 | [`to-csv`](#to-csv) | Write a table to a file as CSV | yes |
 | [`to-xml`](#to-xml) | Write a tag, a table or a list of tags as XML | yes |
 | [`undo`](#undo) | Reverse the last line that changed something | yes |
-| [`up`](#up) | Leave the view, or move up one directory | yes, where you are |
 | [`vars`](#vars) | List the variables in scope | no |
 | [`where`](#where) | Keep the rows a predicate is true for | no |
 | [`write`](#write) | Write text to a file | yes |
@@ -63,6 +63,9 @@ table from the pipe, coerce a table-shaped tag, and change nothing.
 [Tables and predicates](tables.md) is the guide to them; this is the reference.
 The four document commands — `from-csv`, `from-xml`, `to-csv` and `to-xml` — are covered
 in [Reading and writing files](tables.md#reading-and-writing-files).
+
+`in`, `out` and `read` were called `cd`, `up` and `cat`; typing an old name offers the
+new one.
 
 The column says whether the command produces events. A line made only of commands that
 change nothing leaves no trace at all, which is why `undo` after `ls` reverses the line
@@ -172,101 +175,6 @@ Undo restores every attribute the record had.
 | `'<name>' is not a valid file name: it already names a directory.` | The new name is `.` or `..`. |
 | `A directory cannot change its kind : <path>` | A `kind=` assignment on a directory. |
 | `A file with content cannot become a directory : <path>` | `kind=folder` on a file with content. |
-
----
-
-## cat
-
-Reads a file and returns its contents as text.
-
-**Parameters**
-
-| Name | Notes |
-| --- | --- |
-| `path` | piped. The file to read. |
-
-**Returns** the file's text. The terminal renders it as a block rather than a chip, so
-line breaks survive.
-
-```
-$ cat readme.txt
-This is a command line that runs in this browser tab.
-
-The guide folder explains how it works, one idea per file. Start with the first:
-
-  cat guide/1-start.txt
-
-or list them all:
-
-  ls guide
-
-$ echo documents/notes.txt | cat
-Try: ls, cd documents, mkdir scratch, echo "hello"
-$ cat(path: readme.txt)
-This is a command line that runs in this browser tab.
-
-The guide folder explains how it works, one idea per file. Start with the first:
-
-  cat guide/1-start.txt
-
-or list them all:
-
-  ls guide
-
-```
-
-**Errors**
-
-| Message | Cause |
-| --- | --- |
-| `File does not exist : <path>` | Nothing at that path. |
-| `That is a directory, not a file : <path>` | The path names a directory. |
-
----
-
-## cd
-
-Goes somewhere. Somewhere is a directory, a saved view, or a question written out.
-
-**Parameters**
-
-| Name | Notes |
-| --- | --- |
-| `TargetPath` | piped. A directory, a view file, or a predicate. |
-
-**Returns** the directory it entered, as a file, or the predicate, as a query. The
-root has no record, so entering it returns the text `/`.
-
-```
-$ cd documents
-documents
-$ cd ../projects
-projects
-$ echo /documents | cd
-documents
-$ cd $row.mood eq great
-$row.mood eq great
-```
-
-What decides between the two is whether an operator was written. `cd journal` is a
-name: a directory, or a file of kind `view`, whose predicate is entered instead.
-`cd $row.mood eq great` has `eq` in it, so it is a question, and entering it sets the
-view without moving out of the directory you are in — new files still land there.
-See [The filesystem](filesystem.md#views).
-
-`cd ..` normalises, so the working directory shows the parent's real name rather than a
-path ending in `..`. Entering a directory puts down whatever view was held.
-
-**Undo** returns you to where you were, view and all.
-
-**Errors**
-
-| Message | Cause |
-| --- | --- |
-| `'cd' needs an argument for 'TargetPath'.` | No path given and nothing piped in. |
-| `kind eq folder never reads $row, so it is the same for every row. Did you mean $row.kind eq folder?` | A question that never mentions the row, so it would hold of everything or nothing. |
-| `Directory does not exist : <path>` | No such directory, and no view file of that name. The path is shown as you wrote it. |
-| `'<path>' does not hold a predicate : <text>` | A view file whose content is not a predicate, such as `'/weekend' does not hold a predicate : monday`. |
 
 ---
 
@@ -449,7 +357,7 @@ documents   folder  /       0     2026-09-22T09:30:00.0000000+00:00
 examples    folder  /       0     2026-09-22T09:30:00.0000000+00:00
 guide       folder  /       0     2026-09-22T09:30:00.0000000+00:00
 projects    folder  /       0     2026-09-22T09:30:00.0000000+00:00
-readme.txt  text    /       192   2026-09-22T09:30:00.0000000+00:00
+readme.txt  text    /       193   2026-09-22T09:30:00.0000000+00:00
 ```
 
 The value keeps its type: `echo 42` returns a number, and `ls | echo` returns the table
@@ -457,7 +365,7 @@ itself rather than a printed copy of it. After `else`, what is piped in is the f
 so `echo` with nothing written shows what went wrong:
 
 ```
-$ cat missing.txt else echo
+$ read missing.txt else echo
 File does not exist : /missing.txt
 ```
 
@@ -499,7 +407,7 @@ These examples, and the view examples under [`ls`](#ls), assume a journal like t
 ```
 $ mkdir journal
 journal
-$ cd journal
+$ in journal
 journal
 $ save <note name=monday mood=good tag=work/>
 monday
@@ -507,7 +415,7 @@ $ save <note name=tuesday mood=tired tag=work/>
 tuesday
 $ save <note name=saturday mood=great tag=home/>
 saturday
-$ cd /
+$ in /
 /
 $ save <note name=postcard mood=great tag=home/>
 postcard
@@ -523,7 +431,7 @@ $ find $row.kind eq note and $row.tag eq work | count
 2
 ```
 
-`find` asks a question once; [`cd`](#cd) on the same predicate moves into it, so every
+`find` asks a question once; [`in`](#in) on the same predicate moves into it, so every
 `ls` afterwards asks it again. Asking changes nothing, so a `find` leaves no
 transaction and `undo` reaches past it.
 
@@ -552,7 +460,7 @@ Nothing is an answer, not a failure, and `??` is how to give it a default.
 
 ```
 $ ls | sort name desc | first
-<row name=readme.txt kind=text folder=/ size=192 modified=2026-09-22T09:30:00.0000000+00:00/>
+<row name=readme.txt kind=text folder=/ size=193 modified=2026-09-22T09:30:00.0000000+00:00/>
 $ first (ls | where $row.kind eq view) ?? "no views yet"
 no views yet
 ```
@@ -581,7 +489,7 @@ every cell in it reads as a number, and text otherwise. An empty field is a gap;
 In `/stock`, after `run examples/inventory.clr` has written `reorder.csv`:
 
 ```
-$ cat reorder.csv
+$ read reorder.csv
 sku,qty
 C3,0
 B2,12
@@ -633,7 +541,7 @@ $ from-xml items.xml | sort qty desc | first
 <row sku=A1 name=bolts qty=120 min=50/>
 $ <memo to=ann text="Back at ten."/> | to-xml memo.xml
 memo.xml
-$ cat memo.xml
+$ read memo.xml
 <memo to="ann">Back at ten.</memo>
 
 $ from-xml memo.xml
@@ -701,11 +609,11 @@ the rest `name...`.
 
 ```
 $ help | take 4
-name     parameters            description
-attr     <path> [assignments]  Show a file's attributes, or set them with name=value
-cat      <path>                Read a file and return its text
-cd       <TargetPath>          Enter a directory, a saved view, or a predicate written out
-columns  [table]               The table's columns and their types
+name     parameters                        description
+attr     <path> [assignments]              Show a file's attributes, or set them with name=value
+columns  [table]                           The table's columns and their types
+count    [table]                           How many rows there are
+cp       <sourcePathAndFile> <targetPath>  Copy a file into a directory
 $ help | where $row.name eq set | select name description
 name  description
 set   Bind a value, or whatever was piped in, to a variable
@@ -792,6 +700,52 @@ $ history | where $row.undone eq true | count
 
 ---
 
+## in
+
+Goes into somewhere. Somewhere is a directory, a saved view, or a question written out.
+
+**Parameters**
+
+| Name | Notes |
+| --- | --- |
+| `TargetPath` | piped. A directory, a view file, or a predicate. |
+
+**Returns** the directory it entered, as a file, or the predicate, as a query. The
+root has no record, so entering it returns the text `/`.
+
+```
+$ in documents
+documents
+$ in ../projects
+projects
+$ echo /documents | in
+documents
+$ in $row.mood eq great
+$row.mood eq great
+```
+
+What decides between the two is whether an operator was written. `in journal` is a
+name: a directory, or a file of kind `view`, whose predicate is entered instead.
+`in $row.mood eq great` has `eq` in it, so it is a question, and entering it sets the
+view without moving out of the directory you are in — new files still land there.
+See [The filesystem](filesystem.md#views).
+
+`in ..` normalises, so the working directory shows the parent's real name rather than a
+path ending in `..`. Entering a directory puts down whatever view was held.
+
+**Undo** returns you to where you were, view and all.
+
+**Errors**
+
+| Message | Cause |
+| --- | --- |
+| `'in' needs an argument for 'TargetPath'.` | No path given and nothing piped in. |
+| `kind eq folder never reads $row, so it is the same for every row. Did you mean $row.kind eq folder?` | A question that never mentions the row, so it would hold of everything or nothing. |
+| `Directory does not exist : <path>` | No such directory, and no view file of that name. The path is shown as you wrote it. |
+| `'<path>' does not hold a predicate : <text>` | A view file whose content is not a predicate, such as `'/weekend' does not hold a predicate : monday`. |
+
+---
+
 ## is-fault
 
 Whether a value is a fault: the result of a stage written with `try`, or what `else`
@@ -807,13 +761,13 @@ pipes into the pipeline after it. See [Errors as values](language.md#errors-as-v
 failure.
 
 ```
-$ try cat missing.txt | set problem
+$ try read missing.txt | set problem
 File does not exist : /missing.txt
 $ is-fault $problem
 true
 $ echo fine | is-fault
 false
-$ cat missing.txt else is-fault
+$ read missing.txt else is-fault
 true
 ```
 
@@ -833,7 +787,7 @@ The last row of a table.
 
 ```
 $ ls | sort name | last
-<row name=readme.txt kind=text folder=/ size=192 modified=2026-09-22T09:30:00.0000000+00:00/>
+<row name=readme.txt kind=text folder=/ size=193 modified=2026-09-22T09:30:00.0000000+00:00/>
 ```
 
 ---
@@ -859,7 +813,7 @@ documents   folder  /       0     2026-09-22T09:30:00.0000000+00:00
 examples    folder  /       0     2026-09-22T09:30:00.0000000+00:00
 guide       folder  /       0     2026-09-22T09:30:00.0000000+00:00
 projects    folder  /       0     2026-09-22T09:30:00.0000000+00:00
-readme.txt  text    /       192   2026-09-22T09:30:00.0000000+00:00
+readme.txt  text    /       193   2026-09-22T09:30:00.0000000+00:00
 $ ls documents
 name       kind  folder      size  modified
 notes.txt  text  /documents  50    2026-09-22T09:30:00.0000000+00:00
@@ -871,7 +825,7 @@ path is how you look at a directory without leaving the view. With the journal a
 postcard from [`find`](#find):
 
 ```
-$ cd $row.mood eq great
+$ in $row.mood eq great
 $row.mood eq great
 $ ls
 name      kind  folder    size  modified                           mood   tag
@@ -883,12 +837,13 @@ notes.txt  text  /documents  50    2026-09-22T09:30:00.0000000+00:00
 ```
 
 `size` is the length of the file's content, worked out when the table is built rather
-than stored, so it can never disagree with what `cat` shows. `created` is not a column;
+than stored, so it can never disagree with what `read` shows. `created` is not a column;
 `attr` shows it.
 
-There is no parent entry. A listing used to begin with an `up` row, and a table of
-records has nowhere to put one: every row is a record, and `up` is not. The browser
-offers `up` in the location line instead, and it runs the [`up`](#up) command.
+There is no parent entry. A listing used to begin with a row that led up a level, and a
+table of records has nowhere to put one: every row is a record, and the way out is not.
+The browser offers `out` in the location line instead, and it runs the [`out`](#out)
+command.
 
 Everything in [Tables and predicates](tables.md) applies to a listing.
 
@@ -925,6 +880,34 @@ scratch
 | --- | --- |
 | `Target directory already exists : <path>` | Something is already there, a file or a directory. |
 | `Directory does not exist : <path>` | The parent directory is missing. `mkdir` creates one level at a time. |
+
+---
+
+## out
+
+Comes back out. In a view, that means putting the view down; otherwise it means the
+parent directory.
+
+**Parameters** none.
+
+**Returns** the directory you are now in, as a path. With the journal from
+[`find`](#find), starting at the root:
+
+```
+$ in journal
+journal
+$ in $row.mood eq great
+$row.mood eq great
+$ out
+/journal
+$ out
+/
+```
+
+Two `out`s from a view over a subdirectory come out in the order they went in: the
+question first, the directory second. At the root with no view, `out` stays at the root.
+
+**Undo** returns you to where you were, view and all.
 
 ---
 
@@ -982,11 +965,11 @@ Returns where you are: the current directory, or the view you are in.
 **Returns** the directory's path as text, or the view as a query.
 
 ```
-$ cd documents
+$ in documents
 documents
 $ pwd
 /documents
-$ cd $row.mood eq great
+$ in $row.mood eq great
 $row.mood eq great
 $ pwd
 $row.mood eq great
@@ -994,6 +977,55 @@ $row.mood eq great
 
 The line above the input shows the same thing at all times, and says which of the two
 it is.
+
+---
+
+## read
+
+Shows what a file says: its contents, as text.
+
+**Parameters**
+
+| Name | Notes |
+| --- | --- |
+| `path` | piped. The file to read. |
+
+**Returns** the file's text. The terminal renders it as a block rather than a chip, so
+line breaks survive.
+
+```
+$ read readme.txt
+This is a command line that runs in this browser tab.
+
+The guide folder explains how it works, one idea per file. Start with the first:
+
+  read guide/1-start.txt
+
+or list them all:
+
+  ls guide
+
+$ echo documents/notes.txt | read
+Try: ls, in documents, mkdir scratch, echo "hello"
+$ read(path: readme.txt)
+This is a command line that runs in this browser tab.
+
+The guide folder explains how it works, one idea per file. Start with the first:
+
+  read guide/1-start.txt
+
+or list them all:
+
+  ls guide
+
+```
+
+**Errors**
+
+| Message | Cause |
+| --- | --- |
+| `File does not exist : <path>` | Nothing at that path. |
+| `That is a directory, not a file : <path>` | The path names a directory. |
 
 ---
 
@@ -1144,11 +1176,11 @@ documents   folder  /       0     2026-09-22T09:30:00.0000000+00:00
 examples    folder  /       0     2026-09-22T09:30:00.0000000+00:00
 guide       folder  /       0     2026-09-22T09:30:00.0000000+00:00
 projects    folder  /       0     2026-09-22T09:30:00.0000000+00:00
-readme.txt  text    /       192   2026-09-22T09:30:00.0000000+00:00
+readme.txt  text    /       193   2026-09-22T09:30:00.0000000+00:00
 > ls | where $row.kind eq folder | count
 4
 > ls | sort name desc | first
-<row name=readme.txt kind=text folder=/ size=192 modified=2026-09-22T09:30:00.0000000+00:00/>
+<row name=readme.txt kind=text folder=/ size=193 modified=2026-09-22T09:30:00.0000000+00:00/>
 > ls | select name kind | take 2
 name       kind
 documents  folder
@@ -1216,7 +1248,7 @@ The tag can be piped in: `echo <note name=todo/> | save`.
 The `name` attribute is required, follows the same rules as a name `attr` sets, and a
 name already used in the folder is an error. The tag may not carry `folder`, `created`,
 `modified` or `size`, which the terminal works out. The file is created in the current
-directory. It has no content, so `cat` on it returns
+directory. It has no content, so `read` on it returns
 empty text; `write` gives it some.
 
 **Undo** deletes the file.
@@ -1262,18 +1294,18 @@ guide       folder  /       0     2026-09-22T09:30:00.0000000+00:00
 projects    folder  /       0     2026-09-22T09:30:00.0000000+00:00
 cheerful    view    /       18    2026-09-22T09:30:00.0000000+00:00
 postcard    note    /       0     2026-09-22T09:30:00.0000000+00:00  great
-readme.txt  text    /       192   2026-09-22T09:30:00.0000000+00:00
+readme.txt  text    /       193   2026-09-22T09:30:00.0000000+00:00
 
-$ cat cheerful
+$ read cheerful
 $row.mood eq great
 
-$ cd cheerful
+$ in cheerful
 $row.mood eq great
 ```
 
 A view is an ordinary record of kind `view` whose content is the predicate as it was
 written, so it is listed, tapped, renamed with `attr`, undone and deleted like any
-other file, and `cat` shows what it asks. The view is created in the current
+other file, and `read` shows what it asks. The view is created in the current
 directory; what it matches is not limited to that directory.
 
 **Undo** deletes the view.
@@ -1310,7 +1342,7 @@ documents   0
 examples    0
 guide       0
 projects    0
-readme.txt  192
+readme.txt  193
 ```
 
 **Errors**
@@ -1345,7 +1377,7 @@ documents   folder  /       0     2026-09-22T09:30:00.0000000+00:00
 examples    folder  /       0     2026-09-22T09:30:00.0000000+00:00
 guide       folder  /       0     2026-09-22T09:30:00.0000000+00:00
 projects    folder  /       0     2026-09-22T09:30:00.0000000+00:00
-readme.txt  text    /       192   2026-09-22T09:30:00.0000000+00:00
+readme.txt  text    /       193   2026-09-22T09:30:00.0000000+00:00
 $ echo $greeting
 hello
 ```
@@ -1410,14 +1442,14 @@ arrived in and `sort name | sort size desc` leaves the equal sizes in name order
 ```
 $ ls | sort size desc | select name size
 name        size
-readme.txt  192
+readme.txt  193
 documents   0
 examples    0
 guide       0
 projects    0
 $ ls | sort size -desc | select name size
 name        size
-readme.txt  192
+readme.txt  193
 documents   0
 examples    0
 guide       0
@@ -1554,7 +1586,7 @@ $ <items><item sku=A1 name=bolts qty=120 min=50/><item sku=B2 name=nuts qty=12 m
 items.xml
 $ from-xml items.xml | select sku qty | to-xml short.xml -root stock -row line -declaration
 short.xml
-$ cat short.xml
+$ read short.xml
 <?xml version="1.0" encoding="UTF-8"?>
 <stock>
   <line sku="A1" qty="120"/>
@@ -1597,7 +1629,7 @@ $ write note.txt second
 note.txt
 $ undo
 Undone: write note.txt second
-$ cat note.txt
+$ read note.txt
 first
 ```
 
@@ -1614,7 +1646,7 @@ examples    folder  /       0     2026-09-22T09:30:00.0000000+00:00
 guide       folder  /       0     2026-09-22T09:30:00.0000000+00:00
 projects    folder  /       0     2026-09-22T09:30:00.0000000+00:00
 note.txt    text    /       5     2026-09-22T09:30:00.0000000+00:00
-readme.txt  text    /       192   2026-09-22T09:30:00.0000000+00:00
+readme.txt  text    /       193   2026-09-22T09:30:00.0000000+00:00
 $ undo
 Undone: mkdir alpha
 ```
@@ -1634,34 +1666,6 @@ The transcripts above show what `undo` answers. In the web terminal, when the li
 reverses is on screen, that line's entry disappears and the undo leaves no entry of its
 own, because to the person typing, undo means the line did not happen. See
 [Undo on screen](web-terminal.md#undo-on-screen).
-
----
-
-## up
-
-Comes back out. In a view, that means putting the view down; otherwise it means the
-parent directory.
-
-**Parameters** none.
-
-**Returns** the directory you are now in, as a path. With the journal from
-[`find`](#find), starting at the root:
-
-```
-$ cd journal
-journal
-$ cd $row.mood eq great
-$row.mood eq great
-$ up
-/journal
-$ up
-/
-```
-
-Two `up`s from a view over a subdirectory come out in the order they went in: the
-question first, the directory second. At the root with no view, `up` stays at the root.
-
-**Undo** returns you to where you were, view and all.
 
 ---
 
@@ -1735,7 +1739,7 @@ The operators are `eq ne gt ge lt le like has`, combined with `and`, `or` and `n
 | `'where' needs an argument for 'predicate'.` | No predicate written. |
 | `kind eq folder never reads $row, so it is the same for every row. Did you mean $row.kind eq folder?` | A predicate that compares two fixed words and never reads the row. |
 | `$row.kind is text (folder), not true or false. Compare it: $row.kind eq folder.` | A predicate that is a value rather than a question. |
-| `$row is the row a predicate is testing. It exists only inside where, find, cd and save-view: ls \| where $row.kind eq folder.` | `$row` read outside a predicate, where no row is being tested. |
+| `$row is the row a predicate is testing. It exists only inside where, find, in and save-view: ls \| where $row.kind eq folder.` | `$row` read outside a predicate, where no row is being tested. |
 
 [A predicate is a question about the row](tables.md#a-predicate-is-a-question-about-the-row)
 has examples of each.
@@ -1760,7 +1764,7 @@ $ write note.txt hello
 note.txt
 $ echo hi | write note.txt
 note.txt
-$ cat documents/notes.txt | write copy.txt
+$ read documents/notes.txt | write copy.txt
 copy.txt
 $ write(note.txt, hello)
 note.txt

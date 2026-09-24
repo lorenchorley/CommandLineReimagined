@@ -26,7 +26,7 @@ than entities:
 | --- | --- |
 | Records with typed attributes ([0013](../decisions/0013-attribute-filesystem.md)) | Entities with components |
 | `ls \| where $row.kind eq folder` | A query over the world: which entities have a sprite and sit above the floor |
-| A query is a place you can be (`cd <predicate>`) | A selection, or a filtered view of the scene |
+| A query is a place you can be (`in <predicate>`) | A selection, or a filtered view of the scene |
 | Live views that refresh when the store changes | An outliner and an inspector that stay in sync |
 | An event-sourced store with undo and redo ([0010](../decisions/0010-undo-by-event-sourcing.md)) | Undoable edits, which every editor needs and most get wrong |
 | Tags: `<object/>` and `{component/}` | A literal for an entity and what is attached to it |
@@ -188,7 +188,7 @@ Two forms, which can coexist:
   that `ls`, `where` and views work on it unchanged; or the scene could be a sibling
   projection with its own listing. The first reuses the most; the second keeps
   per-frame reads away from the filesystem's shape.
-- **Where does a scene live?** One scene per session, or scenes as files that `cd`
+- **Where does a scene live?** One scene per session, or scenes as files that `in`
   enters, the way views are.
 - **How are component types declared?** Built into the core, declared by tags at run
   time, or supplied by the host.

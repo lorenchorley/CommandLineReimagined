@@ -148,8 +148,8 @@ public class ValueStageTests
 
     /// <summary>A stop that is not after a variable is still an ordinary word.</summary>
     [TestMethod]
-    [DataRow("cd ..")]
-    [DataRow("cat notes.txt")]
+    [DataRow("in ..")]
+    [DataRow("read notes.txt")]
     [DataRow("ls .")]
     public void AStopInAWordIsStillAWord(string source) => ParserHarness.AssertRoundTrips(source);
 

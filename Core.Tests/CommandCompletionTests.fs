@@ -81,7 +81,7 @@ type CommandCompletionTests() =
             assertDoesNotContain name offered
 
     /// A listing is a table, and a table is not a name, so the commands that take a
-    /// path or a place from the pipe are not offered after one: `ls | cat` and
+    /// path or a place from the pipe are not offered after one: `ls | read` and
     /// `ls | rm` are faults. After text they are, because the text may be a name.
     [<TestMethod>]
     member _.AfterATableTheCommandsThatTakeAPathAreNotOffered() =
@@ -90,7 +90,7 @@ type CommandCompletionTests() =
         for line in [ "ls | "; "ls | where $row.kind eq text | " ] do
             let offered = texts harness line
 
-            for name in [ "cat"; "rm"; "cd"; "run"; "attr"; "from-csv"; "from-xml" ] do
+            for name in [ "read"; "rm"; "in"; "run"; "attr"; "from-csv"; "from-xml" ] do
                 assertDoesNotContain name offered
 
             for name in [ "where"; "count"; "write"; "to-csv" ] do
@@ -98,7 +98,7 @@ type CommandCompletionTests() =
 
         let afterText = texts harness "echo readme.txt | "
 
-        for name in [ "cat"; "rm"; "cd" ] do
+        for name in [ "read"; "rm"; "in" ] do
             assertContains name afterText
 
     [<TestMethod>]
@@ -172,8 +172,18 @@ type CommandCompletionTests() =
         let index name = offered |> List.findIndex ((=) name)
         Assert.IsTrue(index "where" < index "pwd", String.concat " " offered)
 
-        let offered = texts harness "cat"
-        Assert.AreEqual<string>("cat", List.head offered)
+        let offered = texts harness "read"
+        Assert.AreEqual<string>("read", List.head offered)
+
+    /// Decision 0037: the old names are the new commands' first keywords, so a word
+    /// from the shell still finds the command that does its job.
+    [<TestMethod>]
+    member _.AnOldNameOffersTheNewOne() =
+        let harness = seeded ()
+
+        for old, command in [ "cd", "in"; "up", "out"; "cat", "read" ] do
+            Assert.AreEqual<string>(command, List.head (texts harness old), old)
+            Assert.AreEqual<string option>(Some(sprintf "%s · matches \"%s\"" command old), detailOf harness old command)
 
     [<TestMethod>]
     member _.AKeywordMatchRanksAboveANearMiss() =
@@ -249,7 +259,7 @@ type CommandCompletionTests() =
 
     [<TestMethod>]
     member _.NearestNamesAreWithinTheThresholdAndNearestFirst() =
-        let candidates = [ "ls"; "cd"; "sort"; "select"; "where" ]
+        let candidates = [ "ls"; "in"; "sort"; "select"; "where" ]
 
         Assert.AreEqual<string list>([ "ls" ], Nearest.names candidates "lss")
         Assert.AreEqual<string list>([ "sort" ], Nearest.names candidates "sotr")

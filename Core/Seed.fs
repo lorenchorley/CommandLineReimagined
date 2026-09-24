@@ -90,7 +90,7 @@ module Seed =
     /// <summary>The guide: one file per idea, numbered in the order to read them.</summary>
     /// <remarks>
     /// The page's banner only points here, so what the terminal is and how to use it is
-    /// read in the terminal, with `cat`, rather than printed at the top of every visit.
+    /// read in the terminal, with `read`, rather than printed at the top of every visit.
     /// </remarks>
     let guideFiles = embedded "guide" ".txt"
 
@@ -98,7 +98,7 @@ module Seed =
     let readme =
         "This is a command line that runs in this browser tab.\n\n"
         + "The guide folder explains how it works, one idea per file. Start with the first:\n\n"
-        + "  cat guide/1-start.txt\n\n"
+        + "  read guide/1-start.txt\n\n"
         + "or list them all:\n\n"
         + "  ls guide\n"
 
@@ -111,7 +111,7 @@ module Seed =
           { Name = "readme.txt"; Folder = "/"; Content = Some readme }
           { Name = "notes.txt"
             Folder = "/documents"
-            Content = Some "Try: ls, cd documents, mkdir scratch, echo \"hello\"" } ]
+            Content = Some "Try: ls, in documents, mkdir scratch, echo \"hello\"" } ]
         @ exampleFiles
         @ guideFiles
 

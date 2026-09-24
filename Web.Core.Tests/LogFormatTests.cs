@@ -302,7 +302,7 @@ public class LogFormatTests
 
     /// <summary>A fault that <c>try</c> caught round-trips with everything a script can read off it.</summary>
     /// <remarks>
-    /// Phase 5: <c>try cat nowhere.txt | set problem</c> puts a fault in a variable, and a
+    /// Phase 5: <c>try read nowhere.txt | set problem</c> puts a fault in a variable, and a
     /// variable is in the log, so a reload has to bring back <c>$problem.kind</c> as well
     /// as its message.
     /// </remarks>

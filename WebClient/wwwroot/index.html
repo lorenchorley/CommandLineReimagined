@@ -92,7 +92,7 @@
   .caught { white-space:pre-wrap; word-break:break-word; margin-top:4px; padding:6px 8px;
             border-left:2px solid var(--flag); color:var(--flag); }
   .caught .kind { border-color:var(--flag); }
-  /* Text results (cat, echo) read as a block, not as a chip to insert. */
+  /* Text results (read, echo) read as a block, not as a chip to insert. */
   .text { white-space:pre-wrap; word-break:break-word; margin-top:4px; padding:6px 8px;
           border-left:2px solid var(--line); color:var(--fg); }
 
@@ -168,7 +168,7 @@
   #mirror .bad { text-decoration:underline wavy var(--bad); text-decoration-skip-ink:none; text-underline-offset:3px; }
   #prompt { font-size:11px; color:var(--dim); margin-bottom:4px; word-break:break-all;
             display:flex; align-items:center; gap:6px; min-height:22px; }
-  #prompt .up, #prompt .step {
+  #prompt .out, #prompt .step {
     font:11px ui-monospace,monospace; padding:3px 9px; border-radius:6px; background:var(--panel);
     color:var(--type); border:1px solid var(--line); font-weight:600;
   }
@@ -358,7 +358,7 @@ let completions = [];    // what the last word could become
   - The terminal is fitted to the part of the screen the keyboard leaves, so the input is
     always just above the keyboard, and the document never scrolls under it.
   - The scrollback stays at its end while it is at its end, whatever changes size: new
-    output, a table drawn, the location line growing an `up` button, the keyboard
+    output, a table drawn, the location line growing an `out` button, the keyboard
     opening. Scrolled up to read, it is left alone until the next line is run.
 */
 const touchScreen = window.matchMedia && matchMedia('(pointer: coarse)').matches;
@@ -547,8 +547,8 @@ function sortedRows(table) {
   inserts what it is, as it always has.
 */
 function insertionFor(column, cell) {
-  if (cell.kind === 'folder') return 'cd ' + asWord(cell.path || cell.text);
-  if (column && column.name === 'folder' && cell.text) return 'cd ' + asWord(cell.text);
+  if (cell.kind === 'folder') return 'in ' + asWord(cell.path || cell.text);
+  if (column && column.name === 'folder' && cell.text) return 'in ' + asWord(cell.text);
   if (cell.kind === 'file') return asWord(cell.path || cell.text);
   return cell.path || cell.text;
 }
@@ -1171,13 +1171,14 @@ function afterRun(text) {
 /*
   Where you are, the one way out of it, and the two ways back through what you did.
 
-  A listing is a table of records from Phase 3, and a table has nowhere to put the `up`
-  entry that used to head one: every row is a record, and `up` is not. It lives here
-  instead, beside the folder it would take you out of, and it runs the `up` command.
+  A listing is a table of records from Phase 3, and a table has nowhere to put the
+  parent entry that used to head one: every row is a record, and the way out is not.
+  It lives here instead, beside the folder it would take you out of, as a button that
+  runs the `out` command.
 
   From Phase 4 there are two ways of being somewhere. A folder reads as its path; a
   view reads as the question it is, with the folder it was entered from behind it,
-  because that is still where a new file would land. `up` leaves the view first and the
+  because that is still where a new file would land. `out` leaves the view first and the
   folder second, in the order they were entered.
 
   Undo and redo sit before it and are there everywhere, the root included: there is
@@ -1193,17 +1194,17 @@ async function refreshPrompt() {
       `<span class="inside"> in ${escape(location.folder)}</span>`
     : escape(location.folder);
 
-  const canGoUp = !!location.view || location.folder !== '/';
+  const canGoOut = !!location.view || location.folder !== '/';
 
   $('prompt').innerHTML =
     '<button class="step" id="undo" title="undo" aria-label="undo">\u21B6</button>' +
     '<button class="step" id="redo" title="redo" aria-label="redo">\u21B7</button>' +
-    (canGoUp ? '<button class="up" id="up">up</button> ' : ' ') +
+    (canGoOut ? '<button class="out" id="out">out</button> ' : ' ') +
     `<span id="where">${where}</span>`;
 
   $('undo').onclick = () => press('undo');
   $('redo').onclick = () => press('redo');
-  if (canGoUp) $('up').onclick = () => press('up');
+  if (canGoOut) $('out').onclick = () => press('out');
 }
 
 /// Runs a button as the line it stands for, and puts back whatever was being typed:
@@ -1362,15 +1363,15 @@ function insert(text) {
 
 runButton.onclick = run;
 
-[['readme','cat readme.txt'],['guide','ls guide'],['help','help'],['ls','ls'],['where','ls | where $row.kind eq folder'],
+[['readme','read readme.txt'],['guide','ls guide'],['help','help'],['ls','ls'],['where','ls | where $row.kind eq folder'],
  ['sort','ls | sort size desc'],['select','ls | select name kind'],['count','ls | count'],
  ['first','ls | sort name | first'],['run','run examples/tables.clr'],
  ['run journal','run examples/journal.clr'],['run resilient','run examples/resilient.clr'],
- ['else','cat missing.txt else echo "none"'],['try','try cat missing.txt | set problem'],
+ ['else','read missing.txt else echo "none"'],['try','try read missing.txt | set problem'],
  ['$problem.kind','echo $problem.kind'],['??','first (ls | where $row.kind eq view) ?? "no views"'],
- ['find','find $row.kind eq folder'],['cd a view','cd $row.kind eq folder'],
- ['save-view','save-view folders $row.kind eq folder'],['up','up'],
- ['cat readme.txt','cat readme.txt'],['cd documents','cd documents'],
+ ['find','find $row.kind eq folder'],['in a view','in $row.kind eq folder'],
+ ['save-view','save-view folders $row.kind eq folder'],['out','out'],
+ ['read readme.txt','read readme.txt'],['in documents','in documents'],
  ['mkdir scratch','mkdir scratch'],['echo hi | write note.txt','echo hi | write note.txt'],
  ['rm note.txt','rm note.txt'],['progress 20 100','progress 20 100'],['progress','progress'],
  ['set v 5','set v 5'],['ls | set files','ls | set files'],['vars','vars'],['echo $v','echo $v'],
@@ -1396,7 +1397,7 @@ runButton.onclick = run;
 /// one thing a visitor must know before typing: whether this browser keeps the files.
 /// </remarks>
 function bannerFor(store) {
-  const start = 'New here? Run <b>cat readme.txt</b>, or tap <b>readme</b> below.';
+  const start = 'New here? Run <b>read readme.txt</b>, or tap <b>readme</b> below.';
 
   if (!store.persistent) {
     return `${start} This browser is not keeping your files: they go when the tab does.`;

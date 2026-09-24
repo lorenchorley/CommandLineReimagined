@@ -154,7 +154,7 @@ type Invocation =
       /// <summary>The state the command reads.</summary>
       /// <remarks>
       /// The *working* projection, which already has this line's earlier stages folded
-      /// in, so `mkdir a | cd a` works. It is not what is committed; that happens once
+      /// in, so `mkdir a | in a` works. It is not what is committed; that happens once
       /// the whole line has succeeded.
       /// </remarks>
       Projection: Projection

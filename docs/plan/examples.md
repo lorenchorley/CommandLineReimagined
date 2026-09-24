@@ -76,13 +76,13 @@ ls
   examples    folder  /       0     *
   guide       folder  /       0     *
   projects    folder  /       0     *
-  readme.txt  text    /       192   *
+  readme.txt  text    /       193   *
 
 ls | where $row.kind eq folder | count
   4
 
 ls | sort name desc | first
-  <row name=readme.txt kind=text folder=/ size=192 modified=*/>
+  <row name=readme.txt kind=text folder=/ size=193 modified=*/>
 
 ls | select name kind | take 2
   name       kind
@@ -106,18 +106,18 @@ help | where $row.name eq set | select name description
 ```
 
 From Phase 3, `ls` has no parent row: a table of records has nowhere for one. The
-page offers `up` in the location line instead.
+page offers `out` in the location line instead.
 
 ### journal.clr
 
 ```
 mkdir journal                                     journal
-cd journal                                        journal
+in journal                                        journal
 save <note name=monday mood=good tag=work/>       monday
 save <note name=tuesday mood=tired tag=work/>     tuesday
 save <note name=saturday mood=great tag=home/>    saturday
 echo "Stand-up moved to ten." | write monday      monday
-cat monday                                        Stand-up moved to ten.
+read monday                                       Stand-up moved to ten.
 attr tuesday mood=better                          tuesday
 
 ls
@@ -129,13 +129,13 @@ ls
 find $row.kind eq note and $row.tag eq work | count
   2
 
-cd $row.mood eq great                             $row.mood eq great
+in $row.mood eq great                             $row.mood eq great
 
 ls
   name      kind  folder    size  modified  mood   tag
   saturday  note  /journal  0     *         great  home
 
-up                                                /journal
+out                                               /journal
 rm tuesday                                        Removed tuesday
 undo                                              Undone: rm tuesday
 history | where $row.undone eq true | count       1
@@ -147,16 +147,16 @@ as it was, attributes included.
 ### resilient.clr
 
 ```
-cat notes-from-yesterday.txt else echo "starting fresh"
+read notes-from-yesterday.txt else echo "starting fresh"
   starting fresh
 
-cat notes-from-yesterday.txt else echo "starting fresh" | write today.txt
+read notes-from-yesterday.txt else echo "starting fresh" | write today.txt
   today.txt
 
-cat today.txt
+read today.txt
   starting fresh
 
-try cat nowhere.txt | set problem
+try read nowhere.txt | set problem
   File does not exist : /nowhere.txt              (a fault value, not an error)
 
 echo $problem.kind                                NotFound
@@ -170,7 +170,7 @@ first (ls | where $row.kind eq view) ?? "no views yet" | set latest
 
 echo $latest                                      no views yet
 
-mkdir today | cd nowhere else echo "the whole line was rolled back"
+mkdir today | in nowhere else echo "the whole line was rolled back"
   the whole line was rolled back
 
 ls
@@ -179,18 +179,18 @@ ls
   examples    folder  /       0     *
   guide       folder  /       0     *
   projects    folder  /       0     *
-  readme.txt  text    /       192   *
+  readme.txt  text    /       193   *
   today.txt   text    /       14    *
 ```
 
-No folder named `today` exists: the left side of the `else` failed at `cd`, so the
+No folder named `today` exists: the left side of the `else` failed at `in`, so the
 `mkdir` before it was never committed.
 
 ### inventory.clr
 
 ```
 mkdir stock                                       stock
-cd stock                                          stock
+in stock                                          stock
 
 <items><item sku=A1 name=bolts qty=120 min=50/><item sku=B2 name=nuts qty=12 min=40/><item sku=C3 name=washers qty=0 min=20/></items> | to-xml items.xml
   items.xml
@@ -207,7 +207,7 @@ from-xml items.xml | where $row.qty lt $row.min | sort qty | select sku qty | to
 
 from-csv reorder.csv | count                      2
 
-cat reorder.csv
+read reorder.csv
   sku,qty
   C3,0
   B2,12

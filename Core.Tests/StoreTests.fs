@@ -322,7 +322,7 @@ type StoreTests() =
 
         commit
             store
-            "cd documents"
+            "in documents"
             [ LocationChanged({ Folder = "/"; View = None }, { Folder = "/documents"; View = None }) ]
         |> ignore
 

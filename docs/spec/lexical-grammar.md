@@ -251,7 +251,7 @@ and does not check it.
 
 `ArgumentSimpleValue` admits a `Word`; `SimpleValue` does not. Therefore:
 
-- A command argument **may** be a bare word: `cat notes.txt`, `cd ../docs`,
+- A command argument **may** be a bare word: `read notes.txt`, `in ../docs`,
   `download https://host/f.txt`.
 - A tag attribute's value **may** be a bare word too, including a path:
   `<file path=documents/notes.txt/>`. The lookahead on `/` is what keeps the final
@@ -302,8 +302,8 @@ recovery existed is unchanged. `else` is not an argument: a `CliExpression`'s ar
 list **must** end in front of it rather than reporting it as a reserved word, which is
 the fifth ordered choice that matters.
 
-`try` and the `Default` belong to one `Stage`, not to the pipeline. `try cat x | set p`
-marks `cat x` alone, and `first (ls) ?? none | set p` defaults what `first` answered.
+`try` and the `Default` belong to one `Stage`, not to the pipeline. `try read x | set p`
+marks `read x` alone, and `first (ls) ?? none | set p` defaults what `first` answered.
 One `Default` per stage: `a ?? b ?? c` is a syntax error rather than a chain. The
 default is an `Operand`, not an `Expression`, so an operator after it is a syntax error
 too.
@@ -405,7 +405,7 @@ A closing tag whose type differs from its opening tag **must** fail with the mes
 | `echo a \| else` | Syntax error at column 9, with the same explanation |
 | `echo eq` | Syntax error at column 5: `'eq' is an operator; write "eq" to pass it as text` |
 | `echo not` | Syntax error at column 8, expecting an operand |
-| `cat x else` | Syntax error at column 10 |
+| `read x else` | Syntax error at column 11 |
 | `echo (a else b)` | Syntax error at column 8, expecting `)`, `??`, `\|` |
 | `first ?? a ?? b` | Syntax error at column 11, expecting `end of input`, `else`, `\|` |
 | `$maybe ?? "default"` | A line: a value stage with a default |

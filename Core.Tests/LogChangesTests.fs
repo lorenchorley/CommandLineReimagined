@@ -119,7 +119,7 @@ type LogChangesTests() =
     member _.AFailedLineChangesNothing() =
         let harness = seeded ()
 
-        Assert.AreEqual<LogChanges>(LogChanges.none, (harness.Respond "mkdir a | cd nowhere").Changes)
+        Assert.AreEqual<LogChanges>(LogChanges.none, (harness.Respond "mkdir a | in nowhere").Changes)
 
     [<TestMethod>]
     member _.ARefreshChangesNothing() =

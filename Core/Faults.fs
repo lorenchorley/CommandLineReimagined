@@ -145,7 +145,7 @@ module Fault =
 
     /// <summary>`$row` read where no predicate is testing a row.</summary>
     /// <remarks>
-    /// Decision 0032. `$row` is not a variable anyone set: `where`, `find`, `cd` and
+    /// Decision 0032. `$row` is not a variable anyone set: `where`, `find`, `in` and
     /// `save-view` bind it for each row they test. Read anywhere else — standing as a
     /// stage, or as `echo $row` — "unknown variable" says nothing a person can act on,
     /// so the fault says where it does exist, with a line that uses it.
@@ -153,7 +153,7 @@ module Fault =
     let rowOutsidePredicate () =
         create
             NotFound
-            "$row is the row a predicate is testing. It exists only inside where, find, cd and save-view: ls | where $row.kind eq folder."
+            "$row is the row a predicate is testing. It exists only inside where, find, in and save-view: ls | where $row.kind eq folder."
         |> withPath "$row"
 
     /// <summary>A variable that is not set.</summary>

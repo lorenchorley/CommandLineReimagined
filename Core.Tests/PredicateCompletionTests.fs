@@ -79,13 +79,13 @@ type PredicateCompletionTests() =
         Assert.AreEqual<int>(0, (texts harness "ls | where zz").Length)
 
     /// No `$` has to be written first for the predicate to be known: the old test for
-    /// one kept `not` away from `cat no`, and `cat` still has only paths.
+    /// one kept `not` away from `read no`, and `read` still has only paths.
     [<TestMethod>]
     member _.APathIsNeverAPredicatePlace() =
         let harness = seeded ()
-        harness.Run "cd documents" |> ignore
+        harness.Run "in documents" |> ignore
 
-        Assert.AreEqual<string list>([ "notes.txt" ], texts harness "cat no")
+        Assert.AreEqual<string list>([ "notes.txt" ], texts harness "read no")
 
     // ----------------------------------------------------------- AfterOperand
 
@@ -234,33 +234,33 @@ type PredicateCompletionTests() =
 
         Assert.AreEqual<int>(0, (withRows harness "ls | where $x eq " rows).Length)
 
-    // --------------------------------------------------------------------- cd
+    // --------------------------------------------------------------------- in
 
-    /// `cd` with a plain operand is a path (decision 0013), so its operand names the
+    /// `in` with a plain operand is a path (decision 0013), so its operand names the
     /// places you can be, as it always has.
     [<TestMethod>]
-    member _.CdsOperandOffersPlaces() =
+    member _.TheOperandOfInOperandOffersPlaces() =
         let harness = seeded ()
 
-        Assert.AreEqual<string list>([ "documents/"; "examples/"; "guide/"; "projects/" ], texts harness "cd ")
-        Assert.AreEqual<string list>([ "documents/" ], texts harness "cd doc")
+        Assert.AreEqual<string list>([ "documents/"; "examples/"; "guide/"; "projects/" ], texts harness "in ")
+        Assert.AreEqual<string list>([ "documents/" ], texts harness "in doc")
 
     [<TestMethod>]
-    member _.CdOffersASavedViewAsAPlace() =
+    member _.InOffersASavedViewAsAPlace() =
         let harness = seeded ()
         harness.Run "save-view weekend $row.kind eq folder" |> ignore
 
-        assertContains "weekend" (texts harness "cd we")
+        assertContains "weekend" (texts harness "in we")
 
-    /// Past its first word, `cd`'s argument is a question like any other.
+    /// Past its first word, `in`'s argument is a question like any other.
     [<TestMethod>]
-    member _.CdsQuestionIsCompletedAsAPredicate() =
+    member _.TheQuestionAfterInQuestionIsCompletedAsAPredicate() =
         let harness = seeded ()
 
-        Assert.AreEqual<string list>([ "$row."; "not"; "(" ], texts harness "cd not ")
+        Assert.AreEqual<string list>([ "$row."; "not"; "(" ], texts harness "in not ")
 
         Assert.AreEqual<string list>(
             [ "eq"; "ne"; "gt"; "ge"; "lt"; "le"; "like"; "has" ],
-            texts harness "cd $row.mood ")
+            texts harness "in $row.mood ")
 
-        Assert.AreEqual<string list>([ "and"; "or" ], texts harness "cd $row.mood eq great ")
+        Assert.AreEqual<string list>([ "and"; "or" ], texts harness "in $row.mood eq great ")

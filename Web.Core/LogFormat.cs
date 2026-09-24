@@ -26,7 +26,7 @@ public static class LogFormat
 {
     /// <summary>The version this build writes. Readers exist for this and every earlier one.</summary>
     /// <remarks>
-    /// Version 2 is Phase 5's: a variable can hold a fault (<c>try cat x | set problem</c>)
+    /// Version 2 is Phase 5's: a variable can hold a fault (<c>try read x | set problem</c>)
     /// and a query (<c>pwd | set here</c> inside a view), and a build that only knew
     /// version 1 would fail on either as an unknown kind. Every version 1 document is a
     /// valid version 2 one, so the one reader serves both.

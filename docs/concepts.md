@@ -6,7 +6,7 @@ behaviour that would otherwise look arbitrary. The normative version, with every
 spelled out, is the [execution model](spec/execution-model.md).
 
 To learn to use the terminal rather than how it works, start in the terminal itself:
-`cat readme.txt` points to the `guide` folder, which explains it one idea per file.
+`read readme.txt` points to the `guide` folder, which explains it one idea per file.
 
 ## The short version
 
@@ -140,7 +140,7 @@ A command returns a value. The kinds are:
 | --- | --- | --- |
 | Empty | a command with no result | nothing |
 | None | an answer that is "there is nothing", such as `first` of an empty table | nothing |
-| Text | `cat`, `echo "x"` | the text |
+| Text | `read`, `echo "x"` | the text |
 | Number | `echo 42`, `count`, `progress` | the number |
 | Boolean | a flag with no value | `true` or `false` |
 | File | `mkdir`, `write`, `attr`, `save`, a listing's `name` column | the record's name |
@@ -153,7 +153,7 @@ A command returns a value. The kinds are:
 
 Every value answers two questions: how it should read to a person, and what it means
 as an argument to another command. A file displays as `scratch` and argues as
-`/scratch`. That distinction is why `mkdir scratch | cd` needs no quoting and lands in
+`/scratch`. That distinction is why `mkdir scratch | in` needs no quoting and lands in
 the right place.
 
 ### Commands describe, they do not change
@@ -167,17 +167,17 @@ The evaluator folds each stage's events into a working copy of the state, so a l
 stage sees an earlier one's effect:
 
 ```
-$ mkdir scratch | cd
+$ mkdir scratch | in
 scratch
 
 $ pwd
 /scratch
 
-$ up
+$ out
 /
 ```
 
-`cd` found `scratch` in the working copy, even though no folder of that name had been
+`in` found `scratch` in the working copy, even though no folder of that name had been
 committed when it ran.
 
 ### Recovery
@@ -219,7 +219,7 @@ stage fails, nothing is appended at all. That is decision
 **a line is all or nothing**.
 
 ```
-$ mkdir alpha | cd nowhere
+$ mkdir alpha | in nowhere
 Directory does not exist : nowhere
 
 $ ls | select name
@@ -233,13 +233,13 @@ note.txt
 readme.txt
 ```
 
-`mkdir alpha` succeeded and `cd nowhere` did not, so there is no `alpha`. You do not
+`mkdir alpha` succeeded and `in nowhere` did not, so there is no `alpha`. You do not
 have to know how many stages ran before the failure in order to clean up, because as
 far as the store is concerned, none of them did.
 
 Two more things follow:
 
-- **A line that produces no events commits nothing.** `ls`, `cat`, `pwd` and any
+- **A line that produces no events commits nothing.** `ls`, `read`, `pwd` and any
   question about a table leave no transaction behind.
 - **`undo`, `redo` and `history` are about the log, not the files**, so they act on the
   store directly and are not part of any line's transaction. `run` is the same: each
@@ -255,11 +255,11 @@ $ history
 seq  at        source                       undone  compensates
 1    09:30:00  seed                         false
 2    09:30:00  echo hello | write note.txt  false
-3    09:30:00  mkdir scratch | cd           false
-4    09:30:00  up                           false
+3    09:30:00  mkdir scratch | in           false
+4    09:30:00  out                          false
 ```
 
-The lines that failed, the listing and `pwd` are not there. `up` is, because
+The lines that failed, the listing and `pwd` are not there. `out` is, because
 moving changes your location, and your location is part of what the log records.
 
 ## 5. Project
@@ -281,7 +281,7 @@ nothing but the event itself. Redo compensates the compensation.
 
 ```
 $ undo
-Undone: up
+Undone: out
 
 $ pwd
 /scratch
@@ -290,12 +290,12 @@ $ history
 seq  at        source                       undone  compensates
 1    09:30:00  seed                         false
 2    09:30:00  echo hello | write note.txt  false
-3    09:30:00  mkdir scratch | cd           false
-4    09:30:00  up                           true
-5    09:30:00  up                           false   4
+3    09:30:00  mkdir scratch | in           false
+4    09:30:00  out                          true
+5    09:30:00  out                          false   4
 
 $ redo
-Redone: up
+Redone: out
 
 $ pwd
 /
@@ -303,7 +303,7 @@ $ pwd
 
 Row 5 is the undo. It is a transaction in its own right, carrying the name of the line
 it reversed, and its `compensates` column holds 4, the sequence number of the
-transaction it reverses. It is never itself marked undone; row 4, the `up` it reversed,
+transaction it reverses. It is never itself marked undone; row 4, the `out` it reversed,
 is. A redo is a row of the same kind, whose `compensates` names the undo it reverses.
 
 - **Undo is one line at a time, not one command at a time.** `undo` reverses the last
@@ -369,7 +369,7 @@ simply a record whose `kind` is `folder`. `attr` shows them all and writes new o
 
 Because a folder is only an attribute, being in one is a question: *which records say
 their folder is this one?* Any other question is a place in the same sense.
-`cd $row.mood eq great` sets a view, `ls` answers it across directories, and
+`in $row.mood eq great` sets a view, `ls` answers it across directories, and
 `save-view` keeps one as a record of kind `view`. [The filesystem](filesystem.md) is
 the guide to the model.
 

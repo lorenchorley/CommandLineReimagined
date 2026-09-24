@@ -14,7 +14,7 @@ module CommandCompletion =
         spec.Parameters |> List.exists (fun parameter -> parameter.AcceptsPipe)
 
     /// Whether what a command takes from the pipe is a path or a place: a name, which a
-    /// table has none of. `ls | cat`, `ls | first | rm` and `ls | cd` are all faults.
+    /// table has none of. `ls | read`, `ls | first | rm` and `ls | in` are all faults.
     let takesAPathFromThePipe (spec: CommandSpec) =
         spec.Parameters
         |> List.filter (fun parameter -> parameter.AcceptsPipe)
@@ -28,6 +28,8 @@ module CommandCompletion =
     /// two away (`Nearest`), which is correcting it: `lss` finds `ls`. Keywords and slips
     /// need three letters: two start too many keywords (`se` would find `where` by
     /// `select`), and every two-letter word is one slip from half the short commands.
+    /// A shorter word that is a whole keyword is the exception, because it is not a
+    /// guess: `cd` and `up` are the old names of `in` and `out` (decision 0037).
     ///
     /// Each chip carries the command's description, or for a keyword match the keyword
     /// it matched, so the chip says what it is before it is tapped.
@@ -45,16 +47,19 @@ module CommandCompletion =
 
         let searching = word.Length >= 3
 
-        let byKeyword =
-            if not searching then
-                []
+        let matchesKeyword (keyword: string) =
+            if searching then
+                startsWith word keyword
             else
-                specs
-                |> List.filter (unmatched prefixed)
-                |> List.choose (fun spec ->
-                    spec.Keywords
-                    |> List.tryFind (startsWith word)
-                    |> Option.map (fun keyword -> spec, keyword))
+                word <> "" && String.Equals(word, keyword, StringComparison.OrdinalIgnoreCase)
+
+        let byKeyword =
+            specs
+            |> List.filter (unmatched prefixed)
+            |> List.choose (fun spec ->
+                spec.Keywords
+                |> List.tryFind matchesKeyword
+                |> Option.map (fun keyword -> spec, keyword))
 
         let near =
             if not searching then
@@ -87,7 +92,7 @@ module CommandCompletion =
     /// offers what could be done with a listing, not `mkdir`, which would ignore it.
     /// When the stages before it were run and answered a table, the commands that take
     /// a path from the pipe go too, because a table is not a name: `ls | ` does not
-    /// offer `cat` or `rm`, and `echo readme.txt | ` still offers `cat`. A line that
+    /// offer `read` or `rm`, and `echo readme.txt | ` still offers `read`. A line that
     /// could not be run keeps them, since nothing says what flows in. The page's own
     /// words and `try` are offered where a command is written, as they were; the page's
     /// words not after a pipe, since `clear` takes nothing from one. An empty line is

@@ -75,12 +75,12 @@ module PredicateCompletion =
                         |> Request.withDetail (if count = 1 then "1 row" else sprintf "%d rows" count))
         }
 
-    /// <summary>Whether the word is the first thing written in `cd`'s argument.</summary>
+    /// <summary>Whether the word is the first thing written in `in`'s argument.</summary>
     /// <remarks>
     /// There a plain operand is a path (decision 0013), so the word names a place.
     /// After `not` or `and` it is part of a question, and is answered as one.
     /// </remarks>
-    let private startsCdArgument (request: Request) (stage: Stage) =
+    let private startsInArgument (request: Request) (stage: Stage) =
         let before = request.Context.Text.Substring(0, request.Context.Word.Start)
 
         let lastWritten =
@@ -88,19 +88,19 @@ module PredicateCompletion =
             |> Array.tryLast
             |> Option.defaultValue ""
 
-        String.Equals(stage.Name, "cd", StringComparison.OrdinalIgnoreCase)
+        String.Equals(stage.Name, "in", StringComparison.OrdinalIgnoreCase)
         && String.Equals(lastWritten, stage.Name, StringComparison.OrdinalIgnoreCase)
 
     /// <summary>What the word inside a predicate could be.</summary>
     /// <remarks>
     /// Dispatches on the expression state: `$row.`, `not` and `(` for an operand, the
     /// comparison operators after one, the column's values on the right, `and` and `or`
-    /// after a comparison. `cd`'s operand is the exception: a plain one is a path, so
+    /// after a comparison. `in`'s operand is the exception: a plain one is a path, so
     /// it offers the folders and views a plain operand names, as it always has.
     /// </remarks>
     let suggest (request: Request) (stage: Stage) (expression: Expression) : Async<Completion list> =
         match expression with
-        | Expression.Operand when startsCdArgument request stage -> async.Return(PathCompletion.suggest request true)
+        | Expression.Operand when startsInArgument request stage -> async.Return(PathCompletion.suggest request true)
         | Expression.Operand -> async.Return(operand request)
         | Expression.AfterOperand _ -> async.Return(comparison request)
         | Expression.ComparisonRight(op, Expr.Variable("row", [ column ])) -> values request stage op column

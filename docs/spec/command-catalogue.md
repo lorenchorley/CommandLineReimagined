@@ -68,7 +68,7 @@ command names the same record in the next. Names are compared ordinally and are
 case-sensitive; command names are resolved case-insensitively.
 
 Messages quote the resolved, absolute path, except `Directory does not exist : <path>`
-raised by `ls` and `cd`, which quotes the path as written.
+raised by `ls` and `in`, which quotes the path as written.
 
 **Records.** A folder is a record of kind `folder` with no content, and the root `/` is
 implicit: it is not a record, has no attributes and cannot be deleted
@@ -117,8 +117,8 @@ dropped when the command layer moved to the F# core.
 
 | Group | Commands |
 | --- | --- |
-| [Navigation](#navigation) | `ls`, `cd`, `up`, `pwd`, `find`, `save-view` |
-| [Files](#files) | `cat`, `write`, `rm`, `cp`, `mkdir` |
+| [Navigation](#navigation) | `ls`, `in`, `out`, `pwd`, `find`, `save-view` |
+| [Files](#files) | `read`, `write`, `rm`, `cp`, `mkdir` |
 | [Attributes](#attributes) | `attr`, `save` |
 | [Values](#values) | `echo`, `set`, `vars`, `is-fault` |
 | [Long-running commands](#long-running-commands) | `progress`, `download` |
@@ -147,11 +147,11 @@ and a *rest* parameter adds `, any number`. A parameter that declares nothing ta
 | Command | Parameter | `Takes` | `help` says |
 | --- | --- | --- | --- |
 | `ls` | `path` | `Place` | a folder or a view |
-| `cd` | `TargetPath` | `Place` | a predicate |
+| `in` | `TargetPath` | `Place` | a predicate |
 | `find` | `predicate` | `Anything` | a predicate |
 | `save-view` | `name` | `NewName` | a new name |
 | `save-view` | `predicate` | `Anything` | a predicate |
-| `cat` | `path` | `Path` | a path |
+| `read` | `path` | `Path` | a path |
 | `write` | `path` | `Path` | a path |
 | `write` | `text` | `Value` | a value |
 | `rm` | `path` | `Path` | a path |
@@ -189,7 +189,7 @@ and a *rest* parameter adds `, any number`. A parameter that declares nothing ta
 | `help` | `command` | `CommandName` | a command name |
 | `UnknownCommand` | `name`, `nearest` | `Anything` | not listed |
 
-`up`, `pwd`, `vars`, `undo`, `redo`, `history`, `reset` and `exit` have no parameters.
+`out`, `pwd`, `vars`, `undo`, `redo`, `history`, `reset` and `exit` have no parameters.
 A command added later **should** declare what each of its parameters takes; one that
 does not is offered files and folders for every argument.
 
@@ -222,12 +222,12 @@ of the record's content in characters, and 0 where there is none. A record that 
 one of the extra attributes has `None` in that cell.
 
 A listing **must not** contain a parent entry. Every row of a table of records is a
-record; moving upwards is `up`, and the host's affordance for it.
+record; coming out is `out`, and the host's affordance for it.
 
 Errors: `Directory does not exist : <path>` (`NotFound`), quoting `path` as written,
 also when it names a file.
 
-### cd
+### in
 
 | Field | Value |
 | --- | --- |
@@ -236,7 +236,11 @@ also when it names a file.
 | Events | `LocationChanged`, or none when the location does not change |
 | Marks | none |
 
-The parameter is a *predicate*, so the argument arrives unevaluated and `cd` decides
+Its first keyword **must** be `cd`, the name it had before
+[decision 0037](../decisions/0037-in-out-back-and-read.md), so completion finds it from
+the old name.
+
+The parameter is a *predicate*, so the argument arrives unevaluated and `in` decides
 what it is:
 
 - An argument that used an operator is a **view**. `Location.View` **must** be set to
@@ -249,9 +253,9 @@ what it is:
   path.
 - Entering a folder **must** clear `Location.View`.
 
-The target **must** be normalised, so `cd ..` yields the parent's real path. Entering
+The target **must** be normalised, so `in ..` yields the parent's real path. Entering
 the location already held, folder and view together, **must** emit no event, so the
-line commits nothing and `undo` reaches past it. Reversing a `cd` restores the previous
+line commits nothing and `undo` reaches past it. Reversing an `in` restores the previous
 location, view included.
 
 Errors: `Directory does not exist : <target>` (`NotFound`), quoting the target as
@@ -262,24 +266,26 @@ content does not parse or has no operator, quoting the content trimmed. The cont
 a view record is not held to the first of these (see
 [Known deviations](conformance.md#known-deviations)).
 
-### up
+### out
 
 | Field | Value |
 | --- | --- |
 | Parameters | none |
-| Returns | With a view set, `Text` of the current folder's path. Otherwise as `cd ..`: `File` of the parent folder, or `Text` `/` at the root |
+| Returns | With a view set, `Text` of the current folder's path. Otherwise as `in ..`: `File` of the parent folder, or `Text` `/` at the root |
 | Events | `LocationChanged`, or none at the root with no view |
 | Marks | none |
 
-With a view set, `up` **must** clear `Location.View` and **must** leave
-`Location.Folder` unchanged. Without one it moves to the parent, exactly as `cd ..`.
-Two `up`s from a view over a subfolder therefore leave the view, then the folder.
+Its first keyword **must** be `up`, its name before decision 0037.
+
+With a view set, `out` **must** clear `Location.View` and **must** leave
+`Location.Folder` unchanged. Without one it moves to the parent, exactly as `in ..`.
+Two `out`s from a view over a subfolder therefore leave the view, then the folder.
 
 At the root, moving up **must** leave the location unchanged, emit nothing and **must
 not** fail.
 
-`up` is not `ReadOnly`, because it emits `LocationChanged`; a refresh of it is refused
-with `A live refresh only re-reads : up`.
+`out` is not `ReadOnly`, because it emits `LocationChanged`; a refresh of it is refused
+with `A live refresh only re-reads : out`.
 
 ### pwd
 
@@ -325,8 +331,8 @@ decision 0033 never fails here.
 
 Creates a record in the current folder with `kind` `view` and content equal to the
 predicate's display text, which is something a person could have typed. A view is an
-ordinary record in every other respect: it appears in `ls`, and can be read with `cat`,
-renamed with `attr`, deleted with `rm` and entered with `cd`. Reversing the line
+ordinary record in every other respect: it appears in `ls`, and can be read with `read`,
+renamed with `attr`, deleted with `rm` and entered with `in`. Reversing the line
 deletes it.
 
 Errors: `'save-view' needs a predicate, such as $row.kind eq note.` (`Binding`);
@@ -336,7 +342,7 @@ Errors: `'save-view' needs a predicate, such as $row.kind eq note.` (`Binding`);
 
 ## Files
 
-### cat
+### read
 
 | Field | Value |
 | --- | --- |
@@ -344,6 +350,8 @@ Errors: `'save-view' needs a predicate, such as $row.kind eq note.` (`Binding`);
 | Returns | `Text` of the file's content |
 | Events | None |
 | Marks | `ReadOnly` |
+
+Its first keyword **must** be `cat`, its name before decision 0037.
 
 A record that has never had content, such as one made by `save`, **must** read as empty
 text rather than failing.
@@ -484,7 +492,7 @@ Creates a record in the current folder from an object tag. The tag's type name b
 `kind`, its `name` attribute's display text becomes `name`, and every other attribute is
 copied across. The tag **must not** carry `folder`, `created`, `modified` or `size`,
 which are refused with `attr`'s messages, so a tag cannot put a record anywhere `attr`
-would refuse to. The record has no content, so `cat` on it **must** return empty text
+would refuse to. The record has no content, so `read` on it **must** return empty text
 rather than failing. A tag of type `folder` therefore makes a folder. Reversing the line
 deletes the record.
 
@@ -692,7 +700,7 @@ the columns in the table's order and **must** omit a cell that is `None` or `Emp
 ## Documents
 
 Four commands over XML and CSV files ([decision 0011](../decisions/0011-real-xml-files.md)).
-The readers **must** resolve and read their file exactly as `cat` does, raise the same
+The readers **must** resolve and read their file exactly as `read` does, raise the same
 faults for a missing path or a folder, be `ReadOnly` and emit no events. The writers
 **must** emit exactly the events `write` would for the text they serialise, so that
 undo, redo and history treat a document like any other file; a file they create **must**
@@ -806,8 +814,8 @@ command list instead.
 | Marks | `Meta` |
 
 Reverses the latest undoable, uncompensated line that is not itself a compensation
-([Undo](execution-model.md#undo)). A line that moved the location, such as `cd` or
-`up`, is a line like any other. The seed is not undoable
+([Undo](execution-model.md#undo)). A line that moved the location, such as `in` or
+`out`, is a line like any other. The seed is not undoable
 ([decision 0018](../decisions/0018-the-seed-is-not-a-line-anyone-typed.md)), so `undo`
 in a fresh session answers `Nothing to undo.` Having nothing to undo **must not** be a
 fault.
@@ -962,6 +970,6 @@ completion.
 
 ## Known deviations
 
-None. `ls` and `cd` quoting a missing folder as written rather than resolved, noted
+None. `ls` and `in` quoting a missing folder as written rather than resolved, noted
 under [Paths](#rules-every-command-follows), is deliberate and pinned by
 `FilesTests.AMissingFolderIsNamedAsItWasWritten`.

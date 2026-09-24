@@ -196,12 +196,14 @@ module Files =
     val pathOf   : Projection -> FileRecord -> string
 ```
 
-`Location.Folder` is the current folder. `cd <folder>` changes it and answers the
-folder's record. In Phase 4, `cd <predicate>` sets `Location.View` instead and answers
+`Location.Folder` is the current folder. `in <folder>` changes it and answers the
+folder's record. In Phase 4, `in <predicate>` sets `Location.View` instead and answers
 the predicate; `ls` then lists every record in the store the view matches, `pwd`
-answers a `Query`, `up` puts the view down before it moves, `find <predicate>` asks the
+answers a `Query`, `out` puts the view down before it moves, `find <predicate>` asks the
 same question without going anywhere, and `save-view <name> <predicate>` keeps one as a
-record of kind `view` whose content is the predicate text, which `cd <name>` enters.
+record of kind `view` whose content is the predicate text, which `in <name>` enters.
+The three commands were `cd`, `up` and `cat` until decision 0037, and those names are
+their first keywords.
 New files are always created in `Location.Folder`.
 
 ### Commands
@@ -242,7 +244,7 @@ type Command = { Spec: CommandSpec; Run: Invocation -> Async<Outcome<CommandResu
 
 A command reads `Projection` and `Location`, never the store. It returns events; it
 does not apply them. `Blobs` is the whole of the log a command may see: `write` puts
-its text and names the hash in an event, `cat` gets it back. It is a capability rather
+its text and names the hash in an event, `read` gets it back. It is a capability rather
 than the log itself, so a command can read and write content and cannot append,
 undo or read the history. Long-running commands write through `Output` and observe
 `Cancel`. Meta commands receive a `StoreAccess` capability through a separate
@@ -389,11 +391,11 @@ CommandExpression ::= FunctionExpression | CliExpression | InstanceTag | "(" Pip
 FunctionExpression: the "(" must be adjacent to the name; "name (" is a command with a parenthesised operand
 ```
 
-`try` and `??` apply to one stage: `try cat x | set problem` binds the fault, and
+`try` and `??` apply to one stage: `try read x | set problem` binds the fault, and
 `first (ls) ?? "none"` defaults `first`'s result. `else` applies to whole pipelines.
 
 From Phase 3, `ls` returns a table of records and has no parent row; the page shows
-`up` in the location line.
+`out` in the location line.
 
 Each grammar change ships with: parser tests, tokeniser kinds (`operator`, `member`,
 `keyword` added to the token kinds), serialiser round-trip, and an update to

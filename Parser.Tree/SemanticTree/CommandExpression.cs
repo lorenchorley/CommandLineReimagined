@@ -10,7 +10,7 @@ namespace Commands.Parser.SemanticTree
     /// pipeline in parentheses (decision 0023); it may be marked <c>try</c>, which turns
     /// its failure into a value; and it may carry a <c>??</c> default, used when it
     /// answers nothing. The two markers belong to the stage rather than to the pipeline,
-    /// so <c>try cat x | set problem</c> binds the fault and <c>first (ls) ?? "none"</c>
+    /// so <c>try read x | set problem</c> binds the fault and <c>first (ls) ?? "none"</c>
     /// defaults what <c>first</c> returned.
     ///
     /// Phase 8 adds a fifth form (decision 0032): a variable reference, with or without

@@ -251,7 +251,7 @@ type ShapeTests() =
     member _.AnUpstreamThatFailsFallsBack() =
         let harness = seeded ()
 
-        let shape = shapeOf (harness.Session.Shapes CancellationToken.None) (stageOf harness "cat nowhere.txt | where $row.")
+        let shape = shapeOf (harness.Session.Shapes CancellationToken.None) (stageOf harness "read nowhere.txt | where $row.")
 
         Assert.AreEqual<string list>(listing harness, columns shape)
 

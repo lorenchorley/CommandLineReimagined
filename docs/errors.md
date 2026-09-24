@@ -12,10 +12,10 @@ the fault is up to the line.
   failure discards everything its earlier stages described. The next line runs normally,
   and errors never stop the session.
 - **`else`**: the pipeline after it runs instead, with the fault piped in, so
-  `cat notes.txt else echo "none"` recovers and `cat notes.txt else set problem` keeps
+  `read notes.txt else echo "none"` recovers and `read notes.txt else set problem` keeps
   it. Only the branch that answered commits anything.
 - **`try`**: the stage's fault becomes its result, and the line goes on.
-  `try cat notes.txt | set problem` binds it, and `$problem.kind` and
+  `try read notes.txt | set problem` binds it, and `$problem.kind` and
   `$problem.message` read it back. The terminal draws a caught fault in amber, because
   the line did not fail.
 
@@ -171,8 +171,8 @@ These come from matching what you wrote against what the command declared.
 A required parameter was not given, nothing was piped in, and it has no default.
 
 ```
-$ cd
-'cd' needs an argument for 'TargetPath'.
+$ in
+'in' needs an argument for 'TargetPath'.
 ```
 
 Give the argument, or pipe a value into a parameter that accepts one.
@@ -211,17 +211,17 @@ $ echo $nothing
 Unknown variable: $nothing
 ```
 
-### `$row is the row a predicate is testing. It exists only inside where, find, cd and save-view: ls | where $row.kind eq folder.`
+### `$row is the row a predicate is testing. It exists only inside where, find, in and save-view: ls | where $row.kind eq folder.`
 
-`$row` is the one variable nobody sets. `where`, `find`, `cd` and `save-view` bind it
+`$row` is the one variable nobody sets. `where`, `find`, `in` and `save-view` bind it
 to each row they test, and it exists nowhere else, so reading it anywhere else, as an
 argument or as a stage of its own, says where it does exist. Its kind is `notfound`.
 
 ```
 $ echo $row
-$row is the row a predicate is testing. It exists only inside where, find, cd and save-view: ls | where $row.kind eq folder.
+$row is the row a predicate is testing. It exists only inside where, find, in and save-view: ls | where $row.kind eq folder.
 $ $row.kind
-$row is the row a predicate is testing. It exists only inside where, find, cd and save-view: ls | where $row.kind eq folder.
+$row is the row a predicate is testing. It exists only inside where, find, in and save-view: ls | where $row.kind eq folder.
 ```
 
 ### `'<command>' does not take '<name>=' assignments.`
@@ -281,7 +281,7 @@ From the table functions, from predicates, and from reading a tag as a table.
 | `$row is the row a predicate is testing. …` | `$row` read outside a predicate: see [Argument errors](#argument-errors). Kind `notfound`. |
 | `'<command>' takes a value for '<parameter>', not an expression.` | A comparison was written for a command that does not take a predicate. |
 | `A TagValue cannot be part of an expression.` | A tag as one side of a comparison, as in `where $row.name eq <t/>`. The name is the parser's for what was written there. |
-| `A pipeline in parentheses only runs as part of a line : (...)` | A saved view whose text has a pipeline in parentheses in it, written by hand with `write` rather than kept by `save-view`. `cd` into it succeeds and `ls` there fails. A line runs its nested pipelines before the predicate is built, and `save-view` keeps the value; a view file has no line around it to run one. |
+| `A pipeline in parentheses only runs as part of a line : (...)` | A saved view whose text has a pipeline in parentheses in it, written by hand with `write` rather than kept by `save-view`. Going in with `in` succeeds and `ls` there fails. A line runs its nested pipelines before the predicate is built, and `save-view` keeps the value; a view file has no line around it to run one. |
 | `Unknown operator : <word>` | An operator the evaluator does not implement. The grammar only accepts the ones it does, so this is a defect. Kind `internal`. |
 
 A predicate is a yes-or-no question about the row
@@ -294,7 +294,7 @@ like a real answer. Both are faults now, and both say what to write instead.
 A predicate with an operator in it that never mentions `$row` compares two fixed
 values, so it keeps every row or none. The bare words it compared are named as the
 likely columns, when there are any. It is found when the predicate is bound, before
-any row is tested, and `where`, `find`, `cd` and `save-view` all say it. Kind
+any row is tested, and `where`, `find`, `in` and `save-view` all say it. Kind
 `binding`.
 
 ```
@@ -308,7 +308,7 @@ $ ls | where $v eq 5
 $v eq 5 never reads $row, so it is the same for every row.
 ```
 
-A plain word with no operator is not a question and is not checked here: `cd journal`
+A plain word with no operator is not a question and is not checked here: `in journal`
 is a path.
 
 ### `<predicate> is <kind> (<value>), not true or false.`
@@ -332,7 +332,7 @@ as false, so a row without the column is skipped rather than stopping the line.
 
 From `from-xml`, `to-xml`, `from-csv` and `to-csv`.
 [Reading and writing files](tables.md#reading-and-writing-files) is the guide. The
-readers also give the two answers `cat` gives: `File does not exist : <path>` and
+readers also give the two answers `read` gives: `File does not exist : <path>` and
 `That is a directory, not a file : <path>`.
 
 | Message | Meaning |
@@ -349,14 +349,14 @@ readers also give the two answers `cat` gives: `File does not exist : <path>` an
 
 ## View errors
 
-From `cd`, `find` and `save-view`. [The filesystem](filesystem.md#views) is the guide.
+From `in`, `find` and `save-view`. [The filesystem](filesystem.md#views) is the guide.
 
 | Message | Meaning |
 | --- | --- |
 | `'find' needs a predicate, such as $row.kind eq note.` | A plain word was written where a question belongs. `find monday` finds nothing by definition; `find $row.name eq monday` is the question. |
 | `'save-view' needs a predicate, such as $row.kind eq note.` | The same, for `save-view`. |
 | `A view needs a name.` | `save-view` was given an empty name, such as `""`. |
-| `'<path>' does not hold a predicate : <text>` | `cd` on a file of kind `view` whose content is not a predicate: text that does not parse, or a plain word, as in `'/weekend' does not hold a predicate : monday`. `cat` it to see what is in there, or `rm` it. |
+| `'<path>' does not hold a predicate : <text>` | `in` on a file of kind `view` whose content is not a predicate: text that does not parse, or a plain word, as in `'/weekend' does not hold a predicate : monday`. `read` it to see what is in there, or `rm` it. |
 
 ## Script errors
 
@@ -383,8 +383,8 @@ $ lss
 Unknown command : lss. Did you mean ls?
 $ sot
 Unknown command : sot. Did you mean set or sort?
-$ ca
-Unknown command : ca. Did you mean cat, cd or cp?
+$ rn
+Unknown command : rn. Did you mean in, rm or run?
 $ delete readme.txt
 Unknown command : delete
 ```
@@ -395,9 +395,9 @@ reports this, gets `Unknown command : UnknownCommand` like any other unknown nam
 
 | Message | Meaning |
 | --- | --- |
-| `Directory does not exist : <path>` | `cd`, `ls` or `write` could not find it. |
-| `File does not exist : <path>` | `cat`, `cp`, `attr`, `run` or a reader could not find it. |
-| `That is a directory, not a file : <path>` | `cat`, `write`, `run`, `download` or a reader was given a directory. |
+| `Directory does not exist : <path>` | `in`, `ls` or `write` could not find it. |
+| `File does not exist : <path>` | `read`, `cp`, `attr`, `run` or a reader could not find it. |
+| `That is a directory, not a file : <path>` | `read`, `write`, `run`, `download` or a reader was given a directory. |
 | `Target directory already exists : <path>` | `mkdir` will not overwrite, and a file of that name counts. |
 | `Target file already exists : <path>` | `cp`, `save` or `save-view` will not overwrite, and `attr x name=y` will not rename onto a sibling's name. Use `write` or `rm` first. |
 | `'cp' copies files, and <path> is a directory.` | `cp` copies one record, and a directory's record without what is in it would not be a copy. |
@@ -448,7 +448,7 @@ Not errors from the language, but from the session.
 | `Redone: <line>` | Redo put that line back. It names the original line, not the undo. |
 | `Reset. <n> files restored.` | `reset` emptied the log and seeded it again; in the browser that is 17 files. A host that seeds nothing gets `Reset. The filesystem is empty.` |
 | `The session has not been initialised. Call Initialize first.` | A host executed a line before replaying the log. A defect in the host, not in what you typed. |
-| `A live refresh only re-reads : <line>` | A live listing was asked to re-run a line that could change something, including one that moves you, such as `up`. You will not see this on the page: it keeps only lines starting with `ls` or `find` live, and when a refresh is refused it leaves the table as it was. |
+| `A live refresh only re-reads : <line>` | A live listing was asked to re-run a line that could change something, including one that moves you, such as `out`. You will not see this on the page: it keeps only lines starting with `ls` or `find` live, and when a refresh is refused it leaves the table as it was. |
 
 ## Page messages
 
@@ -467,10 +467,10 @@ Written by the browser page itself rather than by the session. See
 
 ## Reading a path in a message
 
-Most messages quote the resolved path rather than what you typed. Run `cat note.txt`
+Most messages quote the resolved path rather than what you typed. Run `read note.txt`
 in `/documents` and the message names `/documents/note.txt`. That is
 deliberate: the most common cause of a missing file is being somewhere else than you
 thought, and the prompt above the input always shows where you are.
 
-`cd` is the exception. It reports the target as you wrote it, because the thing you
+`in` is the exception. It reports the target as you wrote it, because the thing you
 usually need to see there is your own spelling.

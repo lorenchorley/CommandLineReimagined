@@ -32,11 +32,11 @@ reads to a person, and what it means as an argument to another command.
 nothing". They read alike and are distinct, and an implementation **must** keep them so.
 
 The two string forms **must** differ for files: display gives the name, and the
-argument form gives the full path. This is what makes `mkdir scratch | cd` land in the
-new folder, and `cat $row.name` read the right file from a row of a listing taken
+argument form gives the full path. This is what makes `mkdir scratch | in` land in the
+new folder, and `read $row.name` read the right file from a row of a listing taken
 elsewhere, with no quoting rule. Implementations **must not** collapse them. Only a
 `File` value argues differently from how it displays: a list, a tag or a table argues
-its display string, so `ls | cd` hands `cd` the whole listing as text and fails.
+its display string, so `ls | in` hands `in` the whole listing as text and fails.
 
 A third form, the *data* string, is what a value becomes as text inside a file that is
 meant to be read back (`to-csv`, `to-xml`). It is the display string except for a
@@ -212,7 +212,7 @@ that no other command can reach.
 re-run (see [Refreshing](#refreshing)). It **must** be declared rather than inferred. A
 command that emits events under any arguments **must not** be marked: `attr`, which
 writes with assignments and reads without, is not, and neither is a command that only
-moves the location, such as `cd` or `up`, because `LocationChanged` is an event.
+moves the location, such as `in` or `out`, because `LocationChanged` is an event.
 
 ## Resolving a command
 
@@ -228,7 +228,7 @@ command name is near, by the nearest names, at most three:
 ```
 Unknown command : lss. Did you mean ls?
 Unknown command : rum. Did you mean rm or run?
-Unknown command : ct. Did you mean cat, cd or cp?
+Unknown command : rn. Did you mean in, rm or run?
 ```
 
 Reporting through a command rather than directly means an unknown name renders like
@@ -364,11 +364,11 @@ its left side when that is a word, and otherwise its right; under `and`, `or` an
 letters, digits and `_`. When nothing can be read that way, the sentence ends after
 `every row.`.
 
-Because the check is where every *predicate* parameter is bound, `where`, `find`, `cd`
-and `save-view` all make it. `cd` into a saved view **must** make it too, on the
+Because the check is where every *predicate* parameter is bound, `where`, `find`, `in`
+and `save-view` all make it. Going `in` a saved view **must** make it too, on the
 predicate read back from the view's record, so a view whose text was written over with
 `kind eq folder` is refused with the same fault rather than listing nothing. An
-argument with no operator in it is not checked, so `cd documents` is still a path
+argument with no operator in it is not checked, so `in documents` is still a path
 ([decision 0013](../decisions/0013-attribute-filesystem.md)) and `where $flag` is still
 a question.
 
@@ -469,7 +469,7 @@ with a fault of kind `NotFound`, path `$row`, that says where it exists rather t
 that it is unknown:
 
 ```
-$row is the row a predicate is testing. It exists only inside where, find, cd and save-view: ls | where $row.kind eq folder.
+$row is the row a predicate is testing. It exists only inside where, find, in and save-view: ls | where $row.kind eq folder.
 ```
 
 `$row`, `echo $row`, `$row.kind` and `echo <$row>` all answer it. A variable that a
@@ -532,12 +532,12 @@ once per row of a predicate. A pipeline in parentheses gets no pipe input:
 
 A fault from inside a nested pipeline fails the stage it is written in, keeping its
 message and kind. Its stage number is cleared on the way out, so the stage reported is
-the outer stage the parenthesis is written in: `try echo (echo a | cat nowhere)` reports
+the outer stage the parenthesis is written in: `try echo (echo a | read nowhere)` reports
 stage 1.
 
 A pipeline in parentheses standing as a stage is part of the line's own sequence of
 stages, and a fault from inside it **must** likewise report the stage the parenthesis
-stands at: `try (echo a | cat nowhere) | set f` leaves `$f.stage` at 1.
+stands at: `try (echo a | read nowhere) | set f` leaves `$f.stage` at 1.
 
 A nested pipeline reached where no line is running — in the text of a view file that
 was written by hand — **must** fail with `A pipeline in parentheses only runs as part of
@@ -548,7 +548,7 @@ a line : (...)`, kind `Invalid`, when evaluated.
 Decision [0015](../decisions/0015-atomic-lines.md). The stages of a line share a
 **working projection**: the committed projection with the events produced so far in
 this line folded into it. Each stage reads that, so a later stage sees an earlier one's
-effect and `mkdir scratch | cd` lands in the new folder.
+effect and `mkdir scratch | in` lands in the new folder.
 
 Nothing is appended to the log until the whole line has succeeded. Then the accumulated
 events are validated against the committed projection ([The store](#the-store)) and
@@ -645,8 +645,8 @@ The two are independent, and an implementation **must** keep them so:
   view matches, across folders. With a path written it **must** list that folder and
   leave the view set.
 - `pwd` **must** answer `Query` when a view is set and `Text` of `Folder` otherwise.
-- `up` **must** clear the view when one is set, and move to the parent otherwise, so
-  two `up`s leave a view over a subfolder in the order they were entered.
+- `out` **must** clear the view when one is set, and move to the parent otherwise, so
+  two `out`s leave a view over a subfolder in the order they were entered.
 - Renaming a folder at or above `Folder` with `attr` **must** move `Folder` with it,
   in the same line, so the session is never left in a folder that no longer exists.
 - Every change travels as `LocationChanged`, so undo restores the whole location.

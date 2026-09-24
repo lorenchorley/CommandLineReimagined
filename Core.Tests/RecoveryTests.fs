@@ -25,25 +25,25 @@ type RecoveryTests() =
     member _.ElseIsNotRunWhenTheLeftSucceeds() =
         let harness = seeded ()
 
-        StringAssert.StartsWith(harness.Text "cat readme.txt else echo none", "This is a command line that runs in this browser tab.")
+        StringAssert.StartsWith(harness.Text "read readme.txt else echo none", "This is a command line that runs in this browser tab.")
 
     [<TestMethod>]
     member _.ElseRunsWhenTheLeftFails() =
         let harness = seeded ()
 
-        Assert.AreEqual<string>("none", harness.Text "cat missing.txt else echo \"none\"")
+        Assert.AreEqual<string>("none", harness.Text "read missing.txt else echo \"none\"")
 
     /// The fault is the right side's pipe input, so `else echo` prints it.
     [<TestMethod>]
     member _.TheFaultIsPipedIntoTheRightSide() =
         let harness = seeded ()
 
-        Assert.AreEqual<string>("File does not exist : /missing.txt", harness.Text "cat missing.txt else echo")
+        Assert.AreEqual<string>("File does not exist : /missing.txt", harness.Text "read missing.txt else echo")
 
     [<TestMethod>]
     member _.ElseCanBindTheFault() =
         let harness = seeded ()
-        harness.Run "cat missing.txt else set problem" |> ignore
+        harness.Run "read missing.txt else set problem" |> ignore
 
         match harness.Variable "problem" with
         | Some(Value.Fault fault) -> Assert.AreEqual(NotFound, fault.Kind)
@@ -53,7 +53,7 @@ type RecoveryTests() =
     [<TestMethod>]
     member _.ElseBindsLooserThanThePipe() =
         let harness = seeded ()
-        harness.Run "cat missing.txt else echo \"starting fresh\" | write today.txt" |> ignore
+        harness.Run "read missing.txt else echo \"starting fresh\" | write today.txt" |> ignore
 
         Assert.AreEqual<string>("starting fresh", harness.Content "/today.txt")
 
@@ -61,24 +61,24 @@ type RecoveryTests() =
     [<TestMethod>]
     member _.AFailedLeftBranchCommitsNothing() =
         let harness = seeded ()
-        harness.Run "mkdir today | cd nowhere else echo \"rolled back\"" |> ignore
+        harness.Run "mkdir today | in nowhere else echo \"rolled back\"" |> ignore
 
         Assert.IsFalse(harness.Exists "/today", "The mkdir on the failed side of else was committed.")
 
     [<TestMethod>]
     member _.TheRightBranchsEventsCommit() =
         let harness = seeded ()
-        harness.Run "mkdir left | cd nowhere else mkdir right" |> ignore
+        harness.Run "mkdir left | in nowhere else mkdir right" |> ignore
 
         Assert.IsFalse(harness.Exists "/left")
         Assert.IsTrue(harness.Exists "/right")
-        Assert.AreEqual<string>("mkdir left | cd nowhere else mkdir right", List.last (harness.History()))
+        Assert.AreEqual<string>("mkdir left | in nowhere else mkdir right", List.last (harness.History()))
 
     /// Undo takes back the whole line, which is the right branch's work and nothing else.
     [<TestMethod>]
     member _.UndoTakesBackTheBranchThatRan() =
         let harness = seeded ()
-        harness.Run "cat missing.txt else mkdir fresh" |> ignore
+        harness.Run "read missing.txt else mkdir fresh" |> ignore
         harness.Run "undo" |> ignore
 
         Assert.IsFalse(harness.Exists "/fresh")
@@ -87,27 +87,27 @@ type RecoveryTests() =
     member _.ElseChainsLeftToRight() =
         let harness = seeded ()
 
-        Assert.AreEqual<string>("third", harness.Text "cat a.txt else cat b.txt else echo third")
+        Assert.AreEqual<string>("third", harness.Text "read a.txt else read b.txt else echo third")
 
     /// The second branch's fault is what the third sees, not the first's.
     [<TestMethod>]
     member _.EachBranchSeesTheFaultBeforeIt() =
         let harness = seeded ()
 
-        Assert.AreEqual<string>("File does not exist : /b.txt", harness.Text "cat a.txt else cat b.txt else echo")
+        Assert.AreEqual<string>("File does not exist : /b.txt", harness.Text "read a.txt else read b.txt else echo")
 
     [<TestMethod>]
     member _.WhenEveryBranchFailsTheLastFaultIsTheLines() =
         let harness = seeded ()
 
-        Assert.AreEqual<string>("File does not exist : /b.txt", harness.Error "cat a.txt else cat b.txt")
+        Assert.AreEqual<string>("File does not exist : /b.txt", harness.Error "read a.txt else read b.txt")
 
     // -------------------------------------------------------------------- try
 
     [<TestMethod>]
     member _.TryTurnsAFailureIntoAValue() =
         let harness = seeded ()
-        let fault = faultOf (harness.Run "try cat nowhere.txt")
+        let fault = faultOf (harness.Run "try read nowhere.txt")
 
         Assert.AreEqual(NotFound, fault.Kind)
         Assert.AreEqual<string>("File does not exist : /nowhere.txt", fault.Message)
@@ -121,7 +121,7 @@ type RecoveryTests() =
     [<TestMethod>]
     member _.TheNextStageReceivesTheFault() =
         let harness = seeded ()
-        harness.Run "try cat nowhere.txt | set problem" |> ignore
+        harness.Run "try read nowhere.txt | set problem" |> ignore
 
         Assert.AreEqual<string>("NotFound", harness.Text "echo $problem.kind")
         Assert.AreEqual<string>("File does not exist : /nowhere.txt", harness.Text "echo $problem.message")
@@ -131,7 +131,7 @@ type RecoveryTests() =
     [<TestMethod>]
     member _.ACaughtFaultCarriesItsStage() =
         let harness = seeded ()
-        harness.Run "echo x | try cat nowhere.txt | set problem" |> ignore
+        harness.Run "echo x | try read nowhere.txt | set problem" |> ignore
 
         Assert.AreEqual<string>("2", harness.Text "echo $problem.stage")
 
@@ -141,8 +141,8 @@ type RecoveryTests() =
     [<TestMethod>]
     member _.AParenthesisedStageReportsTheOuterStage() =
         let harness = seeded ()
-        harness.Run "try (echo a | cat nowhere) | set standing" |> ignore
-        harness.Run "try echo (echo a | cat nowhere) | set argument" |> ignore
+        harness.Run "try (echo a | read nowhere) | set standing" |> ignore
+        harness.Run "try echo (echo a | read nowhere) | set argument" |> ignore
 
         Assert.AreEqual<string>("1", harness.Text "echo $argument.stage")
         Assert.AreEqual<string>("1", harness.Text "echo $standing.stage")
@@ -152,7 +152,7 @@ type RecoveryTests() =
         let harness = seeded ()
         // `try` covers a nested pipeline stage whose first command succeeds and second
         // fails: the mkdir must go with the failure.
-        harness.Run "try (mkdir inside | cd nowhere) | set problem" |> ignore
+        harness.Run "try (mkdir inside | in nowhere) | set problem" |> ignore
 
         Assert.IsFalse(harness.Exists "/inside", "The events of the failed try stage were committed.")
         Assert.IsTrue((harness.Variable "problem").IsSome, "The stage after try should still have run.")
@@ -161,7 +161,7 @@ type RecoveryTests() =
     member _.TryOnlyCoversItsOwnStage() =
         let harness = seeded ()
 
-        Assert.AreEqual<string>("File does not exist : /nowhere.txt", harness.Error "try echo x | cat nowhere.txt")
+        Assert.AreEqual<string>("File does not exist : /nowhere.txt", harness.Error "try echo x | read nowhere.txt")
 
     /// Stop is not a failure a line recovers from, or the Stop button is a suggestion.
     [<TestMethod>]
@@ -202,15 +202,15 @@ type RecoveryTests() =
     member _.TheDefaultIsLazy() =
         let harness = seeded ()
 
-        Assert.AreEqual<string>("hello", harness.Text "echo hello ?? (cat nowhere.txt)")
-        Assert.AreEqual<string>("File does not exist : /nowhere.txt", harness.Error "first (ls | where $row.kind eq view) ?? (cat nowhere.txt)")
+        Assert.AreEqual<string>("hello", harness.Text "echo hello ?? (read nowhere.txt)")
+        Assert.AreEqual<string>("File does not exist : /nowhere.txt", harness.Error "first (ls | where $row.kind eq view) ?? (read nowhere.txt)")
 
     /// A fault is an answer, so `try x ?? y` keeps it.
     [<TestMethod>]
     member _.AFaultIsNotReplacedByTheDefault() =
         let harness = seeded ()
 
-        Assert.AreEqual(NotFound, (faultOf (harness.Run "try cat nowhere.txt ?? fine")).Kind)
+        Assert.AreEqual(NotFound, (faultOf (harness.Run "try read nowhere.txt ?? fine")).Kind)
 
     // ---------------------------------------------------- nested pipelines
 
@@ -254,7 +254,7 @@ type RecoveryTests() =
     [<TestMethod>]
     member _.AFailingNestedPipelineFailsTheLine() =
         let harness = seeded ()
-        let fault = harness.Fail "echo x | echo (cat nowhere.txt)"
+        let fault = harness.Fail "echo x | echo (read nowhere.txt)"
 
         Assert.AreEqual(NotFound, fault.Kind)
         Assert.AreEqual<int option>(Some 2, fault.Stage)
@@ -271,10 +271,10 @@ type RecoveryTests() =
     [<TestMethod>]
     member _.IsFaultAnswersWhetherAValueIsOne() =
         let harness = seeded ()
-        harness.Run "try cat nowhere.txt | set problem" |> ignore
+        harness.Run "try read nowhere.txt | set problem" |> ignore
 
         Assert.AreEqual<Value>(Value.Boolean true, harness.Run "is-fault $problem")
-        Assert.AreEqual<Value>(Value.Boolean true, harness.Run "try cat nowhere.txt | is-fault")
+        Assert.AreEqual<Value>(Value.Boolean true, harness.Run "try read nowhere.txt | is-fault")
         Assert.AreEqual<Value>(Value.Boolean false, harness.Run "echo fine | is-fault")
         Assert.AreEqual<Value>(Value.Boolean false, harness.Run "is-fault")
 
@@ -299,7 +299,7 @@ type RecoveryTests() =
     [<TestMethod>]
     member _.TheDefaultReplacesAValueStageThatAnswersNothing() =
         let harness = seeded ()
-        harness.Run "try cat missing.txt | set maybe" |> ignore
+        harness.Run "try read missing.txt | set maybe" |> ignore
 
         Assert.AreEqual<string>("x", harness.Text "$maybe.nothing ?? \"x\"")
 

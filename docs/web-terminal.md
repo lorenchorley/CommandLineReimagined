@@ -10,7 +10,7 @@ the page's rather than the language's.
 | Title bar | The project name, and a status that reads `wasm` in green once the runtime has loaded. |
 | Scrollback | Every command you have run, with its live output, errors and results. |
 | Detail line | One line above the location line. While you type, it shows the parameters of the command you are writing an argument of, what the selected completion is, or a parse error already behind the word; after a tap, what the tapped word is. See [The detail line](#the-detail-line). |
-| Location line | Where you are: a directory as its path, or a view as the question it is. Undo (↶) and redo (↷) buttons always come before it, and anywhere but the root an `up` button too. |
+| Location line | Where you are: a directory as its path, or a view as the question it is. Undo (↶) and redo (↷) buttons always come before it, and anywhere but the root an `out` button too. |
 | Input | A transparent line over a coloured mirror of what you type. It is an editable line rather than a form field, so Chrome on Android shows no autofill bar (key, card, pin) above the keyboard. |
 | Run button | Runs the line. It becomes a red Stop button while a command is running. |
 | Completion row | Appears below the input while you type, offering what the word under the caret could become: commands, variables, members, columns, values, operators, flags, keywords and paths. |
@@ -24,14 +24,14 @@ input and both button rows without horizontal scrolling.
 Nothing the page does on its own opens or closes the keyboard, or moves what is on
 screen:
 
-- The keyboard stays as you left it. Tapping Run, `up`, ↶, ↷, a chip, a suggestion key,
+- The keyboard stays as you left it. Tapping Run, `out`, ↶, ↷, a chip, a suggestion key,
   a table cell or a word neither closes it nor opens it, and a line run from the
   keyboard leaves it up. The return key is a plain return, so it does not close the
   keyboard either.
 - The terminal fits the part of the screen the keyboard leaves. The input sits just
   above the keyboard, and running a line does not move it.
 - The newest output is shown to its last line, even when something below it changes
-  size afterwards, such as the location line gaining an `up` button, or the keyboard
+  size afterwards, such as the location line gaining an `out` button, or the keyboard
   opening. If you have scrolled up to read, the scrollback stays where you are until
   you run the next line.
 
@@ -85,7 +85,7 @@ The first chip is selected, and the [detail line](#the-detail-line) says what it
 Twelve chips show at most; past that, a `+N` chip opens the rest into the same row.
 Chips are 44 pixels tall, a finger's width. Tapping one, or Tab, replaces the word under
 the caret from its start to its end, so a word in the middle of the line is completed
-and the rest of the line stays: with the caret after `re` in `cat re documents`, the
+and the rest of the line stays: with the caret after `re` in `read re documents`, the
 chip is `readme.txt`, and taking it leaves ` documents` where it was. The caret lands after what was put in, followed by a
 space unless one is already there. A directory completes to its name and a `/` with no
 space, so the next completion goes on into it. A name that is not a bare word, such as
@@ -95,7 +95,7 @@ the opening quote.
 ### What each place offers
 
 Every example below is in a fresh tab after `set v 5`, `ls | set files` and
-`try cat missing.txt | set problem`. Each chip is shown with its detail after a `·`.
+`try read missing.txt | set problem`. Each chip is shown with its detail after a `·`.
 The detail line shows the selected chip's detail, except while the caret is in an
 argument or a predicate, where it shows the command's parameters instead: there a
 column's type or a value's count comes with the chip but is not on the screen. See
@@ -104,8 +104,8 @@ column's type or a value's count comes with the chip but is not on the screen. S
 | Where the word is | Offered | For example |
 | --- | --- | --- |
 | The first word of a stage: the start of the line, and after `else`, `try` or `(` | Command names, each with its description, and `try` and the page's `clear` | `wh`: `where · Keep the rows a predicate is true for` |
-| Straight after a pipe | Only the commands that take the piped value, and `try`. After a table, not the ones that take a path or a place from the pipe, since a table is not a name | `ls \| `: `columns`, `count`, `distinct` … `where`, `write`, `try`; not `ls` or `mkdir`, which would ignore it, nor `cat`, `rm` or `cd`. `echo readme.txt \| ` offers `cat`, `rm` and `cd` too |
-| A command name written another way, once three letters are typed | A command found by what it does, or one a slip away | `delete`: `rm · rm · matches "delete"`; `lss`: `ls` |
+| Straight after a pipe | Only the commands that take the piped value, and `try`. After a table, not the ones that take a path or a place from the pipe, since a table is not a name | `ls \| `: `columns`, `count`, `distinct` … `where`, `write`, `try`; not `ls` or `mkdir`, which would ignore it, nor `read`, `rm` or `in`. `echo readme.txt \| ` offers `read`, `rm` and `in` too |
+| A command name written another way, once three letters are typed, or a whole keyword of any length | A command found by what it does, or one a slip away | `delete`: `rm · rm · matches "delete"`; `cd`, the old name of `in`: `in · in · matches "cd"`; `lss`: `ls` |
 | After `$` | The variables in name order, each saying what it holds | `$`: `$files · table · 4 rows · name, kind, folder…`, `$problem · fault · NotFound · File does not exist : /missing.txt`, `$v · number · 5` |
 | After `$` inside a predicate | `$row` first, then the variables | `ls \| where $`: `$row · the row being tested`, then `$files`, `$problem`, `$v` |
 | After `$name.` | The members of what the variable holds: a tag's or a file's attributes, a fault's `kind`, `message`, `stage` and `path`; nothing for a number, a text, a boolean or a table | `$problem.`: `$problem.kind · text · "NotFound"`, `$problem.message`, `$problem.stage · number · 1`, `$problem.path`; `$v.`: nothing |
@@ -113,19 +113,19 @@ column's type or a value's count comes with the chip but is not on the screen. S
 | An argument that takes a column | The columns of what flows in, with their types; for `select`, the ones not yet written | `ls \| sort `: `name · file`, `kind · text`, `folder · text`, `size · number`, `modified · text` |
 | A switch | Its two words | `ls \| sort name `: `desc · Write 'desc' to order downwards`, `asc` |
 | After `-` | The command's flags | `ls \| sort name -`: `-desc · Write 'desc' to order downwards` |
-| An argument that takes a path | Files and folders, in the current folder or in the folder typed so far | `cat re`: `readme.txt`; `cat documents/no`: `documents/notes.txt`; `cat "doc`: `"documents/"` |
-| An argument that takes a place | Folders and saved views | `cd doc`: `documents/` |
+| An argument that takes a path | Files and folders, in the current folder or in the folder typed so far | `read re`: `readme.txt`; `read documents/no`: `documents/notes.txt`; `read "doc`: `"documents/"` |
+| An argument that takes a place | Folders and saved views | `in doc`: `documents/` |
 | A variable's name, for `set` | The variables, to replace one | `set `: `files`, `problem`, `v`, each with what it holds |
 | A command's name, for `help` | The commands, with their descriptions | `help wh`: `where` |
 | A count, a number, a new name, a URL or text | Nothing, since there is nothing to pick; the detail line says what is wanted | `ls \| take `: no chips, and `take <count> [table] · How many rows to keep` |
 | After `attr <file> ` | That record's attributes as `name=`, each with its value | `attr readme.txt `: `name= · text · "readme.txt"`, `kind= · text · "text"` |
 | Where a predicate's operand starts | `$row.`, `not` and `(` | `ls \| where `: `$row. · a column of the row being tested`, `not · true where what follows is false`, `( · a group, or a pipeline to compare with` |
 | After an operand | The eight comparisons | `ls \| where $row.kind `: `eq`, `ne`, `gt`, `ge`, `lt`, `le`, `like`, `has` |
-| After a comparison | The values the column holds in what flows in, most frequent first, at most twelve; after `like`, each with a `*`. Nothing for `cd`, `find` and `save-view`, which have no stage before them to read values from | `ls \| where $row.kind eq `: `folder · 3 rows`, `text · 1 row`; `ls \| where $row.name like `: `documents*`, `examples*`, `projects*`, `readme.txt*` |
+| After a comparison | The values the column holds in what flows in, most frequent first, at most twelve; after `like`, each with a `*`. Nothing for `in`, `find` and `save-view`, which have no stage before them to read values from | `ls \| where $row.kind eq `: `folder · 3 rows`, `text · 1 row`; `ls \| where $row.name like `: `documents*`, `examples*`, `projects*`, `readme.txt*` |
 | After a whole comparison | `and` and `or` | `ls \| where $row.kind eq folder `: `and`, `or` |
 | After `<` | The tag types in use: the kinds of the records, and the types of the tags variables hold | `save <`: `<script · 4 records`, `<text · 2 records` |
 | Inside `<type ` | The attribute names records of that type carry, as `name=`, `name` first, leaving out any already written | after `save <note name=monday mood=good tag=work/>` and `save <note name=tuesday mood=better/>`, `save <note `: `name= · 2 of 2 carry it`, `mood= · 2 of 2 carry it`, `tag= · 1 of 2 carry it` |
-| Two letters of `else`, where an argument goes | `else` | `cat x el`: `else` |
+| Two letters of `else`, where an argument goes | `else` | `read x el`: `else` |
 
 An empty line offers nothing, because the suggestion row already covers that case.
 `$row` is offered only inside a predicate, because it exists nowhere else, so `echo $`
@@ -146,14 +146,14 @@ offers:
 | --- | --- |
 | `set v 5` | `number · 5` |
 | `ls \| set files` | `table · 4 rows · name, kind, folder…` |
-| `try cat missing.txt \| set problem` | `fault · NotFound · File does not exist : /missing.txt` |
+| `try read missing.txt \| set problem` | `fault · NotFound · File does not exist : /missing.txt` |
 | `set b (is-fault $v)` | `boolean · false` |
 | `set t hello` | `text · "hello"` |
 | `set long "a sentence that runs on for rather more than forty characters"` | `text · "a sentence that runs on for rather more…"` |
 | `write x.txt hi \| set f` | `file · x.txt · text` |
 | `mkdir d \| set d` | `folder · d` |
 | `set tg <note a=1 b=2/>` | `tag · note · 2 attributes` |
-| `cd $row.kind eq folder \| set q` | `query · $row.kind eq folder` |
+| `in $row.kind eq folder \| set q` | `query · $row.kind eq folder` |
 | `ls \| rows \| set l` | `list · 6 items` |
 
 `vars` does not use these words yet: it still shows a table as `4 rows` and anything
@@ -174,7 +174,7 @@ A result is rendered by kind:
   path — which is how you avoid typing a file name on a phone. A path that is not a bare
   word, such as `/my notes.txt` or a name that is a reserved word, is inserted in
   quotes, so it stays one argument.
-- **Text** becomes a block with a rule down its left side, so `cat` output keeps its
+- **Text** becomes a block with a rule down its left side, so `read` output keeps its
   line breaks.
 - **A variable typed on its own**, such as `$files`, is drawn as whatever it holds,
   as a table if it holds one ([decision 0032](decisions/0032-a-stage-may-be-a-value.md)).
@@ -186,8 +186,8 @@ Tapping a header sorts what you are looking at. `ls | sort size desc` is the one
 changes what the terminal answered, and it is a different question.
 
 Tapping a cell that names a place writes the line that goes there rather than the path
-on its own: a directory, such as one in the `name` column, becomes `cd /documents`, and
-a cell in a `folder` column, which says which directory a row came from, becomes `cd`
+on its own: a directory, such as one in the `name` column, becomes `in /documents`, and
+a cell in a `folder` column, which says which directory a row came from, becomes `in`
 and that folder. That is most useful in a view's listing, whose rows come from many
 directories. Every other cell appends what it is.
 
@@ -199,17 +199,17 @@ Below the scrollback and above the input, one line says where you are. A directo
 reads as its full path. A view reads as `view:`, the predicate, `in` and the directory
 it was entered from, because that is still where a new file would land.
 
-At the root with no view there is nowhere to go up to, and no button. Anywhere else, the
-`up` button before the location runs the [`up`](commands.md#up) command, which comes out of
-one thing at a time: the view first, then the directory. It is the page's answer to a
-listing having nowhere to put a parent row — every row of a table is a record, and
-`up` is not one.
+At the root with no view there is nowhere to come out to, and no button. Anywhere else,
+the `out` button before the location runs the [`out`](commands.md#out) command, which comes
+out of one thing at a time: the view first, then the directory. It is the page's answer
+to a listing having nowhere to put a parent row — every row of a table is a record, and
+the way out is not one.
 
 Before them both are two buttons that are always there: ↶ runs
 [`undo`](commands.md#undo) and ↷ runs [`redo`](commands.md#redo). They do exactly what
 typing the command does — the entry the undo takes back leaves the screen, and redo
 puts it back where it was — and they leave anything you were halfway through typing in
-the input. The `up` button does the same.
+the input. The `out` button does the same.
 
 ## Live listings
 
@@ -279,7 +279,7 @@ failure it was: `notfound`, `conflict`, `binding` and so on. The message is the 
 that has always been there; the tag is what lets you tell a missing file from a name
 already taken at a glance. The [error reference](errors.md) lists every kind.
 
-Nothing the line did survives. A line is one transaction, so `mkdir a | cd nowhere`
+Nothing the line did survives. A line is one transaction, so `mkdir a | in nowhere`
 leaves no folder behind.
 
 A fault that `try` caught, or that `else` handed on, is not a failure: the line went on
@@ -311,7 +311,7 @@ commands, rather than each having its own half of the feature.
 
 What `help` used to say about pipes, tags and variables is in the filesystem: the
 banner at the top of the scrollback points to `readme.txt`, and `readme.txt` points to
-the `guide` folder, one file per idea, read with `cat`.
+the `guide` folder, one file per idea, read with `read`.
 
 ## The detail line
 
@@ -364,7 +364,7 @@ the four example programs, `guide/` holding one file per idea, `projects/` and
 `readme.txt`, which points to the guide. A log begun before the guide existed is given
 it once, on its next load ([decision 0036](decisions/0036-the-guide-is-in-the-filesystem.md)). It is not a disk and not
 Emscripten's filesystem: it is a projection folded from the log, so `mkdir`, `cp` and
-`write` describe changes and the store applies them, and `cd ..` at the root stays at
+`write` describe changes and the store applies them, and `in ..` at the root stays at
 the root. Files are attribute records rather than entries in a tree, and a query over
 their attributes is somewhere you can be: [The filesystem](filesystem.md) is the
 guide.
@@ -391,7 +391,7 @@ If the replay fails, the status turns red and reads `failed to restore`, the scr
 says `Could not restore the session:` and why, and the input stays disabled.
 
 The banner then says what happened — a first visit, or how many lines came back —
-points to `cat readme.txt` (the `readme` key runs it), and says whether this browser is
+points to `read readme.txt` (the `readme` key writes it), and says whether this browser is
 keeping your files. The status line says `wasm`, with `not persisted` beside it when the browser is not
 keeping anything; hover it to see the reason the browser gave. That is said before you
 have typed, rather than after a morning's work turns out not to have been saved. If some

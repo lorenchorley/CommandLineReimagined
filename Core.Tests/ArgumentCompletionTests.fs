@@ -34,13 +34,13 @@ type ArgumentCompletionTests() =
     /// `EveryParameterSaysWhatItTakes`, rather than quietly being offered files. A
     /// `Predicate` parameter and the `Assignments` collector keep `Anything`: their kind
     /// already sends the word elsewhere (a predicate to stream E's provider, an
-    /// assignment to the record's attributes), except `cd`'s, which also takes a place.
+    /// assignment to the record's attributes), except `in`'s, which also takes a place.
     /// </remarks>
     static let expected: ((string * string) * Takes) list =
         [ ("attr", "path"), Takes.Path
           ("attr", "assignments"), Takes.Anything
-          ("cat", "path"), Takes.Path
-          ("cd", "TargetPath"), Takes.Place
+          ("read", "path"), Takes.Path
+          ("in", "TargetPath"), Takes.Place
           ("columns", "table"), Takes.Value
           ("count", "table"), Takes.Value
           ("cp", "sourcePathAndFile"), Takes.Path
@@ -134,7 +134,7 @@ type ArgumentCompletionTests() =
     member _.EveryParameterIsReachedWhereItsWordIs() =
         let lines =
             [ "attr ", "Argument(attr, path)"
-              "cat ", "Argument(cat, path)"
+              "read ", "Argument(read, path)"
               "cp ", "Argument(cp, sourcePathAndFile)"
               "cp a ", "Argument(cp, targetPath)"
               "distinct ", "Argument(distinct, column)"
@@ -343,7 +343,7 @@ type ArgumentCompletionTests() =
               "ls | where $row.kind eq ", "where", 0
               "find ", "find", 0
               "save-view x ", "save-view", 1
-              "cd ", "cd", 0 ] do
+              "in ", "in", 0 ] do
             match signature harness line with
             | Some signature ->
                 Assert.AreEqual<string>(command, signature.Command, line)
@@ -476,7 +476,7 @@ type ArgumentCompletionTests() =
         Assert.AreEqual<int option>(Some 0, active "ls | select name ")
         Assert.AreEqual<int option>(Some 1, active "cp readme.txt ")
         Assert.AreEqual<int option>(Some 0, active "ls | sort ‸ | take 2")
-        Assert.AreEqual<int option>(Some 0, active "cat \"doc")
+        Assert.AreEqual<int option>(Some 0, active "read \"doc")
 
     /// More than the command takes binds to nothing, so nothing is marked; the
     /// signature is still shown, to say what the command does take.
@@ -484,9 +484,9 @@ type ArgumentCompletionTests() =
     member _.ASurplusWordMarksNothing() =
         let harness = seeded ()
 
-        match signature harness "cat x y" with
+        match signature harness "read x y" with
         | Some signature ->
-            Assert.AreEqual<string>("cat", signature.Command)
+            Assert.AreEqual<string>("read", signature.Command)
             Assert.AreEqual<int option>(None, signature.Active)
         | None -> Assert.Fail "no signature"
 
@@ -516,22 +516,22 @@ type ArgumentCompletionTests() =
     member _.AnArgumentCompletes() =
         let harness = seeded ()
 
-        assertContains "readme.txt" (texts harness "cat re")
+        assertContains "readme.txt" (texts harness "read re")
 
     [<TestMethod>]
     member _.AQuotedWordCompletesQuoted() =
         let harness = seeded ()
 
-        match items harness "cat \"doc" with
+        match items harness "read \"doc" with
         | [ folder ] ->
             Assert.AreEqual<string>("\"documents/\"", folder.Text)
             Assert.AreEqual<string>("folder", folder.Kind)
-            Assert.AreEqual<int>(4, folder.Start)
-            Assert.AreEqual<int>(8, folder.End)
+            Assert.AreEqual<int>(5, folder.Start)
+            Assert.AreEqual<int>(9, folder.End)
         | other -> Assert.Fail(sprintf "%A" other)
 
-        Assert.AreEqual<string list>([ "\"documents/notes.txt\"" ], texts harness "cat \"documents/no")
-        Assert.AreEqual<string list>([ "\"readme.txt\"" ], texts harness "cat \"re")
+        Assert.AreEqual<string list>([ "\"documents/notes.txt\"" ], texts harness "read \"documents/no")
+        Assert.AreEqual<string list>([ "\"readme.txt\"" ], texts harness "read \"re")
 
     /// A closing quote already there is part of the word, so it is replaced rather than
     /// doubled.
@@ -539,11 +539,11 @@ type ArgumentCompletionTests() =
     member _.AQuotedWordReplacesItsClosingQuote() =
         let harness = seeded ()
 
-        match items harness "cat \"re‸\" | count" with
+        match items harness "read \"re‸\" | count" with
         | [ file ] ->
             Assert.AreEqual<string>("\"readme.txt\"", file.Text)
-            Assert.AreEqual<int>(4, file.Start)
-            Assert.AreEqual<int>(8, file.End)
+            Assert.AreEqual<int>(5, file.Start)
+            Assert.AreEqual<int>(9, file.End)
         | other -> Assert.Fail(sprintf "%A" other)
 
     [<TestMethod>]
@@ -551,28 +551,28 @@ type ArgumentCompletionTests() =
         let harness = seeded ()
         harness.Run "write \"my notes.txt\" hello" |> ignore
 
-        Assert.AreEqual<string list>([ "\"my notes.txt\"" ], texts harness "cat my")
-        Assert.AreEqual<string list>([ "\"my notes.txt\"" ], texts harness "cat \"my n")
+        Assert.AreEqual<string list>([ "\"my notes.txt\"" ], texts harness "read my")
+        Assert.AreEqual<string list>([ "\"my notes.txt\"" ], texts harness "read \"my n")
 
         // And what it completes to is a line that runs.
-        Assert.AreEqual<string>("hello", harness.Text "cat \"my notes.txt\"")
+        Assert.AreEqual<string>("hello", harness.Text "read \"my notes.txt\"")
 
     [<TestMethod>]
     member _.AQuotedWordIsNeverTheKeyword() =
         let harness = seeded ()
 
-        assertDoesNotContain "else" (texts harness "cat x \"el")
+        assertDoesNotContain "else" (texts harness "read x \"el")
 
-    /// `cat re| documents`: the completion replaces the word and keeps what follows.
+    /// `read re| documents`: the completion replaces the word and keeps what follows.
     [<TestMethod>]
     member _.APathMidLineKeepsTheRestOfTheLine() =
         let harness = seeded ()
 
-        match items harness "cat re‸ documents" with
+        match items harness "read re‸ documents" with
         | [ file ] ->
             Assert.AreEqual<string>("readme.txt", file.Text)
-            Assert.AreEqual<int>(4, file.Start)
-            Assert.AreEqual<int>(6, file.End)
+            Assert.AreEqual<int>(5, file.Start)
+            Assert.AreEqual<int>(7, file.End)
         | other -> Assert.Fail(sprintf "%A" other)
 
     [<TestMethod>]
@@ -586,7 +586,7 @@ type ArgumentCompletionTests() =
     [<TestMethod>]
     member _.APathOffersFilesAndFolders() =
         let harness = seeded ()
-        let offered = texts harness "cat "
+        let offered = texts harness "read "
 
         assertContains "readme.txt" offered
         assertContains "documents/" offered
@@ -596,7 +596,7 @@ type ArgumentCompletionTests() =
     member _.ASurplusWordOffersFiles() =
         let harness = seeded ()
 
-        Assert.AreEqual<string list>([ "readme.txt" ], texts harness "cat x re")
+        Assert.AreEqual<string list>([ "readme.txt" ], texts harness "read x re")
         Assert.AreEqual<string list>([ "readme.txt" ], texts harness "frob re")
 
     // ------------------------------------------------------- else
@@ -607,10 +607,10 @@ type ArgumentCompletionTests() =
     member _.ElseIsOfferedInEveryArgumentPlace() =
         let harness = seeded ()
 
-        for line in [ "cat x el"; "cat el"; "ls | sort name el"; "ls | take el"; "set el"; "attr readme.txt el" ] do
+        for line in [ "read x el"; "read el"; "ls | sort name el"; "ls | take el"; "set el"; "attr readme.txt el" ] do
             assertContains "else" (texts harness line)
 
-        for line in [ "cat x e"; "ls | sort name -el" ] do
+        for line in [ "read x e"; "ls | sort name -el" ] do
             assertDoesNotContain "else" (texts harness line)
 
     // ------------------------------------------------------- a command name

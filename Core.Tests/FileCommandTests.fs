@@ -5,7 +5,7 @@ open CommandLineReimagined.Core
 open CommandLineReimagined.Core.Tests.Harness
 open CommandLineReimagined.Core.Tests.SessionHarness
 
-/// <summary>cat, write, rm, cp, pwd, mkdir, attr and save.</summary>
+/// <summary>read, write, rm, cp, pwd, mkdir, attr and save.</summary>
 /// <remarks>
 /// The port of `Execution.Tests/FileAndVariableCommandTests.cs`, plus the two commands
 /// the attribute filesystem adds. Undo is no longer a method on each command: every one
@@ -31,40 +31,40 @@ type FileCommandTests() =
         harness.Run "write documents/a.txt top" |> ignore
         harness
 
-    // ------------------------------------------------------------------------- cat
+    // ------------------------------------------------------------------------ read
 
     [<TestMethod>]
-    member _.CatReturnsTheFileAsText() =
+    member _.ReadReturnsTheFileAsText() =
         let harness = harness ()
 
-        Assert.AreEqual<Value>(Value.Text "hello", harness.Run "cat notes.txt")
+        Assert.AreEqual<Value>(Value.Text "hello", harness.Run "read notes.txt")
 
     [<TestMethod>]
-    member _.CatAcceptsAPipedPath() =
+    member _.ReadAcceptsAPipedPath() =
         let harness = harness ()
 
-        Assert.AreEqual<string>("hello", harness.Text "echo notes.txt | cat")
+        Assert.AreEqual<string>("hello", harness.Text "echo notes.txt | read")
 
     [<TestMethod>]
-    member _.CatOfAMissingFileIsReported() =
+    member _.ReadOfAMissingFileIsReported() =
         let harness = harness ()
 
-        StringAssert.Contains(harness.Error "cat nowhere.txt", "File does not exist")
+        StringAssert.Contains(harness.Error "read nowhere.txt", "File does not exist")
 
     [<TestMethod>]
-    member _.CatOfADirectoryIsReported() =
+    member _.ReadOfADirectoryIsReported() =
         let harness = harness ()
 
-        StringAssert.Contains(harness.Error "cat documents", "directory, not a file")
+        StringAssert.Contains(harness.Error "read documents", "directory, not a file")
 
     /// A record can have attributes and no content at all, which `save` makes. That is
     /// empty text rather than a missing file.
     [<TestMethod>]
-    member _.CatOfARecordWithNoContentIsEmpty() =
+    member _.ReadOfARecordWithNoContentIsEmpty() =
         let harness = harness ()
         harness.Run "save <note name=todo/>" |> ignore
 
-        Assert.AreEqual<Value>(Value.Text "", harness.Run "cat todo")
+        Assert.AreEqual<Value>(Value.Text "", harness.Run "read todo")
 
     // ----------------------------------------------------------------------- write
 
@@ -81,7 +81,7 @@ type FileCommandTests() =
     [<TestMethod>]
     member _.WriteTakesItsTextFromThePipe() =
         let harness = harness ()
-        harness.Run "cat notes.txt | write copy.txt" |> ignore
+        harness.Run "read notes.txt | write copy.txt" |> ignore
 
         Assert.AreEqual<string>("hello", harness.Content "copy.txt")
 
@@ -166,7 +166,7 @@ type FileCommandTests() =
     [<TestMethod>]
     member _.RmRefusesTheCurrentDirectory() =
         let harness = harness ()
-        harness.Run "cd documents" |> ignore
+        harness.Run "in documents" |> ignore
 
         StringAssert.Contains(harness.Error "rm /documents", "Cannot delete the current directory")
 
@@ -200,7 +200,7 @@ type FileCommandTests() =
 
         Assert.AreEqual<string>("work", harness.Attribute "notes.txt" "tag")
 
-    // -------------------------------------------------------------------- mkdir/cd
+    // -------------------------------------------------------------------- mkdir/in
 
     [<TestMethod>]
     member _.MkdirRefusesAnExistingName() =
@@ -218,21 +218,21 @@ type FileCommandTests() =
     [<TestMethod>]
     member _.PwdReturnsTheCurrentDirectory() =
         let harness = harness ()
-        harness.Run "cd documents" |> ignore
+        harness.Run "in documents" |> ignore
 
         Assert.AreEqual<Value>(Value.Text "/documents", harness.Run "pwd")
 
     /// Moving nowhere is not a change, so the line commits nothing and `undo` reaches
     /// past it.
     [<TestMethod>]
-    member _.CdToWhereYouAlreadyAreCommitsNothing() =
+    member _.InToWhereYouAlreadyAreCommitsNothing() =
         let harness = harness ()
         harness.Run "mkdir alpha" |> ignore
-        harness.Run "cd ." |> ignore
+        harness.Run "in ." |> ignore
 
         harness.Run "undo" |> ignore
 
-        Assert.IsFalse(harness.Exists "alpha", "The undo should have reached past the cd.")
+        Assert.IsFalse(harness.Exists "alpha", "The undo should have reached past the move in.")
 
     // -------------------------------------------------------------------------- cp
 
@@ -405,7 +405,7 @@ type FileCommandTests() =
     [<TestMethod>]
     member _.RenamingTheFolderYouAreInTakesYouWithIt() =
         let harness = nested ()
-        harness.Run "cd documents/sub" |> ignore
+        harness.Run "in documents/sub" |> ignore
 
         harness.Run "attr /documents name=d2" |> ignore
 
@@ -451,7 +451,7 @@ type FileCommandTests() =
         harness.Run "save <note name=todo/>" |> ignore
 
         harness.Run "attr todo kind=folder" |> ignore
-        harness.Run "cd todo" |> ignore
+        harness.Run "in todo" |> ignore
 
         Assert.AreEqual<string>("/todo", harness.Location)
 
