@@ -1,6 +1,6 @@
 # Implementation plan: functional core, event-sourced store, attribute filesystem, tables
 
-**Status: Phases 1 to 10 complete; Phase 11 in progress.** Phases 1 to 10 are built, and each built phase ends
+**Status: Phases 1 to 11 complete.** Phases 1 to 11 are built, and each built phase ends
 with an "As built" section recording where the result differs from what it planned.
 [Phase 8](phase-8-intellisense.md) was added afterwards, from an audit of completion;
 unlike the others, it was divided into streams that ran in parallel after one

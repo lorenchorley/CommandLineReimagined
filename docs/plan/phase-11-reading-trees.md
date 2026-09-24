@@ -3,7 +3,7 @@
 **Goal.** Everything in a tag can be read: its name and children with `@`, and any
 element of a nested document with a CSS selector.
 
-**Status: in progress; 11.0 is built, streams A and B are next.** Chosen by the owner on
+**Status: complete.** Built as planned, with the owner's answers of 2026-09-24; see [As built](#as-built). Chosen by the owner on
 2026-09-24, from their questions about `set v <thing a=1/>` and nested XML, and run as
 [running.md](running.md) describes. Their third question, whether `ls | set files`
 should show the table, they answered: it stays as it is.
@@ -172,4 +172,52 @@ all with the option recommended:
 | 11.9 docs | sub-agent | merged | fe68740 |
 | 11.9 spec | sub-agent | merged | ef56fbd |
 | 11.9 gaps the documents found | orchestrator | merged | d0b9455 |
-| 11.9 verifier, republish, As built | orchestrator | not started | |
+| 11.9 verifier, republish, As built | orchestrator | done | this commit |
+
+## As built
+
+Every checkpoint and stream, with these differences and findings.
+
+- **How it ran.** The orchestrator built 11.0: records 0048 and 0049, `Takes.Selector`,
+  and the new files registered. Streams A and B ran together and merged in the order A,
+  B. Four questions from their reports went to the owner in one batch (0050 to 0052); the
+  orchestrator did the grammar, member and display answers, and B was sent back for
+  0052 and completion after any upstream. 11.9's documents and specification went to two
+  sub-agents, whose gaps the orchestrator then closed.
+- **Departures, kept.**
+  - `pick` also covers the `descendants` command first proposed: `pick "*"` is every
+    element, so there is no second command.
+  - The acceptance line `$d.@children | count` became `$d.@children | pick "*" | select
+    @tag`, since `count` is a table function and three children of different shapes are
+    not a table.
+  - 0052 is met with a weak table in `Selector.fs` that links a row's `@children` cell to
+    the element the row was made from; no column is added. `Shape` gains `Value`, the
+    value an upstream answered, so completion after any upstream can offer element
+    names; it is left out of `Shape`'s equality.
+  - `pick`'s read-back of `@tag` and `@children` matches the column names without case,
+    as every table function does, and so does the `@children` summary.
+- **Found by the documents and fixed:**
+  - A single row given to `pick`, as `first` answers, was read as a tag named `row`, so
+    its `@tag` and `@children` came out as two more columns. It is read back as its
+    element, as a table's rows are.
+  - An empty filter on `$row.@tag` over rows made from children said `No row has @tag.`,
+    though every row answers it. `@tag` and `@children` are never counted missing.
+  - Hover on a row's own `@tag` column called it the tag's name; it describes the
+    column, as completion does.
+  - Tapping a summarised cell wrote `3 children` into the input; it writes nothing.
+  - `web-terminal.md` said a fresh `ls` was `4 rows`; it is `5 rows`.
+- **Kept as they are, and why:**
+  - A table from `pick` kept in a variable forgets, after a reload, which element each
+    row stands for, since the link is not stored in the log; picking from it after a
+    reload can answer an element once per row it is inside. Storing the link would need
+    a column, which 0052 rules out.
+  - `columns` types `@children` as `text`, since a table has no list column type;
+    `to-csv` writes a list out in full and an empty one as `""`; and
+    `$row.@children has author` compares the children's display text, so it finds
+    nothing. None contradicts a record, and each would be a decision of its own.
+- **Verification.** A verifier ran the acceptance table and the owner's answers against
+  fb84e8b: all 13 lines and every check matched, on the core and on the published page.
+  On the final head every project builds without warnings, the 1541 tests of the four
+  suites `conformance.md` counts pass (963 in Core.Tests), and so do the smaller suites;
+  the browser check passes, Phase 11's lines included. The Artifact was republished from
+  the final head as version 22.
