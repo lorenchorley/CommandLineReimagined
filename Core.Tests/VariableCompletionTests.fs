@@ -196,17 +196,67 @@ type VariableCompletionTests() =
             texts harness "$files | where $row." |> Array.ofList)
 
     /// A tag's members are its attributes, in the order they were written, with what
-    /// each holds; a path is followed the way the evaluator reads members.
+    /// each holds, then its own parts (decision 0048); a path is followed the way the
+    /// evaluator reads members.
     [<TestMethod>]
     member _.ATagsMembersAreItsAttributes() =
         let harness = seeded ()
         harness.Run "set inner <circle radius=1/>" |> ignore
         harness.Run "set shape <square side=2 inner=$inner/>" |> ignore
 
-        Assert.AreEqual<string list>([ "$shape.side"; "$shape.inner" ], texts harness "$shape.")
+        Assert.AreEqual<string list>(
+            [ "$shape.side"; "$shape.inner"; "$shape.@tag"; "$shape.@children" ],
+            texts harness "$shape."
+        )
+
         Assert.AreEqual<string>("number · 2", detailOf harness "$shape." "$shape.side")
-        Assert.AreEqual<string list>([ "$shape.inner.radius" ], texts harness "$shape.inner.")
+
+        Assert.AreEqual<string list>(
+            [ "$shape.inner.radius"; "$shape.inner.@tag"; "$shape.inner.@children" ],
+            texts harness "$shape.inner."
+        )
+
         Assert.AreEqual<int>(0, (texts harness "$shape.side.").Length)
+
+    /// The Acceptance line: `$v.` on `<thing a=1/>` offers `a`, `@tag` and `@children`,
+    /// the last two saying what they read.
+    [<TestMethod>]
+    member _.ATagOffersItsOwnPartsAfterItsAttributes() =
+        let harness = seeded ()
+        harness.Run "set v <thing a=1/>" |> ignore
+
+        Assert.AreEqual<string list>([ "$v.a"; "$v.@tag"; "$v.@children" ], texts harness "$v.")
+        Assert.AreEqual<string list>([ "$v.a"; "$v.@tag"; "$v.@children" ], texts harness "echo $v.")
+        Assert.AreEqual<string>("the tag's name", detailOf harness "$v." "$v.@tag")
+        Assert.AreEqual<string>("its children", detailOf harness "$v." "$v.@children")
+
+    /// Typing the `@` leaves the tag's own parts alone, since no attribute starts with one.
+    [<TestMethod>]
+    member _.AnAtOffersOnlyTheTagsOwnParts() =
+        let harness = seeded ()
+        harness.Run "set v <thing a=1 at=2/>" |> ignore
+
+        Assert.AreEqual<string list>([ "$v.@tag"; "$v.@children" ], texts harness "$v.@")
+        Assert.AreEqual<string list>([ "$v.@tag" ], texts harness "echo $v.@t")
+        Assert.AreEqual<string list>([ "$v.@children" ], texts harness "echo $v.@c")
+
+    /// `$d.@children.` is a list, which has no members; the members of a child are
+    /// reached through a variable that holds it.
+    [<TestMethod>]
+    member _.ChildrenAreAListWithNoMembers() =
+        let harness = seeded ()
+        harness.Run "set d <a><b/><c/></a>" |> ignore
+
+        Assert.AreEqual<int>(0, (texts harness "$d.@children.").Length)
+        Assert.AreEqual<int>(0, (texts harness "$d.@tag.").Length)
+
+    /// A value that is not a tag has no own parts to offer.
+    [<TestMethod>]
+    member _.OnlyATagOffersItsOwnParts() =
+        let harness = accepted ()
+
+        for line in [ "$v.@"; "$files.@"; "$problem.@" ] do
+            Assert.AreEqual<int>(0, (texts harness line).Length, line)
 
     [<TestMethod>]
     member _.AFilesMembersAreWhatAFileCanBeAsked() =
