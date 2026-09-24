@@ -129,6 +129,74 @@ or it is an `or`, a `not`, `ne` or `has`, which are not explained. `ls | columns
 the columns, and `ls | distinct kind` the values of one. A table that was empty before
 the filter needs no reason, and gets none.
 
+## My XML is not a table
+
+A document is a table only when its root's children all have one name and none has
+children of its own. Anything nested deeper is a tree, and a table function says which
+child broke the shape. `pick` reads a tree: it finds elements by a CSS selector and
+answers them as a table, which `where`, `select` and `sort` take as they take any
+other ([Reading a tree with `pick`](tables.md#reading-a-tree-with-pick)). From a fresh
+tab:
+
+```
+$ write shop.xml "<shop><dept name='tools'><item sku='A1' price='4.5'>Hammer</item><item sku='A2' price='12'>Saw</item></dept><dept name='garden'><item sku='B1' price='3'>Trowel</item><dept name='seeds'><item sku='B7' price='1.2'>Basil</item></dept></dept></shop>"
+shop.xml
+
+$ from-xml shop.xml | where $row.price lt 5
+<shop> is not a table: child 1 has children of its own.
+
+$ from-xml shop.xml | pick item | where $row.price lt 5 | select sku text
+sku  text
+A1   Hammer
+B1   Trowel
+B7   Basil
+```
+
+For a document you have not seen, `pick "*" | group @tag` says which elements it holds
+and how many of each:
+
+```
+$ from-xml shop.xml | pick "*" | group @tag
+key   rows
+shop  1 row
+dept  3 rows
+item  4 rows
+```
+
+If `pick` answers only the header `@tag  @children`, nothing matched:
+
+- Names are compared exactly, so `Item` is not `item`.
+- `>` means a direct child, and a space means anywhere inside: `shop > item` matches
+  nothing here, since every item is inside a `dept`, and `shop item` matches all four.
+- An attribute test compares text: `[price^=1]` is a price that starts with `1`, which
+  here is `12` and `1.2`, not every price over 10. Compare numbers with `where`, after
+  the `pick`.
+
+A selector with a space, `>`, `[` or `,` in it has to be in double quotes, or the line
+is split at the space or does not parse. `pick` itself refuses a selector outside the
+subset it reads, and says where it stopped: see
+[Selector errors](errors.md#selector-errors).
+
+## A table cell says `2 children` instead of what is in it
+
+A cell is one line, so a list in one says how many items it holds
+([decision 0051](decisions/0051-a-list-in-a-table-cell-is-summarised.md)): `N children`
+in the `@children` column `pick` answers, `N items` in any other, and nothing when the
+list is empty. The value is still the whole list. Pick inside the rows to go further
+down, or read the list off a row with `@children`:
+
+```
+$ from-xml shop.xml | pick dept | select name @children
+name    @children
+tools   2 children
+garden  2 children
+seeds   1 child
+
+$ from-xml shop.xml | pick dept | where $row.name eq seeds | pick item | select text
+text
+Basil
+```
+
 ## A file name with a space is split into two arguments
 
 Quote it: `write "my notes.txt" hello`. Unquoted words end at a space. Tapping a chip or
