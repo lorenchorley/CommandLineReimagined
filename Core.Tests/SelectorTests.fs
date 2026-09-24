@@ -387,10 +387,6 @@ type SelectorTests() =
         let harness = withLibrary ()
 
         Assert.AreEqual<string list>([ "dune" ], harness.Column "$d | pick book | pick \"[year^=19]\"" "title")
-
-        // Each row is a document of its own, so an element inside two of them, the
-        // library's and its own, is answered once for each.
-        Assert.AreEqual<string list>([ "dune"; "dune" ], harness.Column "$d | pick \"*\" | pick \"[year^=19]\"" "title")
         Assert.AreEqual<string list>([ "book"; "book" ], harness.Column "$d | pick \"shelf, book\" | pick \"[title]\"" "@tag")
         Assert.AreEqual<string list>([ "shelf" ], harness.Column "$d | pick \"shelf, book\" | pick \"shelf\"" "@tag")
 
@@ -406,7 +402,115 @@ type SelectorTests() =
             Selector.pick (parse "*") documents |> fun table -> table.Rows |> List.map (List.head >> Value.display)
         )
 
-        Assert.AreEqual<Tag list>([], Selector.documents "pick" (Value.List []) |> expectOk)
+        Assert.AreEqual<int>(0, Selector.documents "pick" (Value.List []) |> expectOk |> List.length)
+
+    // ------------------------------------------------- 0052: each element once
+
+    /// The rows of `pick "*"` overlap: a book is a row of its own and inside the
+    /// library's. The book's row is not searched again.
+    [<TestMethod>]
+    member _.OverlappingRowsAnswerEachElementOnce() =
+        let harness = withLibrary ()
+
+        Assert.AreEqual<string list>([ "dune" ], harness.Column "$d | pick \"*\" | pick \"[year^=19]\" | select title" "title")
+
+        Assert.AreEqual<string list>(
+            [ "library"; "book"; "author"; "book"; "author"; "shelf" ],
+            harness.Column "$d | pick \"*\" | pick \"*\"" "@tag"
+        )
+
+        Assert.AreEqual<string list>([ "herbert"; "austen" ], harness.Column "$d | pick \"*\" | pick author" "name")
+        Assert.AreEqual<string list>([ "herbert"; "austen" ], harness.Column "$d | pick \"*\" | pick \"book > author\"" "name")
+
+    /// Picking again and again from what `*` answered finds the same elements, once.
+    [<TestMethod>]
+    member _.PickingFromOverlappingRowsIsStable() =
+        let harness = withLibrary ()
+
+        Assert.AreEqual<string list>(
+            harness.Column "$d | pick \"*\"" "@tag",
+            harness.Column "$d | pick \"*\" | pick \"*\" | pick \"*\"" "@tag"
+        )
+
+    /// The rows keep what they stand for through the table functions and a variable.
+    [<TestMethod>]
+    member _.ARowStandsForItsElementThroughTheTableFunctions() =
+        let harness = withLibrary ()
+
+        for middle in
+            [ "where $row.@tag ne shelf"
+              "sort \"@tag\""
+              "sort \"@tag\" desc"
+              "select \"@tag\" \"@children\" year title"
+              "take 6"
+              "skip 0" ] do
+            let line = sprintf "$d | pick \"*\" | %s | pick \"[year^=19]\"" middle
+            Assert.AreEqual<string list>([ "dune" ], harness.Column line "title", line)
+
+        harness.Run "set all ($d | pick \"*\")" |> ignore
+        Assert.AreEqual<string list>([ "dune" ], harness.Column "$all | pick \"[year^=19]\"" "title")
+
+    /// A document inside another is not searched again, whichever comes first, and the
+    /// elements come in the order of the document they were found in.
+    [<TestMethod>]
+    member _.ADocumentInsideAnotherIsNotSearchedAgain() =
+        let book = document.Children.Head
+
+        let names (items: Value list) =
+            Selector.documents "pick" (Value.List items)
+            |> expectOk
+            |> Selector.pick (parse "*")
+            |> fun table -> table.Rows |> List.map (List.head >> Value.display)
+
+        let all = [ "library"; "book"; "author"; "book"; "author"; "shelf" ]
+
+        Assert.AreEqual<string list>(all, names [ Value.Object document; book ])
+        Assert.AreEqual<string list>(all, names [ book; Value.Object document ])
+        Assert.AreEqual<string list>([ "book"; "author" ], names [ book; book ])
+
+        // Sorted, the inner rows come first: the library's row is still the one searched.
+        let harness = withLibrary ()
+
+        Assert.AreEqual<string list>(
+            [ "library"; "book"; "author"; "book"; "author"; "shelf" ],
+            harness.Column "$d | pick \"*\" | sort \"@tag\" desc | pick \"*\"" "@tag"
+        )
+
+    /// Equal is not the same: two elements typed alike are two, as documents in a
+    /// list, as children of one document, and as rows.
+    [<TestMethod>]
+    member _.EqualButSeparateElementsAreTwo() =
+        let harness = seeded ()
+        harness.Run "set p <pair><author name=x/><author name=x/></pair>" |> ignore
+
+        Assert.AreEqual<string list>([ "x"; "x" ], harness.Column "$p.@children | pick author" "name")
+        Assert.AreEqual<string list>([ "x"; "x" ], harness.Column "$p | pick author" "name")
+        Assert.AreEqual<string list>([ "x"; "x" ], harness.Column "$p | pick author | pick author" "name")
+        Assert.AreEqual<string list>([ "x"; "x" ], harness.Column "$p | pick \"*\" | pick author" "name")
+
+        let twice =
+            [ Value.Object(tag "author" [ "name", text "x" ] []); Value.Object(tag "author" [ "name", text "x" ] []) ]
+
+        Assert.AreEqual<int>(2, Selector.documents "pick" (Value.List twice) |> expectOk |> Selector.elements |> List.length)
+
+    /// Childless elements share F#'s one empty list, and are still told apart.
+    [<TestMethod>]
+    member _.ChildlessElementsAreToldApart() =
+        let harness = seeded ()
+        harness.Run "set s <shelves><shelf/><shelf/><shelf/></shelves>" |> ignore
+
+        Assert.AreEqual<int>(3, harness.Column "$s | pick shelf | pick shelf" "@tag" |> List.length)
+        Assert.AreEqual<int>(3, harness.Column "$s | pick \"*\" | pick shelf" "@tag" |> List.length)
+
+    /// A list of tags inside a document: `$d.@children` are the library's own children.
+    [<TestMethod>]
+    member _.AListOfChildrenIsReadAsThatManyDocuments() =
+        let harness = withLibrary ()
+
+        Assert.AreEqual<string list>(
+            [ "book"; "author"; "book"; "author"; "shelf" ],
+            harness.Column "$d.@children | pick \"*\" | select \"@tag\"" "@tag"
+        )
 
     [<TestMethod>]
     member _.AnythingElseIsAFaultNamingWhatItWas() =

@@ -100,7 +100,7 @@ let select =
     pure'
         "select"
         "Keep only the named columns, in the order named"
-        [ "columns"; "project"; "pick"; "only" ]
+        [ "columns"; "project"; "only" ]
         [ Parameter.rest "columns" "The columns to keep" |> Parameter.takes Takes.Column ]
         (fun invocation table ->
             match Invocation.list "columns" invocation |> List.map Value.display with

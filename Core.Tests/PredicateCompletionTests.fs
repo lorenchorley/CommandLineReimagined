@@ -39,7 +39,7 @@ type PredicateCompletionTests() =
         Async.RunSynchronously(Completion.complete request).Items
 
     let withRows (harness: Harness) (line: string) (rows: (string * Value) list list) =
-        withShape harness line { Columns = []; Rows = Some(rows |> List.map Map.ofList) }
+        withShape harness line { Columns = []; Rows = Some(rows |> List.map Map.ofList); Value = None }
 
     let kinds rows = rows |> List.map (fun (k: Value) -> [ "kind", k ])
 
@@ -141,7 +141,7 @@ type PredicateCompletionTests() =
     member _.WithoutRowsTheRightHandSideOffersNothing() =
         let harness = seeded ()
 
-        Assert.AreEqual<int>(0, (withShape harness "ls | where $row.kind eq " { Columns = []; Rows = None }).Length)
+        Assert.AreEqual<int>(0, (withShape harness "ls | where $row.kind eq " { Columns = []; Rows = None; Value = None }).Length)
         Assert.AreEqual<int>(0, (texts harness "where $row.kind eq ").Length)
         Assert.AreEqual<int>(0, (texts harness "mkdir a | where $row.kind eq ").Length)
         Assert.AreEqual<int>(0, (texts harness "mkdir a | where $row.kind eq f").Length)

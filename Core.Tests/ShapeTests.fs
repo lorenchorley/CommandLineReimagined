@@ -433,3 +433,46 @@ type ShapeTests() =
         cache.Add(cache.Generation, 3L, "ls", shape)
         Assert.AreEqual<Shape option>(Some shape, cache.TryFind(4L, "ls documents"))
         Assert.AreEqual<int>(1, cache.Count)
+
+    // ------------------------------------------------ Phase 11: the value kept
+
+    /// A shape keeps what the upstream answered, whatever it was, for a provider that
+    /// reads more than a table: a tree has no columns and is still there (decision 0049).
+    [<TestMethod>]
+    member _.AShapeKeepsTheValueItWasMadeFrom() =
+        let tree = Tag.create "t" [] [ Value.Object(Tag.create "r" [] [ Value.Text "deep" ]) ]
+        let table = Value.Table(Table.ofColumns [ "a" ] [ [ Value.Number 1.0 ] ])
+
+        Assert.AreEqual<Value option>(Some(Value.Object tree), (Shape.ofValue (Value.Object tree)).Value)
+        Assert.AreEqual<Value option>(Some(Value.Number 4.0), (Shape.ofValue (Value.Number 4.0)).Value)
+        Assert.AreEqual<Value option>(Some table, (Shape.ofValue table).Value)
+
+    /// The value is carried, not compared: a shape is its columns and rows.
+    [<TestMethod>]
+    member _.TheValueIsNotPartOfTheShapesEquality() =
+        Assert.AreEqual<Shape>(Shape.none, { Shape.none with Value = Some(Value.Number 4.0) })
+        Assert.AreEqual<Shape>(Shape.ofValue (Value.Text "a"), Shape.ofValue (Value.Text "b"))
+
+    /// What the listing's shape is made from was never run, so it has no value.
+    [<TestMethod>]
+    member _.AListingHasNoValue() =
+        let harness = seeded ()
+
+        Assert.AreEqual<Value option>(None, (Shape.ofListing harness.Session.Projection).Value)
+        Assert.AreEqual<Value option>(None, (shapeOf (harness.Session.Shapes CancellationToken.None) (after None)).Value)
+
+    /// An upstream that is run keeps its answer, and so does a lone variable, read
+    /// without running anything.
+    [<TestMethod>]
+    member _.AnUpstreamRunOrReadKeepsItsValue() =
+        let harness = seeded ()
+        harness.Run "set d <library><book title=dune/></library>" |> ignore
+        let source = harness.Session.Shapes CancellationToken.None
+
+        match (shapeOf source (after (Some "$d"))).Value with
+        | Some(Value.Object tag) -> Assert.AreEqual<string>("library", tag.TypeName)
+        | other -> Assert.Fail(sprintf "%A" other)
+
+        match (shapeOf source (after (Some "$d | pick book"))).Value with
+        | Some(Value.Table table) -> Assert.AreEqual<int>(1, table.Rows.Length)
+        | other -> Assert.Fail(sprintf "%A" other)

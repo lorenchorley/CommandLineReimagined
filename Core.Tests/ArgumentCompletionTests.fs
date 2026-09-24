@@ -727,7 +727,7 @@ type ArgumentCompletionTests() =
             { Specs = specs
               Projection = harness.Projection
               Context = Context.analyse specs text text.Length
-              Shapes = fun _ -> async.Return { Columns = []; Rows = None }
+              Shapes = fun _ -> async.Return { Columns = []; Rows = None; Value = None }
               Cancel = CancellationToken.None }
 
         let answer = Async.RunSynchronously(Completion.complete request)
@@ -820,3 +820,32 @@ type ArgumentCompletionTests() =
         Assert.AreEqual<string list>([], texts harness "$n | pick ")
         Assert.AreEqual<string list>([], texts harness "ls | pick ")
         Assert.AreEqual<string list>([], texts harness "$missing | pick ")
+
+    /// What any upstream answers is read, not only a variable: a file read with
+    /// `from-xml`, and a table of elements after a filter (decision 0049).
+    [<TestMethod>]
+    member _.ASelectorAfterAnyUpstreamOffersItsElements() =
+        let harness = withLibrary ()
+
+        harness.Run(
+            "write lib.xml \"<library><book title='dune'><author name='herbert'/></book><shelf/></library>\""
+        )
+        |> ignore
+
+        Assert.AreEqual<string list>([ "library"; "book"; "author"; "shelf" ], texts harness "from-xml lib.xml | pick ")
+
+        Assert.AreEqual<string list>(
+            [ "book"; "author" ],
+            texts harness "$d | pick \"*\" | where $row.@tag eq book | pick "
+        )
+
+        Assert.AreEqual<string list>([ "book"; "author"; "shelf" ], texts harness "$d.@children | pick ")
+
+    /// The rows of `pick "*"` overlap, and each element is counted once (decision 0052).
+    [<TestMethod>]
+    member _.ASelectorCountsEachElementOnce() =
+        let detail name =
+            (items (withLibrary ()) "$d | pick \"*\" | pick " |> List.find (fun c -> c.Text = name)).Detail
+
+        Assert.AreEqual<string option>(Some "2 elements", detail "book")
+        Assert.AreEqual<string option>(Some "1 element", detail "library")

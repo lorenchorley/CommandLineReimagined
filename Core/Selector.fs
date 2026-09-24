@@ -310,12 +310,70 @@ module Selector =
         |> List.filter (fun (tag, ancestors) -> chains |> List.exists (fun chain -> matchesFrom chain tag ancestors))
         |> List.map fst
 
-    /// Every element of the documents, each root first, in document order: what `*` picks.
-    let elements (documents: Tag list) : Tag list = documents |> List.collect (walk []) |> List.map fst
+    // ---------------------------------------------------------------- Documents
+
+    /// <summary>A document `pick` reads: the tag it searches, and the element that is.</summary>
+    /// <remarks>
+    /// The two are one tag when `pick` is handed a tag. A row of a table `pick` answered
+    /// is read back as a new tag, `Root`, and stands for the element it was made from,
+    /// `Element`, which is what says whether it sits inside another document (decision
+    /// 0052). A row that cannot say stands for itself.
+    /// </remarks>
+    type Document = { Root: Tag; Element: Tag }
+
+    /// <summary>The element each row of `pick`'s answer was made from, by its `@children` cell.</summary>
+    /// <remarks>
+    /// A table has no room for anything it does not show, and the answer must not grow
+    /// a column for this (decision 0052), so the link is kept beside it. It is keyed by
+    /// the cell, a value made afresh for each row, since the list inside it can be the
+    /// one empty list every childless element shares; the cell travels with the row
+    /// through `where`, `sort`, `select` and a variable, and a table rebuilt from text
+    /// loses it, when its rows stand for themselves. Weak, so an answer nothing holds
+    /// any more takes its links with it.
+    /// </remarks>
+    let private madeFrom = System.Runtime.CompilerServices.ConditionalWeakTable<Value, Tag>()
+
+    /// Every element inside the documents' roots, not the roots themselves, by reference.
+    let private inside (documents: Document list) =
+        let found = System.Collections.Generic.HashSet<Tag>(HashIdentity.Reference)
+
+        let rec add (tag: Tag) =
+            for child in childTags tag do
+                if found.Add child then add child
+
+        for document in documents do
+            add document.Root
+
+        found
+
+    /// <summary>The documents worth searching (decision 0052).</summary>
+    /// <remarks>
+    /// One that sits inside another is not searched again, and neither is an element
+    /// handed twice, so each element is answered once, in the order of the document it
+    /// was found in. Two tags that are equal but separate are two elements, since what
+    /// is compared is which element it is, not what it says.
+    /// </remarks>
+    let private searched (documents: Document list) : Document list =
+        let inner = inside documents
+        let seen = System.Collections.Generic.HashSet<Tag>(HashIdentity.Reference)
+
+        documents |> List.filter (fun document -> not (inner.Contains document.Element) && seen.Add document.Element)
+
+    /// Each element found, as the tag to show and the element it is.
+    let private found (select: Tag -> Tag list) (documents: Document list) : (Tag * Tag) list =
+        searched documents
+        |> List.collect (fun document ->
+            select document.Root
+            |> List.map (fun tag -> tag, (if obj.ReferenceEquals(tag, document.Root) then document.Element else tag)))
+
+    /// Every element of the documents, each root first, in document order, each once:
+    /// what `*` picks.
+    let elements (documents: Document list) : Tag list =
+        found (walk [] >> List.map fst) documents |> List.map fst
 
     /// The distinct element names of documents, in document order: what a selector's
     /// name could be.
-    let names (documents: Tag list) : string list =
+    let names (documents: Document list) : string list =
         elements documents |> List.map (fun tag -> tag.TypeName) |> List.distinct
 
     // -------------------------------------------------------------------- Table
@@ -330,19 +388,25 @@ module Selector =
     /// <remarks>
     /// `@tag`, then the attributes of the elements in the order they first appear, a
     /// gap where an element lacks one, then `@children`. No element at all is the
-    /// table with `@tag` and `@children` only.
+    /// table with `@tag` and `@children` only. Each row's `@children` cell remembers the
+    /// element the row was made from (`madeFrom`).
     /// </remarks>
-    let table (elements: Tag list) : Table =
+    let private table (elements: (Tag * Tag) list) : Table =
         let attributes =
-            elements |> List.collect (fun tag -> Value.orderedAttributes tag |> List.map fst) |> List.distinct
+            elements
+            |> List.collect (fun (tag, _) -> Value.orderedAttributes tag |> List.map fst)
+            |> List.distinct
 
         let rows =
             elements
-            |> List.map (fun tag ->
+            |> List.map (fun (tag, element) ->
+                let children = Value.List tag.Children
+                madeFrom.AddOrUpdate(children, element)
+
                 Value.Text tag.TypeName
                 :: (attributes
                     |> List.map (fun name -> tag.Attributes |> Map.tryFind name |> Option.defaultValue Value.None))
-                @ [ Value.List tag.Children ])
+                @ [ children ])
 
         Table.ofColumns ((tagColumn :: attributes) @ [ childrenColumn ]) rows
 
@@ -352,17 +416,20 @@ module Selector =
     /// <summary>A row of an element table, read back as its element.</summary>
     /// <remarks>
     /// `@tag` is its name, `@children` its children, the other columns its attributes,
-    /// gaps left out, as `Table.rowTag` leaves them out. `index` counts from one, for the
+    /// gaps left out, as `Table.rowTag` leaves them out; and it stands for the element
+    /// the row was made from, when the row can say. `index` counts from one, for the
     /// fault when a row has no name.
     /// </remarks>
-    let ofRow (command: string) (table: Table) (index: int) (row: Value list) : Outcome<Tag> =
+    let private ofRow (command: string) (table: Table) (index: int) (row: Value list) : Outcome<Document> =
         let name = Table.cell table tagColumn row
 
         if Value.isAbsent name then
             Error(Fault.create Invalid (sprintf "'%s' cannot read row %d as an element: its @tag is empty." command index))
         else
+            let cell = Table.cell table childrenColumn row
+
             let children =
-                match Table.cell table childrenColumn row with
+                match cell with
                 | Value.List children -> children
                 | value when Value.isAbsent value -> []
                 | value -> [ value ]
@@ -375,7 +442,14 @@ module Selector =
                 List.zip (Table.names table) row
                 |> List.filter (fun (column, value) -> own column && not (Value.isAbsent value))
 
-            Ok(Tag.create (Value.display name) attributes children)
+            let root = Tag.create (Value.display name) attributes children
+
+            let element =
+                match madeFrom.TryGetValue cell with
+                | true, element -> element
+                | _ -> root
+
+            Ok { Root = root; Element = element }
 
     /// <summary>What `pick` was handed, as the documents it reads.</summary>
     /// <remarks>
@@ -383,7 +457,7 @@ module Selector =
     /// `@tag` is one per row, read back as its element, so `pick` reads what `pick`
     /// answered. Anything else is a fault naming what it was.
     /// </remarks>
-    let documents (command: string) (value: Value) : Outcome<Tag list> =
+    let documents (command: string) (value: Value) : Outcome<Document list> =
         let needs (what: string) =
             Error(
                 Fault.create
@@ -391,16 +465,18 @@ module Selector =
                     (sprintf "'%s' needs a tag, a list of tags or a table with a @tag column, not %s." command what)
             )
 
+        let itself (tag: Tag) = { Root = tag; Element = tag }
+
         match value with
         | Value.Object tag
-        | Value.Component tag -> Ok [ tag ]
+        | Value.Component tag -> Ok [ itself tag ]
         | Value.List items ->
             items
             |> List.mapi (fun index item -> index + 1, item)
             |> Outcome.traverse (fun (index, item) ->
                 match item with
                 | Value.Object tag
-                | Value.Component tag -> Ok tag
+                | Value.Component tag -> Ok(itself tag)
                 | other -> needs (sprintf "a list whose item %d is %s" index (Value.kind other)))
         | Value.Table table when isElements table ->
             table.Rows
@@ -409,6 +485,7 @@ module Selector =
         | Value.Table _ -> needs "a table without a @tag column"
         | other -> needs (Value.kind other)
 
-    /// Every element of the documents the selector matches, as the table of 0049.
-    let pick (selector: Selector) (documents: Tag list) : Table =
-        documents |> List.collect (matches selector) |> table
+    /// Every element of the documents the selector matches, as the table of 0049, each
+    /// once however the documents overlap (decision 0052).
+    let pick (selector: Selector) (documents: Document list) : Table =
+        found (matches selector) documents |> table

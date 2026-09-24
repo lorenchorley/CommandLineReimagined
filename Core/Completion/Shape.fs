@@ -12,11 +12,26 @@ open System.Text.RegularExpressions
 open System.Threading
 open System.Threading.Tasks
 
-/// The columns flowing into a stage, and the rows when the upstream was run.
+/// <summary>The columns flowing into a stage, and the rows when the upstream was run.</summary>
+/// <remarks>
+/// A shape is its columns and its rows, and two shapes with the same are equal: `Value`
+/// is carried beside them, not compared, for a provider that reads more than a table,
+/// such as a selector's element names in a tree (decision 0049).
+/// </remarks>
+[<CustomEquality; NoComparison>]
 type Shape =
     { Columns: (string * ColumnType) list
       /// Present when the upstream was run and answered a table: each row by column name.
-      Rows: Map<string, Value> list option }
+      Rows: Map<string, Value> list option
+      /// What the upstream answered, whatever it was, when it was run or read.
+      Value: Value option }
+
+    override this.Equals(other: obj) =
+        match other with
+        | :? Shape as shape -> this.Columns = shape.Columns && this.Rows = shape.Rows
+        | _ -> false
+
+    override this.GetHashCode() = hash (this.Columns, this.Rows)
 
 /// <summary>Shapes already learned, by upstream text and store sequence number.</summary>
 /// <remarks>
@@ -96,7 +111,7 @@ module Shape =
     let budget = TimeSpan.FromMilliseconds 150.0
 
     /// No columns at all: what flows in is not a table and cannot be read as one.
-    let none = { Columns = []; Rows = None }
+    let none = { Columns = []; Rows = None; Value = None }
 
     /// A table's columns, and its rows by column name.
     let ofTable (table: Table) : Shape =
@@ -106,7 +121,8 @@ module Shape =
           Rows =
             table.Rows
             |> List.map (fun row -> names |> List.map (fun name -> name, Table.cell table name row) |> Map.ofList)
-            |> Some }
+            |> Some
+          Value = Some(Value.Table table) }
 
     /// <summary>The shape of a value that flows into a stage.</summary>
     /// <remarks>
@@ -116,15 +132,18 @@ module Shape =
     /// table-shaped, has no columns.
     /// </remarks>
     let ofValue (value: Value) : Shape =
-        match value with
-        | Value.Table table -> ofTable table
-        | Value.Object _
-        | Value.Component _
-        | Value.List _ ->
-            match Table.ofValue "table" value with
-            | Ok table -> ofTable table
-            | Error _ -> none
-        | _ -> none
+        let shape =
+            match value with
+            | Value.Table table -> ofTable table
+            | Value.Object _
+            | Value.Component _
+            | Value.List _ ->
+                match Table.ofValue "table" value with
+                | Ok table -> ofTable table
+                | Error _ -> none
+            | _ -> none
+
+        { shape with Value = Some value }
 
     /// <summary>The columns a listing of the current folder would have, with no rows.</summary>
     /// <remarks>
@@ -137,7 +156,8 @@ module Shape =
             Table.ofRecords (fun _ -> 0.0) (Files.inFolder projection projection.Location.Folder)
 
         { Columns = table.Columns |> List.map (fun column -> column.Name, column.Type)
-          Rows = None }
+          Rows = None
+          Value = None }
 
     /// `$name` alone, or `$name | the rest`: a variable at the head of the upstream.
     let private headVariable =
