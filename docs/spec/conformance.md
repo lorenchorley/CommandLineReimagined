@@ -41,6 +41,7 @@ second table counts from `dotnet test`.
 | Path resolution over the projection, and kind inference | `Core.Tests/FilesTests` | 16 |
 | Committing, undo, redo, history, replay determinism, blobs, the store's own checks on names and folders | `Core.Tests/StoreTests` | 28 |
 | Binding, pipes, command forms, variables, tags, atomic lines, value stages, `$row` outside a predicate | `Core.Tests/ExecutionTests` | 51 |
+| The help a wrong call carries and when it carries none (decision 0038), and an old name leading to the new one | `Core.Tests/GuidanceTests` | 11 |
 | File commands, attributes, saving tags, the name rule, renaming a folder with what it holds, and their undo | `Core.Tests/FileCommandTests` | 55 |
 | Variables and their undo | `Core.Tests/VariableCommandTests` | 14 |
 | Asynchronous commands, live output, cancellation | `Core.Tests/AsyncCommandTests` | 14 |
@@ -48,23 +49,24 @@ second table counts from `dotnet test`.
 | What a line says it did to the log: the lines it committed, undid and redid | `Core.Tests/LogChangesTests` | 11 |
 | The table functions, as whole command lines, the two predicate faults of decision 0033, and what answers a predicate (decision 0034) | `Core.Tests/TableCommandTests` | 44 |
 | Views: `in` on a predicate, `ls` across folders, `out`, `find`, `save-view`, refreshing, and the bound check in each, a view read back from its record included | `Core.Tests/ViewTests` | 46 |
+| `back` and the trail (decision 0037): each step further, views, after `out`, the start and the end of the trail, undo and redo, a folder that is gone, across a reload, the fold | `Core.Tests/BackTests` | 21 |
 | Recovery: `else`, `try`, `??`, nested pipelines, fault values and their members, `is-fault`, what a refresh refuses, recovery around a value stage | `Core.Tests/RecoveryTests` | 37 |
 | XML documents: reading, text content, namespaces, refusals, writing, round trips, and the two commands | `Core.Tests/XmlTests` | 41 |
 | CSV files: RFC 4180 reading, column typing, gaps, faults naming the line, writing, round trips, and the two commands | `Core.Tests/CsvTests` | 33 |
 | The example programs, against their golden results, and `run`; the guide's examples and its chain of readmes | `Core.Tests/ExampleProgramTests` | 24 |
 | The lexical rules: completion over the projection, the operators, the columns, the places and the keywords | `Core.Tests/CompletionTests` | 25 |
 | Where the cursor is: the place for every line of the Phase 8 finding table | `Core.Tests/ContextTests` | 4 |
-| Command names: after a pipe, not a path command after a table, by keyword, by edit distance, with descriptions | `Core.Tests/CommandCompletionTests` | 22 |
+| Command names: after a pipe, not a path command after a table, by keyword, a short word only by a first keyword nobody else has, by edit distance, with descriptions | `Core.Tests/CommandCompletionTests` | 25 |
 | Variables, `$row` only in a predicate, members by what a variable holds, tag types and attributes, the summaries | `Core.Tests/VariableCompletionTests` | 18 |
-| Every parameter of every command by what it takes, flags, assignments, quoted paths, the signature | `Core.Tests/ArgumentCompletionTests` | 45 |
+| Every parameter of every command by what it takes, flags, assignments, quoted paths, the signature, the pipe first after a complete stage (decision 0039) | `Core.Tests/ArgumentCompletionTests` | 51 |
 | Inside a predicate: operands, operators, a column's values, `and` and `or` | `Core.Tests/PredicateCompletionTests` | 22 |
 | What flows into a stage: the upstream run, refusals, the budget, the cache | `Core.Tests/ShapeTests` | 23 |
 | What a tapped token is: variables, members, commands, operators, arguments | `Core.Tests/HoverTests` | 12 |
 | The phase's acceptance list, from a fresh session | `Core.Tests/AcceptanceTests` | 10 |
-| Replaying a log, seeding once, `reset`, and giving an older log the guide once | `Core.Tests/PersistenceTests` | 17 |
-| The stored shape of a transaction, every event and value case, versioning | `Web.Core.Tests/LogFormatTests` | 24 |
+| Replaying a log, seeding once, `reset`, giving an older log the guide once, and bringing the seeded files nobody changed to the seed (decision 0040) | `Core.Tests/PersistenceTests` | 29 |
+| The stored shape of a transaction, every event and value case, the trail's events, versioning up to 3 | `Web.Core.Tests/LogFormatTests` | 27 |
 | The browser's IndexedDB module, including a browser without it | `tools/store-check.mjs` | 20 |
-| DTO shapes including tables, views, refreshing, caught faults, documents, streaming, cancellation, completion, tokens | `Web.Core.Tests/TerminalSessionTests` | 53 |
+| DTO shapes including tables, views, refreshing, caught faults, documents, streaming, cancellation, completion, tokens, the guide | `Web.Core.Tests/TerminalSessionTests` | 54 |
 | A parse error in words: the phrase table, the explanations, the sentence carried with the parse | `Web.Core.Tests/ParseWordingTests` | 14 |
 | The hover record as the page receives it | `Web.Core.Tests/DescribeTests` | 7 |
 | Path and naming helpers | `Terminal.Tests/ValidCommandTests` | 2 |
@@ -75,10 +77,10 @@ Cases actually run, which is what the suite reports:
 | Project | Cases |
 | --- | --- |
 | `Parser.Tests` | 375 |
-| `Core.Tests` | 765 |
-| `Web.Core.Tests` | 138 |
+| `Core.Tests` | 818 |
+| `Web.Core.Tests` | 142 |
 | `Terminal.Tests` | 32 |
-| Total | 1310 |
+| Total | 1367 |
 
 Run them with:
 
@@ -195,6 +197,21 @@ does not govern. They run in CI with the rest.
       a record whose width differs from the header's.
 - [ ] `to-xml` and `to-csv` emit the events `write` would, set the kind of a file they
       create, write numbers exactly, and end every line in `\n`.
+- [ ] Every move `in` or `out` makes pushes the place it leaves on the trail before the
+      move; a move to where you are emits nothing.
+- [ ] `back` walks the trail from the top, passes over where you are and a place whose
+      folder is gone, pops every place it passed and the one it takes, and with nowhere
+      to go answers `Nowhere further back: you are in <where>` and commits nothing.
+- [ ] `TrailPushed` and `TrailPopped` invert to each other, and folding a pop of a
+      place that is not on the trail changes nothing.
+- [ ] An unknown name that is a keyword names the commands it is a keyword of before
+      any slip is looked for, and a name of one or two letters is a keyword only when it
+      is a command's first and no other command's.
+- [ ] A line that fails with a `Binding` fault whose message begins with its stage's
+      command name carries that command's help as its guide, and no other line does.
+- [ ] On load, a seeded file no undoable transaction has named, whose content differs
+      from the seed's, is given the seed's content, all of them in one `seed update`
+      transaction nobody can undo, and a load with nothing to change commits nothing.
 
 **Terminal**
 
@@ -203,6 +220,10 @@ does not govern. They run in CI with the rest.
 - [ ] Output changes are raised with the complete line set and an execution id.
 - [ ] Completion reads the place by parsing, answers each place by its own rule,
       replaces from `start` to `end`, and a newer request cancels the one before it.
+- [ ] After a stage with every required argument written, and an empty word, the
+      first item is `|`, detail `send the result on`, and the only one when the stage
+      has nothing left to take; a stage still missing a required argument offers no
+      pipe.
 - [ ] What flows into a stage is learned by previewing the upstream read-only, under
       the budget, and a miss answers the current folder's columns rather than an error.
 - [ ] A tapped token is described by `Describe`, and a parse error carries a sentence
@@ -210,9 +231,15 @@ does not govern. They run in CI with the rest.
 - [ ] Wire formats match [Host interfaces](host-interfaces.md#wire-formats).
 - [ ] A stored location carries its view, so a replay comes back into the query it was
       in.
-- [ ] The stored log carries a version; an unknown version is refused by name, a
-      transaction that cannot be decoded is skipped and counted, and a host without
-      storage runs in memory and says so before the first command.
+- [ ] The stored log carries a version, 3 today, and versions 1 to 3 are read; an
+      unknown version is refused by name, a transaction that cannot be decoded is
+      skipped and counted, and a host without storage runs in memory and says so before
+      the first command.
+- [ ] A failed line's `guide` is drawn under its error, set apart from output, and a
+      line without one draws no panel.
+- [ ] The page marks `body` with `data-ready` once it can run lines, keeps any number
+      of listings live, copies a selection made in the scrollback, and walks the
+      history with ↑ and ↓ as the keys do.
 
 ## Known deviations
 
@@ -234,6 +261,8 @@ case.
 | XML element text is read as an attribute `text` and written back as content, so mixed content comes back with its text gathered before the children, trimmed; an XML attribute called `text` on an element with content is replaced by it; comments and processing instructions are dropped. | Intended for this release; see [decision 0025](../decisions/0025-xml-text-content.md). |
 | A document with a DTD is refused rather than read. | Intended. A file in the store is anyone's, and entity expansion is a way to stop a tab. |
 | Messages are English only and the client is published with invariant globalisation. | Intended for now; see [Design doc](design-doc.md#internationalisation). |
+| A value of the wrong kind that a command refuses as it runs carries no guide: `ls \| take x` fails with `'count' must be a whole number, not 'x'.`, kind `Invalid`, and no help, although [decision 0038](../decisions/0038-a-wrong-call-shows-its-help.md) counts a value of the wrong kind as a call made wrongly. Only a `Binding` fault whose message begins with the command's name carries one, so `name eq x never reads $row, so it is the same for every row.` carries none either. | Open, reported for the owner to decide. The code is as [A wrong call carries its help](execution-model.md#a-wrong-call-carries-its-help) specifies. |
+| Two stages that are complete are offered no pipe: `in documents `, where a plain name is a whole argument but the place is a predicate's, after an operand, and offers the comparison operators; and a value stage, `$x `, whose place is `Unknown` and answered by the lexical rules. [Decision 0039](../decisions/0039-the-pipe-comes-first.md) puts the pipe first after every complete stage. | Open, reported for the owner to decide. The code is as [The pipe first](host-interfaces.md#the-pipe-first) specifies. |
 
 ## Changing this specification
 
