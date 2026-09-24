@@ -199,7 +199,7 @@ module Value =
                 // which is what a row from `group` carries — would otherwise print its
                 // own rows down the page in the middle of a tag.
                 + (orderedAttributes tag
-                   |> List.map (fun (name, v) -> name + "=" + cellText v)
+                   |> List.map (fun (name, v) -> name + "=" + inlineText v)
                    |> String.concat " ")
 
         if List.isEmpty tag.Children then
@@ -217,8 +217,8 @@ module Value =
     /// the last column, so a line has no invisible spaces on the end of it.
     /// </remarks>
     and private tableText (table: Table) =
-        let cells: string list list = table.Rows |> List.map (List.map cellText)
         let headers = table.Columns |> List.map (fun column -> column.Name)
+        let cells: string list list = table.Rows |> List.map (List.map2 cellText headers)
 
         let widths =
             headers
@@ -240,8 +240,27 @@ module Value =
     /// otherwise print its own rows down the page and take the alignment with it, so it
     /// says how many rows it has and `rows` is how you look inside. Text with a line
     /// break in it is folded for the same reason.
+    ///
+    /// Decision 0051: a list is summarised the same way, as `N children` in the
+    /// `@children` column `pick` answers and `N items` in any other, and an empty one
+    /// is an empty cell. The value in the cell is still the whole list.
     /// </remarks>
-    and private cellText (value: Value) =
+    and cellText (column: string) (value: Value) =
+        let count noun (items: Value list) =
+            match List.length items with
+            | 0 -> ""
+            | 1 -> "1 " + noun
+            | n -> sprintf "%d %s" n (if noun = "child" then "children" else noun + "s")
+
+        match value with
+        | Value.Table nested ->
+            let count = List.length nested.Rows
+            sprintf "%d row%s" count (if count = 1 then "" else "s")
+        | Value.List items -> count (if column = "@children" then "child" else "item") items
+        | other -> inlineText other
+
+    /// One line of a value, for inside something else: a tag's attribute, or a cell.
+    and private inlineText (value: Value) =
         match value with
         | Value.Table nested ->
             let count = List.length nested.Rows

@@ -500,16 +500,21 @@ public sealed class TerminalSession
             .ToList();
 
         var rows = table.Rows
-            .Select(row => (IReadOnlyList<ResultItem>)row.Select(Cell).ToList())
+            .Select(row => (IReadOnlyList<ResultItem>)row
+                .Zip(table.Columns, (cell, column) => Cell(column.Name, cell)).ToList())
             .ToList();
 
         return new ResultItem("table", ValueModule.display(Value.NewTable(table)), null, columns, rows);
     }
 
-    private static ResultItem Cell(Value value) =>
-        Describe(value) is [var single]
-            ? single
-            : new ResultItem(ValueModule.kind(value), ValueModule.display(value), null);
+    // Decision 0051: a list in a cell is summarised, as the core's own table text says
+    // it, and a single item of one is not drawn as that item, since it is still a list.
+    private static ResultItem Cell(string column, Value value) =>
+        value.IsList
+            ? new ResultItem(ValueModule.kind(value), ValueModule.cellText(column, value), null)
+            : Describe(value) is [var single]
+                ? single
+                : new ResultItem(ValueModule.kind(value), ValueModule.display(value), null);
 
     private static string ColumnTypeName(ColumnType type) =>
         type.Tag switch

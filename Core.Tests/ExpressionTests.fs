@@ -85,6 +85,15 @@ type ExpressionTests() =
         Assert.AreEqual<Value>(children, Expr.readMember "@children" picked)
         Assert.AreEqual<Value>(Value.Text "row", Expr.readMember "@tag" (row [ "title", Value.Text "dune" ]))
 
+    /// Decision 0050: a row answers any of its columns by name, so an `@id` column from
+    /// a CSV header is read like any other.
+    [<TestMethod>]
+    member _.ARowAnswersAnyAtColumn() =
+        let fromCsv = row [ "@id", Value.Text "42"; "name", Value.Text "dune" ]
+
+        Assert.AreEqual<Value>(Value.Text "42", Expr.readMember "@id" fromCsv)
+        Assert.AreEqual<Value>(Value.None, Expr.readMember "@other" fromCsv)
+
     /// And a predicate reads them the same way.
     [<TestMethod>]
     member _.APredicateComparesARowsTag() =

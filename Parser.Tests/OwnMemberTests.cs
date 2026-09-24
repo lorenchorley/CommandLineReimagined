@@ -81,10 +81,20 @@ public class OwnMemberTests
     [TestMethod]
     [DataRow("echo user@host", "user@host")]
     [DataRow("echo a.@b", "a.@b")]
+    // Decision 0050: a word may start with @, so a column pick answers is written as shown.
+    [DataRow("select @tag", "@tag")]
+    [DataRow("sort @children", "@children")]
+    [DataRow("echo @", "@")]
     public void AnAtOutsideAMemberIsPartOfAWord(string source, string expected)
     {
         Assert.AreEqual(expected, ((Identifier)Argument(source)).Name);
     }
+
+    /// <summary>An <c>@</c> word is an argument like any other, in any position (decision 0050).</summary>
+    [TestMethod]
+    [DataRow("ls | select name @tag kind")]
+    [DataRow("$d | pick book | sort @tag desc")]
+    public void AnAtWordRoundTrips(string source) => ParserHarness.AssertRoundTrips(source);
 
     /// <summary>The <c>@</c> commits, as the stop does: a name must follow it.</summary>
     [TestMethod]

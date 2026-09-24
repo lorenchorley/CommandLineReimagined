@@ -339,6 +339,21 @@ public class TerminalSessionTests
         CollectionAssert.DoesNotContain((System.Collections.ICollection)names, "readme.txt");
     }
 
+    /// Decision 0051: a list in a cell reaches the page summarised, as the core's own
+    /// table text says it, and a single child is still a list, not that child.
+    [TestMethod]
+    public async Task AListInACellReachesThePageSummarised()
+    {
+        await _session.ExecuteAsync("set d <library><book title=dune><author name=herbert/></book><shelf/></library>");
+        var table = (await _session.ExecuteAsync("$d | pick \"*\"")).Result!.Single();
+        int children = table.Columns!.ToList().FindIndex(column => column.Name == "@children");
+
+        CollectionAssert.AreEqual(
+            new[] { "2 children", "1 child", "", "" },
+            table.Rows!.Select(row => row[children].Text).ToArray());
+        Assert.AreEqual("list", table.Rows![1][children].Kind);
+    }
+
     /// The page asks for this behind the user's back, so it must not be able to write.
     [TestMethod]
     public async Task ARefreshRefusesALineThatWouldChangeSomething()
