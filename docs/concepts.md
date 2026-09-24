@@ -87,6 +87,9 @@ a parenthesis or a tag, and parses the result. Where the placeholder sits in the
 says what the word is: a command's name, one of its parameters, a member of a
 variable, a part of a predicate. To learn what flows into the stage, it runs the stages
 before it the way a live listing re-runs a line, read-only and committing nothing.
+When the word is empty and the stage before it has every required argument, the pipe
+comes first, since whatever the stage answers can be sent on
+([decision 0039](decisions/0039-the-pipe-comes-first.md)).
 [The web terminal](web-terminal.md#what-each-place-offers) shows what each place
 offers. Tapping a word is answered the same way.
 
@@ -118,6 +121,13 @@ note.txt
 The third line binds `path` from what you wrote and `text` from the pipe. The piped
 value is offered only to parameters that declared they accept it, so a command with
 several parameters is not confused about which one the pipe fills.
+
+A binding fault is a call made wrongly, so the session answers it with the command's
+help as well as the fault: the value `help write` would answer, carried beside the
+fault as the response's guide, which the page draws under the error
+([decision 0038](decisions/0038-a-wrong-call-shows-its-help.md)). The fault itself is
+unchanged, so `else` and `try` see only it. A fault raised once the command is running,
+such as a file that is not there, carries no guide.
 
 Nothing is passed as a string on the way in. An unquoted word arrives as a number if it
 reads as one and as text otherwise, `$name` arrives as whatever the variable holds, a
@@ -343,8 +353,17 @@ scope for a session, and `vars` lists everything visible from it.
 
 The log is what is kept. In the browser it is stored in IndexedDB, for this site, and
 opening the page replays it into a fresh projection before the input is enabled, so
-your files, variables and location come back exactly as they were. In the desktop shell
-and in tests the log is in memory and lasts as long as the process.
+your files, variables and location come back exactly as they were, with the trail of
+places `in` and `out` left, which `back` retraces. In the desktop shell and in tests the
+log is in memory and lasts as long as the process.
+
+After the replay, the files the terminal seeded are brought up to date where nobody has
+changed them ([decision 0040](decisions/0040-seeded-files-follow-the-seed.md)). A seeded
+file that only the seed, or the guide's arrival, ever wrote, and that no line anyone
+typed has touched since, is given the seed's current content, in one transaction whose
+source is `seed update` and which cannot be undone. One you have written to, renamed,
+moved or tagged is yours, and one you deleted is not brought back. That is how a
+returning visitor reads the current guide.
 
 Content is stored separately from the log, by the hash of its text, so keeping the
 previous version of a file costs nothing and undoing a write is pointing at the old
