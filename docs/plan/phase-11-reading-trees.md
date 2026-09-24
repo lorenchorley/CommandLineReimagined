@@ -146,8 +146,8 @@ After 11.0, A and B start together from its commit.
 
 | Work | Done by | State | Commit |
 | --- | --- | --- | --- |
-| 11.0 Foundation | orchestrator | merged | this commit |
-| A. `@` members | stream agent | not started | |
-| B. `pick` | stream agent | not started | |
+| 11.0 Foundation | orchestrator | merged | 2e4b57f |
+| A. `@` members | stream agent | in progress | |
+| B. `pick` | stream agent | in progress | |
 | 11.9 docs, spec | two sub-agents | not started | |
 | 11.9 verifier, republish, As built | orchestrator | not started | |
