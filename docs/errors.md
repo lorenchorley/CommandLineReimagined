@@ -666,10 +666,10 @@ Not errors from the language, but from the session.
 
 Written by the browser page itself rather than by the session. There is no status
 line: the page says how its start went in the banner, the panel labelled `note` at the
-top of the scrollback. None of these is a fault of a line anyone ran, so none is drawn
-as an error: each is in the terminal's own style, a panel labelled `note`
-([decision 0046](decisions/0046-restore-messages-are-guidance.md)). The only red lines
-in the scrollback are the faults of lines you ran. See
+top of the scrollback. None of these is a fault of a line anyone ran, so each is said
+in a panel labelled `note`, in the terminal's own style, and never as an error
+([decision 0046](decisions/0046-restore-messages-are-guidance.md)): a red error with a
+kind tag is only ever the fault of a line you ran. See
 [The web terminal](web-terminal.md#loading).
 
 | Message | Meaning |
