@@ -69,8 +69,11 @@ let private commandNameText: P<string> =
 let private isWordChar (c: char) =
     isIdentifierChar c || ".\\/:~+@%-*".IndexOf c >= 0
 
+// Decision 0050: `@` starts a word too, so a column `pick` answers, such as `@tag`, is
+// written as it is shown: `select @tag`. Nothing else in the grammar starts with `@`;
+// a member written `.@tag` is read by `memberName` before a word is looked for.
 let private isWordStart (c: char) =
-    isIdentifierChar c || ".\\/~*".IndexOf c >= 0
+    isIdentifierChar c || ".\\/~*@".IndexOf c >= 0
 
 // Decision 0007: `/>` and `/}` are delimiters, so a `/` belongs to the word it is in
 // only when what follows is not one of those two brackets. That is what lets

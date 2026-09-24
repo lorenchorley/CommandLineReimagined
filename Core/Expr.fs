@@ -114,18 +114,18 @@ module Expr =
     ///
     /// Decision 0048: a name with `@` before it is one of the tag's own parts, not an
     /// attribute. `@tag` is its name as text and `@children` its children as a list.
-    /// A row answers its columns first, so a row with an `@tag` or `@children` column,
-    /// as `pick`'s rows have, reads that column. Any other `@` name, and either one on
-    /// a value that is not a tag, is `None`, as a missing attribute is.
+    /// Decision 0050: a row answers any of its columns by name, `@` or not, so a row
+    /// with an `@tag` column, as `pick`'s rows have, or an `@id` one from a CSV header,
+    /// reads that column. Only where there is no such attribute do `@tag` and
+    /// `@children` read the tag's own parts; any other `@` name, and either one on a
+    /// value that is not a tag, is then `None`, as a missing attribute is.
     /// </remarks>
     let readMember (name: string) (value: Value) : Value =
         match value with
         | Value.Object tag
         | Value.Component tag ->
-            let own = name.StartsWith "@"
-
             match Map.tryFind name tag.Attributes with
-            | Some found when not own || name = tagMember || name = childrenMember -> found
+            | Some found -> found
             | _ when name = tagMember -> Value.Text tag.TypeName
             | _ when name = childrenMember -> Value.List tag.Children
             | _ -> Value.None

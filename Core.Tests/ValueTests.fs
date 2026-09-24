@@ -137,3 +137,24 @@ type ValueTests() =
     member _.ANumberFromAWordReadsBackUnchanged() =
         Assert.AreEqual<string>("42", Value.display (Value.ofWord "42"))
         Assert.AreEqual<string>("-5", Value.display (Value.ofWord "-5"))
+
+    /// Decision 0051: a list in a table cell is summarised, `N children` in `@children`
+    /// and `N items` elsewhere, and a list on its own is still written out.
+    [<TestMethod>]
+    member _.AListInACellIsSummarised() =
+        let tag name = Value.Object(Tag.create name [] [])
+        let table =
+            Table.ofColumns
+                [ "@tag"; "tags"; "@children" ]
+                [ [ Value.Text "library"; Value.List [ Value.Text "a"; Value.Text "b"; Value.Text "c" ]; Value.List [ tag "book"; tag "shelf" ] ]
+                  [ Value.Text "book"; Value.List [ Value.Text "a" ]; Value.List [ tag "author" ] ]
+                  [ Value.Text "shelf"; Value.List []; Value.List [] ] ]
+
+        Assert.AreEqual<string>(
+            "@tag     tags     @children\n"
+            + "library  3 items  2 children\n"
+            + "book     1 item   1 child\n"
+            + "shelf",
+            Value.display (Value.Table table))
+
+        Assert.AreEqual<string>("<book/> <shelf/>", Value.display (Value.List [ tag "book"; tag "shelf" ]))
