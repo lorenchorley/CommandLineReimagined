@@ -913,6 +913,59 @@ async function checkListingsStayPut(page, note) {
   if (inView.includes('readme.txt')) note(`after 'out' the view's listing shows ${JSON.stringify(inView)}: it left the view`);
 }
 
+/**
+ * Phase 11 (decisions 0048 to 0052), on the page: a tag's name read with `@tag`, `pick`
+ * drawn as a table whose `@children` cells are summarised, `$row.@tag` in a filter, and
+ * the chips completion offers after `$v.` and after `pick `.
+ */
+async function checkPhase11(page, note) {
+  const lastId = () => page.evaluate(() => Number(document.body.dataset.finished || 0));
+  const column = async (id, name) => page.evaluate(({ id, name }) => {
+    const grid = document.querySelector(`.entry[data-id="${id}"] .grid table`);
+    if (!grid) return null;
+    const index = [...grid.querySelectorAll('thead th')].findIndex(th => th.textContent.trim() === name);
+    return index < 0 ? null : [...grid.querySelectorAll('tbody tr')].map(tr => tr.children[index].textContent.trim());
+  }, { id, name });
+
+  await submit(page, 'set v <thing a=1/>');
+  const tag = await submit(page, 'echo $v.@tag');
+  if (tag.text.trim().split('\n').pop().trim() !== 'thing') note(`'echo $v.@tag' answered ${JSON.stringify(tag.text)}, not thing`);
+
+  await submit(page, 'set d <library city=paris><book title=dune year=1965><author name=herbert/></book>' +
+    '<book title=emma year=1815><author name=austen/></book><shelf/></library>');
+
+  await submit(page, '$d | pick "*"');
+  const all = await lastId();
+  const tags = await column(all, '@tag');
+  if (JSON.stringify(tags) !== JSON.stringify(['library', 'book', 'author', 'book', 'author', 'shelf'])) {
+    note(`'$d | pick "*"' drew @tag ${JSON.stringify(tags)}`);
+  }
+  const children = await column(all, '@children');
+  if (JSON.stringify(children) !== JSON.stringify(['3 children', '1 child', '', '1 child', '', ''])) {
+    note(`the @children cells read ${JSON.stringify(children)}, not a summary (decision 0051)`);
+  }
+
+  await submit(page, '$d | pick "*" | where $row.@tag eq book | select title');
+  const titles = await column(await lastId(), 'title');
+  if (JSON.stringify(titles) !== JSON.stringify(['dune', 'emma'])) note(`filtering on $row.@tag gave ${JSON.stringify(titles)}`);
+
+  await submit(page, '$d | pick "*" | pick "[year^=19]" | select title');
+  const once = await column(await lastId(), 'title');
+  if (JSON.stringify(once) !== JSON.stringify(['dune'])) note(`picking from overlapping rows gave ${JSON.stringify(once)} (decision 0052)`);
+
+  // A member chip is the whole reference, as the core writes it.
+  const members = await offered(page, '$v.', '$v.@tag');
+  if (!members || !members.includes('$v.a') || !members.includes('$v.@children')) {
+    note(`'$v.' offered ${JSON.stringify(members || await chips(page))}, not a, @tag and @children`);
+  }
+
+  const names = await offered(page, '$d | pick ', 'book');
+  if (!names || !['library', 'author', 'shelf'].every(name => names.includes(name))) {
+    note(`'$d | pick ' offered ${JSON.stringify(names || await chips(page))}, not the element names`);
+  }
+  await page.fill('#cmd', '');
+}
+
 /** The chips in the completion row, in order. */
 const chips = page => page.locator('#complete .key:not(.more)').allInnerTexts();
 
@@ -1449,6 +1502,12 @@ async function main() {
     await submit(page, 'reset');
     await checkListingsStayPut(page, note);
     console.log('Checked that a live listing stays where it was run, through in and out.');
+
+    // ---- Phase 11: a tree's own parts, and pick --------------------------------
+
+    await submit(page, 'reset');
+    await checkPhase11(page, note);
+    console.log('Checked Phase 11: @tag, pick, its summarised cells, and what completion offers for both.');
 
     // ---- On a phone: nothing moves, opens or closes on its own ----------------
 

@@ -168,5 +168,6 @@ all with the option recommended:
 | A. `@` members | stream agent | merged | ec21f8a |
 | B. `pick` | stream agent | merged | 7f8936f |
 | Owner's answers (0050 to 0052) | orchestrator, stream B | merged | d96eabc, d519d77 |
-| 11.9 docs, spec | two sub-agents | not started | |
+| 11.9 acceptance in the browser check | orchestrator | merged | this commit |
+| 11.9 docs, spec | two sub-agents | in progress | |
 | 11.9 verifier, republish, As built | orchestrator | not started | |
