@@ -737,8 +737,9 @@ Undone: rm tuesday
 Failure as a value: `else` recovers, `try` keeps a fault to read later, `??` gives a
 default for nothing, and a pipeline in parentheses answers a value. The last lines show
 that a failed branch leaves nothing behind. [Example 12](#12-recover-without-leaving-the-line)
-walks through it a line at a time. The lines a script runs carry no notes, so the
-explanations example 12 shows beside the `??` lines are not in the program's output.
+walks through it a line at a time. The notes of the lines a script runs come after
+its output, so the explanations example 12 shows beside the `??` lines come last here,
+one for each.
 
 ```
 # Failure is a value: recover with else, inspect with try, default with ??.
@@ -793,6 +794,8 @@ guide       folder  /       0     2026-09-22T09:30:00.0000000+00:00
 projects    folder  /       0     2026-09-22T09:30:00.0000000+00:00
 readme.txt  text    /       193   2026-09-22T09:30:00.0000000+00:00
 today.txt   text    /       14    2026-09-22T09:30:00.0000000+00:00
+  explanation: kind is folder or text
+  explanation: kind is folder or text
 ```
 
 ### inventory.clr

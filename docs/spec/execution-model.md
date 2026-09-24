@@ -1091,8 +1091,9 @@ may be piped) executes it:
 A fault from a line of the script keeps its notes, so a mistake in a script is still
 suggested. Its fixes are resolved against the line that ran the script, which does not
 hold the mistake, so it offers none ([Resolving the fixes](#resolving-the-fixes)). The
-notes of a script's lines that succeeded are not carried: `run` answers with none of
-its own.
+notes of a script's lines that succeeded **must** be carried as `run`'s own, in the
+order the lines ran (decision 0043), and their fixes are dropped the same way:
+`StoreAccess.RunLine` answers a line's value with its notes.
 
 ```
 $ write bad.clr "read notes"

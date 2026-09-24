@@ -192,7 +192,7 @@ type Session(log: ILog, options: SessionOptions, seed: Seed) =
     /// in immediately after it is, which is the smallest knot that ties: a command
     /// holds a function, not a session.
     /// </remarks>
-    let mutable runLine: string -> IOutput -> CancellationToken -> Async<Outcome<Value>> =
+    let mutable runLine: string -> IOutput -> CancellationToken -> Async<Outcome<Value * Note list>> =
         fun _ _ _ -> async.Return(Error(Fault.notInitialised ()))
 
     let mutable specs: CommandSpec list = []
@@ -291,7 +291,7 @@ type Session(log: ILog, options: SessionOptions, seed: Seed) =
                     | Error fault -> return Error fault
                     | Ok tree ->
                         let! result = evaluator.Execute tree source output cancel
-                        return result |> Outcome.map (fun execution -> execution.Value)
+                        return result |> Outcome.map (fun execution -> execution.Value, execution.Notes)
                 }
 
     /// <summary>What a line's fault says, notes and all, for its response.</summary>

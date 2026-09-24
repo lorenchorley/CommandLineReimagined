@@ -47,7 +47,7 @@ second table counts from `dotnet test`.
 | Asynchronous commands, live output, cancellation | `Core.Tests/AsyncCommandTests` | 14 |
 | `undo`, `redo`, `history` and `help` as commands, `help <command>`, and the nearest names an unknown command's note gives | `Core.Tests/MetaCommandTests` | 28 |
 | What a line says it did to the log: the lines it committed, undid and redid | `Core.Tests/LogChangesTests` | 11 |
-| The table functions, as whole command lines, the two predicate faults of decision 0033, what answers a predicate (decision 0034), and the explanation of an empty `where`: a column no row has, the values a column has, most frequent first and at most five, a span of numbers, a near value's fix, the part of an `and` that kept nothing, and when it is silent (decisions 0043, 0045) | `Core.Tests/TableCommandTests` | 63 |
+| The table functions, as whole command lines, the two predicate faults of decision 0033, what answers a predicate (decision 0034), and the explanation of an empty `where`: a column no row has, the values a column has, most frequent first and at most five, a span of numbers, a near value's fix, the part of an `and` that kept nothing, and when it is silent (decisions 0043, 0045) | `Core.Tests/TableCommandTests` | 64 |
 | Views: `in` on a predicate, `ls` across folders, `out`, `find`, `save-view`, refreshing, and the bound check in each, a view read back from its record included; the explanation of an empty `find`, a view's listing and a live view's refresh | `Core.Tests/ViewTests` | 53 |
 | `back` and the trail (decision 0037): each step further, views, after `out`, the start and the end of the trail, undo and redo, a folder that is gone, across a reload, the fold | `Core.Tests/BackTests` | 21 |
 | A fix made a whole line: at a whole word only, dropped when it changes nothing, one line once, and a fault as a value without notes (decisions 0041, 0044) | `Core.Tests/FixTests` | 5 |
@@ -82,10 +82,10 @@ Cases actually run, which is what the suite reports:
 | Project | Cases |
 | --- | --- |
 | `Parser.Tests` | 375 |
-| `Core.Tests` | 880 |
+| `Core.Tests` | 881 |
 | `Web.Core.Tests` | 143 |
 | `Terminal.Tests` | 32 |
-| Total | 1430 |
+| Total | 1431 |
 
 Run them with:
 

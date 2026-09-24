@@ -286,10 +286,14 @@ let run (store: StoreAccess) =
                     let lines =
                         (defaultArg content "").Replace("\r\n", "\n").Split '\n' |> List.ofArray
 
-                    let rec loop number remaining (last: Value) =
+                    // The notes of every line that stood, in order, so an empty filter
+                    // in a script explains itself as it would typed (decision 0043).
+                    // Their fixes name the script's lines, not the one typed, so the
+                    // session finds no place for them and offers none.
+                    let rec loop number remaining (last: Value) (notes: Note list) =
                         async {
                             match remaining with
-                            | [] -> return Ok last
+                            | [] -> return Ok(last, notes)
                             | (line: string) :: rest ->
                                 let written = line.Trim()
 
@@ -297,7 +301,7 @@ let run (store: StoreAccess) =
                                 // counted, so the number in a message is the one an
                                 // editor shows.
                                 if written = "" || written.StartsWith "#" then
-                                    return! loop (number + 1) rest last
+                                    return! loop (number + 1) rest last notes
                                 elif invocation.Cancel.IsCancellationRequested then
                                     return Error(Fault.cancelled ())
                                 else
@@ -307,20 +311,20 @@ let run (store: StoreAccess) =
 
                                     match result with
                                     | Error fault -> return Error(Fault.inScript path number fault)
-                                    | Ok value ->
+                                    | Ok(value, said) ->
                                         let text = Value.display value
 
                                         if text <> "" then
                                             invocation.Output.NewLine().Write text |> ignore
 
-                                        return! loop (number + 1) rest value
+                                        return! loop (number + 1) rest value (notes @ said)
                         }
 
                     depth <- depth + 1
 
                     try
-                        let! result = loop 1 lines Value.Empty
-                        return result |> Outcome.map (fun value -> { Value = value; Events = []; Notes = [] })
+                        let! result = loop 1 lines Value.Empty []
+                        return result |> Outcome.map (fun (value, notes) -> { Value = value; Events = []; Notes = notes })
                     finally
                         depth <- depth - 1
             } }

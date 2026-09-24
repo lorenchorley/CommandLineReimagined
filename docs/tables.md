@@ -309,8 +309,8 @@ $ ls | where $row.kind eq view | count
 ```
 
 The note is still shown, because the `where` that kept nothing is part of the line. A
-line of a script that `run` runs is not explained: `run` answers with the script's last
-value, and no notes.
+line of a script that `run` runs is explained the same way, under the script's output,
+but offers no fix: the line to correct is in the script, not the one you typed.
 
 ### The reserved words
 

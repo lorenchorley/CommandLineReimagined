@@ -534,6 +534,18 @@ type TableCommandTests() =
             [ TableCommandTests.Explanation "kind is folder or text" ],
             (harness.Respond "ls | where $row.kind ne foldr | where $row.kind eq foldr").Notes)
 
+    /// A script's empty filter explains itself as it would typed (0043), and offers no
+    /// fix: the line to correct is in the script, not the one typed (0044).
+    [<TestMethod>]
+    member _.AScriptsEmptyFilterIsExplainedWithoutAFix() =
+        let harness = seeded ()
+        harness.Run "write empty.clr \"ls | where $row.kind eq foldr\"" |> ignore
+        let response = harness.Respond "run empty.clr"
+
+        Assert.AreEqual<Fault option>(None, response.Fault)
+        // The script is a row of its own now, so `script` is among the kinds.
+        Assert.AreEqual<Note list>([ TableCommandTests.Explanation "kind is folder, script or text" ], response.Notes)
+
     /// A value with nothing near is explained and offers nothing, and so is a near one
     /// held in a variable, which has no place in the line to correct (0045).
     [<TestMethod>]
