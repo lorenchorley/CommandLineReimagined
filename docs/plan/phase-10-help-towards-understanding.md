@@ -53,7 +53,7 @@ Built in 10.0, so that A, B and C code against it from the start.
   line's are its stages', every fix resolved against `Source`. `Refresh` does the same,
   so a live view carries its explanation.
 - `ExecutionResponse` gains `IReadOnlyList<NoteInfo>? Notes`, serialised as `notes`,
-  absent when there are none; `NoteInfo(Kind, Text, Fixes)` with whole lines. Phase 9's
+  null when there are none, as `guide` is; `NoteInfo(Kind, Text, Fixes)` with whole lines. Phase 9's
   `guide` is unchanged, and is one more thing drawn as guidance.
 - `tools/transcript.fsx` prints each note after the answer, as `  suggestion: …` or
   `  explanation: …`, and each fix as `  fix: …`.

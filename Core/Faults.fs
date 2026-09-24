@@ -173,15 +173,36 @@ module Note =
     let explanation (text: string) (fixes: Fix list) : Note =
         { Kind = "explanation"; Text = text; Fixes = fixes }
 
+    /// How many whole-word places `source` has for `written`, counting no further than two.
+    let rec private places (source: string) (written: string) (count: int) =
+        if count > 1 then
+            count
+        else
+            match Fix.apply source (Fix.Replace(written, "\u0001")) with
+            | Some rest -> places rest written (count + 1)
+            | None -> count
+
     /// <summary>The note with every fix made a whole line of `source`.</summary>
     /// <remarks>
     /// A fix the line has no place for is dropped, and so is a second fix that makes
-    /// the same line. The note itself stays even with no fix left: what it says is
-    /// still true.
+    /// the same line. So is a replacement of words the line has in more than one place:
+    /// whatever found the mistake does not say which place it was about, and the first
+    /// can be the wrong one (`where $row.kind ne foldr | where $row.kind eq foldr`).
+    /// The note itself stays even with no fix left: what it says is still true.
     /// </remarks>
     let resolve (source: string) (note: Note) : Note =
+        let unambiguous fix =
+            match fix with
+            | Fix.Replace(written, _) -> places source written 0 <= 1
+            | Fix.Line _ -> true
+
         { note with
-            Fixes = note.Fixes |> List.choose (Fix.apply source) |> List.distinct |> List.map Fix.Line }
+            Fixes =
+                note.Fixes
+                |> List.filter unambiguous
+                |> List.choose (Fix.apply source)
+                |> List.distinct
+                |> List.map Fix.Line }
 
     /// The whole lines a resolved note offers, for a host.
     let fixLines (note: Note) : string list = note.Fixes |> List.choose Fix.line

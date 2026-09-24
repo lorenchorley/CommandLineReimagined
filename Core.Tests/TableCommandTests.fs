@@ -514,6 +514,26 @@ type TableCommandTests() =
             [ TableCommandTests.Explanation("kind is folder or text", [ "ls | where $row.kind eq folder" ]) ],
             response.Notes)
 
+    /// A value that differs only in case is the one it was meant to be: `eq` compares
+    /// case, so `Folder` keeps nothing, and the fix is `folder` (0045).
+    [<TestMethod>]
+    member _.AValueInTheWrongCaseIsOfferedAsAFix() =
+        let harness = seeded ()
+
+        Assert.AreEqual<Note list>(
+            [ TableCommandTests.Explanation("kind is folder or text", [ "ls | where $row.kind eq folder" ]) ],
+            (harness.Respond "ls | where $row.kind eq Folder").Notes)
+
+    /// A value the line has in two places offers no fix: the explanation does not say
+    /// which one it was about, and the first can be the wrong one (0044).
+    [<TestMethod>]
+    member _.AValueWrittenTwiceOffersNoFix() =
+        let harness = seeded ()
+
+        Assert.AreEqual<Note list>(
+            [ TableCommandTests.Explanation "kind is folder or text" ],
+            (harness.Respond "ls | where $row.kind ne foldr | where $row.kind eq foldr").Notes)
+
     /// A value with nothing near is explained and offers nothing, and so is a near one
     /// held in a variable, which has no place in the line to correct (0045).
     [<TestMethod>]

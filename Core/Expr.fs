@@ -519,9 +519,16 @@ module Expr =
         match other with
         | Expr.Const _ ->
             let had = cells |> List.map Value.display |> List.distinct
+            let written = Value.display compared
 
-            match nearest had (Value.display compared) with
-            | first :: _ -> [ Fix.Replace(asWritten (Value.display compared), asWritten first) ]
+            // `eq` compares case and all, and `Nearest` counts a case difference as no
+            // slip, so a value that differs only in case is named first, as a column is.
+            let sameButCase =
+                had
+                |> List.filter (fun each -> each <> written && String.Equals(each, written, StringComparison.OrdinalIgnoreCase))
+
+            match sameButCase @ nearest had written with
+            | first :: _ -> [ Fix.Replace(asWritten written, asWritten first) ]
             | [] -> []
         | _ -> []
 

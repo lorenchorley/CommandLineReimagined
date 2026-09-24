@@ -1398,14 +1398,13 @@ be a whole line made of the typed line, `Source` (`Note.resolve`, `Fix.apply`):
   earlier one, are dropped.
 - The note stays when every fix is dropped: what it says is still true.
 
-**Written twice.** A fault's replacement whose `written` is in the line, as a whole word,
-in more than one place **must** be dropped (`Session.faultNotes`): the fault does not
-say which of them it was about, and the first can be the wrong one.
-`ls | where $row.kind eq text or $row.kind` is suggested and offers no fix
-([Predicates](#predicates)). A fix that is already a whole line, as the fix for a path
-or a variable is, is not held to this. An explanation's replacement is not held to it
-either, and is resolved against the first place (see
-[Conformance](conformance.md#known-deviations)).
+**Written twice.** A replacement whose `written` is in the line, as a whole word, in
+more than one place **must** be dropped (`Note.resolve`), whether a fault or an
+explanation gave it: neither says which of them it was about, and the first can be the
+wrong one. `ls | where $row.kind eq text or $row.kind` is suggested and offers no fix
+([Predicates](#predicates)), and so is explained
+`ls | where $row.kind ne foldr | where $row.kind eq foldr`. A fix that is already a
+whole line, as the fix for a path or a variable is, is not held to this.
 
 ### An empty filter explains itself
 
@@ -1458,8 +1457,9 @@ would not read back as one word. At most five are named, joined `a`, `a or b`,
 the sentence ends `or <n> more`, where `n` is how many were left out.
 
 **A near value** ([decision 0045](../decisions/0045-a-near-value-offers-a-fix.md)). For
-`eq` only, when the compared operand is written in the line as a constant and
-`Nearest.names` finds values of the column near its display string, the explanation
+`eq` only, when the compared operand is written in the line as a constant and the
+column has values near its display string (first those that differ from it only in
+case, since `eq` compares case, then those `Nearest.names` finds), the explanation
 offers one fix: the value, written as it would be on the right of `eq`, replaced by the
 nearest, written the same way. The text is the same with or without it. A value held in
 a variable has no place in the line and offers none, and nor does a value with nothing

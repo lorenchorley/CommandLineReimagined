@@ -47,7 +47,7 @@ second table counts from `dotnet test`.
 | Asynchronous commands, live output, cancellation | `Core.Tests/AsyncCommandTests` | 14 |
 | `undo`, `redo`, `history` and `help` as commands, `help <command>`, and the nearest names an unknown command's note gives | `Core.Tests/MetaCommandTests` | 28 |
 | What a line says it did to the log: the lines it committed, undid and redid | `Core.Tests/LogChangesTests` | 11 |
-| The table functions, as whole command lines, the two predicate faults of decision 0033, what answers a predicate (decision 0034), and the explanation of an empty `where`: a column no row has, the values a column has, most frequent first and at most five, a span of numbers, a near value's fix, the part of an `and` that kept nothing, and when it is silent (decisions 0043, 0045) | `Core.Tests/TableCommandTests` | 61 |
+| The table functions, as whole command lines, the two predicate faults of decision 0033, what answers a predicate (decision 0034), and the explanation of an empty `where`: a column no row has, the values a column has, most frequent first and at most five, a span of numbers, a near value's fix, the part of an `and` that kept nothing, and when it is silent (decisions 0043, 0045) | `Core.Tests/TableCommandTests` | 63 |
 | Views: `in` on a predicate, `ls` across folders, `out`, `find`, `save-view`, refreshing, and the bound check in each, a view read back from its record included; the explanation of an empty `find`, a view's listing and a live view's refresh | `Core.Tests/ViewTests` | 53 |
 | `back` and the trail (decision 0037): each step further, views, after `out`, the start and the end of the trail, undo and redo, a folder that is gone, across a reload, the fold | `Core.Tests/BackTests` | 21 |
 | A fix made a whole line: at a whole word only, dropped when it changes nothing, one line once, and a fault as a value without notes (decisions 0041, 0044) | `Core.Tests/FixTests` | 5 |
@@ -82,10 +82,10 @@ Cases actually run, which is what the suite reports:
 | Project | Cases |
 | --- | --- |
 | `Parser.Tests` | 375 |
-| `Core.Tests` | 878 |
+| `Core.Tests` | 880 |
 | `Web.Core.Tests` | 143 |
 | `Terminal.Tests` | 32 |
-| Total | 1428 |
+| Total | 1430 |
 
 Run them with:
 
@@ -297,9 +297,7 @@ case.
 | XML element text is read as an attribute `text` and written back as content, so mixed content comes back with its text gathered before the children, trimmed; an XML attribute called `text` on an element with content is replaced by it; comments and processing instructions are dropped. | Intended for this release; see [decision 0025](../decisions/0025-xml-text-content.md). |
 | A document with a DTD is refused rather than read. | Intended. A file in the store is anyone's, and entity expansion is a way to stop a tab. |
 | Messages are English only and the client is published with invariant globalisation. | Intended for now; see [Design doc](design-doc.md#internationalisation). |
-| An explanation's fix is not held to the twice rule that a fault's is ([Resolving the fixes](execution-model.md#resolving-the-fixes)), so when the value it corrects is written earlier in the line too, the fix corrects the earlier place: `ls \| where $row.kind ne foldr \| where $row.kind eq foldr` explains `kind is folder or text` with the fix `ls \| where $row.kind ne folder \| where $row.kind eq foldr`, which changes the first filter and not the one that kept nothing. A successful line's notes are resolved with `Note.resolve` alone (`Core/Session.fs`, lines 625 and 681); the filter that drops an ambiguous replacement is inside `faultNotes`. | Open, reported for the owner to decide. [Decision 0044](../decisions/0044-a-fault-may-carry-fixes.md) makes a fix the corrected line. |
-| A value that differs from one the column has only in case offers no fix: `ls \| where $row.kind eq Folder` explains `kind is folder or text` and offers nothing, because `Nearest.names` leaves out a candidate at distance 0, which ignoring case this is (`Core/Nearest.fs`, line 68; `Expr.nearValue`). A column in the wrong case is named, and fixed, by a rule of its own (`$row.Kind` gives `No row has Kind; did you mean kind?`). | Open, reported for the owner to decide. [Decision 0045](../decisions/0045-a-near-value-offers-a-fix.md) offers a value within `Nearest`'s distance. |
-| A response with no notes carries `"notes":null`, as it carries `"guide":null`, where the Phase 10 plan's wire says `notes` is absent when there are none. `TerminalSession` passes null (`Web.Core/TerminalSession.cs`, line 170), and the bridge serialises with the web defaults, which write nulls. | Open, reported for the owner. A page reading `r.notes \|\| []` sees no difference; this document specifies null, as the code does. |
+| A response with no notes carries `"notes":null`, as it carries `"guide":null`. `TerminalSession` passes null (`Web.Core/TerminalSession.cs`), and the bridge serialises with the web defaults, which write nulls. | Intended. A page reading `r.notes \|\| []` sees no difference, and `notes` follows `guide`; the Phase 10 plan's wire now says null. |
 
 ## Changing this specification
 
