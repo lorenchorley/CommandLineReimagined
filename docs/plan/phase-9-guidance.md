@@ -214,7 +214,7 @@ After 9.1, A, B and C start together from its commit.
 | --- | --- | --- | --- |
 | 9.0 Foundation | orchestrator | merged | aef5fea |
 | 9.1 The rename | sub-agent | merged | 75d105f |
-| A. `back` | stream agent | in progress | |
+| A. `back` | stream agent | merged | e62c9df |
 | B. Guidance in the core | stream agent | in progress | |
 | C. The page | stream agent | in progress | |
 | 9.9 docs, spec | two sub-agents | not started | |
