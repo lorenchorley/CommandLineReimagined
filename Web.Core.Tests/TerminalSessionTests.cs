@@ -53,6 +53,36 @@ public class TerminalSessionTests
         Assert.IsNull((await _session.ExecuteAsync("read missing.txt")).Guide);
     }
 
+    /// <summary>A line that called a command wrongly carries its help (decision 0038).</summary>
+    /// <remarks>
+    /// As the page draws `help read`: the description as a line of text, then the table
+    /// of parameters. The error is the one it always was.
+    /// </remarks>
+    [TestMethod]
+    public async Task AWrongCallCarriesTheCommandsHelpAsItsGuide()
+    {
+        var response = await _session.ExecuteAsync("read");
+        var help = await _session.ExecuteAsync("help read");
+
+        Assert.AreEqual("'read' needs an argument for 'path'.", response.Error);
+        Assert.IsNotNull(response.Guide);
+        Assert.AreEqual(2, response.Guide.Count);
+
+        Assert.AreEqual("text", response.Guide[0].Kind);
+        Assert.AreEqual(help.Output.Single(), response.Guide[0].Text);
+
+        var table = response.Guide[1];
+        var expected = help.Result!.Single();
+        Assert.AreEqual("table", table.Kind);
+        CollectionAssert.AreEqual(
+            expected.Columns!.Select(column => column.Name).ToList(),
+            table.Columns!.Select(column => column.Name).ToList());
+        Assert.AreEqual(expected.Text, table.Text);
+
+        Assert.IsNotNull((await _session.ExecuteAsync("help where extra")).Guide);
+        Assert.IsNull((await _session.ExecuteAsync("cd documents")).Guide);
+    }
+
     [TestMethod]
     public async Task ListingIsOneTableWithACellPerValue()
     {

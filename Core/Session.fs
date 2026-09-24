@@ -270,6 +270,74 @@ type Session(log: ILog, options: SessionOptions, seed: Seed) =
                         return result |> Outcome.map (fun execution -> execution.Value)
                 }
 
+    /// <summary>The command a line called wrongly, when that is why it failed (decision 0038).</summary>
+    /// <remarks>
+    /// A binding fault, stamped with the stage it failed in, where that stage names a
+    /// command that exists. With `else` the fault is the last branch's, so the stage is
+    /// counted in the last pipeline. A binding fault stamped on a stage can have come
+    /// from inside it rather than from its call: from a pipeline in parentheses, a line
+    /// of the script `run` ran, or a `??` default. Every fault about a call names its
+    /// command first (`'sort' needs an argument for 'column'.`), so the fault must name
+    /// this stage's command too. A fault raised while a command runs over what it was
+    /// given (a file that is not there) is not a binding fault, and an unknown name
+    /// has no command.
+    /// </remarks>
+    let calledWrongly (tree: Tree.Node) (fault: Fault) : CommandSpec option =
+        let pipeline =
+            match tree with
+            | :? Tree.Pipeline as pipeline -> Some pipeline
+            | :? Tree.RecoveryLine as line when line.Pipelines.Count > 0 -> Some(Seq.last line.Pipelines)
+            | _ -> None
+
+        match fault.Kind, fault.Stage, pipeline with
+        | Binding, Some stage, Some pipeline when stage >= 1 && stage <= pipeline.OrderedCommands.Count ->
+            let expression = pipeline.OrderedCommands[stage - 1]
+
+            let name =
+                expression.Expression.Match(
+                    (fun (f: Tree.Function) -> Some f.Id.Name),
+                    (fun (c: Tree.Cli) -> Some c.Name.Name),
+                    (fun (_: Tree.InstanceTag) -> None),
+                    (fun (_: Tree.NestedPipeline) -> None),
+                    (fun (_: Tree.VariableReference) -> None))
+
+            name
+            |> Option.bind (fun name ->
+                evaluator.Specs
+                |> List.tryFind (fun spec -> String.Equals(spec.Name, name, StringComparison.OrdinalIgnoreCase)))
+            |> Option.filter (fun spec -> fault.Message.StartsWith(sprintf "'%s'" spec.Name, StringComparison.Ordinal))
+        | _ -> None
+
+    /// <summary>What `help &lt;command&gt;` answers, as a line's guide (decision 0038).</summary>
+    /// <remarks>
+    /// Asked of `help` itself, the way a live view re-reads a line, so the guide cannot
+    /// drift from what `help` says: nothing is committed and nothing reaches the
+    /// screen. `help` writes the command's description through its output and answers
+    /// the table of parameters; the guide is both, the description first, as one list,
+    /// which a host flattens into a line of text and the table.
+    /// </remarks>
+    let guideFor (spec: CommandSpec) : Async<Value option> =
+        async {
+            let source = sprintf "help %s" spec.Name
+            let parsed = parser.Parse<Tree.Node> source
+
+            if not parsed.IsT0 then
+                return None
+            else
+                let output = CapturingOutput ignore
+
+                try
+                    let! result = evaluator.Refresh parsed.AsT0 source output CancellationToken.None
+
+                    match result with
+                    | Ok execution ->
+                        let description = output.Lines |> List.map Value.Text
+                        return Some(Value.List(description @ [ execution.Value ]))
+                    | Error _ -> return None
+                with _ ->
+                    return None
+        }
+
     let mutable running: CancellationTokenSource option = None
     let mutable completing: CancellationTokenSource option = None
 
@@ -438,7 +506,12 @@ type Session(log: ILog, options: SessionOptions, seed: Seed) =
                             let! result = evaluator.Execute tree source output source'.Token
 
                             match result with
-                            | Error fault -> return respond (Some fault) None
+                            | Error fault ->
+                                match calledWrongly tree fault with
+                                | Some spec ->
+                                    let! guide = guideFor spec
+                                    return { respond (Some fault) None with Guide = guide }
+                                | None -> return respond (Some fault) None
                             | Ok execution -> return respond None (Some execution.Value)
                         with
                         | :? OperationCanceledException -> return respond (Some(Fault.cancelled ())) None
