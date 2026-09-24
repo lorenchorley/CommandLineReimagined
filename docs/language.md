@@ -84,7 +84,7 @@ A variable can stand on its own the same way: see
 
 An unquoted word may contain letters, digits and underscore, plus `. \ / : ~ + @ % -`
 after the first character. The first character must be a letter, digit, underscore, or
-one of `. \ / ~ *`, or a `-` with a digit after it. That covers the things a shell needs
+one of `. \ / ~ * @`, or a `-` with a digit after it. That covers the things a shell needs
 to write without ceremony:
 
 ```
@@ -98,6 +98,15 @@ $ echo well-known
 well-known
 $ echo user@host
 user@host
+```
+
+A word may start with `@` so that the columns `pick` answers, `@tag` and `@children`,
+can be named as they are shown, as in `select @tag`
+([decision 0050](decisions/0050-at-names-are-words-and-columns.md)):
+
+```
+$ echo @tag
+@tag
 ```
 
 Accented letters are ordinary identifier characters, so `café` and `größe` need no
@@ -293,6 +302,54 @@ An object or a component answers its attributes. A file answers `name`, `kind`,
 is *nothing* rather than an error, which is what lets a predicate skip a row that is
 missing a column instead of stopping the line.
 
+A tag's own parts, its name and its children, are not attributes, and are read with an
+`@` after the stop ([decision 0048](decisions/0048-a-tags-own-parts-are-read-with-at.md)).
+`@tag` is the tag's name, as text, and `@children` its children, in order, as a list.
+No attribute can start with `@`, in the tag notation or in XML, so neither can ever
+mean an attribute. In the same tab:
+
+```
+$ echo $thing.@tag
+measurement
+$ set shelf <shelf><book title=dune/><book title=emma/></shelf>
+<shelf><book title=dune/><book title=emma/></shelf>
+$ echo $shelf.@tag
+shelf
+$ $shelf.@children
+<book title=dune/> <book title=emma/>
+$ $shelf.@children | select title
+title
+dune
+emma
+```
+
+A list of tags is a table when they share a type and have none of their own, as a
+tag's children are ([Tags are tables](tables.md#tags-are-tables)), so the children can
+go straight on to a table function. A tag with no children has an empty list. Any other
+`@` member, such as `$thing.@colour`, is nothing, and so are `@tag` and `@children` on
+a value that is not a tag: a number, a text, a file.
+
+A row answers its columns first, whatever their names
+([decision 0050](decisions/0050-at-names-are-words-and-columns.md)). The rows `pick`
+answers have columns named `@tag` and `@children`, so on one of those `$row.@tag` is
+the element's name, and a column called `@id`, from a CSV header, reads as `$row.@id`.
+A row that has no such column is a tag whose type is `row`, and `@tag` says so:
+
+```
+$ $shelf | pick book | first | set b
+<row @tag=book title=dune @children=/>
+$ echo $b.@tag
+book
+$ ls | first | set r
+<row name=documents kind=folder folder=/ size=0 modified=2026-09-22T09:30:00.0000000+00:00/>
+$ echo $r.@tag
+row
+```
+
+The same holds for the rows `where` tests when a tag is read as a table: each child is
+a `row` there. [`pick`](tables.md#reading-a-tree-with-pick) is the way to read
+elements as rows, with their names.
+
 A full stop has to be followed by a name. With nothing after it, the line does not
 parse, and the message says what belongs there:
 
@@ -300,6 +357,9 @@ parse, and the message says what belongs there:
 $ echo $thing.
 Column 12: a column name belongs after the stop, as in $row.kind
 ```
+
+An `@` needs a name after it in the same way: `echo $v.@` says
+`Column 9: a name belongs after the @, as in $v.@tag`.
 
 This is what a predicate uses to read a column: `$row.size` is a member access like
 any other. What is particular to `$row` is where it exists. `where`, `find`, `in` and
@@ -610,13 +670,19 @@ $ echo $entries | count
 5
 ```
 
+A list in a cell says how many items it holds in the same way, `6 items`, and one in
+the `@children` column that `pick` answers says `2 children`
+([decision 0051](decisions/0051-a-list-in-a-table-cell-is-summarised.md)). A list shown
+on its own, outside a table, is still written out.
+
 Names may contain letters, digits and underscore. Writing `set $x 1` does not name a
 variable `x`; `$x` is read as a variable reference, so it reports
 `Unknown variable: $x`. A name a slip from one that is bound gets a note naming it, with
 the line that uses it: see [`Unknown variable`](errors.md#unknown-variable-name).
 
 On the page, typing `$` offers every bound variable as a completion, each saying what
-it holds, such as `table · 5 rows · name, kind, folder…`. See
+it holds, such as `table · 5 rows · name, kind, folder…`, and `$name.` on a tag offers
+its attributes and then `@tag` and `@children`. See
 [The web terminal](web-terminal.md#completions).
 
 ### A variable as a stage
