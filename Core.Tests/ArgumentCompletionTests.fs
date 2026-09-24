@@ -101,6 +101,16 @@ type ArgumentCompletionTests() =
     /// Rows another stream's parameter will fill, which may not exist yet.
     static let pending = set [ "help", "command" ]
 
+    /// Phase 11's library, in `$d`, for the selector tests.
+    static let library =
+        "set d <library city=paris><book title=dune year=1965><author name=herbert/></book>"
+        + "<book title=emma year=1815><author name=austen/></book><shelf/></library>"
+
+    static let withLibrary () =
+        let harness = seeded ()
+        harness.Run library |> ignore
+        harness
+
     // ------------------------------------------------------- every parameter
 
     [<TestMethod>]
@@ -730,3 +740,83 @@ type ArgumentCompletionTests() =
         | other -> Assert.Fail(sprintf "%A" other)
 
         Assert.AreEqual<int option>(Some 0, answer.Signature.Value.Active)
+
+    // ------------------------------------------------ Phase 11: selectors
+
+    [<TestMethod>]
+    member _.ASelectorIsReachedWhereItsWordIs() =
+        let specs = (seeded ()).Session.Commands
+
+        for line in [ "pick "; "$d | pick "; "$d | pick \"book > " ] do
+            Assert.AreEqual<string>("Argument(pick, selector)", Context.describe (Context.analyse specs line line.Length).Place, line)
+
+    /// Decision 0049: the element names of the document flowing in, in document order,
+    /// and never the pipe while the selector is still to be written.
+    [<TestMethod>]
+    member _.ASelectorOffersTheElementNamesThatFlowIn() =
+        let harness = withLibrary ()
+
+        Assert.AreEqual<string list>([ "library"; "book"; "author"; "shelf" ], texts harness "$d | pick ")
+        Assert.IsTrue(items harness "$d | pick " |> List.forall (fun c -> c.Kind = "value"))
+
+    [<TestMethod>]
+    member _.ASelectorNameSaysHowManyElementsHaveIt() =
+        let detail name =
+            (items (withLibrary ()) "$d | pick " |> List.find (fun c -> c.Text = name)).Detail
+
+        Assert.AreEqual<string option>(Some "2 elements", detail "book")
+        Assert.AreEqual<string option>(Some "1 element", detail "shelf")
+
+    [<TestMethod>]
+    member _.ASelectorNameCompletesByItsPrefix() =
+        let harness = withLibrary ()
+
+        Assert.AreEqual<string list>([ "book" ], texts harness "$d | pick b")
+        Assert.AreEqual<string list>([ "author" ], texts harness "$d | pick A")
+        Assert.AreEqual<string list>([], texts harness "$d | pick magazine")
+
+    /// A quoted selector completes the name being written and keeps what is before it.
+    [<TestMethod>]
+    member _.AQuotedSelectorCompletesItsLastName() =
+        let harness = withLibrary ()
+
+        Assert.AreEqual<string list>([ "\"book > author\"" ], texts harness "$d | pick \"book > a")
+        Assert.AreEqual<string list>([ "\"shelf, book\"" ], texts harness "$d | pick \"shelf, b")
+        Assert.AreEqual<string list>([ "\"library book\"" ], texts harness "$d | pick \"library bo")
+
+        Assert.AreEqual<string list>(
+            [ "\"book library\""; "\"book book\""; "\"book author\""; "\"book shelf\"" ],
+            texts harness "$d | pick \"book "
+        )
+
+    /// Inside `[` an attribute and its value are written, and after `]` or `*` a name
+    /// cannot follow, so nothing is offered.
+    [<TestMethod>]
+    member _.ASelectorOffersNothingInsideBracketsOrAfterAnOperator() =
+        let harness = withLibrary ()
+
+        for line in
+            [ "$d | pick \"book["
+              "$d | pick \"book[ti"
+              "$d | pick \"book[year="
+              "$d | pick \"book[year^=1"
+              "$d | pick \"book[year]"
+              "$d | pick \"*" ] do
+            Assert.AreEqual<string list>([], texts harness line, line)
+
+    /// What `pick` answered is read back as its elements, so a second pick is offered
+    /// the names in the rows and their children.
+    [<TestMethod>]
+    member _.ASelectorAfterAPickOffersItsElements() =
+        Assert.AreEqual<string list>([ "book"; "author" ], texts (withLibrary ()) "$d | pick book | pick ")
+
+    /// Nothing flowing in that is a document, and nothing is offered: never files.
+    [<TestMethod>]
+    member _.ASelectorWithNoDocumentOffersNothing() =
+        let harness = withLibrary ()
+        harness.Run "set n 5" |> ignore
+
+        Assert.AreEqual<string list>([], texts harness "pick ")
+        Assert.AreEqual<string list>([], texts harness "$n | pick ")
+        Assert.AreEqual<string list>([], texts harness "ls | pick ")
+        Assert.AreEqual<string list>([], texts harness "$missing | pick ")

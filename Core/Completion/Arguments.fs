@@ -93,6 +93,88 @@ module ArgumentCompletion =
                     Request.item request "column" name |> Request.withDetail (typeName columnType))
         }
 
+    /// A variable standing alone as the upstream: `$d`, of `$d | pick `.
+    let private loneVariable =
+        System.Text.RegularExpressions.Regex(@"^\s*\$([A-Za-z_][A-Za-z0-9_-]*)\s*$")
+
+    /// <summary>The documents flowing into a stage, as `pick` would read them.</summary>
+    /// <remarks>
+    /// A lone variable is read from the projection, and nothing runs. Otherwise what
+    /// the upstream answers is known only as its shape, which keeps a table's rows but
+    /// not a tree: a table of elements, which is what `pick` answers, is read back as
+    /// them, and anything else offers nothing.
+    /// </remarks>
+    let private flowingDocuments (request: Request) (stage: Stage) : Async<Tag list> =
+        let read (value: Value) =
+            match Selector.documents "pick" value with
+            | Ok documents -> documents
+            | Error _ -> []
+
+        match stage.Upstream |> Option.map loneVariable.Match with
+        | Some head when head.Success ->
+            request.Projection.Variables
+            |> Map.tryFind head.Groups[1].Value
+            |> Option.map read
+            |> Option.defaultValue []
+            |> async.Return
+        | Some _ ->
+            async {
+                let! shape = request.Shapes stage
+
+                match shape.Rows with
+                | Some rows ->
+                    let table: Table =
+                        { Columns = shape.Columns |> List.map (fun (name, kind) -> Table.column name kind)
+                          Rows =
+                            rows
+                            |> List.map (fun row ->
+                                shape.Columns
+                                |> List.map (fun (name, _) -> Map.tryFind name row |> Option.defaultValue Value.None)) }
+
+                    return read (Value.Table table)
+                | None -> return []
+            }
+        | None -> async.Return []
+
+    /// <summary>The element names of the document flowing in, for a selector (decision 0049).</summary>
+    /// <remarks>
+    /// Only where the part of the selector being written is a plain name: at its start,
+    /// or after a space, `>` or `,`. Inside `[`, where an attribute and its value are
+    /// written, and straight after `]` or `*`, nothing is. The names come in document
+    /// order, each with how many elements have it; a quoted word completes quoted, the
+    /// rest of the selector kept.
+    /// </remarks>
+    let private selectorNames (request: Request) (stage: Stage) : Async<Completion list> =
+        let word = request.Context.Word
+        let prefix = word.Prefix
+        let cut = prefix.LastIndexOfAny [| ' '; '>'; ','; '\t' |]
+        let head = prefix.Substring(0, cut + 1)
+        let tail = prefix.Substring(cut + 1)
+        let insideBrackets = prefix.LastIndexOf '[' > prefix.LastIndexOf ']'
+
+        if insideBrackets || not (tail = "" || Selector.isName tail) then
+            async.Return []
+        else
+            async {
+                let! documents = flowingDocuments request stage
+
+                let counts =
+                    Selector.elements documents |> List.countBy (fun tag -> tag.TypeName) |> Map.ofList
+
+                let quoted (text: string) = if word.Quoted then "\"" + text + "\"" else text
+
+                return
+                    Selector.elements documents
+                    |> List.map (fun tag -> tag.TypeName)
+                    |> List.distinct
+                    |> List.filter (fun name -> Selector.isName name && startsWith tail name)
+                    |> List.map (fun name ->
+                        let count = Map.tryFind name counts |> Option.defaultValue 0
+
+                        Request.item request "value" (quoted (head + name))
+                        |> Request.withDetail (sprintf "%d element%s" count (if count = 1 then "" else "s")))
+            }
+
     /// What a parameter's argument could be, by what it takes.
     let private byTakes (request: Request) (stage: Stage) (parameter: Parameter) : Async<Completion list> =
         let now items = async.Return items
@@ -115,8 +197,8 @@ module ArgumentCompletion =
         | Takes.VariableName -> now (variables request "")
         | Takes.CommandName -> now (commands request)
         | Takes.Value -> now (variables request "$")
+        | Takes.Selector -> selectorNames request stage
         // Nothing to pick: the signature says what is wanted.
-        | Takes.Selector
         | Takes.Count
         | Takes.Number
         | Takes.NewName
