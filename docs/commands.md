@@ -80,8 +80,9 @@ commands are the ones marked "no" above except `exit` and `progress`.
 
 A name that is not a command fails with `Unknown command : <name>`, followed by
 `Did you mean ...?` when a command or two are a slip away, as in
-`Unknown command : lss. Did you mean ls?`, or when the name is an old one, as in
-`Unknown command : cd. Did you mean in?`. That includes `UnknownCommand`, the name the
+`Unknown command : lss. Did you mean ls?`, or when the name is one of a command's
+keywords: an old name, as in `Unknown command : cd. Did you mean in?`, or a word for
+what it does, as in `Unknown command : delete. Did you mean rm?`. That includes `UnknownCommand`, the name the
 terminal uses internally to report one. `help <command>` describes one command's
 parameters.
 
