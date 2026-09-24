@@ -372,6 +372,10 @@ Each command declares parameters in order. Binding happens in one pass:
 6. Arguments left over after every parameter is filled report
    `'name' takes N arguments, but M were given.`
 
+A call that fails either way, or names a flag the command does not have, is a call made
+wrongly, and the page shows the command's help under the error: what `help <command>`
+answers ([decision 0038](decisions/0038-a-wrong-call-shows-its-help.md)).
+
 So `write` takes a path and a text, and these are all the same call:
 
 ```
@@ -398,6 +402,10 @@ documents
 $ read notes.txt | write copy.txt
 copy.txt
 ```
+
+On the page, once a stage has every argument it needs, the first chip completion offers
+is `|`, so sending the result on is always one tap away
+([decision 0039](decisions/0039-the-pipe-comes-first.md)).
 
 A command uses the piped value only for a parameter that accepts one and that you did
 not write out yourself. `read` and `in` take their path that way; `write` takes its text
