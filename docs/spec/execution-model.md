@@ -1416,7 +1416,8 @@ listing (`ls` while a view is set) keeps no row of a table that had some, its re
 table stays the answer, so a pipe, `try` and `else` see what they saw before. An empty
 table in, or a filter that keeps a row, says nothing. The table read is, for `where`,
 the table it was given, and for `find` and a view, every record in the store as a row of
-the shape `ls` gives.
+the shape `ls` gives, in the store's own order rather than a listing's, which this
+specification does not fix.
 
 A column **has** a value when the table lists it and at least one row's cell in it is not
 a gap; a column is matched by name exactly, as `$row.` reads it. The explanation is the
