@@ -110,7 +110,7 @@ public class MouseInputHandler : InputComponent
 
     public void Up_PathNavigation_Click()
     {
-        string command = $"up";
+        string command = $"out";
 
         TextUpdateSystem.InsertTextAtCursor(command);
         Shell.ExecuteCurrentPrompt();
@@ -121,7 +121,7 @@ public class MouseInputHandler : InputComponent
     public void Enter_PathNavigation_Click()
     {
         // Insérer la commande dans l'input où il y a le curseur
-        string command = $"cd \"{_contexteMenuEntity!.GetComponent<PathInformation>().Path.GetLowestDirectory()}\"";
+        string command = $"in \"{_contexteMenuEntity!.GetComponent<PathInformation>().Path.GetLowestDirectory()}\"";
 
         TextUpdateSystem.InsertTextAtCursor(command);
         Shell.ExecuteCurrentPrompt();
