@@ -472,9 +472,7 @@ It also appears in completions, so typing `cl` offers `clear` alongside real com
 `undo` and `help` used to be here too. Both are real commands now — `undo` with `redo`
 and `history`, `help` as a table you can question with
 `help | where $row.name eq set`, and `help where` for one command's parameters — so
-they go through the evaluator like everything else
-and can be piped. That also means the desktop shell and the browser get the same
-commands, rather than each having its own half of the feature.
+they go through the evaluator like everything else and can be piped.
 
 What `help` used to say about pipes, tags and variables is in the filesystem: the
 banner at the top of the scrollback, a `note`, points to `readme.txt`, and `readme.txt`

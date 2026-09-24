@@ -81,7 +81,7 @@ all of it. When a proposal below is in doubt, these decide.
 | Native data | Tables, mixed columns ([0028](decisions/0028-mixed-columns.md)), thirteen table functions, XML ([0011](decisions/0011-real-xml-files.md), [0025](decisions/0025-xml-text-content.md)), CSV, `pick` with CSS selectors ([0049](decisions/0049-pick-selects-elements-with-css-selectors.md)) | Dates are text (`modified` is a text column). No JSON, no sums or averages, no joins, no computed columns, nothing to turn text into rows. |
 | Total customisation | Light and dark follow the system; the guide's files follow the seed unless you edit them ([0040](decisions/0040-seeded-files-follow-the-seed.md)) | Nothing else. The theme, the palette keys, the prompt and the commands are fixed. |
 | Command replayability | The event log, undo and redo, `history` as a table, scripts, live listings and completion re-running read-only lines ([0030](decisions/0030-undo-takes-the-line-back-on-screen.md), [0031](decisions/0031-completion-reads-the-line.md)) | `history` cannot be run again or kept as a script. The point-in-time view that [0010](decisions/0010-undo-by-event-sourcing.md) promised was never built. |
-| A graphics engine | A proposed direction, [0029](decisions/0029-scene-editor-direction.md), with a design and a first milestone. The desktop's prototype ECS and renderer go with the Windows front end ([0054](decisions/0054-the-windows-front-end-is-removed.md)); their ideas are kept in the [design direction](plan/scene-editor-direction.md) | 0029 is Proposed, not Accepted. Nothing is drawn on a canvas in the browser. |
+| A graphics engine | A proposed direction, [0029](decisions/0029-scene-editor-direction.md), with a design and a first milestone. The desktop's prototype ECS and renderer went with the Windows front end ([0054](decisions/0054-the-windows-front-end-is-removed.md)); their ideas are kept in the [design direction](plan/scene-editor-direction.md) | 0029 is Proposed, not Accepted. Nothing is drawn on a canvas in the browser. |
 
 ## The pillars
 
@@ -106,7 +106,7 @@ Proposed:
   line to try, as the guide's files are now. `help` knows only commands today.
 - **Ask in words.** `help delete` should find `rm`. The command keywords of 0037 are
   a start, and a small curated list of synonyms would do the rest. (The Windows shell's
-  thesaurus search, with a 20 MB dictionary, goes with it (0054).)
+  thesaurus search, with a 20 MB dictionary, went with it (0054).)
 
 You will know it is working when someone new can finish the guide on a phone without
 opening the documentation, and never has to guess what a line did.
@@ -430,9 +430,9 @@ rules:
 
 - the canvas is for the scene, and the terminal stays in the DOM;
 - one history, split into authored and simulated state;
-- today's ECS is a prototype;
+- the old ECS was a prototype, and none of it is kept;
 - commands reach the scene only through the store;
-- one renderer, in the browser (its desktop half goes with 0054).
+- one renderer, in the browser (its desktop half went with 0054).
 
 The vision asks for that engine, so 0029 is the first decision to settle. Its first
 open question, whether entities are file records, is answered by principle 2: a scene

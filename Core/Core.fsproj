@@ -3,8 +3,8 @@
   <!--
     The functional core (decision 0006): values, faults, the store, the commands and
     the session. It depends on the parser and on nothing else. Nothing in here knows
-    about the ECS, rendering, WPF, Blazor or JavaScript, which is what lets the same
-    semantics run in a browser tab and in a desktop window.
+    about rendering, Blazor or JavaScript, which is what lets the same semantics run
+    in a browser tab and in a test with no page at all.
   -->
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>

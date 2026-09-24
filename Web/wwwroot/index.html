@@ -53,7 +53,7 @@
   <header>
     <span class="status" id="status">connecting…</span>
     <h1>CommandLineReimagined</h1>
-    <p class="sub">Parsed live by the GOLD grammar. Tap any token.</p>
+    <p class="sub">Parsed live as you type. Tap any token.</p>
   </header>
 
   <input id="cmd" value="command -with optionalParameter"
@@ -93,9 +93,8 @@ let tokens = [], parseError = null, boxes = [], selected = -1;
 
 // ---- rendering -------------------------------------------------------------
 // Draws the token stream at devicePixelRatio so glyphs stay crisp on a phone, and
-// records a rect per token. Those rects are the browser-side equivalent of
-// Renderer.CanvasRenderPosition, which is what RayCaster hit-tests against in the
-// desktop app -- the same idea, without a round trip to the server.
+// records a rect per token, which is what a tap is hit-tested against, without a
+// round trip to the server.
 const FONT_PX = 16, LINE_H = 26, PAD = 14;
 
 function draw() {

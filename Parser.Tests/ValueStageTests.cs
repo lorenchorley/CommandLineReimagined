@@ -8,8 +8,8 @@ namespace Parser.Tests;
 /// missing.
 /// </summary>
 /// <remarks>
-/// FParsec only (decision 0032). The GOLD grammar has no value stage and is frozen, so
-/// none of this belongs in the equivalence corpus.
+/// Decision 0032. The original GOLD grammar had no value stage, so none of this is in
+/// the core corpus of CoreGrammarTests.
 /// </remarks>
 [TestClass]
 public class ValueStageTests

@@ -34,7 +34,7 @@ second table counts from `dotnet test`.
 | `else`, `try`, `??`, pipelines in parentheses as stages and operands, the adjacent function parenthesis, reserved command names | `Parser.Tests/RecoveryTests` | 23 |
 | Value stages, the stop that must be followed by a name, the operator with nothing to compare with | `Parser.Tests/ValueStageTests` | 15 |
 | Members written with `@`, chained, compared and standing as a stage, their round trip, the `@` that must be followed by a name, and a word that starts with `@` (decisions 0048, 0050) | `Parser.Tests/OwnMemberTests` | 9 |
-| Agreement with the retained GOLD parser | `Parser.Tests/ParserEquivalenceTests` | 4 |
+| The core of the grammar as the original defined it: accepted inputs parse and serialise stably, rejected inputs fail, and error columns are pinned (decision 0055) | `Parser.Tests/CoreGrammarTests` | 3 |
 | The two string forms of every value, number formatting, and a list in a table cell summarised (decision 0051) | `Core.Tests/ValueTests` | 19 |
 | The Table value: coercion, columns, types, gaps, rows, display | `Core.Tests/TableTests` | 23 |
 | Evaluating a predicate: members, a tag's `@tag` and `@children`, a row's `@` columns, and `@` on anything else (decisions 0048, 0050), comparison, gaps, boolean words | `Core.Tests/ExpressionTests` | 29 |
@@ -76,7 +76,6 @@ second table counts from `dotnet test`.
 | DTO shapes including tables, a list in a cell summarised (decision 0051), views, refreshing and refreshing from where a listing was run (decision 0047), caught faults, documents, streaming, cancellation, completion, tokens, an `@` member drawn as a member, the guide, and no notes on a line with nothing to say | `Web.Core.Tests/TerminalSessionTests` | 60 |
 | A parse error in words: the phrase table, the explanations, the sentence carried with the parse | `Web.Core.Tests/ParseWordingTests` | 14 |
 | The hover record as the page receives it | `Web.Core.Tests/DescribeTests` | 7 |
-| Path and naming helpers | `Terminal.Tests/ValidCommandTests` | 2 |
 | The published page, in a browser at phone size | `tools/browser-check.mjs` | 1 session |
 
 Cases actually run, which is what the suite reports:
@@ -86,8 +85,7 @@ Cases actually run, which is what the suite reports:
 | `Parser.Tests` | 396 |
 | `Core.Tests` | 963 |
 | `Web.Core.Tests` | 150 |
-| `Terminal.Tests` | 32 |
-| Total | 1541 |
+| Total | 1509 |
 
 Run them with:
 
@@ -100,10 +98,6 @@ done
 `Core.Tests` absorbed `Execution.Tests`, which is deleted, as is the C# `Commands`
 project it tested. Every case it had is here, asserting on the projection rather than on
 a temporary directory.
-
-`EntityComponentSystem.Tests`, `Rendering.Tests`, `Utils.Tests` and
-`SourceGenerators.Tests` cover the desktop shell's libraries, which this specification
-does not govern. They run in CI with the rest.
 
 ## Checklist for a new implementation
 
@@ -319,7 +313,6 @@ case.
 | `run` shows its last line's result twice: once as that line's output, and once as the result of `run`. | Intended. The output is the script's transcript, and the result is what `run` answers, which a pipe after it receives. |
 | `??` defaults a stage that answered nothing, not one that failed, so `echo $missing ?? x` is a `NotFound` fault. | Intended. A missing variable is a failure, and recovering from failure is `else`'s job ([decision 0014](../decisions/0014-recovery-operator.md)). |
 | A reserved word in argument position is described as an operator even when it is `try` or `else`, as in `'try' is an operator; write "try" to pass it as text`. | Cosmetic. The advice is right for all thirteen words. |
-| The retained GOLD parser reports column 12 where the combinator parser reports 11 on one truncated input. | Documented in `ParserEquivalenceTests`. The combinator position is correct. |
 | A pipeline in parentheses inside a predicate runs once, and the predicate keeps its value, so a view saved with one does not re-run it. | Intended. A view is a question about records, and a question that changed its own terms each time it was asked would be a different question. |
 | `vars` holds each value itself in its `value` column, not the one-line summary completion gives the same variable. | Intended. The owner kept `vars` as a table of the values themselves on 2026-09-23; the summaries are completion's and hover's. |
 | `Scope` supports nesting, but no host creates a child scope outside a predicate. | Intended. The model is ahead of the shell. |

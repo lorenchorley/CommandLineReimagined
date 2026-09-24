@@ -15,8 +15,7 @@ namespace Parser.Tests;
 /// </remarks>
 public static class ParserHarness
 {
-    // The suite runs against the FParsec parser. The GOLD interpreter is still built
-    // and is exercised by ParserEquivalenceTests, which runs both over the same corpus.
+    // The suite runs against the FParsec parser, the only one since decision 0055.
     private static readonly CommandLineReimagined.Parsing.CommandLineParser Interpreter = new();
     private static readonly object Gate = new();
 

@@ -9,7 +9,7 @@ namespace CommandLineReimagined.WebClient;
 /// </summary>
 /// <remarks>
 /// <see cref="ParserBridge"/> only classifies text. This runs it: the same core the
-/// desktop shell uses, against a log kept in the browser's own storage. The session is
+/// tests use, against a log kept in the browser's own storage. The session is
 /// static because a page is one terminal, and the location, the variables and the log
 /// have to survive between calls -- and, since Phase 2, between visits.
 ///

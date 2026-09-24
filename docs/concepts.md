@@ -50,9 +50,10 @@ The examples on this page are one session, from a fresh tab.
 ## 1. Parse
 
 The grammar is written as parser combinators in F#, using FParsec, in
-`Parser.FParsec/Grammar.fs`. It replaced a table-driven LALR parser generated from
-`CommandLineGrammar.grm`, which is still in the repository because the two are compared
-against each other in tests.
+`Parser.FParsec/Grammar.fs`. It replaced a table-driven LALR parser generated with
+GOLD, which has since been removed
+([decision 0055](decisions/0055-the-gold-parser-is-removed.md)). The inputs the two
+were once compared on are kept as tests of this one.
 
 Parsing produces a **semantic tree**: nodes such as `PipedCommandList`,
 `CommandExpressionCli`, `ObjectInstance`, `StringConstant` and `VariableReference`. A
@@ -215,10 +216,9 @@ A command has two ways to say something:
   updates a counter and a bar, `download` reports its progress, and `run` shows each line
   of a script as it goes.
 
-The sink is an interface. The desktop shell implements it over the entity component
-system; the browser implements it by collecting lines and raising an event; tests
-implement it by recording. Because commands only know the interface, none of them
-needs a window, and all of them can be tested headlessly. It is also why long-running
+The sink is an interface. The browser implements it by collecting lines and raising an
+event; tests implement it by recording. Because commands only know the interface, none
+of them needs a page, and all of them can be tested headlessly. It is also why long-running
 commands work in WebAssembly at all. In the browser the updates are coalesced to about
 one every 40 milliseconds and pushed into the page, which is what you see moving while
 a command runs.
@@ -387,8 +387,8 @@ scope for a session, and `vars` lists everything visible from it.
 The log is what is kept. In the browser it is stored in IndexedDB, for this site, and
 opening the page replays it into a fresh projection before the input is enabled, so
 your files, variables and location come back exactly as they were, with the trail of
-places `in` and `out` left, which `back` retraces. In the desktop shell and in tests the
-log is in memory and lasts as long as the process.
+places `in` and `out` left, which `back` retraces. In tests the log is in memory and
+lasts as long as the process.
 
 After the replay, the files the terminal seeded are brought up to date where nobody has
 changed them ([decision 0040](decisions/0040-seeded-files-follow-the-seed.md)). A seeded
@@ -435,9 +435,8 @@ the guide to the model.
 | `Web.Core` | The adapter from the core to JSON, the stored log format, and the parse service and tokeniser shared by both web front ends. |
 | `WebClient` | The WebAssembly client, its JavaScript bridge and the IndexedDB log. |
 | `Web` | An ASP.NET host serving the client, `/api/parse` and a WebSocket. |
-| `CommandLine` (assembly `Terminal`) | The desktop shell over the entity component system. |
-| `CommandLineReimagined` | The Windows desktop application, built on the entity component system. |
+| `Parser.Tests`, `Core.Tests`, `Web.Core.Tests` | The test suites, described in [Building and testing](building.md#test). |
 
 The layering rule is that the core depends on the parser and on nothing else. It knows
-nothing about the entity component system, rendering, WPF, Blazor or JavaScript, and it
-is what lets the same semantics run in a window, in a browser tab and in a test.
+nothing about rendering, Blazor or JavaScript, and it is what lets the same semantics
+run in a browser tab and in a test.

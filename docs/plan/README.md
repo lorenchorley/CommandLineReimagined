@@ -38,7 +38,7 @@ permission.
 | [phase-11-reading-trees.md](phase-11-reading-trees.md) | After Phase 10: a tag's name and children with `@`, and `pick`, CSS selectors over nested tags and XML. |
 | [examples.md](examples.md) | Four one-screen programs, one per pillar, with golden results. The proof that the whole works as imagined. |
 | [../vision.md](../vision.md) | Not a phase. The owner's vision, and a proposed route after Phase 11: seeing and replaying pipelines, the language (decision 0053), data, settings and extension points, output beyond text, and the scene. Each proposed phase is planned here when its records are accepted. |
-| [scene-editor-direction.md](scene-editor-direction.md) | Not a phase. A proposed direction, pending [0029](../decisions/0029-scene-editor-direction.md): the ECS as a scene the command line edits, rendered on a canvas beside a DOM terminal. |
+| [scene-editor-direction.md](scene-editor-direction.md) | Not a phase. A proposed direction, pending [0029](../decisions/0029-scene-editor-direction.md): a scene the command line edits, rendered on a canvas beside a DOM terminal. Its desktop parts are superseded by [0054](../decisions/0054-the-windows-front-end-is-removed.md). |
 
 ## What is being built, in one paragraph
 
@@ -64,9 +64,10 @@ explicit `$row`, recovery is spelled `else`.
 3. **A line is atomic.** One transaction per command line, committed only when the
    whole line succeeds. A failed stage leaves no trace.
 4. **F# owns semantics, C# owns hosting.** Values, faults, store, evaluator, commands,
-   session: F#. Blazor bridge, ASP.NET host, WPF shell, DTO mapping: C#.
-5. **The desktop shell keeps compiling.** It may degrade to text rendering. The Windows
-   CI job is the check; nothing in this plan requires a Windows machine to develop.
+   session: F#. Blazor bridge, ASP.NET host, DTO mapping: C#.
+5. **The browser is the front end.** The Windows desktop shell is removed
+   ([0054](../decisions/0054-the-windows-front-end-is-removed.md)); every project
+   builds and every test runs on any platform.
 6. **Every phase ships.** After each phase: all tests green, CI green, the browser
    client republished and verified at 390 by 844, documentation and specification
    updated in the same commit series.
@@ -96,9 +97,10 @@ explicit `$row`, recovery is spelled `else`.
   (added in Phase 1). GitHub Pages republishes on every push; the Artifact is
   republished with `tools/prepare-artifact.sh` and the Artifact tool, as
   [building.md](../building.md#republishing-the-artifact) describes.
-- Do not touch the GOLD parser or its `.grm` files except to add comments. The
-  equivalence tests compare only inputs both parsers accept; when the grammar grows,
-  add new cases to the FParsec-only test classes.
+- The core corpus in `Parser.Tests/CoreGrammarTests` is the original grammar's
+  inputs, kept when the GOLD parser was removed
+  ([0055](../decisions/0055-the-gold-parser-is-removed.md)). When the grammar grows,
+  add new cases to the other test classes rather than to that corpus.
 
 ## Sequencing and checkpoints
 
@@ -123,8 +125,8 @@ checkpoints are designed so the build is green at each.
 ## Verification, every phase
 
 ```bash
-# build everything that builds on Linux
-for p in $(find . \( -name '*.csproj' -o -name '*.fsproj' \) -not -name 'Application.csproj' -not -path '*/bin/*' -not -path '*/obj/*' | sort); do
+# build everything
+for p in $(find . \( -name '*.csproj' -o -name '*.fsproj' \) -not -path '*/bin/*' -not -path '*/obj/*' | sort); do
   dotnet build "$p" -c Release || exit 1
 done
 # every test project, both languages
@@ -145,10 +147,9 @@ programs with `run examples/<name>.clr`.
 
 | Risk | Mitigation |
 | --- | --- |
-| F# types are awkward from C# | C# never sees `Value` or `Result`. The `Web.Core` adapter maps `Session.Response` to DTOs; the desktop adapter renders display strings. |
+| F# types are awkward from C# | C# never sees `Value` or `Result`. The `Web.Core` adapter maps `Session.Response` to DTOs; the page draws the DTOs. |
 | Async in WebAssembly is single-threaded | Use `Async` in F# and expose `Task` at the boundary with `Async.StartAsTask`. Never block. The IndexedDB log is `async` end to end. |
-| The desktop shell breaks and cannot be built locally | Keep its adapter mechanical: it calls `Session.Execute` and prints strings. Push, read the Windows job log, fix, push. Budget for two rounds. |
-| The grammar change to `/>` breaks equivalence tests | Equivalence cases cover only inputs both parsers accept. New bare-word-in-attribute cases go in `BareWordTests`. |
+| A grammar change breaks the original grammar's inputs | `CoreGrammarTests` pins them, with their error columns. New bare-word-in-attribute cases go in `BareWordTests`. |
 | Payload growth past the 20 MB CI guard | The core replaces C# with F#, not in addition. Measure after Phase 1; `System.Xml.Linq` is already shipped. |
 | Replay time as the log grows | Logs in a tab are small. Snapshots are a Phase 7 option, not a Phase 2 requirement. |
 | MSTest in F# | Works with `[<TestClass>]`/`[<TestMethod>]` on a class with a default constructor. The CI glob must include `*.Tests.fsproj`. |

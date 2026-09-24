@@ -219,7 +219,6 @@ let memberAtMissingExplanation = "a name belongs after the @, as in $v.@tag"
 /// than an attribute: `$v.@tag` is its name and `$v.@children` its children. The `@`
 /// is part of the member's name, so the tree, the tokens and the evaluator all see
 /// `@tag`. The `@` commits too: `$v.@` with no name after it says what belongs there.
-/// Only this parser has the form; the GOLD grammar is not changed.
 /// </remarks>
 let private memberName: P<MemberName> =
     let own = pchar '@' >>. (identifierText <|> failFatally memberAtMissingExplanation) |>> fun name -> "@" + name

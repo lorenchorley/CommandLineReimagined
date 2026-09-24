@@ -6,8 +6,7 @@ printing them, pipelines carry those values with their types intact, and every c
 can be undone.
 
 The terminal runs in a browser tab: the parser, the commands and the filesystem are
-.NET compiled to WebAssembly, so nothing you type leaves the page. The same execution
-layer drives a Windows desktop shell built on an entity component system.
+.NET compiled to WebAssembly, so nothing you type leaves the page.
 
 ```
 $ ls | where $row.kind eq folder | select name
@@ -58,8 +57,8 @@ you type leaves the page, and your files are kept in the browser between visits.
 
 ## Building
 
-Needs the .NET 10 SDK, plus the `wasm-tools` workload for the browser client. The
-desktop shell needs Windows; everything else builds anywhere.
+Needs the .NET 10 SDK, plus the `wasm-tools` workload for the browser client.
+Everything builds on any platform.
 
 ```bash
 dotnet publish WebClient/WebClient.csproj -c Release -o publish
@@ -70,6 +69,14 @@ cd publish/wwwroot && python3 -m http.server 8080
 See [Building and testing](docs/building.md) for the test suites, the continuous
 integration jobs and how the browser payload is produced.
 
-## Package diagram
+## Projects
 
-[PlantUML Link](https://groupeisagri-tools-plantuml-appservice.azurewebsites.net/uml/TL6xRiCm3Dpr5KBs_4A1LkWG84EHD5q23uHC649aqg2K8IZoxv5ViHmxe-v1tedXugW1WLf_WRrKmbSg3NiM7GKe90efgl1KMQuRfeGTuysZ5hGHgFAer4_oGuLwOxYkWSgz8zpeVwNr-HUbTWI-Q1y37Gfrpqn_Bbp13_hJpenhGkSvmCr0Y8wgxhcZY08sEgOzLyxEHncMSV41gKGPROOf2dkFqXdEdqtZdOLsJA6tsuzdjZPwiSP_c-CgtgSlqin5j5wG5tYdcRT-fshRjOlog7cuZi-18Li6gUa6FJhTvvMPPr9vZtL1ziT3y-a4QbgqslY5NLvPQpNtB5QiqQVeV1h_0000)
+```
+WebClient, Web  ->  Web.Core  ->  Core  ->  Parser.FParsec  ->  Parser.Tree
+```
+
+Each arrow points at what a project depends on. `WebClient` is the WebAssembly client
+and `Web` an ASP.NET host; `Web.Core` adapts the core to JSON; `Core` is everything the
+language means, in F#; `Parser.FParsec` is the grammar, and `Parser.Tree` the tree it
+produces. `Parser.Tests`, `Core.Tests` and `Web.Core.Tests` are the test suites.
+[How it works](docs/concepts.md#the-pieces-by-project) says more about each.

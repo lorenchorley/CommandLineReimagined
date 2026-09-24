@@ -43,8 +43,9 @@ type Shape =
 /// than stored, so a run that started before a commit cannot come back to haunt the
 /// line after it.
 ///
-/// Locked, because on the desktop a late answer can land on a timer's thread while the
-/// next request reads it. In the browser there is one thread and the lock is free.
+/// Locked, because in a multi-threaded host a late answer can land on a timer's thread
+/// while the next request reads it. In the browser there is one thread and the lock is
+/// free.
 /// </remarks>
 [<Sealed>]
 type ShapeCache() =

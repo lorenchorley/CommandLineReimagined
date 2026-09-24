@@ -8,8 +8,8 @@ namespace Parser.Tests;
 /// parts, <c>$v.@tag</c> and <c>$v.@children</c>.
 /// </summary>
 /// <remarks>
-/// The GOLD grammar has no member access at all, so every case here is FParsec-only and
-/// stays out of the equivalence corpus.
+/// The original GOLD grammar had no member access at all, so none of this is in the core
+/// corpus of CoreGrammarTests.
 /// </remarks>
 [TestClass]
 public class OwnMemberTests

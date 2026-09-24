@@ -33,7 +33,7 @@ host's business, not the command's: the execution response says which lines were
 and redone (see [Execution response](#execution-response)), and a host **may** hide the
 entry for an undone line and show it again on redo
 ([decision 0030](../decisions/0030-undo-takes-the-line-back-on-screen.md)). The browser
-page does; the desktop shell draws `undo` as a line of its own.
+page does.
 
 ### ILog
 
@@ -58,7 +58,7 @@ returns from `ReadAll`, in sequence order.
 `Clear` is the one operation that is not append-only. It exists for `reset` and
 **must not** be reachable from a command other than that one.
 
-`InMemoryLog` is supplied, and is what the tests and the desktop shell use.
+`InMemoryLog` is supplied, and is what the tests use.
 `IndexedDbLog` in the browser client keeps the log in the browser's own storage.
 
 ### The stored shape
@@ -231,17 +231,16 @@ session rather than to a container.
 
 ## Hosts
 
-Three hosts build a session, and each differs only in its `SessionOptions` and its log:
+Two hosts build a session, and each differs only in its `SessionOptions` and its log:
 
 | Host | Log | `Exit` | Renders |
 | --- | --- | --- | --- |
 | Browser client (`WebClient`) | `IndexedDbLog`, falling back to memory | nothing | DTOs from `TerminalSession`, drawn by the page |
-| Desktop shell (`Terminal.Execution.DesktopSession`) | `InMemoryLog` | closes the window | display strings, as text blocks |
 | Tests (`Core.Tests`, `Web.Core.Tests`) | `InMemoryLog` | nothing | assertions on values and DTOs |
 
-The desktop shell keeps its log in memory, so its filesystem lives as long as the window
-does; [decision 0012](../decisions/0012-browser-first.md) keeps it out of scope beyond
-compiling and running commands.
+A Windows desktop shell was a third host until it was removed
+([decision 0054](../decisions/0054-the-windows-front-end-is-removed.md)). A new host
+needs only these interfaces and its own `SessionOptions`.
 
 ## The session's response
 

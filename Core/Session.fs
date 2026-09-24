@@ -62,9 +62,8 @@ type Response =
 
 /// <summary>Options a host can vary.</summary>
 /// <remarks>
-/// A record rather than a dozen optional constructor arguments, because the desktop
-/// shell and the browser differ in exactly these four things and agree on everything
-/// else.
+/// A record rather than a dozen optional constructor arguments, because the browser
+/// and the tests differ in exactly these four things and agree on everything else.
 /// </remarks>
 type SessionOptions =
     { Clock: unit -> DateTimeOffset

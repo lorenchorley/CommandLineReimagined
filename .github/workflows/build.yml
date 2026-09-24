@@ -10,30 +10,6 @@ env:
   DOTNET_NOLOGO: 1
 
 jobs:
-  windows:
-    name: Full solution (Windows)
-    runs-on: windows-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-dotnet@v4
-        with:
-          # global.json asks for 10.0.100 or newer in the same feature band.
-          dotnet-version: 10.0.x
-
-      - name: Build solution
-        shell: bash
-        run: dotnet build CommandLineReimagined.sln -c Release
-
-      - name: Test
-        shell: bash
-        run: |
-          for proj in $(find . \( -name '*.Tests.csproj' -o -name '*.Tests.fsproj' \) | sort); do
-            echo "::group::$proj"
-            dotnet test "$proj" -c Release --no-build
-            echo "::endgroup::"
-          done
-
   linux:
     name: Libraries and tests (Linux)
     runs-on: ubuntu-latest
@@ -47,16 +23,11 @@ jobs:
 
       # Both languages: the core and the parser are F# projects, and leaving the
       # glob at *.csproj would have built everything that depends on the core
-      # without ever building the core's own tests.
-      #
-      # Application.csproj is the WPF host (net10.0-windows). It needs
-      # Microsoft.NET.Sdk.WindowsDesktop, which does not exist off Windows, so the
-      # project cannot even be evaluated here -- the Windows job covers it.
-      # Everything else builds and the test suites run headlessly: the Windows-only
-      # System.Drawing surface (Graphics/Bitmap/Font) is compiled but never executed.
+      # without ever building the core's own tests. WebClient is left to the wasm
+      # job, which needs a workload this one does not install.
       - name: Build libraries
         run: |
-          for proj in $(find . \( -name '*.csproj' -o -name '*.fsproj' \) -not -name 'Application.csproj' -not -name 'WebClient.csproj' | sort); do
+          for proj in $(find . \( -name '*.csproj' -o -name '*.fsproj' \) -not -name 'WebClient.csproj' | sort); do
             echo "::group::$proj"
             dotnet build "$proj" -c Release
             echo "::endgroup::"
@@ -110,10 +81,9 @@ jobs:
           bytes=$(du -sb . | cut -f1)
           files=$(find . -type f | wc -l)
           echo "payload: $((bytes / 1048576)) MB across $files files"
-          # CommandSearch's 20.4 MB of synonym data is deployed next to the assembly
-          # rather than embedded in it. If it ever goes back to being an
-          # EmbeddedResource, the browser download balloons and this catches it.
-          [ "$bytes" -lt 20971520 ] || { echo "payload over 20 MB; is the search data embedded in Terminal.dll again?"; exit 1; }
+          # A ceiling on the browser download. Something that drags a large
+          # dependency or embedded data into the client shows up here first.
+          [ "$bytes" -lt 20971520 ] || { echo "payload over 20 MB; what was added to the client?"; exit 1; }
 
       # Handed to the browser job as it was measured, rather than published twice:
       # the page that is checked is the one whose size was just checked.

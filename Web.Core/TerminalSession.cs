@@ -33,8 +33,8 @@ public sealed class TerminalSession
             () => DateTimeOffset.UtcNow,
             () => Guid.NewGuid().ToString().ToLowerInvariant(),
             () => _httpClient,
-            // The browser tab has nothing to close, so `exit` does nothing here. The
-            // desktop host passes its own shutdown.
+            // The browser tab has nothing to close, so `exit` does nothing here. A host
+            // with a window of its own would pass its shutdown.
             () => { });
 
         _session = new Session(log ?? new InMemoryLog(), options, SessionOptionsModule.standardSeed(options));
@@ -432,9 +432,8 @@ public sealed class TerminalSession
     /// Flattens a value into items the page can draw.
     /// </summary>
     /// <remarks>
-    /// A file keeps its kind and its path, so the page can draw it as the tappable chip
-    /// the desktop app draws as a button, and so tapping it inserts something that
-    /// resolves. A list flattens: `ls` is a row of chips, not one chip saying "list".
+    /// A file keeps its kind and its path, so the page can draw it as a tappable chip,
+    /// and so tapping it inserts something that resolves. A list flattens: `ls` is a row of chips, not one chip saying "list".
     /// </remarks>
     private static IReadOnlyList<ResultItem> Describe(Value value)
     {

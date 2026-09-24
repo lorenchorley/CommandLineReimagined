@@ -514,7 +514,6 @@ Asks the host application to shut down.
 **Parameters** none.
 
 In the browser there is nothing to close, so the command succeeds and returns nothing.
-In the desktop shell it closes the window.
 
 ---
 
@@ -2038,12 +2037,3 @@ A file `write` creates takes its kind from the extension, such as `text` for `.t
 | `That is a directory, not a file : <path>` | The path names a directory. |
 | `Directory does not exist : <path>` | The parent directory is missing; create it first. |
 | `'write' needs an argument for 'text'.` | No text written and nothing piped in. |
-
----
-
-## Commands only in the desktop shell
-
-None at present. `debug`, which wrote the entity and component tree to a file, was
-dropped when the command layer moved to F#: it reaches into the entity component
-system, which the core knows nothing about. It can come back as a host-supplied
-command if it is wanted.

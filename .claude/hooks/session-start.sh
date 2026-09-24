@@ -1,9 +1,8 @@
 #!/bin/bash
 # SessionStart hook for Claude Code on the web.
 #
-# The solution targets net10.0 (and net10.0-windows for the WPF host), but no .NET
-# SDK ships in the base image and Microsoft's CDN (builds.dotnet.microsoft.com)
-# is blocked by the network policy. Ubuntu's own archive carries dotnet-sdk-10.0,
+# The solution targets net10.0, but no .NET SDK ships in the base image and
+# Microsoft's CDN (builds.dotnet.microsoft.com) is blocked by the network policy. Ubuntu's own archive carries dotnet-sdk-10.0,
 # which is what global.json asks for.
 set -euo pipefail
 
@@ -38,11 +37,9 @@ fi
 export DOTNET_CLI_TELEMETRY_OPTOUT=1
 export DOTNET_NOLOGO=1
 
-# Warm the NuGet cache so the first build of the session is fast. Application.csproj
-# is skipped: WPF needs Microsoft.NET.Sdk.WindowsDesktop, which does not exist off
-# Windows, so the project cannot even be evaluated here.
+# Warm the NuGet cache so the first build of the session is fast.
 cd "${CLAUDE_PROJECT_DIR:-$(dirname "$0")/../..}"
-for proj in $(find . -name '*.csproj' -not -path './.git/*' -not -name 'Application.csproj' | sort); do
+for proj in $(find . -name '*.csproj' -not -path './.git/*' | sort); do
   dotnet restore "$proj" --verbosity quiet || echo "warning: restore failed for $proj"
 done
 

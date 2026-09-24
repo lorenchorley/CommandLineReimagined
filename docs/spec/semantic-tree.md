@@ -92,10 +92,12 @@ one with `StringConstant.Delimited(quoteCount, body)`, from the delimiter it mat
 `""""` is the empty string with a count of two and `"""ab"""` is `ab` with a count of
 three. The count is what lets `""x""` round-trip as `""x""` rather than as `"x"`.
 
-The `Value` setter is kept for the retained GOLD interpreter, which hands the node the
+The `Value` setter was written for the GOLD interpreter, which handed the node the
 literal with its quotes: it strips one quote from each end, repeatedly, while the rest
 starts and ends with one and is longer than twice the pairs already stripped. That
 guess stops early on a short body, which is why the combinator grammar does not use it.
+Nothing calls it since the GOLD parser was removed
+([decision 0055](../decisions/0055-the-gold-parser-is-removed.md)).
 
 `VariableName`'s setter strips a leading `$` in the same spirit, so the name never
 carries its sigil.
@@ -128,8 +130,9 @@ forms. `[name]=<tag>` and `[name]<tag>[/name]` produce the same tree, a one-elem
 
 `ClosingTag` (`TagObjectType: ObjectType?`) is in the assembly but is not a node of
 this tree: it is not visitable and the grammar never builds one. It is what the
-retained GOLD interpreter reduces a closing tag to; the combinator grammar compares the
-closing name while parsing instead.
+GOLD interpreter reduced a closing tag to, and nothing builds one since that parser was
+removed ([decision 0055](../decisions/0055-the-gold-parser-is-removed.md)); the
+combinator grammar compares the closing name while parsing instead.
 
 `ProperyName` is spelled that way in the source. It is a typo preserved for
 compatibility; an implementation **may** correct it, and **must** then treat the two

@@ -7,9 +7,8 @@ namespace Parser.Tests;
 /// both unambiguous.
 /// </summary>
 /// <remarks>
-/// Every case here is one both parsers cannot agree on, because the GOLD grammar has no
-/// expressions at all. They belong in the FParsec-only classes, which is where the
-/// equivalence suite's corpus stops.
+/// The original GOLD grammar had no expressions at all, so none of this is in the core
+/// corpus of CoreGrammarTests.
 /// </remarks>
 [TestClass]
 public class ExpressionTests

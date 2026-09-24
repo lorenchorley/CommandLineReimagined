@@ -31,7 +31,7 @@ public sealed record ParseErrorInfo(
 }
 
 /// <summary>
-/// Wraps the GOLD-engine interpreter for the web host.
+/// Wraps the parser for the web host.
 /// </summary>
 /// <remarks>
 /// The FParsec parser is immutable once built and its combinators carry no shared

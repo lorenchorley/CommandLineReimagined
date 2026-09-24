@@ -8,10 +8,8 @@ What you need, how to run the suites, and how the browser build is produced.
 | --- | --- |
 | Libraries, tests, web | .NET SDK 10 |
 | WebAssembly client | .NET SDK 10 plus the `wasm-tools` workload |
-| Desktop shell | Windows, and .NET SDK 10 |
 
-Every project targets .NET 10, except the source generator, which targets
-netstandard2.0 because that is what a Roslyn component must target. `global.json`
+Every project targets .NET 10, and every one builds on any platform. `global.json`
 asks for SDK 10.0.100 or a newer feature band, so a machine with an older SDK is told
 so rather than failing later with a confusing error.
 
@@ -21,12 +19,12 @@ rather than once per project.
 
 ## Build
 
-Everything except the desktop shell builds on any platform:
+Build the whole solution, or one project at a time:
 
 ```bash
-dotnet build CommandLineReimagined.sln -c Release          # Windows only
-dotnet build Core/Core.fsproj -c Release                   # anywhere
-dotnet build Web.Core/Web.Core.csproj -c Release           # anywhere
+dotnet build CommandLineReimagined.sln -c Release
+dotnet build Core/Core.fsproj -c Release
+dotnet build Web.Core/Web.Core.csproj -c Release
 ```
 
 Two projects are F#: `Parser.FParsec` (the grammar) and `Core` (everything the
@@ -34,11 +32,9 @@ language means). A loop over projects has to glob `*.fsproj` as well as `*.cspro
 it silently builds everything that depends on the core without building the core's own
 tests.
 
-Every project that builds on Linux builds without a warning, and CI's logs are the
-place a new one shows up first. A nullable warning in the desktop libraries is fixed
-with an annotation, not suppressed.
+Every project builds without a warning, and CI's logs are the place a new one shows up
+first. A nullable warning is fixed with an annotation, not suppressed.
 
-`CommandLineReimagined/Application.csproj` is the WPF shell and only builds on Windows.
 `WebClient/WebClient.csproj` needs the workload:
 
 ```bash
@@ -49,11 +45,9 @@ dotnet workload install wasm-tools
 
 | Project | Covers |
 | --- | --- |
-| `Parser.Tests` | The grammar, both parsers, error positions and serialisation. |
+| `Parser.Tests` | The grammar, error positions and serialisation, including every input the removed GOLD parser was once compared on ([0055](decisions/0055-the-gold-parser-is-removed.md)). |
 | `Core.Tests` | Values, faults, the store, undo, binding, pipes, tags, tables, predicates, views, recovery, XML and CSV, persistence, every command, completion, the four example programs against their golden results, and every example line in the seeded guide. |
 | `Web.Core.Tests` | The adapter and the stored log: DTO shapes, streaming, cancellation, completion, and the versioned JSON a transaction is kept in. |
-| `Terminal.Tests` | Naming and path helpers. |
-| `Utils.Tests`, `EntityComponentSystem.Tests`, `SourceGenerators.Tests`, `Rendering.Tests` | The supporting libraries. |
 
 ```bash
 for p in $(find . \( -name '*.Tests.csproj' -o -name '*.Tests.fsproj' \) | sort); do
@@ -247,22 +241,13 @@ serve a copy with the page wrapped in a bare document under a sub-path, then run
 
 ## Continuous integration
 
-`.github/workflows/build.yml` runs four jobs on every push:
+`.github/workflows/build.yml` runs three jobs on every push:
 
 | Job | Runner | What it does |
 | --- | --- | --- |
-| Full solution | Windows | Builds the whole solution, including the desktop shell, and runs every test project. |
-| Libraries and tests | Linux | Builds every project except the desktop shell and the WebAssembly client, runs every test project, and checks the store module. |
+| Libraries and tests | Linux | Builds every project except the WebAssembly client, runs every test project, and checks the store module. |
 | WebAssembly client | Linux | Installs `wasm-tools`, publishes the client, fails if the payload exceeds 20 MB, and hands the published site to the next job. |
 | Browser check | Linux | Installs Chromium and runs `tools/browser-check.mjs` against the site the previous job published and measured. |
 
 `deploy.yml` deploys to Azure App Service and skips itself when no `AZURE_CREDENTIALS`
 secret is configured.
-
-## Keeping the payload small
-
-The search data for command suggestions is 20 MB of dictionary and thesaurus files.
-They are content files copied next to the assembly rather than embedded resources, so
-the WebAssembly client simply does not ship them and `Terminal.dll` stays small. Code
-that uses them treats their absence as "synonym search unavailable" rather than as an
-error.

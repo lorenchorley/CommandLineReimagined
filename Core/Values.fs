@@ -212,7 +212,7 @@ module Value =
     /// <summary>A table, as aligned text.</summary>
     /// <remarks>
     /// The header, then a row per line, each column padded to the widest thing in it
-    /// and two spaces between. This is what the desktop shell and a test read; the
+    /// and two spaces between. This is what a test and a script read; the
     /// browser draws a real table from the same value. There is no trailing padding on
     /// the last column, so a line has no invisible spaces on the end of it.
     /// </remarks>

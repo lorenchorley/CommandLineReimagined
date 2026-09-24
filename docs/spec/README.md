@@ -13,7 +13,7 @@ specification says what any implementation must do.
 | [Semantic tree](semantic-tree.md) | Node catalogue, visitors, token kinds, round-trip requirement. |
 | [Execution model](execution-model.md) | Values, argument binding, pipelines, tags, undo, cancellation, and the notes beside an answer. |
 | [Command catalogue](command-catalogue.md) | The contract of each built-in command. |
-| [Host interfaces](host-interfaces.md) | Output, lifetime, session and browser bridge, with wire formats. |
+| [Host interfaces](host-interfaces.md) | Output, the log, session options, the session and the browser bridge, with wire formats. |
 | [Conformance](conformance.md) | What an implementation must satisfy, and the tests that prove it. |
 
 ## About the format
@@ -37,9 +37,9 @@ normatively; the same words in ordinary prose carry their ordinary meaning.
 | Field | Value |
 | --- | --- |
 | Status | Implemented, and matching the code at the time of writing |
-| Applies to | The `Parser.FParsec`, `Parser.Tree`, `CommandLineReimagined.Core`, `Terminal`, `Web.Core` and `WebClient` assemblies |
+| Applies to | The `Parser.FParsec`, `Parser.Tree`, `CommandLineReimagined.Core`, `Web.Core` and `WebClient` assemblies |
 | Reference implementation | This repository |
-| Conformance suite | `Parser.Tests` (396), `Core.Tests` (963), `Web.Core.Tests` (150), `Terminal.Tests` (32) |
+| Conformance suite | `Parser.Tests` (396), `Core.Tests` (963), `Web.Core.Tests` (150) |
 
 Where the specification and the implementation disagree, one of them is wrong; the
 [conformance](conformance.md) document names the test that decides. Why the design is

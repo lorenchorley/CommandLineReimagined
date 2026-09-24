@@ -9,23 +9,23 @@ a phase document and this one disagree, this one is wrong and should be fixed fi
 | --- | --- | --- | --- |
 | `Parser.Tree` | C# | Semantic tree, visitors, parser error types | Unchanged, gains nodes for expressions |
 | `Parser.FParsec` | F# | Grammar and parser | Extended per phase |
+| `Parser.Tests` | C# | Grammar, error positions, serialisation | Extended per phase; since [0055](../decisions/0055-the-gold-parser-is-removed.md) also holds the inputs once compared with the GOLD parser |
 | **`Core`** (new, `Core/Core.fsproj`, assembly `CommandLineReimagined.Core`) | F# | Values, faults, railway, events, store, projections, filesystem model, binder, evaluator, commands, session, completion, XML | New in Phase 1 |
 | **`Core.Tests`** (new, `Core.Tests/Core.Tests.fsproj`) | F# | Every semantic test | New in Phase 1; absorbs `Execution.Tests` |
 | `Web.Core` | C# | Adapter: `Session` to JSON DTOs; tokeniser; parse service | Rewritten as adapter in Phase 1 |
 | `Web.Core.Tests` | C# | DTO mapping, completion, streaming, cancel | Kept |
 | `WebClient` | C# + HTML/JS | Blazor bridge, IndexedDB log, page | Extended per phase |
 | `Web` | C# | ASP.NET host, parse only | Unchanged |
-| `CommandLine` (assembly `Terminal`) | C# | WPF shell over the ECS | Desktop adapter only; its `Execution/` and `Commands/` folders are deleted |
-| `Commands` | C# | Command implementations | Deleted; `DebugOut` moves into `CommandLine/` |
+| `Commands` | C# | Command implementations | Deleted |
 | `Execution.Tests` | C# | Execution tests | Deleted once `Core.Tests` covers every case |
-| `CommandLineReimagined` (`Application.csproj`) | C# | WPF host | Registration updated to the `Session` |
+| `CommandLine`, `CommandLineReimagined` and the libraries only they used | C# | The former desktop front end | Removed by [0054](../decisions/0054-the-windows-front-end-is-removed.md) |
 
 `FileId` is declared in `Values.fs` rather than `Events.fs`, because `FileRef` names
 one and values compile before events. Faults compile before values, because from
 Phase 5 a fault is one (`Value.Fault`).
 
 `Core` depends on `Parser.Tree` and `Parser.FParsec` only. Nothing in `Core` references
-the ECS, rendering, WPF, Blazor or JavaScript.
+rendering, Blazor or JavaScript.
 
 ## Core types
 
@@ -136,7 +136,7 @@ compensation whose own seq is not compensated. "Compensated" means some later
 transaction's `Compensates` names it. History is the list of transactions with a
 derived `Undone: bool`.
 
-Logs: `InMemoryLog` (tests, desktop) and `IndexedDbLog` (browser, Phase 2, implemented
+Logs: `InMemoryLog` (tests) and `IndexedDbLog` (browser, Phase 2, implemented
 in `WebClient` against a small JavaScript module and handed to `Core` through `ILog`).
 
 ### Projection and store

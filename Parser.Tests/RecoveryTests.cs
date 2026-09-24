@@ -7,8 +7,8 @@ namespace Parser.Tests;
 /// parentheses as a stage or an operand.
 /// </summary>
 /// <remarks>
-/// FParsec only. None of this exists in the GOLD grammar, so none of it belongs in the
-/// equivalence corpus (decision 0014, decision 0023).
+/// None of this existed in the original GOLD grammar, so none of it is in the core
+/// corpus of CoreGrammarTests (decision 0014, decision 0023).
 /// </remarks>
 [TestClass]
 public class RecoveryTests

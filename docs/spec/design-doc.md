@@ -27,12 +27,12 @@ attributes is a place you can stand in, the way BeOS and Haiku let a query stand
 a folder. A listing is a table, and the same predicate language filters a table, defines
 a view and finds a record.
 
-The system has three front ends over one execution layer: a browser terminal compiled to
-WebAssembly, which is the reference front end; a Windows desktop shell built on an
-entity component system; and the test suites. This document covers the language, the
-execution layer, the store and the browser terminal. The desktop shell's scene and
-rendering are out of scope ([decision 0012](../decisions/0012-browser-first.md)); it is
-required to compile and to run commands, and it renders results as text.
+The system has one execution layer and two hosts for it: a browser terminal compiled to
+WebAssembly, which is the only front end, and the test suites. This document covers the
+language, the execution layer, the store and the browser terminal. The project's first
+front end, a Windows desktop shell built on an entity component system, has been
+removed, and its code is in the repository's history
+([decision 0054](../decisions/0054-the-windows-front-end-is-removed.md)).
 
 ## Goals
 
@@ -52,8 +52,9 @@ required to compile and to run commands, and it renders results as text.
   replays it to exactly the state it left.
 - **Queries are places.** A predicate over attributes can be listed, entered, saved and
   watched like a folder.
-- **One execution layer, several hosts.** Execution depends on interfaces, never on a
-  user interface, so the same commands run in a tab, in a window and in a test.
+- **An execution layer that owes nothing to its host.** Execution depends on
+  interfaces, never on a user interface, so the same commands run in a tab and in a
+  test.
 - **A programming language, functional first.** Arithmetic, user-defined functions and
   loops are part of the language, and functional constructs come first among them:
   functions and pipelines as values, composition, and mapping, filtering and folding
@@ -77,10 +78,10 @@ required to compile and to run commands, and it renders results as text.
   `download`.
 - **Synchronising or sharing a log.** The log belongs to one origin in one browser.
   There is no account, no server copy and no merge.
-- **Desktop parity.** The desktop shell keeps compiling and running commands; its
-  interactive listings and its on-disk filesystem are not carried forward.
-- **Backwards compatibility with the original GOLD grammar's gaps.** Where that grammar
-  parsed something the interpreter could not execute, the gap is closed rather than
+- **Backwards compatibility with the original grammar's gaps.** The language began as a
+  GOLD grammar, whose parser has since been removed
+  ([decision 0055](../decisions/0055-the-gold-parser-is-removed.md)). Where that grammar
+  parsed something the interpreter could not execute, the gap was closed rather than
   preserved.
 
 ## The design
@@ -89,13 +90,12 @@ required to compile and to run commands, and it renders results as text.
 
 ```
                     ┌──────────────────────────────────────────────┐
-   you type ───────▶│ front end: browser page / desktop shell      │
+   you type ───────▶│ front end: browser page                      │
                     └───────┬──────────────────────────────▲───────┘
-                            │ source text                  │ DTOs / display strings
+                            │ source text                  │ DTOs
                             ▼                              │
                     ┌─────────────────────────────────────┴────────┐
-                    │ host adapter (C#): Web.Core TerminalSession,  │
-                    │ desktop DesktopSession                        │
+                    │ host adapter (C#): Web.Core TerminalSession  │
                     └───────┬──────────────────────────────▲───────┘
                             │                              │ Response
                             ▼                              │
@@ -115,10 +115,9 @@ required to compile and to run commands, and it renders results as text.
 ```
 
 F# owns semantics: values, faults, the store, the evaluator, the commands and the
-session. C# owns hosting: the Blazor bridge, the ASP.NET host, the WPF shell and the
-mapping from values to the page's JSON. `TerminalSession` is the boundary: nothing past
-it sees a `Value` or a `Result`, and the desktop adapter reads a response only to print
-its display strings ([decision 0006](../decisions/0006-functional-core-in-fsharp.md)).
+session. C# owns hosting: the Blazor bridge, the ASP.NET host and the mapping from
+values to the page's JSON. `TerminalSession` is the boundary: nothing past it sees a
+`Value` or a `Result` ([decision 0006](../decisions/0006-functional-core-in-fsharp.md)).
 
 ### Stages
 
@@ -145,7 +144,7 @@ its display strings ([decision 0006](../decisions/0006-functional-core-in-fsharp
    in the log. Nothing else holds state, so undo, redo, a reload and a test all read the
    same thing.
 7. **Render.** The host turns the response into its own presentation: tables, chips and
-   text blocks in the browser, text blocks in the desktop scene.
+   text blocks in the browser.
 
 ### Key design decisions
 
@@ -219,16 +218,17 @@ something other than true or false, is a fault rather than an empty table
 
 **Output is an interface, not a console.** Long-running commands need to say something
 before they finish. `IOutput` gives them a line to write and mutate. The browser host
-raises an event, coalesced for the page; the desktop host writes into the scene; the
-test host records. Commands therefore never reference a loop, a window or a graphics
-library, which is what lets them run under WebAssembly.
+raises an event, coalesced for the page; the test host records. Commands therefore
+never reference a loop, a window or a graphics library, which is what lets them run
+under WebAssembly.
 
 **The parser is combinators, not tables.** The generated LALR parser left about a third
 of the grammar unimplemented, reported every error at column zero when wrapped for
 backtracking, and required an external tool and an embedded binary table. Combinators
 put the grammar in source, in the same order as the original BNF, and make error
 positions faithful ([decision 0002](../decisions/0002-combinator-parser.md)). The old
-parser is retained only so the two can be compared.
+parser has since been removed, and the inputs the two were compared on are kept as tests
+of the one parser ([decision 0055](../decisions/0055-the-gold-parser-is-removed.md)).
 
 **The browser executes.** The parser, the core and the store are .NET compiled to
 WebAssembly and run in the tab ([decision 0003](../decisions/0003-execute-in-the-browser.md)),
@@ -269,8 +269,8 @@ element's text, so it is read as an attribute called `text`
 
 Where the log lives is the host's business. The browser keeps it in IndexedDB for the
 page's origin, in a hand-written, versioned JSON shape so that a later build can read an
-earlier one's log ([Host interfaces](host-interfaces.md#the-stored-shape)); the tests and
-the desktop shell keep it in memory.
+earlier one's log ([Host interfaces](host-interfaces.md#the-stored-shape)); the tests keep
+it in memory.
 
 The log grows with use and nothing compacts it. Snapshotting the projection and
 replaying only the log after it is the obvious answer, and is deliberately deferred
@@ -294,10 +294,14 @@ evaluator with respect to its own input loop.
 Each of these is recorded in full, with every option that was on the table, in the
 [decision log](../decisions/README.md).
 
-**Keep the GOLD LALR parser and finish its visitor.** Rejected. The unimplemented
-productions were a symptom: the table-driven design put the grammar in a binary
-artefact produced by an external tool, so a change meant regenerating tables outside the
-build. The error-position problem was structural rather than a bug.
+**Keep the GOLD LALR parser and finish its visitor.** Rejected
+([0002](../decisions/0002-combinator-parser.md)). The unimplemented productions were a
+symptom: the table-driven design put the grammar in a binary artefact produced by an
+external tool, so a change meant regenerating tables outside the build. The
+error-position problem was structural rather than a bug. Keeping it beside the
+combinators for comparison was later given up too
+([0055](../decisions/0055-the-gold-parser-is-removed.md)): the grammar had moved on, and
+the comparison covered a shrinking corner of it.
 
 **Pass text between commands, as a conventional shell does.** Rejected. It defeats the
 premise. Every benefit here, from tapping a token to piping a table of records with
@@ -351,10 +355,16 @@ in IndexedDB. A snapshot would persist the files and lose undo, redo and history
 a reload, local storage is synchronous and small, and a snapshot format would need its
 own migrations beside the log's.
 
-**Render the browser terminal on a canvas, mirroring the desktop shell.** Rejected
+**Render the browser terminal on a canvas, as the desktop shell then did.** Rejected
 ([0004](../decisions/0004-dom-not-canvas.md)). The document object model gives
 scrolling, text selection, the soft keyboard, and accessible text for free, and token
-spans keep the per-token interaction that the canvas demonstrated.
+spans keep the per-token interaction that the desktop's canvas demonstrated.
+
+**Keep the desktop shell, or host the browser client in a desktop window.** Rejected
+([0054](../decisions/0054-the-windows-front-end-is-removed.md)). The shell was a second
+front end nobody developed, it could only be built and checked on Windows, and the
+browser terminal used none of it. A desktop window around the browser client would
+still have been a Windows build to keep.
 
 **Run the evaluator on the server and stream results to the page.** Rejected for the
 default deployment ([0003](../decisions/0003-execute-in-the-browser.md)). It introduces a
@@ -384,10 +394,9 @@ A file in the store is whatever someone wrote into it, so reading one must not b
 to stop the tab: `from-xml` refuses a document with a DTD rather than expanding its
 entities.
 
-The desktop shell has the privileges of the user who ran it, but its filesystem is the
-same in-memory projection as the browser's, so no command reaches the disk. `exit`
-reaches the host through the session's options, so a host decides what shutting down
-means rather than a command reaching for a window.
+No command reaches the device's disk: the filesystem is the projection of the log,
+wherever a host keeps it. `exit` reaches the host through the session's options, so a
+host decides what shutting down means rather than a command reaching for a window.
 
 ### Failure handling
 

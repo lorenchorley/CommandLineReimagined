@@ -29,7 +29,8 @@ namespace Commands.Parser.SemanticTree
         /// setter the whole literal instead made it guess again from the outside in, and
         /// the guess stopped early on a short body: <c>""""</c> came out as the text
         /// <c>""</c> and <c>"""a"""</c> as <c>"a"</c>, where every delimiter is meant to
-        /// carry the same value. The setter stays for the GOLD interpreter.
+        /// carry the same value. The setter is what the GOLD interpreter used; since decision
+        /// 0055 removed it, nothing in this repository calls the setter.
         /// </remarks>
         public static StringConstant Delimited(int quoteCount, string body)
         {

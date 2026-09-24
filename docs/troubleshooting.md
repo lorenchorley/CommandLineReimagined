@@ -263,11 +263,6 @@ A `<` opens a tag only when a name, a `$` or a `/` comes straight after it, with
 space. Comparisons are words, such as `lt`, so a `<` means nothing else. Write
 `<thing/>`.
 
-## The desktop application will not build on Linux
-
-It is a Windows Presentation Foundation application and needs Windows. Everything else
-in the solution builds anywhere. See [Building and testing](building.md).
-
 ## Something behaves differently from these docs
 
 The examples in these pages are pasted from real output, but if you find a gap, the

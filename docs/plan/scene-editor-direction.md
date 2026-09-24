@@ -3,7 +3,9 @@
 **Status.** A proposed direction, not part of Phases 1 to 7. Nothing here is built, and
 nothing here is to be built until [decision 0029](../decisions/0029-scene-editor-direction.md)
 is accepted. The command syntax below is illustrative: none of these commands exist, and
-their exact form is for the records that introduce them.
+their exact form is for the records that introduce them. Its desktop parts, a
+desktop host in WebView2 and the retiring WPF renderer, are superseded by
+[0054](../decisions/0054-the-windows-front-end-is-removed.md), which removed the Windows front end.
 
 ## The idea
 
@@ -13,8 +15,8 @@ command line. Commands could construct 2D or 3D environments, or use the scene t
 give their own results and interactions more than text can.
 
 The browser terminal was a port that did not take this into account. Since the F#
-core, the ECS is only the desktop shell's display layer, and the core knows nothing
-about it. This document records how the original ambition fits the system as it now
+core, the ECS had been only the desktop shell's display layer, and the core knew
+nothing about it; both were removed with the Windows front end ([0054](../decisions/0054-the-windows-front-end-is-removed.md)). This document records how the original ambition fits the system as it now
 stands, and what should change on the way.
 
 ## Why it fits
@@ -53,13 +55,13 @@ way too, with ordinary widgets around a GPU viewport.
 
 A scene view is therefore a **value**. A command returns one, and it appears in the
 scrollback as a live, interactive canvas, or docked beside the terminal as a panel.
-The desktop shell today uses the ECS to draw its own prompt and output lines; that is
-the use to drop, because it spends the ECS on what the platform already does.
+The desktop shell used its ECS to draw its own prompt and output lines, which spent
+the ECS on what the platform already does. That use went with the desktop.
 
 ### 2. One history, split into authored and simulated state
 
-Today there are two event logs: the ECS's active and shadow history, and the core's
-store. For `undo` to take back a scene edit, the scene being edited must be events in
+The desktop's prototype kept a second event log, the ECS's active and shadow history,
+beside the core's store. For `undo` to take back a scene edit, the scene being edited must be events in
 the core's store, and the runtime scene a projection folded from them, as the
 filesystem is.
 
@@ -73,27 +75,28 @@ filesystem is.
 This is the editor's edit mode and play mode. Getting the split right before anything
 moves on its own is the most important architectural decision in this direction.
 
-### 3. The current ECS is a prototype, not the foundation
+### 3. The old ECS was a prototype, not the foundation
 
 The ideas carry over:
 
 - **A stable snapshot for the renderer.** The active and shadow trees exist so drawing
   never races with editing. The same need returns for a scene being edited while it
   renders.
-- **Generated change tracking.** The source generator turns `[State]` properties into
+- **Generated change tracking.** Its source generator turned `[State]` properties into
   creation, differential and suppression events. The same shape serves scene events.
 - **Components declared by their state.** A component is the data it carries.
 
-The implementation does not scale to a scene or survive WebAssembly:
+Its implementation did not scale to a scene or survive WebAssembly, which is why none
+of it was kept:
 
-- Entities and components are found by linear `FirstOrDefault` searches, with no
+- Entities and components were found by linear `FirstOrDefault` searches, with no
   indexed queries.
-- It depends on reflection throughout (`Activator.CreateInstance`, property setters
+- It depended on reflection throughout (`Activator.CreateInstance`, property setters
   found by name, creation types located by string), which trimming breaks and which is
   slow in WebAssembly.
-- Components carry behaviour and injected services rather than plain data.
-- `TriggerMerge` serialises the whole history to six files on every frame.
-- `Entity.RemoveComponent(Component)` calls itself.
+- Components carried behaviour and injected services rather than plain data.
+- `TriggerMerge` serialised the whole history to six files on every frame.
+- `Entity.RemoveComponent(Component)` called itself.
 
 Two paths are reasonable:
 
@@ -110,16 +113,16 @@ A command never holds a reference to the scene. It returns scene events
 (`EntitySpawned`, `ComponentSet`, `EntityRemoved`), exactly as it now returns
 filesystem events, and the host renders the projection. This is the same indirection
 that `IOutput` gives progress output today. It keeps the core headless and testable,
-lets both hosts share it, and means a script can build a scene as easily as a person
+lets any host share it, and means a script can build a scene as easily as a person
 typing.
 
-### 5. One renderer for both hosts
+### 5. One renderer, the browser's
 
-Building a 2D and 3D renderer twice, once in WPF and once in the browser, would drain
-the project. The renderer is the browser's: Canvas2D for 2D first, WebGL through a
+Building a 2D and 3D renderer twice would drain the project. The renderer is the
+browser's: Canvas2D for 2D first, WebGL through a
 library such as PixiJS or three.js later, fed one batch of changes per frame across
-the JavaScript boundary rather than one call per entity. The desktop hosts the same
-page in WebView2. The WPF and GDI renderer retires instead of growing.
+the JavaScript boundary rather than one call per entity. The WPF and GDI renderer was
+removed with the desktop ([0054](../decisions/0054-the-windows-front-end-is-removed.md)) rather than grown.
 
 ## First milestone
 
@@ -155,13 +158,11 @@ Each is its own decision record when its turn comes.
 2. **Scripting.** Behaviour attached to entities, written in the command language or
    supplied by the host.
 3. **3D.** A second viewport kind over the same scene model.
-4. **The desktop on WebView2.** Supersedes [0012](../decisions/0012-browser-first.md)
-   in practice: the desktop becomes a second host of the browser client.
 
 ## Richer results in ordinary commands
 
-The same machinery gives back what the desktop lost when the core moved to F#: output
-you can act on. On `main`, `ls` attached a path, a context menu and a double-click
+The same machinery gives back what the old desktop shell lost when the core moved to
+F#: output you can act on. On `main`, `ls` attached a path, a context menu and a double-click
 action to each entry; that lived in the ECS, and the core cannot see it.
 
 Two forms, which can coexist:
@@ -169,7 +170,7 @@ Two forms, which can coexist:
 - **Affordances on values.** A value or a table cell carries what it is and what can be
   done with it (a record at this path; open, delete). The browser presents them with
   `data-*` attributes and one delegated listener that sends the chosen action back as a
-  command; a desktop host presents them however it draws.
+  command.
 - **Results as small scenes.** A dependency graph, a file tree or a chart returned as a
   scene view, interactive in the scrollback rather than printed.
 
@@ -179,7 +180,7 @@ Two forms, which can coexist:
 | --- | --- |
 | [0004](../decisions/0004-dom-not-canvas.md) DOM, not canvas | Refined, not reversed. It governs the terminal; the scene viewport is the one canvas. |
 | [0010](../decisions/0010-undo-by-event-sourcing.md) Event-sourced store | Extended with scene events and a scene projection, and with the authored/simulated split. |
-| [0012](../decisions/0012-browser-first.md) Desktop out of scope | Superseded once the desktop hosts the browser client in WebView2. |
+| [0012](../decisions/0012-browser-first.md) Desktop out of scope | Superseded by [0054](../decisions/0054-the-windows-front-end-is-removed.md): the Windows front end is removed, so there is no desktop host. |
 | [0013](../decisions/0013-attribute-filesystem.md) Attribute filesystem | Unchanged. Whether entities are a kind of record in the same store or a sibling domain is an open question below. |
 
 ## Open questions

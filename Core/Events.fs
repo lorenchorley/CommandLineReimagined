@@ -104,7 +104,7 @@ module Hash =
         let bytes = SHA256.HashData(Encoding.UTF8.GetBytes text)
         Convert.ToHexString(bytes).ToLowerInvariant()
 
-/// The log the tests and the desktop shell use. Nothing survives the process.
+/// The log the tests use. Nothing survives the process.
 type InMemoryLog() =
     let transactions = ResizeArray<Transaction>()
     let blobs = System.Collections.Generic.Dictionary<Hash, string>()

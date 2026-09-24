@@ -1,9 +1,9 @@
 # Lexical structure and grammar
 
 Normative definition of the concrete syntax. The reference implementation is
-`Parser.FParsec/Grammar.fs`; the retained GOLD grammar
-`CommandLine/Commands/Parser/Grammar/CommandLineGrammar.grm` is historical and is not
-normative.
+`Parser.FParsec/Grammar.fs`. The GOLD grammar the language began as was never part of
+this definition, and has been removed with its parser
+([decision 0055](../decisions/0055-the-gold-parser-is-removed.md)).
 
 ## Notation
 
@@ -176,8 +176,7 @@ The `@` commits as the stop does. Once a `MemberName` has read `.@`, an `Identif
 explanation **should** say what belongs there. The reference implementation says
 `a name belongs after the @, as in $v.@tag`, so `echo $v.@` and `echo $v.@ x` both fail
 at column 9. A stop with nothing after it keeps its own explanation and its one expected
-symbol, `column name`. The form is the combinator parser's only; the retained GOLD
-grammar has no member access at all.
+symbol, `column name`.
 
 A `CommandName` is one token, and appears in exactly two places: the name of a CLI
 expression and the name of a function expression. The hyphen **must** be adjacent to an
