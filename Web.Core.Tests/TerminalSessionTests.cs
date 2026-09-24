@@ -658,6 +658,44 @@ public class TerminalSessionTests
     }
 
     /// <summary>
+    /// Decision 0048: <c>$v.@tag</c> is drawn as <c>$v.a</c> is, a variable and then a
+    /// member that carries its stop and its <c>@</c>.
+    /// </summary>
+    [TestMethod]
+    [DataRow("echo $v.@tag", ".@tag")]
+    [DataRow("echo $v.@children", ".@children")]
+    [DataRow("ls | where $row.@tag eq book", ".@tag")]
+    public void AnAtMemberIsTokenisedAsAMember(string source, string member)
+    {
+        var service = new CommandLineReimagined.Web.Parsing.CommandParseService();
+        var parse = service.Parse(source);
+        var plain = service.Parse(source.Replace(member, ".a"));
+
+        string ofKind(string kind) =>
+            string.Concat(parse.Tokens.Where(token => token.Kind == kind).Select(token => token.Text));
+
+        Assert.IsNull(parse.Error);
+        Assert.AreEqual(source, parse.Reserialised);
+        Assert.AreEqual(member, ofKind("member"));
+        StringAssert.StartsWith(ofKind("variable"), "$");
+        CollectionAssert.AreEqual(
+            plain.Tokens.Select(token => token.Kind).ToArray(),
+            parse.Tokens.Select(token => token.Kind).ToArray(),
+            "the @ member is drawn exactly as a plain one");
+    }
+
+    /// <summary>The Acceptance line, through the session the page talks to.</summary>
+    [TestMethod]
+    public async Task ATagsNameIsReadWithAt()
+    {
+        await _session.ExecuteAsync("set v <thing a=1/>");
+        var response = await _session.ExecuteAsync("echo $v.@tag");
+
+        Assert.IsNull(response.Error);
+        Assert.AreEqual("thing", response.Result!.Single().Text);
+    }
+
+    /// <summary>
     /// Phase 5: <c>try</c> and <c>else</c> are keywords, <c>??</c> is an operator, and a
     /// nested pipeline's command is a command like any other.
     /// </summary>
