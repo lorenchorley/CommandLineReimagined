@@ -192,7 +192,8 @@ keepsakes  /
 
 **`out` comes back out of one thing at a time.** In a view it puts the view down and
 leaves you in the directory you were already in; with no view it moves to the parent.
-Two `out`s from a view over a subdirectory come out in the order they went in.
+Two `out`s from a view over a subdirectory come out in the order they went in. To go
+back to wherever you were before, a view included, there is [`back`](#going-back-back).
 
 What decides whether `in` takes a name or a question is whether an operator was
 written. `in journal` is a name. `in $row.mood eq great` has `eq` in it, so it is a
@@ -284,9 +285,12 @@ see that it moved. Nothing is re-run that could change anything — a refresh th
 a writing command is refused rather than run — so nothing appears in `history` and
 `undo` is unaffected.
 
-Only the newest listing is live; the ones above it froze when you moved on, which is
-what a scrollback is for, and say `frozen`. The badge underneath the live one says
-`live`, and tapping it stops the refreshing for that listing.
+Every listing carries a badge: `live` while it is kept up to date, `paused` while it
+is not. The newest starts live and the ones above it pause when a newer one arrives,
+which is what a scrollback is for. Tapping `paused` makes a listing live again, and it
+catches up at once; tapping `live` pauses it. Any number can be live at once, each asked
+again whenever the store changes, so a listing of `/journal` and a view's listing can
+both be kept current while you work.
 
 ## Paths
 
@@ -301,6 +305,34 @@ journal
 $ in ..
 /
 ```
+
+## Going back: `back`
+
+`in` and `out` are moves, and each one leaves the place it left on a trail, folders and
+views alike. `back` goes to the most recent place on the trail and takes it off, so each
+`back` goes one step further, like a browser's back button; `back` itself adds nothing
+to the trail. Carrying on from the paths above, it retraces the last few moves of this
+page, through the view `in cheerful` entered:
+
+```
+$ back
+journal
+$ back
+/
+$ back
+$row.mood eq great
+$ back
+/
+```
+
+A place that is no longer there, a folder since deleted or renamed, is passed over, and
+so is the place you are already in. With nowhere further back it is not a fault: it says
+`Nowhere further back: you are in /`, or the view's question when you are in one, and
+changes nothing.
+
+A `back` is a move like the others, so `undo` takes it back and puts the place back on
+the trail. The trail is events in the log, so a reload keeps it along with where you
+are.
 
 ## Where this came from
 
