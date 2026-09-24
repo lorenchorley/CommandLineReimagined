@@ -502,6 +502,95 @@ type ViewTests() =
 
         Assert.AreEqual<string>("saturday stray", harness.Names "find $row.mood eq great and not $row.nothing")
 
+    // ------------------------------------- an empty answer explains itself (0043)
+
+    /// A listing with no rows, which the explanation stands beside and never replaces.
+    static member private AnsweredNothing (response: Response) =
+        Assert.AreEqual<Fault option>(None, response.Fault, response.Source)
+
+        match response.Result with
+        | Some(Value.Table table) -> Assert.AreEqual<int>(0, List.length table.Rows, response.Source)
+        | other -> Assert.Fail(sprintf "'%s' answered %A, not a table." response.Source other)
+
+    /// `find` asks the whole store, so its column is looked for there, and the fix is
+    /// the line with it written in.
+    [<TestMethod>]
+    member _.FindExplainsAColumnNoRecordHas() =
+        let harness = journal ()
+        let response = harness.Respond "find $row.knd eq folder"
+
+        ViewTests.AnsweredNothing response
+
+        Assert.AreEqual<Note list>(
+            [ Note.explanation "No row has knd; did you mean kind?" [ Fix.Line "find $row.kind eq folder" ] ],
+            response.Notes)
+
+    /// The values are the whole store's: two records say `great`, one `good`.
+    [<TestMethod>]
+    member _.FindExplainsAValueNoRecordHas() =
+        let harness = journal ()
+        let response = harness.Respond "find $row.mood eq happy"
+
+        ViewTests.AnsweredNothing response
+        Assert.AreEqual<Note list>([ Note.explanation "mood is great or good" [] ], response.Notes)
+
+    [<TestMethod>]
+    member _.FindThatFindsSomethingSaysNothing() =
+        let harness = journal ()
+
+        Assert.AreEqual<Note list>([], (harness.Respond "find $row.mood eq great").Notes)
+
+    /// A view's listing is the same question, asked by `ls`.
+    [<TestMethod>]
+    member _.AViewsListingExplainsItself() =
+        let harness = journal ()
+        harness.Run "in $row.mood eq happy" |> ignore
+        let response = harness.Respond "ls"
+
+        ViewTests.AnsweredNothing response
+        Assert.AreEqual<Note list>([ Note.explanation "mood is great or good" [] ], response.Notes)
+
+    /// The column is named, and there is no fix: the line was `ls`, which has no
+    /// `$row.mod` to correct (decision 0044). The view was written on another line.
+    [<TestMethod>]
+    member _.AViewOverAColumnNoRecordHasNamesItWithoutAFix() =
+        let harness = journal ()
+        harness.Run "in $row.mod eq great" |> ignore
+
+        Assert.AreEqual<Note list>(
+            [ Note.explanation "No row has mod; did you mean mood?" [] ],
+            (harness.Respond "ls").Notes)
+
+    /// A live view re-read with no rows carries its explanation, and loses it the
+    /// moment something matches.
+    [<TestMethod>]
+    member _.ALiveViewsRefreshCarriesTheExplanation() =
+        let harness = journal ()
+        harness.Run "in $row.mood eq happy" |> ignore
+
+        let empty = harness.Refresh "ls"
+        ViewTests.AnsweredNothing empty
+        Assert.AreEqual<Note list>([ Note.explanation "mood is great or good" [] ], empty.Notes)
+
+        harness.Run "save <note name=sunday mood=happy/>" |> ignore
+        let found = harness.Refresh "ls"
+
+        Assert.AreEqual<Note list>([], found.Notes)
+
+        match found.Result with
+        | Some(Value.Table table) -> Assert.AreEqual<int>(1, List.length table.Rows)
+        | other -> Assert.Fail(sprintf "A refreshed listing answered %A." other)
+
+    /// `try` and `else` see the empty listing they always saw.
+    [<TestMethod>]
+    member _.TryAndElseSeeTheSameEmptyListing() =
+        let harness = journal ()
+
+        Assert.AreEqual<string>("0", harness.Text "try find $row.knd eq folder | count")
+
+        // `else` takes the rest of the line as its alternative, which is not run.
+        ViewTests.AnsweredNothing(harness.Respond "find $row.knd eq folder else echo none | count")
+
 /// <summary>`back`: to where you were before the last move (decision 0037).</summary>
 /// <remarks>
 /// `in` and `out` leave a trail of the places they left, folders and views alike, and

@@ -102,7 +102,16 @@ let private listMatching (invocation: Invocation) (expr: Expr) =
         | Error fault -> return Error fault
         | Ok pairs ->
             let matched = pairs |> List.filter snd |> List.map fst |> listingOrder
-            return Invocation.pure' (Value.Table(Table.ofRecords size matched))
+
+            // Nothing matched: why, read off the whole store's table (decision 0043).
+            return
+                Invocation.pure' (Value.Table(Table.ofRecords size matched))
+                |> Invocation.withNotes (
+                    if List.isEmpty matched then
+                        Expr.explainEmpty Expr.nearestNames invocation.Scope candidates expr
+                    else
+                        []
+                )
     }
 
 let ls =
