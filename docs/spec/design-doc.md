@@ -54,6 +54,14 @@ required to compile and to run commands, and it renders results as text.
   watched like a folder.
 - **One execution layer, several hosts.** Execution depends on interfaces, never on a
   user interface, so the same commands run in a tab, in a window and in a test.
+- **A programming language, functional first.** Arithmetic, user-defined functions and
+  loops are part of the language, and functional constructs come first among them:
+  functions and pipelines as values, composition, and mapping, filtering and folding
+  over tables and lists ([decision 0053](../decisions/0053-a-programming-language-functional-first.md)).
+  None is built yet, and each notation is its own decision. Today predicates compare
+  and combine with `and`, `or` and `not`, recovery has `else`, `try` and `??`, and a
+  script is a file of lines run one at a time
+  ([decision 0020](../decisions/0020-scripts-and-run.md)).
 - **Testable headlessly.** No scene, no window, no browser and no disk is required to
   exercise the language, the commands or the store.
 
@@ -61,13 +69,9 @@ required to compile and to run commands, and it renders results as text.
 
 - **Being a POSIX shell.** No globbing, no redirection, no job control, no environment,
   no processes. Those are deliberate omissions, not a backlog.
-- **A general-purpose programming language.** There are no loops, no user-defined
-  functions and no arithmetic. Predicates compare, and combine with `and`, `or` and
-  `not`; recovery has `else`, `try` and `??`. A script is a file of lines run one at a
-  time ([decision 0020](../decisions/0020-scripts-and-run.md)), not a program with
-  control flow.
 - **Multi-line syntax.** One line is one pipeline. A script is many lines, each its own
-  transaction.
+  transaction. The decision that defines functions may revisit this, if a function's
+  body needs more than one line ([decision 0053](../decisions/0053-a-programming-language-functional-first.md)).
 - **Reaching the device.** The browser filesystem is the tab's own. Nothing reads or
   writes the device's files, and nothing leaves the page unless the user runs
   `download`.

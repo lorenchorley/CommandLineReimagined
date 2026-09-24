@@ -389,7 +389,10 @@ Operand    ::= ArgumentValue | "(" Pipeline ")"
 `and` binds tighter than `or`, and both are left associative, so `a or b and c` reads
 as `a or (b and c)`. `not` takes the whole comparison after it, so
 `not $row.kind eq folder` negates the comparison rather than its left operand. There
-are no symbol operators, no parenthesised sub-expressions, and no arithmetic.
+are no symbol operators, no parenthesised sub-expressions, and as yet no arithmetic:
+[decision 0053](decisions/0053-a-programming-language-functional-first.md) makes
+arithmetic, functions and loops part of the language, and each notation is still to be
+decided.
 
 An operand with no operator around it is just that operand: `in documents` has not
 become an expression because expressions exist. Only a line that actually writes an

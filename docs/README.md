@@ -30,9 +30,9 @@ The terminal teaches itself. Type `read readme.txt` in it, and the readme leads 
 ## Where it is going
 
 The [vision](vision.md) states what the terminal is for and where it is headed: easy to
-learn, not tied to text, versatile, scripted in a small functional language, with a
-richer filesystem, native data, total customisation, replayable commands and a graphics
-engine. It says where each stands, what would take it further, and which decisions
+learn, not tied to text, versatile, a programming language that is functional first,
+with a richer filesystem, native data, total customisation, replayable commands and a
+graphics engine. It says where each stands, what would take it further, and which decisions
 that needs.
 
 ## For implementers

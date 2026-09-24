@@ -29,7 +29,7 @@ a later record, **Rejected**.
 | [0017](0017-assignment-arguments.md) | `name=value` in argument position is data; `name: value` binds a parameter | Accepted; one consequence superseded by 0027 |
 | [0018](0018-the-seed-is-not-a-line-anyone-typed.md) | The seeded filesystem is recorded but cannot be undone | Accepted |
 | [0019](0019-reserved-words-in-expression-positions.md) | Reserved words are reserved everywhere, not only in expressions | Accepted |
-| [0020](0020-scripts-and-run.md) | Scripts are files of command lines, and `run` executes them one line at a time | Accepted |
+| [0020](0020-scripts-and-run.md) | Scripts are files of command lines, and `run` executes them one line at a time | Accepted; one consequence superseded by 0053 |
 | [0021](0021-variadic-parameters.md) | A command may declare one parameter that collects the rest of the arguments | Accepted |
 | [0022](0022-hyphenated-command-names.md) | A command's name may be several words joined by hyphens | Accepted |
 | [0023](0023-adjacent-function-parenthesis.md) | The function form needs its parenthesis against the name; a spaced parenthesis is a nested pipeline | Accepted |
@@ -62,6 +62,7 @@ a later record, **Rejected**.
 | [0050](0050-at-names-are-words-and-columns.md) | An `@` name is a word, and a row answers any `@` column | Accepted |
 | [0051](0051-a-list-in-a-table-cell-is-summarised.md) | A list in a table cell is summarised | Accepted |
 | [0052](0052-pick-answers-each-element-once.md) | `pick` answers each element once, when the documents overlap | Accepted |
+| [0053](0053-a-programming-language-functional-first.md) | The language is a programming language, functional first | Accepted |
 
 Retrospective records document decisions taken before the log existed, so that the
 log is the one place to look. Their alternatives are the ones weighed at the time, as
