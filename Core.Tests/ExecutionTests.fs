@@ -480,3 +480,157 @@ type ExecutionTests() =
         let harness = seeded ()
 
         Assert.AreEqual<string>("readme.txt", harness.Names "ls | where $row.kind eq text")
+
+/// <summary>Guidance when a line goes wrong (Phase 9, stream B).</summary>
+/// <remarks>
+/// Decision 0038: a line that called a command wrongly fails with the same fault as
+/// before, and carries that command's help as its guide: the description `help`
+/// writes, then the table it answers. Decision 0037: an old name leads to the new one.
+/// </remarks>
+[<TestClass>]
+type GuidanceTests() =
+
+    /// What `help <command>` says, the way the guide carries it.
+    static let helpOf (harness: Harness) (command: string) =
+        let response = harness.Respond(sprintf "help %s" command)
+        Value.List((response.Output |> List.map Value.Text) @ [ Option.get response.Result ])
+
+    static let guideOf (harness: Harness) (line: string) =
+        let response = harness.Respond line
+        Assert.IsTrue(response.Fault.IsSome, sprintf "'%s' did not fail." line)
+        response.Guide
+
+    static let assertGuide (harness: Harness) (line: string) (command: string) =
+        match guideOf harness line with
+        | Some guide -> Assert.AreEqual<string>(Value.display (helpOf harness command), Value.display guide, line)
+        | None -> Assert.Fail(sprintf "'%s' carried no guide." line)
+
+    static let assertNoGuide (harness: Harness) (line: string) =
+        Assert.AreEqual<Value option>(None, guideOf harness line, line)
+
+    // ------------------------------------------------------------ 0038
+
+    /// `read` with no argument: the fault, and under it `read`'s help.
+    [<TestMethod>]
+    member _.AMissingArgumentCarriesTheCommandsHelp() =
+        let harness = seeded ()
+        let response = harness.Respond "read"
+
+        Assert.AreEqual<string>("'read' needs an argument for 'path'.", response.Fault.Value.Message)
+
+        match response.Guide with
+        | Some(Value.List [ Value.Text description; Value.Table table ]) ->
+            Assert.AreEqual<string>("Show what a file says", description)
+            Assert.AreEqual<string list>([ "name"; "required"; "piped"; "takes"; "description" ], Table.names table)
+            Assert.AreEqual<int>(1, List.length table.Rows)
+        | other -> Assert.Fail(sprintf "%A" other)
+
+    /// Every way of calling a command wrongly, at any stage of the line.
+    [<TestMethod>]
+    member _.EveryWrongCallCarriesTheCommandsHelp() =
+        let harness = seeded ()
+
+        for line, command in
+            [ "read", "read"
+              // Too many: the command called wrongly is `help`, so the guide is its own.
+              "help where extra", "help"
+              "vars x", "vars"
+              "ls -nosuch", "ls"
+              "vars name=x", "vars"
+              "ls | sort", "sort"
+              "ls | sort name sideways", "sort"
+              "ls | where", "where"
+              "ls | select", "select"
+              "set x", "set"
+              "echo 1 | sort name", "sort" ] do
+            assertGuide harness line command
+
+    /// The fault is the one it always was, and so is what `try` and `else` see of it.
+    [<TestMethod>]
+    member _.TheFaultIsUnchanged() =
+        let harness = seeded ()
+
+        Assert.AreEqual<string>("'help' takes 1 argument, but 2 were given.", harness.Error "help where extra")
+        Assert.AreEqual<FaultKind>(Binding, (harness.Fail "help where extra").Kind)
+        Assert.AreEqual<Value option>(None, (harness.Respond "try read").Guide)
+        Assert.AreEqual<Value option>(None, (harness.Respond "read else echo fine").Guide)
+
+    /// With `else` the fault is the last branch's, and so is the guide.
+    [<TestMethod>]
+    member _.AnElseLineCarriesTheLastBranchsGuide() =
+        let harness = seeded ()
+
+        assertGuide harness "read missing.txt else ls | sort" "sort"
+        assertNoGuide harness "read else read missing.txt"
+
+    /// A fault raised while a command runs, and an unknown name, carry no help.
+    [<TestMethod>]
+    member _.AFailureThatIsNotAWrongCallCarriesNoGuide() =
+        let harness = seeded ()
+
+        for line in [ "read missing.txt"; "cd documents"; "lss"; "ls | sort nosuch"; "in nowhere"; "echo $nothing" ] do
+            assertNoGuide harness line
+
+    /// A line that works carries no guide.
+    [<TestMethod>]
+    member _.ALineThatWorksCarriesNoGuide() =
+        let harness = seeded ()
+
+        for line in [ "ls"; "help read"; "read readme.txt" ] do
+            Assert.AreEqual<Value option>(None, (harness.Respond line).Guide, line)
+
+    /// <summary>A wrong call from inside a stage is not that stage's.</summary>
+    /// <remarks>
+    /// The fault is stamped on the stage the parenthesis or the `run` is in, and it
+    /// is not that command that was called wrongly, so neither carries a guide.
+    /// </remarks>
+    [<TestMethod>]
+    member _.AWrongCallInsideAStageIsNotTheStages() =
+        let harness = seeded ()
+        harness.Run "write wrong.clr \"ls | sort\"" |> ignore
+
+        StringAssert.Contains(harness.Error "run wrong.clr", "'sort' needs an argument for 'column'.")
+        assertNoGuide harness "run wrong.clr"
+        assertNoGuide harness "echo (ls | sort)"
+        // `run` called wrongly is its own.
+        assertGuide harness "run" "run"
+
+    /// Nothing the guide is worked out from reaches the log or the history.
+    [<TestMethod>]
+    member _.WorkingOutTheGuideLeavesNoTrace() =
+        let harness = seeded ()
+        let before = harness.History()
+
+        harness.Respond "read" |> ignore
+
+        Assert.AreEqual<int>(List.length before, List.length (harness.History()))
+        Assert.AreEqual<string list>([], (harness.Respond "read").Output)
+
+    /// A live refresh is nobody's line, and says nothing more than its fault.
+    [<TestMethod>]
+    member _.ARefreshCarriesNoGuide() =
+        let harness = seeded ()
+
+        Assert.AreEqual<Value option>(None, (harness.Refresh "ls | sort").Guide)
+
+    // ------------------------------------------------------------ 0037
+
+    /// `cd documents` says which command to use now, and so do the other old names.
+    [<TestMethod>]
+    member _.AnOldNameSaysWhichCommandToUse() =
+        let harness = seeded ()
+
+        Assert.AreEqual<string>("Unknown command : cd. Did you mean in?", harness.Error "cd documents")
+        Assert.AreEqual<string>("Unknown command : up. Did you mean out?", harness.Error "up")
+        Assert.AreEqual<string>("Unknown command : cat. Did you mean read?", harness.Error "cat readme.txt")
+        Assert.AreEqual<string>("Unknown command : cd. Did you mean in?", harness.Error "help cd")
+        Assert.AreEqual<string>("Unknown command : delete. Did you mean rm?", harness.Error "delete readme.txt")
+
+    /// Slips are corrected as they were, and a word two commands are described by names neither.
+    [<TestMethod>]
+    member _.ASlipIsStillCorrected() =
+        let harness = seeded ()
+
+        Assert.AreEqual<string>("Unknown command : lss. Did you mean ls?", harness.Error "lss")
+        Assert.AreEqual<string>("Unknown command : rn. Did you mean in, rm or run?", harness.Error "rn")
+        Assert.AreEqual<string>("Unknown command : by", harness.Error "by")

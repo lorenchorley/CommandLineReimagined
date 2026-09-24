@@ -185,6 +185,22 @@ type CommandCompletionTests() =
             Assert.AreEqual<string>(command, List.head (texts harness old), old)
             Assert.AreEqual<string option>(Some(sprintf "%s · matches \"%s\"" command old), detailOf harness old command)
 
+    /// <summary>A short word that merely equals a keyword does not find the command.</summary>
+    /// <remarks>
+    /// `by` is a word `sort` and `group` are both described by, not a name of either, and
+    /// `as` is not `table`'s first keyword, where an old name would be (decision 0037).
+    /// </remarks>
+    [<TestMethod>]
+    member _.AShortWordThatOnlyDescribesACommandDoesNotFindIt() =
+        let harness = seeded ()
+
+        for line in [ "by"; "ls | by"; "as"; "ls | as" ] do
+            for command in [ "sort"; "group"; "table" ] do
+                assertDoesNotContain command (texts harness line)
+
+        // Three letters are searched as before: `arr` finds `sort` by `arrange`.
+        Assert.AreEqual<string option>(Some "sort · matches \"arrange\"", detailOf harness "ls | arr" "sort")
+
     [<TestMethod>]
     member _.AKeywordMatchRanksAboveANearMiss() =
         let harness = seeded ()
@@ -270,3 +286,43 @@ type CommandCompletionTests() =
         Assert.AreEqual<string list>([], Nearest.names candidates "")
         // A word that is already a candidate was not mistyped.
         Assert.AreEqual<string list>([], Nearest.names candidates "ls")
+
+    /// <summary>Which keyword a word written whole is, by the rule both uses share.</summary>
+    /// <remarks>
+    /// Three letters or more, any keyword. Shorter, only a command's first keyword, where
+    /// 0037 put the old names, and only when no other command has it.
+    /// </remarks>
+    [<TestMethod>]
+    member _.AShortKeywordIsANameOnlyWhenItIsTheFirstAndNobodyElses() =
+        let specs = (seeded ()).Session.Commands
+        let spec name = specs |> List.find (fun s -> s.Name = name)
+
+        Assert.AreEqual<string option>(Some "cd", Nearest.keywordOf specs (spec "in") "cd")
+        Assert.AreEqual<string option>(Some "cd", Nearest.keywordOf specs (spec "in") "CD")
+        Assert.AreEqual<string option>(Some "up", Nearest.keywordOf specs (spec "out") "up")
+        Assert.AreEqual<string option>(Some "delete", Nearest.keywordOf specs (spec "rm") "delete")
+        // `group`'s first keyword, and one of `sort`'s: a shared word.
+        Assert.AreEqual<string option>(None, Nearest.keywordOf specs (spec "group") "by")
+        Assert.AreEqual<string option>(None, Nearest.keywordOf specs (spec "sort") "by")
+        // One of `table`'s, and not its first.
+        Assert.AreEqual<string option>(None, Nearest.keywordOf specs (spec "table") "as")
+        // Whole words only: a prefix is completion's business.
+        Assert.AreEqual<string option>(None, Nearest.keywordOf specs (spec "rm") "del")
+        Assert.AreEqual<string option>(None, Nearest.keywordOf specs (spec "in") "")
+
+    /// <summary>A word that is a keyword names its commands; any other is corrected as a slip.</summary>
+    [<TestMethod>]
+    member _.TheNearestCommandsReadKeywordsBeforeSlips() =
+        let specs = (seeded ()).Session.Commands
+
+        // Old names (decision 0037), although `cd` and `up` are each one slip from `cp`.
+        Assert.AreEqual<string list>([ "in" ], Nearest.commands specs "cd")
+        Assert.AreEqual<string list>([ "out" ], Nearest.commands specs "up")
+        Assert.AreEqual<string list>([ "read" ], Nearest.commands specs "cat")
+        Assert.AreEqual<string list>([ "rm" ], Nearest.commands specs "delete")
+        // Slips, as before.
+        Assert.AreEqual<string list>([ "ls" ], Nearest.commands specs "lss")
+        Assert.AreEqual<string list>([ "in"; "rm"; "run" ], Nearest.commands specs "rn")
+        // A shared short word is neither, and `by` is no slip of anything.
+        Assert.AreEqual<string list>([], Nearest.commands specs "by")
+        Assert.AreEqual<string list>([], Nearest.commands specs "frobnicate")
