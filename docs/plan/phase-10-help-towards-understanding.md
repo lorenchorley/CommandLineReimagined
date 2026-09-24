@@ -4,7 +4,7 @@
 something to tap. Everything the terminal says of its own, rather than what a command
 answered, looks unmistakably like the terminal talking.
 
-**Status: in progress; 10.0 is built, streams A, B and C are next.** Chosen by the owner on 2026-09-24 from a list of
+**Status: complete.** Built as planned, with the owner's answers of 2026-09-24; see [As built](#as-built). Chosen by the owner on 2026-09-24 from a list of
 suggestions. It builds on Phase 9's `guide` and its distinct panel (R13), and is run
 as [running.md](running.md) describes.
 
@@ -232,4 +232,69 @@ reported, and answered on 2026-09-24:
 | 10.9 spec | sub-agent | merged | a5a594d |
 | 10.9 docs | sub-agent | merged | 9ecb6f8 |
 | 10.9 gaps the documents found | orchestrator | merged | 60ca241, 4bb1a51 |
-| 10.9 verifier, republish, As built | orchestrator | not started | |
+| 10.9 verifier, republish, As built | orchestrator | done | this commit |
+
+## As built
+
+Every checkpoint and stream, with these differences and findings.
+
+- **How it ran.** The orchestrator built 10.0. Streams A, B and C ran together, each in
+  its own worktree, and merged in the order C, B, A as they reported, without a
+  conflict. Four questions from their reports went to the owner in one batch; stream A
+  was sent back for two answers, and the orchestrator did the other two (records 0045
+  and 0046). 10.9's specification and user documents went to two sub-agents, and each
+  wrote down where the code did not do what it was describing, which is how the gaps
+  below were found. A container restart in the middle lost nothing, since every merge
+  had been pushed or was still in the main checkout.
+- **Integration.** B could not call `Nearest.names`, which was compiled after the
+  commands, and kept a copy of it in `Expr.fs`. `Nearest.fs` is now compiled just after
+  the command specs, and the copy is gone. C tested its drawing against notes stubbed
+  in the browser check; the stub was removed once A and B had merged, and the check now
+  asks the real core for the fix chip of every acceptance line.
+- **Departures, kept.**
+  - A fix is a `Fix.Replace` of what was written, or a whole `Fix.Line`, and the session
+    makes each a line of what was typed (`Note.resolve`). Paths and variables are
+    spliced at the argument that named them, as `Fix.Line`, since a replacement would
+    hit the first matching word (`read read`).
+  - A mistake in a nested pipeline is fixed in place (`echo (read documents/notes.txt)`);
+    only a mistake inside a script `run` ran offers no fix. The plan's stream A list said
+    both offered none; the nested one has a place in the line, so it keeps its fix.
+  - `Fault.Path` stays as it was written for a folder `in` or `ls` could not find, since
+    0042 keeps `$problem.path` unchanged; the session makes it absolute itself.
+  - B chose the wording 0043 left open: at most five values then `or N more`; the span
+    of a number column for `gt`, `ge`, `lt` and `le` (`size runs from 0 to 193`); `ne`,
+    `has`, `or`, `not` and a bare `$row.done` stay silent; in an `and`, the first part
+    that keeps nothing on its own is the one explained.
+  - `notes` is null on the wire when there are none, as `guide` is. The plan said
+    absent; it now says null.
+- **Found by the documents and fixed:**
+  - A replacement the line has in two places was dropped only from a fault's notes, so
+    `ls | where $row.kind ne foldr | where $row.kind eq foldr` offered to correct the
+    first filter. `Note.resolve` now drops it for every note.
+  - A value differing only in case (`eq Folder`) offered no fix, since `Nearest` counts
+    a case difference as no slip. It is now offered first, as a column already was.
+  - `run` dropped the notes of every line it ran, so an empty filter in a script said
+    nothing, though 0043 has no exception for scripts. `RunLine` now answers a line's
+    notes with its value, and `run` carries them; their fixes find no place in the typed
+    line and are dropped.
+- **Kept as they are, and why:**
+  - A line's notes are those of every stage whose work stood, so an empty `where` inside
+    `first (…) ?? "none"` or before `count` is still explained, though the line's answer
+    is not empty. The explanation is about the stage, and the stage did keep nothing.
+  - `File does not exist` is raised by every lookup of a record, folders included (`attr`,
+    `rm`), so its suggestions include folders, and `read ex` offers `examples`, whose fix
+    then fails as a folder. Offering files only would need the fault to say which command
+    wanted a file.
+  - `find` and a view explain ties among values in the store's order, not a listing's.
+  - A real tap in the middle of the input after a fix chip puts the caret where the
+    finger lands, which is the phone's own behaviour; the chip itself leaves it at the
+    end, and the browser check tests that.
+- **Verification.** A verifier ran the acceptance table and five checks of the owner's
+  answers against d46a158: 13 of 13 matched, on the core and on the published page, and
+  the restore messages were checked in a browser with a corrupted stored line. On the
+  final head every project builds without warnings, the 1431 tests of the four suites
+  `conformance.md` counts pass (881 in Core.Tests), and so do the smaller suites; the
+  four example programs give their golden results and every example in the guide runs;
+  the browser check passes. The payload is 10.7 MB the way `build.yml` measures it, and
+  18.6 MB as the whole `wwwroot`, both under 20 MB. The Artifact was republished from
+  the final head as version 20.
