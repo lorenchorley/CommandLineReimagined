@@ -200,17 +200,22 @@ written. `in journal` is a name. `in $row.mood eq great` has `eq` in it, so it i
 question. Nothing else distinguishes them, and there is no separate command.
 
 A question has to be about the row. One with an operator that never mentions `$row`
-would hold of everything or of nothing, so `in`, `find` and `save-view` refuse it and
-say which columns it probably meant
-([decision 0033](decisions/0033-a-predicate-is-a-question-about-the-row.md)):
+would hold of everything or of nothing, so `in`, `find` and `save-view` refuse it
+([decision 0033](decisions/0033-a-predicate-is-a-question-about-the-row.md)). The
+indented lines under the message are a note: which columns it probably meant, and the
+line that asks it, which the page offers as a chip that fills the input without running
+it ([Notes beside a message](errors.md#notes-beside-a-message)):
 
 ```
 $ in mood eq great
-mood eq great never reads $row, so it is the same for every row. Did you mean $row.mood eq great?
+mood eq great never reads $row, so it is the same for every row.
+  suggestion: Did you mean $row.mood eq great?
+  fix: in $row.mood eq great
 ```
 
 A saved view is held to the same rule when you enter it, so one whose file was written
-over with such a question says so rather than listing nothing:
+over with such a question says so rather than listing nothing. The question is in the
+file rather than in the line you typed, so the note offers no fix:
 
 ```
 $ save-view folders $row.kind eq folder
@@ -220,7 +225,8 @@ $ echo "kind eq folder" | write folders
 folders
 
 $ in folders
-kind eq folder never reads $row, so it is the same for every row. Did you mean $row.kind eq folder?
+kind eq folder never reads $row, so it is the same for every row.
+  suggestion: Did you mean $row.kind eq folder?
 ```
 
 ## Asking once: `find`
@@ -236,6 +242,27 @@ $ find $row.kind eq note and $row.tag eq work | count
 Use `find` for a question you are asking once and `in` for one you want every `ls` to
 keep asking. Neither changes anything, so neither leaves a transaction and `undo`
 reaches past both.
+
+When nothing answers, the empty listing says why, in a note labelled `why` on the page
+([decision 0043](decisions/0043-an-empty-filter-explains-itself.md)): the values the
+column does have, or, for a column no record carries, the nearest one that some record
+does. A value or a column a slip away is offered as the corrected line:
+
+```
+$ find $row.mood eq grate
+name  kind  folder  size  modified
+  explanation: mood is great, good or better
+  fix: find $row.mood eq great
+
+$ find $row.moods eq great
+name  kind  folder  size  modified
+  explanation: No row has moods; did you mean mood?
+  fix: find $row.mood eq great
+```
+
+A view's listing is explained the same way, including a live one: when a change empties
+it, the explanation appears with the empty table, and goes when a row comes back.
+[An empty answer says why](tables.md#an-empty-answer-says-why) has the whole rule.
 
 ## Keeping a view: `save-view`
 
@@ -263,6 +290,7 @@ is in the directory like anything else:
 ```
 $ ls | where $row.kind eq view | select name
 name
+  explanation: kind is note
 
 $ out
 /
@@ -305,6 +333,24 @@ journal
 $ in ..
 /
 ```
+
+A path that is not there names what is near it, when something is: a name a slip away
+in the folder it was looked for in, or else the same name, or a name it is the start of,
+anywhere. A folder is looked for among folders. Each comes with the line that uses it:
+
+```
+$ in jounal
+Directory does not exist : jounal
+  suggestion: Did you mean journal?
+  fix: in journal
+$ read monday
+File does not exist : /monday
+  suggestion: Did you mean journal/monday?
+  fix: read journal/monday
+```
+
+The fault is the same as ever, so `else` and `try` see only it
+([decision 0042](decisions/0042-a-missing-name-names-the-nearest.md)).
 
 ## Going back: `back`
 
