@@ -502,14 +502,30 @@ type TableCommandTests() =
             response.Notes)
 
     /// The second: the column is there and the value is not, so the values it has are
-    /// named, most frequent first.
+    /// named, most frequent first, and the one `foldr` is a slip from is the fix (0045).
     [<TestMethod>]
     member _.AValueNoRowHasNamesTheValuesTheColumnHas() =
         let harness = seeded ()
         let response = harness.Respond "ls | where $row.kind eq foldr"
 
         TableCommandTests.AnsweredNothing response
-        Assert.AreEqual<Note list>([ TableCommandTests.Explanation "kind is folder or text" ], response.Notes)
+
+        Assert.AreEqual<Note list>(
+            [ TableCommandTests.Explanation("kind is folder or text", [ "ls | where $row.kind eq folder" ]) ],
+            response.Notes)
+
+    /// A value with nothing near is explained and offers nothing, and so is a near one
+    /// held in a variable, which has no place in the line to correct (0045).
+    [<TestMethod>]
+    member _.AValueWithNothingNearOffersNoFix() =
+        let harness = seeded ()
+        harness.Run "set wanted foldr" |> ignore
+
+        for line in [ "ls | where $row.kind eq zzzzzz"; "ls | where $row.kind eq $wanted" ] do
+            Assert.AreEqual<Note list>(
+                [ TableCommandTests.Explanation "kind is folder or text" ],
+                (harness.Respond line).Notes,
+                line)
 
     /// Three values or more are joined `a, b or c`; the most frequent comes first and
     /// equally frequent ones keep the order the rows had them in.
@@ -535,7 +551,7 @@ type TableCommandTests() =
 
         Assert.AreEqual<Note list>(
             [ TableCommandTests.Explanation "name is a, b, c, d, e or 2 more" ],
-            (harness.Respond "ls | where $row.name eq z").Notes)
+            (harness.Respond "ls | where $row.name eq zz").Notes)
 
     /// Nothing near: the sentence ends at the column, and there is nothing to offer.
     [<TestMethod>]
@@ -608,7 +624,12 @@ type TableCommandTests() =
         let response = harness.Respond "ls | where $row.kind eq foldr | where $row.knd eq folder | count"
 
         Assert.AreEqual<string>("0", Value.display (defaultArg response.Result Value.Empty))
-        Assert.AreEqual<Note list>([ TableCommandTests.Explanation "kind is folder or text" ], response.Notes)
+
+        Assert.AreEqual<Note list>(
+            [ TableCommandTests.Explanation(
+                  "kind is folder or text",
+                  [ "ls | where $row.kind eq folder | where $row.knd eq folder | count" ]) ],
+            response.Notes)
 
     /// Decision 0041: the note is beside the answer, never in it, so `try` and `else`
     /// see the empty table they always saw: `try` has no fault to catch and `else` no

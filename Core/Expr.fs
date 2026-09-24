@@ -513,6 +513,22 @@ module Expr =
         | 0 -> sprintf "%s is %s" column (inWords named)
         | more -> sprintf "%s is %s or %d more" column (String.concat ", " named) more
 
+    /// <summary>The fix for an `eq` whose value is one slip from one a row has (decision 0045).</summary>
+    /// <remarks>
+    /// The nearest of the values the column has, by `nearest`, written as it would be on
+    /// the right of `eq`. Only for a value written in the line: one held in a variable
+    /// has no place in the line to correct, and offers none.
+    /// </remarks>
+    let private nearValue nearest (other: Expr) (compared: Value) (cells: Value list) : Fix list =
+        match other with
+        | Expr.Const _ ->
+            let had = cells |> List.map Value.display |> List.distinct
+
+            match nearest had (Value.display compared) with
+            | first :: _ -> [ Fix.Replace(asWritten (Value.display compared), asWritten first) ]
+            | [] -> []
+        | _ -> []
+
     /// <summary>`size runs from 0 to 1361`: the span of a column of numbers.</summary>
     /// <remarks>
     /// What explains `gt`, `ge`, `lt` and `le` keeping nothing, which a list of values
@@ -577,7 +593,8 @@ module Expr =
     /// first operand of the predicate's top-level `and`s that compares one column with
     /// a value not read off the row, and that on its own keeps no row:
     ///
-    /// - `eq` and `like` answer the values the column does have (`valuesOf`);
+    /// - `eq` and `like` answer the values the column does have (`valuesOf`), and an
+    ///   `eq` whose value is near one of them offers it as a fix (`nearValue`, 0045);
     /// - `gt`, `ge`, `lt` and `le` over numbers answer their span (`spanOf`);
     /// - `ne` and `has` are not explained: `ne` keeping nothing means every row holds
     ///   the one value, which the question already named, and what `has` looks inside
@@ -627,15 +644,15 @@ module Expr =
                                 Option.None
                             else
                                 match op with
-                                | "eq"
-                                | "like" -> Some(valuesOf column cells)
+                                | "eq" -> Some(valuesOf column cells, nearValue nearest other compared cells)
+                                | "like" -> Some(valuesOf column cells, [])
                                 | "gt"
                                 | "ge"
                                 | "lt"
-                                | "le" -> spanOf column cells compared
+                                | "le" -> spanOf column cells compared |> Option.map (fun text -> text, [])
                                 | _ -> Option.None
 
                 conjuncts expr
                 |> List.tryPick explain
-                |> Option.map (fun text -> Note.explanation text [])
+                |> Option.map (fun (text, fixes) -> Note.explanation text fixes)
                 |> Option.toList

@@ -1672,7 +1672,9 @@ function say(html) {
         // empty filesystem that may not be empty, and "failed" alone says nothing about
         // whether their files are gone or the code is broken.
         say('<span class="problem">failed to restore</span> Nothing can run until the session is restored.');
-        addEntry(`<div class="err">Could not restore the session: ${escape(String(e && e.message || e))}</div>`);
+        // Guidance, not an error: no line anybody ran failed (decision 0046).
+        addEntry(`<div class="aside"><span class="label">note</span><span class="problem">Could not restore the session:</span> ` +
+                 `${escape(String(e && e.message || e))}</div>`);
       });
     return;
   }
@@ -1708,8 +1710,9 @@ function finishBoot(store) {
     say(bannerFor(store));
 
     if (store.unreadable > 0) {
-      addEntry(`<div class="err">${store.unreadable} stored line(s) could not be read and were skipped. ` +
-               `<b>reset</b> starts over.</div>`);
+      // The terminal speaking about its own store, so guidance (decision 0046).
+      addEntry(`<div class="aside"><span class="label">note</span>${store.unreadable} stored line(s) could not be read ` +
+               `and were skipped. <b>reset</b> starts over.</div>`);
     }
 
     refreshPrompt();
