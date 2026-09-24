@@ -149,7 +149,7 @@ type TableCommandTests() =
         Assert.AreEqual<string>("$row.kind is text (folder), not true or false.", fault.Message)
 
         Assert.AreEqual<string list>(
-            [ "Compare it: $row.kind eq folder." ],
+            [ "Did you mean $row.kind eq folder?" ],
             response.Notes |> List.map (fun note -> note.Text))
 
     /// A bare word as the whole predicate is a plain operand, so it binds; on the first
@@ -210,11 +210,11 @@ type TableCommandTests() =
         Assert.AreEqual<FaultKind>(Invalid, fault.Kind)
 
         Assert.AreEqual<string * string list>(
-            ("$row.kind is text (folder), not true or false.", [ "Compare it: $row.kind eq folder." ]),
+            ("$row.kind is text (folder), not true or false.", [ "Did you mean $row.kind eq folder?" ]),
             said "ls | where not $row.kind")
 
         Assert.AreEqual<string * string list>(
-            ("$row.kind is text (folder), not true or false.", [ "Compare it: $row.kind eq folder." ]),
+            ("$row.kind is text (folder), not true or false.", [ "Did you mean $row.kind eq folder?" ]),
             said "ls | where $row.kind eq text or $row.kind")
 
     /// Short circuiting still holds: an `and` whose left is false never reads its right,

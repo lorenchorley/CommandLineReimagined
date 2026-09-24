@@ -155,13 +155,39 @@ type PredicateSuggestionTests() =
 
         Assert.AreEqual<string * (string * string * string list) list>(
             ("$row.kind is text (folder), not true or false.",
-             [ "suggestion", "Compare it: $row.kind eq folder.", [ "ls | where $row.kind eq folder" ] ]),
+             [ "suggestion", "Did you mean $row.kind eq folder?", [ "ls | where $row.kind eq folder" ] ]),
             Said.failing harness "ls | where $row.kind")
 
         Assert.AreEqual<string * (string * string * string list) list>(
             ("kind is text (kind), not true or false.",
              [ "suggestion", "Did you mean $row.kind?", [ "ls | where $row.kind" ] ]),
             Said.failing harness "ls | where kind")
+
+    /// The comparison to write is worded like every other suggestion, the value quoted
+    /// when it would not read back as one word, and never in the sentence.
+    [<TestMethod>]
+    member _.TheComparisonIsWordedLikeEveryOtherSuggestion() =
+        let harness = seeded ()
+        harness.Run "write \"two words.txt\" x" |> ignore
+
+        Assert.AreEqual<string * (string * string * string list) list>(
+            ("$row.size is number (0), not true or false.",
+             [ "suggestion", "Did you mean $row.size eq 0?", [ "ls | where $row.size eq 0" ] ]),
+            Said.failing harness "ls | where $row.size")
+
+        Assert.AreEqual<string * (string * string * string list) list>(
+            ("$row.name is file (two words.txt), not true or false.",
+             [ "suggestion",
+               "Did you mean $row.name eq \"two words.txt\"?",
+               [ "ls | sort name -desc | where $row.name eq \"two words.txt\"" ] ]),
+            Said.failing harness "ls | sort name -desc | where $row.name")
+
+        for line in [ "ls | where $row.kind"; "ls | where not $row.kind"; "ls | where kind" ] do
+            let message, notes = Said.failing harness line
+            StringAssert.EndsWith(message, "not true or false.", line)
+
+            for _, text, _ in notes do
+                StringAssert.StartsWith(text, "Did you mean ", line)
 
     /// The operand is in the line twice, and the fault cannot say which one it was, so
     /// the suggestion stands and no line is offered: the first would be the wrong one.
@@ -171,7 +197,7 @@ type PredicateSuggestionTests() =
 
         Assert.AreEqual<string * (string * string * string list) list>(
             ("$row.kind is text (folder), not true or false.",
-             [ "suggestion", "Compare it: $row.kind eq folder.", [] ]),
+             [ "suggestion", "Did you mean $row.kind eq folder?", [] ]),
             Said.failing harness "ls | where $row.kind eq text or $row.kind")
 
 /// <summary>A missing file or folder names the nearest paths, with a fix for each (0042, 0044).</summary>
@@ -211,6 +237,46 @@ type PathSuggestionTests() =
             ("File does not exist : /reports",
              [ "suggestion", "Did you mean report or reports.txt?", [ "read report"; "read reports.txt" ] ]),
             Said.failing harness "read reports")
+
+    /// `rm` has nothing at the path, which may have been a file or a folder, so it is
+    /// looked for among every record, as a missing file is.
+    [<TestMethod>]
+    member _.NothingAtAPathNamesTheNearest() =
+        let harness = seeded ()
+        harness.Run "in documents" |> ignore
+
+        Assert.AreEqual<string * (string * string * string list) list>(
+            ("Nothing exists at : /documents/nots.txt",
+             [ "suggestion", "Did you mean notes.txt?", [ "rm notes.txt" ] ]),
+            Said.failing harness "rm nots.txt")
+
+        Assert.IsTrue(harness.Exists "notes.txt")
+        harness.Run "out" |> ignore
+
+        Assert.AreEqual<string * (string * string * string list) list>(
+            ("Nothing exists at : /documnts", [ "suggestion", "Did you mean documents?", [ "rm documents" ] ]),
+            Said.failing harness "rm documnts")
+
+        Assert.AreEqual<string * (string * string * string list) list>(
+            ("Nothing exists at : /nothingnear", []),
+            Said.failing harness "rm nothingnear")
+
+    /// A target directory is looked for among folders only: a file one slip away is not
+    /// somewhere to copy into.
+    [<TestMethod>]
+    member _.AMissingTargetDirectoryOffersOnlyFolders() =
+        let harness = seeded ()
+        harness.Run "write documnt x" |> ignore
+
+        Assert.AreEqual<string * (string * string * string list) list>(
+            ("Target directory does not exist : /documnts",
+             [ "suggestion", "Did you mean documents?", [ "cp readme.txt documents" ] ]),
+            Said.failing harness "cp readme.txt documnts")
+
+        Assert.AreEqual<string * (string * string * string list) list>(
+            ("File does not exist : /documnts",
+             [ "suggestion", "Did you mean documents or documnt?", [ "read documents"; "read documnt" ] ]),
+            Said.failing harness "read documnts")
 
     /// A path is written from where the person is: relative inside the current folder,
     /// absolute outside it.
