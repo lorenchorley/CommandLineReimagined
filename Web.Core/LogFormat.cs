@@ -30,8 +30,13 @@ public static class LogFormat
     /// and a query (<c>pwd | set here</c> inside a view), and a build that only knew
     /// version 1 would fail on either as an unknown kind. Every version 1 document is a
     /// valid version 2 one, so the one reader serves both.
+    ///
+    /// Version 3 is Phase 9's: the trail <c>back</c> retraces (decision 0037) is two new
+    /// events, <c>trailPushed</c> and <c>trailPopped</c>. Every earlier document is a
+    /// valid version 3 one, and a build that only knew version 2 refuses a version 3
+    /// document by its number rather than by an event type it has never heard of.
     /// </remarks>
-    public const int Version = 2;
+    public const int Version = 3;
 
     private static readonly JsonSerializerOptions Compact = new() { WriteIndented = false };
 
@@ -97,6 +102,18 @@ public static class LogFormat
                 ["type"] = "locationChanged",
                 ["before"] = ToNode(location.before),
                 ["after"] = ToNode(location.after),
+            },
+
+            Event.TrailPushed pushed => new JsonObject
+            {
+                ["type"] = "trailPushed",
+                ["place"] = ToNode(pushed.Item),
+            },
+
+            Event.TrailPopped popped => new JsonObject
+            {
+                ["type"] = "trailPopped",
+                ["place"] = ToNode(popped.Item),
             },
 
             _ => throw new NotSupportedException(
@@ -299,7 +316,7 @@ public static class LogFormat
 
         return version switch
         {
-            1 or 2 => ReadTransaction(node),
+            1 or 2 or 3 => ReadTransaction(node),
             _ => throw new FormatException(
                 $"A stored transaction is version {version}; this build reads up to {Version}."),
         };
@@ -344,6 +361,9 @@ public static class LogFormat
             "locationChanged" => Event.NewLocationChanged(
                 ReadLocation(node["before"]!.AsObject()),
                 ReadLocation(node["after"]!.AsObject())),
+
+            "trailPushed" => Event.NewTrailPushed(ReadLocation(node["place"]!.AsObject())),
+            "trailPopped" => Event.NewTrailPopped(ReadLocation(node["place"]!.AsObject())),
 
             var unknown => throw new FormatException(
                 $"A stored transaction holds an event of type '{unknown}', which this build does not know."),

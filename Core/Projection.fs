@@ -11,6 +11,12 @@ type Projection =
     { Files: Map<FileId, FileRecord>
       Variables: Map<string, Value>
       Location: Location
+      /// <summary>The places `in` and `out` have left, the most recent first (decision 0037).</summary>
+      /// <remarks>
+      /// What `back` retraces, one step at a time. A fold over the log like the rest,
+      /// so it survives a reload, and `undo` puts a place back on it or takes one off.
+      /// </remarks>
+      Trail: Location list
       /// The sequence number of the last transaction folded in. A replay is finished
       /// when this equals the log's last sequence number.
       Applied: int64 }
@@ -72,7 +78,24 @@ module Projection =
         { Files = Map.empty
           Variables = Map.empty
           Location = emptyLocation
+          Trail = []
           Applied = 0L }
+
+    /// <summary>Whether two locations are the same place.</summary>
+    /// <remarks>
+    /// A view is compared by its text, the way it is stored: a view read back from the
+    /// log is parsed again, and a nested pipeline in it would not compare equal to the
+    /// one it was parsed from.
+    /// </remarks>
+    let samePlace (a: Location) (b: Location) =
+        a.Folder = b.Folder && Option.map Value.exprText a.View = Option.map Value.exprText b.View
+
+    /// Takes a place off the trail: the most recent time it is there. Forgiving, like
+    /// the rest of the fold: a place that is not on the trail changes nothing.
+    let private pop (place: Location) (trail: Location list) =
+        match List.tryFindIndex (samePlace place) trail with
+        | Some index -> List.removeAt index trail
+        | Option.None -> trail
 
     /// <summary>Folds one event in.</summary>
     /// <remarks>
@@ -100,6 +123,8 @@ module Projection =
             | Some value -> { projection with Variables = Map.add name value projection.Variables }
             | Option.None -> { projection with Variables = Map.remove name projection.Variables }
         | LocationChanged(_, after) -> { projection with Location = after }
+        | TrailPushed place -> { projection with Trail = place :: projection.Trail }
+        | TrailPopped place -> { projection with Trail = pop place projection.Trail }
 
     let applyAll (projection: Projection) (events: Event list) = List.fold apply projection events
 
@@ -117,6 +142,8 @@ module Projection =
         | ContentChanged(id, before, after) -> ContentChanged(id, after, before)
         | VariableChanged(name, before, after) -> VariableChanged(name, after, before)
         | LocationChanged(before, after) -> LocationChanged(after, before)
+        | TrailPushed place -> TrailPopped place
+        | TrailPopped place -> TrailPushed place
 
     /// The events that undo a whole transaction: each one inverted, in reverse order,
     /// because a later event may depend on an earlier one having happened.

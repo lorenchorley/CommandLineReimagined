@@ -175,6 +175,59 @@ public class LogFormatTests
         Assert.AreEqual("$row.kind eq folder", ExprModule.display(changed.after.View!.Value));
     }
 
+    /// The trail `back` retraces (decision 0037): a place left, and a place taken off it.
+    [TestMethod]
+    public void TrailPushedRoundTrips()
+    {
+        var read = RoundTrip(Transaction(Event.NewTrailPushed(
+            new Location("/documents", FSharpOption<Expr>.None))));
+
+        var pushed = (Event.TrailPushed)read.Events.Single();
+        Assert.AreEqual("/documents", pushed.Item.Folder);
+        Assert.IsNull(pushed.Item.View);
+    }
+
+    /// A place on the trail can be a view, and comes back as the same question.
+    [TestMethod]
+    public void TrailPoppedKeepsItsView()
+    {
+        var view = ExprModule.parse("test", "$row.kind eq folder");
+
+        var read = RoundTrip(Transaction(Event.NewTrailPopped(
+            new Location("/", FSharpOption<Expr>.Some(view.ResultValue)))));
+
+        var popped = (Event.TrailPopped)read.Events.Single();
+        Assert.AreEqual("/", popped.Item.Folder);
+        Assert.AreEqual("$row.kind eq folder", ExprModule.display(popped.Item.View!.Value));
+    }
+
+    /// A document written by the previous version, before the trail existed, still reads.
+    [TestMethod]
+    public void AStoredVersionTwoSampleDecodes()
+    {
+        const string stored = """
+        {
+          "v": 2,
+          "seq": 3,
+          "at": "2026-09-21T12:34:56.7890000+02:00",
+          "source": "in documents",
+          "undoable": true,
+          "compensates": null,
+          "events": [
+            {
+              "type": "locationChanged",
+              "before": { "folder": "/", "view": null },
+              "after": { "folder": "/documents", "view": null }
+            }
+          ]
+        }
+        """;
+
+        var changed = (Event.LocationChanged)LogFormat.Read(stored).Events.Single();
+
+        Assert.AreEqual("/documents", changed.after.Folder);
+    }
+
     // ---- transactions -----------------------------------------------------------
 
     [TestMethod]
@@ -365,7 +418,7 @@ public class LogFormatTests
 
         // Pinned against what was written rather than against the constant itself, which
         // the analyser rightly calls always true: a new version has to change this line.
-        Assert.AreEqual(2, node["v"]!.GetValue<int>());
+        Assert.AreEqual(3, node["v"]!.GetValue<int>());
     }
 
     /// <summary>A version this build does not know is refused, by name.</summary>
@@ -383,7 +436,7 @@ public class LogFormatTests
         var error = Assert.ThrowsExactly<FormatException>(() => LogFormat.Read(node.ToJsonString()));
 
         StringAssert.Contains(error.Message, "version 99");
-        StringAssert.Contains(error.Message, "reads up to 2");
+        StringAssert.Contains(error.Message, "reads up to 3");
     }
 
     [TestMethod]

@@ -207,6 +207,7 @@ type Session(log: ILog, options: SessionOptions, seed: Seed) =
         [ Commands.Files.ls
           Commands.Files.into
           Commands.Files.out
+          Commands.Files.back
           Commands.Files.pwd
           Commands.Files.find
           Commands.Files.saveView options.NewId options.Clock
