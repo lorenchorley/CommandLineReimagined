@@ -13,6 +13,9 @@
     --command:#7aa2f7; --flag:#e0af68; --string:#9ece6a; --variable:#bb9af7;
     --identifier:#c0caf5; --type:#2ac3de; --attribute:#ff9e64; --punctuation:#565f89;
     --operator:#f7768e; --member:#7dcfff; --keyword:#ff9eb8;
+    /* What the terminal says itself, as against what a command answered: see .aside. */
+    --aside:rgba(107,138,253,.10); --aside-line:rgba(107,138,253,.45); --aside-ink:#8ea6ff;
+    --ui:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
   }
   @media (prefers-color-scheme: light) {
     :root {
@@ -20,6 +23,7 @@
       --command:#2f5fd0; --flag:#a35a00; --string:#2d7a2d; --variable:#7132b8;
       --identifier:#1a1b23; --type:#0b6e86; --attribute:#a34a00; --punctuation:#8b8fa3;
       --operator:#b1004a; --member:#0b5d86; --keyword:#8a1f6b;
+      --aside:rgba(47,95,208,.07); --aside-line:rgba(47,95,208,.35); --aside-ink:#2f5fd0;
     }
   }
   * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
@@ -39,10 +43,6 @@
     padding:max(10px,env(safe-area-inset-top)) 10px max(10px,env(safe-area-inset-bottom));
     -webkit-text-size-adjust:100%; overflow:hidden;
   }
-
-  header { flex:none; display:flex; align-items:baseline; gap:8px; margin-bottom:8px; }
-  h1 { font-size:14px; margin:0; flex:1; }
-  .status { font-size:11px; color:var(--dim); }
 
   /* Scrollback ------------------------------------------------------------ */
   #scroll {
@@ -69,6 +69,41 @@
   }
   .hint { color:var(--dim); }
 
+  /*
+    The terminal's own words. Everything the page shows that no command answered (the
+    banner, the help under a line called wrongly, the note that a selection was copied)
+    is drawn in a panel of its own: an accent border and background, a small label that
+    says what it is, and the interface's proportional face rather than the terminal's
+    monospace. Output keeps its own look, so the two are never mistaken for each other.
+  */
+  .aside {
+    font:13px/1.45 var(--ui); color:var(--fg); white-space:normal; overflow-wrap:anywhere;
+    background:var(--aside); border:1px solid var(--aside-line); border-left:3px solid var(--aside-ink);
+    border-radius:8px; padding:6px 10px 8px; margin-top:6px;
+  }
+  .aside .label {
+    display:block; font:600 10px/1.3 var(--ui); letter-spacing:.06em; color:var(--aside-ink);
+    margin-bottom:2px;
+  }
+  .aside code { font:12px ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; }
+  .aside .grid table { font-family:var(--ui); font-size:12.5px; }
+  .aside .grid th { background:transparent; }
+  .aside div.text { font-family:var(--ui); border-left-color:var(--aside-line); padding:2px 0 2px 8px; }
+  .aside .grid th, .aside .grid td { border-bottom-color:var(--aside-line); }
+  .aside .problem { color:var(--bad); font-weight:600; }
+  #banner { margin:0 0 10px; }
+  /* Over the foot of the scrollback, so it moves nothing; it fades on its own. */
+  #pane { flex:1; min-height:0; position:relative; display:flex; flex-direction:column; }
+  #copied {
+    position:absolute; right:10px; bottom:10px; margin:0; pointer-events:none;
+    padding:4px 10px 5px; box-shadow:0 2px 10px rgba(0,0,0,.18); background:var(--panel);
+  }
+  #copied::before { content:''; position:absolute; inset:0; border-radius:inherit; background:var(--aside); }
+  #copied > * { position:relative; }
+  #copied .label { display:inline; margin:0 3px 0 0; }
+  #copied.fade { animation:fade 1.6s ease-in forwards; }
+  @keyframes fade { 0%, 55% { opacity:1; } 100% { opacity:0; } }
+
   /* Result chips ---------------------------------------------------------- */
   .items { display:flex; flex-wrap:wrap; gap:5px; margin-top:4px; }
   /*
@@ -93,7 +128,7 @@
             border-left:2px solid var(--flag); color:var(--flag); }
   .caught .kind { border-color:var(--flag); }
   /* Text results (read, echo) read as a block, not as a chip to insert. */
-  .text { white-space:pre-wrap; word-break:break-word; margin-top:4px; padding:6px 8px;
+  div.text { white-space:pre-wrap; word-break:break-word; margin-top:4px; padding:6px 8px;
           border-left:2px solid var(--line); color:var(--fg); }
 
   /* Tables ---------------------------------------------------------------- */
@@ -124,9 +159,9 @@
   .grid td.fault { color:var(--flag); }
   .grid td.none::before { content:'—'; }
   /*
-    A live listing. The badge says the table is being kept up to date and is the way to
-    stop it; the flash is how a table that changed under you says that it did, which a
-    silent redraw could not.
+    A listing's badge. `live` says the table is being kept up to date, `paused` that it
+    is not, and tapping it changes which; the flash is how a table that changed under
+    you says that it did, which a silent redraw could not.
   */
   .watch:empty { display:none; }
   .watch { margin-top:4px; }
@@ -135,7 +170,6 @@
     border:1px solid var(--line); background:var(--panel); color:var(--dim); cursor:pointer;
   }
   .watch .badge.on { color:var(--ok); border-color:var(--ok); }
-  .watch .frozen { font-size:11px; color:var(--punctuation); }
   @keyframes flash { from { background:rgba(107,138,253,.28); } to { background:transparent; } }
   .flash { animation:flash .8s ease-out; }
   .running .out:last-child::after { content:''; display:inline-block; width:6px; height:11px;
@@ -234,12 +268,10 @@
 </style>
 </head>
 <body>
-  <header>
-    <h1>CommandLineReimagined</h1>
-    <span class="status" id="status">starting…</span>
-  </header>
-
-  <div id="scroll"><div class="hint" id="banner">Loading the terminal…</div></div>
+  <div id="pane">
+    <div id="scroll"><div class="aside" id="banner"><span class="label">note</span><span id="said">Loading the terminal…</span></div></div>
+    <div class="aside" id="copied" hidden><span class="label">note</span> <span>copied</span></div>
+  </div>
 
   <div id="bar">
     <div id="detail"></div>
@@ -380,6 +412,68 @@ if (touchScreen) {
   }
 }
 
+/*
+  A selection made in the scrollback is copied when it ends, and a `copied` note says
+  so and fades. On a phone, selecting is a long press and dragging its handles, and
+  there is no copy key to reach for afterwards.
+
+  It ends when the mouse or finger that made it lifts, or, for the handles of a
+  selection on a phone, which say nothing to the page as they move, once it has stopped
+  changing for a moment. The long press itself is left alone: the pointerdown and
+  mousedown above keep the focus, and neither stops a press from selecting, since
+  Chrome sends no mousedown for a long press and a pointerdown's default is not a
+  selection. Only the scrollback is copied from; the input is where you edit, and a
+  selection there is for that. A tap selects nothing, so tapping a cell or a word does
+  what it did.
+*/
+(function copyOnSelect() {
+  const note = $('copied');
+  let settle = 0, dragging = false, copied = '';
+
+  /// The selected text, when the selection is inside the scrollback.
+  const selected = () => {
+    const selection = document.getSelection();
+    if (!selection || selection.isCollapsed || !selection.rangeCount) return '';
+    const range = selection.getRangeAt(0);
+    return scroll.contains(range.commonAncestorContainer) ? selection.toString() : '';
+  };
+
+  function show() {
+    note.hidden = false;
+    note.classList.remove('fade');
+    void note.offsetWidth;
+    note.classList.add('fade');
+  }
+  note.addEventListener('animationend', () => { note.hidden = true; note.classList.remove('fade'); });
+
+  // Called straight from the event that ended the selection where there is one, so the
+  // browser counts the write as the person's own.
+  function copy() {
+    clearTimeout(settle);
+    const text = selected();
+    if (!text.trim() || text === copied) return;
+    copied = text;
+
+    const fallback = () => { try { if (document.execCommand('copy')) show(); } catch {} };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(show, fallback);
+    } else {
+      fallback();
+    }
+  }
+
+  document.addEventListener('selectionchange', () => {
+    clearTimeout(settle);
+    if (!selected()) { copied = ''; return; }
+    if (!dragging) settle = setTimeout(copy, 600);
+  });
+
+  // A mouse drags a selection with the button down: it has ended when the button lifts.
+  document.addEventListener('pointerdown', e => { if (e.pointerType === 'mouse') dragging = true; }, true);
+  document.addEventListener('pointerup', () => { dragging = false; if (selected()) copy(); }, true);
+  document.addEventListener('pointercancel', () => { dragging = false; }, true);
+})();
+
 let atEnd = true;   // whether the scrollback is showing its last line
 
 function toEnd() {
@@ -462,6 +556,15 @@ const linesHtml = lines => (lines || []).map(line => `<div class="out">${escape(
 function faultHtml(r) {
   const kind = r.fault ? `<span class="kind">${escape(r.fault.kind.toLowerCase())}</span>` : '';
   return `<div class="err">${kind}${escape(r.error)}</div>`;
+}
+
+/// How to call a command, under a line that called it wrongly (decision 0038): the
+/// table `help <command>` answers, drawn as that answer is, in the panel the terminal
+/// keeps for its own words, since this is the terminal helping rather than the line's
+/// answer. A line that failed any other way has no guide, and gets no panel.
+function guideHtml(guide) {
+  if (!guide || !guide.length) return '';
+  return `<div class="aside guide"><span class="label">help</span>${itemsHtml(guide)}</div>`;
 }
 
 /// A fault that `try` or `else` made into a value (Phase 5). It reads like the failure
@@ -615,7 +718,7 @@ function finishEntry(entry, r) {
 
   let tail = '';
   if (r.error === 'Stopped.') tail = `<div class="stopped">${escape(r.error)}</div>`;
-  else if (r.error) tail = faultHtml(r);
+  else if (r.error) tail = faultHtml(r) + guideHtml(r.guide);
   else tail = itemsHtml(r.result);
 
   entry.querySelector('.tail').innerHTML = tail;
@@ -678,7 +781,7 @@ function forgetLines() {
   for (const entry of new Set(committedBy.values())) {
     if (entry.classList.contains('undone')) { forgetTables(entry); entry.remove(); }
   }
-  if (live && !live.entry.isConnected) live = null;
+  forgetWatches();
   committedBy.clear();
 }
 
@@ -703,16 +806,20 @@ function applyChanges(entry, r) {
 // ---- live listings --------------------------------------------------------
 
 /*
-  The newest listing keeps itself up to date.
+  Listings keep themselves up to date.
 
   A listing is a question about the store, and the store changes under it: `mkdir x`
   in the next entry makes the answer above it wrong. Because the log says when it
   changed, the page can ask the question again — through `Refresh`, which re-reads and
-  commits nothing — and replace the table in place. Only the newest listing does this;
-  the ones above it froze when they scrolled out of the conversation, which is what a
-  scrollback is for.
+  commits nothing — and replace the table in place.
+
+  Every listing keeps its badge. The newest starts live; the ones above it pause when
+  a newer one arrives, which is what a scrollback is for, and read `paused`. Tapping
+  `paused` makes a listing live again, and tapping `live` pauses it, so any number can
+  be live at once, each asked again whenever the store changes. One made live by a tap
+  stays live when a newer listing arrives: it was asked for, not left over.
 */
-let live = null;       // { entry, source, on } for the newest listing
+const watches = new Set();   // { entry, source, on, chosen, shown } for every listing on screen
 let refreshWanted = false;
 
 /// Which lines are worth keeping live: the two that ask what is there.
@@ -722,43 +829,66 @@ function isListing(text) {
   return listings.includes(text.trim().split(/[\s|]/)[0]);
 }
 
-function markLive(entry, source) {
-  if (live && live.entry !== entry) {
-    const bar = live.entry.querySelector('.watch');
-    if (bar) bar.innerHTML = '<span class="frozen">frozen</span>';
+function markLive(entry, source, result) {
+  for (const other of watches) {
+    if (other.on && !other.chosen) { other.on = false; drawWatch(other); }
   }
 
-  live = { entry, source, on: true };
-  drawWatch();
+  const watch = { entry, source, on: true, chosen: false, shown: JSON.stringify(result || null) };
+  watches.add(watch);
+  drawWatch(watch);
 }
 
-function drawWatch() {
-  if (!live) return;
-  const bar = live.entry.querySelector('.watch');
+function drawWatch(watch) {
+  const bar = watch.entry.querySelector('.watch');
   if (!bar) return;
 
-  bar.innerHTML = `<button class="badge ${live.on ? 'on' : ''}">${live.on ? 'live' : 'paused'}</button>`;
+  bar.innerHTML =
+    `<button class="badge ${watch.on ? 'on' : ''}" aria-pressed="${watch.on}" ` +
+    `title="${watch.on ? 'kept up to date: tap to pause' : 'paused: tap to keep it up to date'}">` +
+    `${watch.on ? 'live' : 'paused'}</button>`;
 
   bar.querySelector('button').onclick = () => {
-    live.on = !live.on;
-    drawWatch();
-    if (live.on) refreshLive();
+    watch.on = !watch.on;
+    watch.chosen = watch.on;
+    drawWatch(watch);
+    // Made live again, it catches up at once rather than at the next change.
+    if (watch.on) refreshListing(watch);
+    refocus();
   };
 }
 
-/// Asks the same question again and redraws the answer. A refusal or a failure leaves
-/// what is on screen alone: a listing that has gone wrong is better than a blank one.
+/// Forgets the listings whose entries have left the screen, after `clear` or `reset`.
+function forgetWatches() {
+  for (const watch of watches) if (!watch.entry.isConnected) watches.delete(watch);
+}
+
+/// Asks every live listing its question again, one after another.
 async function refreshLive() {
   refreshWanted = false;
-  if (!live || !live.on || running || !ready) return;
+  forgetWatches();
+  for (const watch of [...watches]) {
+    if (watch.on) await refreshListing(watch);
+  }
+}
 
-  const target = live;
+/// Asks one listing's question again and redraws the answer, with a flash, when it
+/// changed. A refusal or a failure leaves what is on screen alone: a listing that has
+/// gone wrong is better than a blank one.
+async function refreshListing(watch) {
+  if (!watch.on || running || !ready || !watch.entry.isConnected) return;
+
+  const asked = watch.asked = (watch.asked || 0) + 1;
 
   try {
-    const response = JSON.parse(await DotNet.invokeMethodAsync('WebClient', 'Refresh', target.source));
-    if (response.error || live !== target) return;
+    const response = JSON.parse(await DotNet.invokeMethodAsync('WebClient', 'Refresh', watch.source));
+    if (response.error || !watch.on || asked !== watch.asked || !watches.has(watch)) return;
 
-    const tail = target.entry.querySelector('.tail');
+    const answer = JSON.stringify(response.result || null);
+    if (answer === watch.shown) return;
+    watch.shown = answer;
+
+    const tail = watch.entry.querySelector('.tail');
     forgetTables(tail);
     tail.innerHTML = itemsHtml(response.result);
 
@@ -1019,8 +1149,11 @@ function applyCompletion(c, keepTab = false) {
   const inserted = text + trailing;
   cmd.value = base.slice(0, c.start) + inserted + rest;
   const caret = c.start + inserted.length;
-  cmd.setSelectionRange(caret, caret);
-  refreshMirror(); refreshCompletions(keepTab); refocus();
+  // Placing the caret gives the line the focus, so on a phone with the keyboard down,
+  // where the tap left the focus elsewhere, the caret is not placed (see setLine).
+  refocus();
+  if (document.activeElement === cmd) cmd.setSelectionRange(caret, caret);
+  refreshMirror(); refreshCompletions(keepTab);
 }
 
 /// Puts one chip in place while stepping: no space after it, and nothing asked again,
@@ -1108,7 +1241,7 @@ async function run() {
   // Phase 3; both are real commands now, so they go through the evaluator like
   // everything else and can be piped.
   if (text === 'clear') {
-    scroll.innerHTML = ''; tables.clear(); committedBy.clear(); live = null; afterRun(text); return;
+    scroll.innerHTML = ''; tables.clear(); committedBy.clear(); watches.clear(); afterRun(text); return;
   }
 
   const id = nextId++;
@@ -1131,10 +1264,10 @@ async function run() {
     } else {
       finishEntry(entry, result);
 
-      // The newest listing is the one kept live, and only when it answered a table:
+      // The newest listing starts live, and only when it answered a table:
       // a failed `ls` has nothing to keep up to date.
       if (!result.error && isListing(text) && (result.result || []).some(item => item.kind === 'table')) {
-        markLive(entry, text);
+        markLive(entry, text, result.result);
       }
     }
   } catch (e) {
@@ -1184,6 +1317,8 @@ function afterRun(text) {
   Undo and redo sit before it and are there everywhere, the root included: there is
   always a last line to take back. They run the `undo` and `redo` commands, so what
   they do is exactly what typing them does, entry hidden and brought back included.
+  After them, ↑ and ↓ walk the lines already run, as the Up and Down keys do, for a
+  phone keyboard that has neither.
 */
 async function refreshPrompt() {
   if (!ready) return;
@@ -1199,11 +1334,17 @@ async function refreshPrompt() {
   $('prompt').innerHTML =
     '<button class="step" id="undo" title="undo" aria-label="undo">\u21B6</button>' +
     '<button class="step" id="redo" title="redo" aria-label="redo">\u21B7</button>' +
+    '<button class="step" id="older" title="the line before" aria-label="previous line">\u2191</button>' +
+    '<button class="step" id="newer" title="the line after" aria-label="next line">\u2193</button>' +
     (canGoOut ? '<button class="out" id="out">out</button> ' : ' ') +
     `<span id="where">${where}</span>`;
 
   $('undo').onclick = () => press('undo');
   $('redo').onclick = () => press('redo');
+  // The arrows walk the history as Up and Down do, and only change the line: they run
+  // nothing, and like every button they leave the keyboard as it was.
+  $('older').onclick = () => { refocus(); historyBack(); };
+  $('newer').onclick = () => { refocus(); historyForward(); };
   if (canGoOut) $('out').onclick = () => press('out');
 }
 
@@ -1227,25 +1368,8 @@ cmd.addEventListener('keydown', e => {
   if (e.key === 'Escape' && running) { e.preventDefault(); stop(); return; }
 
   // Walk back through what has already been run.
-  if (e.key === 'ArrowUp') {
-    e.preventDefault();
-    if (!history.length) return;
-    if (historyIndex === -1) { draft = cmd.value; historyIndex = history.length; }
-    historyIndex = Math.max(0, historyIndex - 1);
-    cmd.value = history[historyIndex];
-    refreshMirror(); refreshCompletions();
-    return;
-  }
-
-  if (e.key === 'ArrowDown') {
-    e.preventDefault();
-    if (historyIndex === -1) return;
-    historyIndex++;
-    if (historyIndex >= history.length) { historyIndex = -1; cmd.value = draft; }
-    else cmd.value = history[historyIndex];
-    refreshMirror(); refreshCompletions();
-    return;
-  }
+  if (e.key === 'ArrowUp') { e.preventDefault(); historyBack(); return; }
+  if (e.key === 'ArrowDown') { e.preventDefault(); historyForward(); return; }
 
   // Tab takes the only completion, or the common prefix of several, and after that
   // steps through them. It waits for the answer to the last keystroke first, which may
@@ -1356,9 +1480,37 @@ document.addEventListener('click', e => {
 /// Appends to the line being typed, with a space before it if something is there.
 function insert(text) {
   if (!text) return;
-  cmd.value = (cmd.value ? cmd.value.replace(/\s*$/, ' ') : '') + text;
-  refreshMirror(); refreshCompletions();
   refocus();
+  setLine((cmd.value ? cmd.value.replace(/\s*$/, ' ') : '') + text);
+}
+
+/// Puts a whole line in the input with the caret at its end, where typing goes on from.
+///
+/// Replacing the text of an editable line drops the caret, and focusing it afterwards
+/// puts it at the start, so a key's text was typed in front of. The caret is placed only
+/// when the line has the focus: placing it in a line without it would give it the
+/// focus, and on a phone that opens the keyboard, which the page never does on its own.
+function setLine(text) {
+  cmd.value = text;
+  if (document.activeElement === cmd) cmd.setSelectionRange(cmd.value.length);
+  refreshMirror(); refreshCompletions();
+}
+
+/// Up, and the ↑ button: one line further back through what has been run. What was
+/// being typed is kept, and comes back at the end of the walk.
+function historyBack() {
+  if (!history.length) return;
+  if (historyIndex === -1) { draft = cmd.value; historyIndex = history.length; }
+  historyIndex = Math.max(0, historyIndex - 1);
+  setLine(history[historyIndex]);
+}
+
+/// Down, and the ↓ button: one line forward again, and past the newest, what was typed.
+function historyForward() {
+  if (historyIndex === -1) return;
+  historyIndex++;
+  if (historyIndex >= history.length) { historyIndex = -1; setLine(draft); }
+  else setLine(history[historyIndex]);
 }
 
 runButton.onclick = run;
@@ -1383,9 +1535,7 @@ runButton.onclick = run;
   .forEach(([label, value]) => {
     const b = document.createElement('button');
     b.className = 'key'; b.innerHTML = label;
-    b.onclick = () => {
-      cmd.value = value; refreshMirror(); refreshCompletions(); refocus();
-    };
+    b.onclick = () => { refocus(); setLine(value); };
     $('keys').appendChild(b);
   });
 
@@ -1395,12 +1545,15 @@ runButton.onclick = run;
 /// in `readme.txt` and the guide it points to, where it is read with the terminal
 /// itself and can be as long as it needs. The banner says only where to begin and the
 /// one thing a visitor must know before typing: whether this browser keeps the files.
+///
+/// It is also where the page says how its start went, now that there is no status line
+/// at the top: loading, restoring the log, and either failure.
 /// </remarks>
 function bannerFor(store) {
-  const start = 'New here? Run <b>read readme.txt</b>, or tap <b>readme</b> below.';
+  const start = 'New here? Run <code>read readme.txt</code>, or tap <b>readme</b> below.';
 
   if (!store.persistent) {
-    return `${start} This browser is not keeping your files: they go when the tab does.`;
+    return `${start} This browser is not keeping your files: they go when the tab does. ${notPersisted(store)}`;
   }
 
   if (store.replayed > 0) {
@@ -1408,6 +1561,23 @@ function bannerFor(store) {
   }
 
   return `A command line that runs in this tab. ${start} Your files stay in this browser.`;
+}
+
+/// The mark that says the log is not being kept, with the reason the browser gave.
+const notPersisted = store =>
+  `<span class="warn" title="${escape(store.reason || 'This browser is not keeping the log.')}">not persisted</span>`;
+
+/// Says something in the banner. `clear` empties the scrollback, banner and all, so a
+/// banner that has gone comes back at the end of the scrollback to say it.
+function say(html) {
+  let banner = $('banner');
+  if (!banner) {
+    banner = document.createElement('div');
+    banner.className = 'aside'; banner.id = 'banner';
+    banner.innerHTML = '<span class="label">note</span><span id="said"></span>';
+    scroll.appendChild(banner);
+  }
+  $('said').innerHTML = html;
 }
 
 // ---- boot -----------------------------------------------------------------
@@ -1421,9 +1591,8 @@ function bannerFor(store) {
     }
 
     // Replaying the log is asynchronous, and nothing may run until it has finished:
-    // an empty filesystem looks exactly like a lost one. Today it returns at once;
-    // in Phase 2 it reads IndexedDB, and the wait is already in the right place.
-    $('status').innerHTML = '<span style="color:var(--dim)">restoring…</span>';
+    // an empty filesystem looks exactly like a lost one.
+    say('restoring…');
 
     DotNet.invokeMethodAsync('WebClient', 'Initialize')
       .then(status => finishBoot(JSON.parse(status)))
@@ -1431,14 +1600,14 @@ function bannerFor(store) {
         // The message matters: a session that cannot restore is showing the user an
         // empty filesystem that may not be empty, and "failed" alone says nothing about
         // whether their files are gone or the code is broken.
-        $('status').innerHTML = '<span style="color:var(--bad)">failed to restore</span>';
+        say('<span class="problem">failed to restore</span> Nothing can run until the session is restored.');
         addEntry(`<div class="err">Could not restore the session: ${escape(String(e && e.message || e))}</div>`);
       });
     return;
   }
 
   if (attempt < 400) setTimeout(() => waitForRuntime(attempt + 1), 100);
-  else $('status').innerHTML = '<span style="color:var(--bad)">failed to load</span>';
+  else say('<span class="problem">failed to load</span> The terminal did not start. Reloading the page may help.');
 })(0);
 
 /*
@@ -1446,18 +1615,15 @@ function bannerFor(store) {
   The log falls back to memory at once; this is how the page finds out, after every
   line, so `not persisted` appears when it becomes true rather than only at load.
 */
+let persisted = true;
+
 function refreshStatus() {
   let store;
   try { store = JSON.parse(DotNet.invokeMethod('WebClient', 'Status')); } catch { return; }
-  if (!store.persistent && !$('status').querySelector('.warn')) showStatus(store);
-}
-
-function showStatus(store) {
-  $('status').innerHTML = store.persistent
-    ? '<span style="color:var(--ok)">wasm</span>'
-    : '<span style="color:var(--ok)">wasm</span> <span class="warn" title="' +
-      escape(store.reason || 'This browser is not keeping the log.') +
-      '">not persisted</span>';
+  if (!store.persistent && persisted) {
+    persisted = false;
+    say(`This browser has stopped keeping your files: they go when the tab does. ${notPersisted(store)}`);
+  }
 }
 
 function finishBoot(store) {
@@ -1467,9 +1633,8 @@ function finishBoot(store) {
     // `not persisted` is said up front, before anything is typed. Finding out after a
     // morning's work that none of it was being kept would be the worst moment to learn
     // it, and a private window is the common case rather than a broken one.
-    showStatus(store);
-
-    $('banner').innerHTML = bannerFor(store);
+    persisted = store.persistent;
+    say(bannerFor(store));
 
     if (store.unreadable > 0) {
       addEntry(`<div class="err">${store.unreadable} stored line(s) could not be read and were skipped. ` +
@@ -1479,6 +1644,9 @@ function finishBoot(store) {
     refreshPrompt();
     refreshMirror();
     refocus();
+
+    // What the browser check waits on: the log is replayed and the input is open.
+    document.body.dataset.ready = 'true';
 }
 
 refreshMirror();

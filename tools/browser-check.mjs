@@ -304,14 +304,15 @@ async function serve(root, port, basePath) {
   throw new Error(`The static server did not start in ${root}.`);
 }
 
-/** Waits for the page to finish booting and returns its status line. */
+/** Waits for the page to finish booting and returns what its banner says. */
 async function boot(page) {
-  // The runtime takes a few seconds to download and start, and the page shows
-  // "restoring…" while it replays the log. Ready means the input is enabled.
-  await page.waitForSelector('#status:has-text("wasm")', { timeout: 120000 });
+  // The runtime takes a few seconds to download and start, and the banner says
+  // "restoring…" while it replays the log. The page marks its body `data-ready` once it
+  // has, which is what is waited on: there is no status line at the top any more (R12).
+  await page.waitForSelector('body[data-ready]', { state: 'attached', timeout: 120000 });
   await page.waitForFunction(() => !document.getElementById('cmd').disabled, null, { timeout: 30000 });
 
-  return (await page.locator('#status').innerText()).trim();
+  return (await page.locator('#banner').innerText()).replace(/\s+/g, ' ').trim();
 }
 
 /** Runs a table of lines and reports any mismatch through `note`. */
@@ -410,6 +411,261 @@ async function submit(page, line) {
   };
 }
 
+/**
+ * Phase 9, the page (stream C): R5, R6, R9, R10, R11 and R13, in a fresh store at `/`.
+ *
+ * R12, no title and no status at the top, is checked straight after the first boot.
+ */
+async function checkPhase9(page, note) {
+  const lastId = () => page.evaluate(() => Number(document.body.dataset.finished || 0));
+  const entry = id => page.locator(`.entry[data-id="${id}"]`);
+  const rows = id => entry(id).locator('.grid tbody tr').count();
+  const badge = async id => (await entry(id).locator('.watch .badge').innerText()).trim();
+  const value = () => page.evaluate(() => document.getElementById('cmd').value);
+  const focused = () => page.evaluate(() => document.activeElement === document.getElementById('cmd'));
+
+  /** Waits for a listing to have more than `count` rows; false if it never does. */
+  const grows = (id, count) => page.waitForFunction(
+    ({ id, count }) => document.querySelectorAll(`.entry[data-id="${id}"] .grid tbody tr`).length > count,
+    { id, count }, { timeout: 10000 }).then(() => true, () => false);
+
+  // ---- R5: any listing can be live, and a paused one made live again ----------
+
+  await submit(page, 'ls');
+  const older = await lastId();
+  await submit(page, 'ls | select name');
+  const newer = await lastId();
+
+  // The newest starts live; the one above it pauses, and keeps its badge saying so.
+  if (await badge(newer) !== 'live') note(`the newest listing's badge reads ${JSON.stringify(await badge(newer))}, not 'live'`);
+  if (await badge(older) !== 'paused') note(`a listing above a newer one reads ${JSON.stringify(await badge(older))}, not 'paused'`);
+
+  // While paused it is left alone; the live one below it refreshes.
+  const olderAt = await rows(older), newerAt = await rows(newer);
+  await submit(page, 'mkdir while-paused');
+  if (!await grows(newer, newerAt)) note('the live listing did not gain a row for `mkdir while-paused`');
+  await page.waitForTimeout(300);
+  if (await rows(older) !== olderAt) note('a paused listing refreshed anyway');
+
+  // Tapping `paused` makes it live, and it catches up at once.
+  await entry(older).locator('.watch .badge').tap();
+  if (await badge(older) !== 'live') note(`tapping 'paused' left the badge reading ${JSON.stringify(await badge(older))}`);
+  if (!await grows(older, olderAt)) note('a listing made live again did not catch up with `mkdir while-paused`');
+
+  // Two live at once: one change refreshes both.
+  const olderNow = await rows(older), newerNow = await rows(newer);
+  await submit(page, 'mkdir both-live');
+  if (!await grows(older, olderNow)) note('with two listings live, the older did not gain a row for `mkdir both-live`');
+  if (!await grows(newer, newerNow)) note('with two listings live, the newer did not gain a row for `mkdir both-live`');
+
+  // ---- R9 and R13: the guide under a call made wrongly -----------------------
+
+  // Stream B fills `guide`. Until its core is in, the response to `read` with no
+  // argument has none, so the check supplies what B will: the answer `help read` gives,
+  // asked through `Refresh`, which commits nothing. With B in, the real guide is drawn
+  // and this stands aside.
+  const stubbed = await page.evaluate(() => {
+    window.__guideStubbed = false;
+    const real = DotNet.invokeMethodAsync.bind(DotNet);
+    DotNet.invokeMethodAsync = async (assembly, method, ...args) => {
+      const answer = await real(assembly, method, ...args);
+      if (method !== 'Execute' || args[0] !== 'read') return answer;
+      const response = JSON.parse(answer);
+      if (response.guide && response.guide.length) return answer;
+      const help = JSON.parse(await real(assembly, 'Refresh', 'help read'));
+      response.guide = [...(help.output || []).map(text => ({ kind: 'text', text })), ...(help.result || [])];
+      window.__guideStubbed = true;
+      return JSON.stringify(response);
+    };
+    return true;
+  });
+
+  const wrong = await submit(page, 'read');
+  const wrongId = await lastId();
+  const helpNames = await page.evaluate(async () => {
+    const help = JSON.parse(await DotNet.invokeMethodAsync('WebClient', 'Refresh', 'help read'));
+    const table = (help.result || []).find(item => item.kind === 'table');
+    return table ? table.rows.map(row => row[0].text) : [];
+  });
+
+  if (wrong.fault !== 'binding') note(`'read' with no argument failed as ${JSON.stringify(wrong.fault)}, not 'binding'`);
+
+  const guide = entry(wrongId).locator('.tail .err + .aside.guide');
+  if (await guide.count() !== 1) {
+    note(`'read' with no argument drew no guide panel under its error. It showed: ${JSON.stringify(wrong.text)}`);
+  } else {
+    const label = (await guide.locator('.label').innerText()).trim();
+    const names = await guide.locator('.grid tbody tr td:first-child').allInnerTexts();
+    if (label !== 'help') note(`the guide panel is labelled ${JSON.stringify(label)}, not 'help'`);
+    if (!helpNames.length || names.join(' ') !== helpNames.join(' ')) {
+      note(`the guide under 'read' lists ${JSON.stringify(names)}; 'help read' answers ${JSON.stringify(helpNames)}`);
+    }
+
+    // It cannot be mistaken for output: a panel of its own with an accent border and
+    // background, in the interface's face, where a result is in the terminal's.
+    const style = await page.evaluate(id => {
+      const read = element => {
+        const s = getComputedStyle(element);
+        return { font: s.fontFamily, background: s.backgroundColor, border: s.borderLeftWidth, line: s.borderLeftColor };
+      };
+      const panel = document.querySelector(`.entry[data-id="${id}"] .aside.guide`);
+      const listing = [...document.querySelectorAll('.entry .tail .grid')].find(grid => !grid.closest('.aside'));
+      return {
+        panel: read(panel),
+        panelCell: read(panel.querySelector('.grid td')),
+        result: read(listing.closest('.tail')),
+        resultCell: read(listing.querySelector('td')),
+      };
+    }, wrongId);
+
+    const clear = colour => colour === 'transparent' || colour === 'rgba(0, 0, 0, 0)';
+    if (/mono/i.test(style.panelCell.font) || !/mono/i.test(style.resultCell.font)) {
+      note(`the guide is drawn in ${JSON.stringify(style.panelCell.font)} and a result in ${JSON.stringify(style.resultCell.font)}`);
+    }
+    if (clear(style.panel.background) || style.panel.background === style.result.background) {
+      note(`the guide panel's background is ${style.panel.background}, a result's ${style.result.background}`);
+    }
+    if (parseFloat(style.panel.border) < 2 || clear(style.panel.line)) {
+      note(`the guide panel has no accent border: ${style.panel.border} ${style.panel.line}`);
+    }
+  }
+
+  if (stubbed && !await page.evaluate(() => window.__guideStubbed)) {
+    console.log('  The guide came from the core.');
+  }
+
+  // A fault raised while a command runs is not a call made wrongly: no help.
+  const missing = await submit(page, 'read missing.txt');
+  if (missing.fault !== 'notfound') note(`'read missing.txt' failed as ${JSON.stringify(missing.fault)}`);
+  if (await entry(await lastId()).locator('.aside.guide').count() > 0) note(`'read missing.txt' drew a guide`);
+
+  // The banner is the terminal's own words too, in the same kind of panel.
+  const banner = await page.evaluate(() => {
+    const b = document.getElementById('banner');
+    return b ? { aside: b.classList.contains('aside'), label: b.querySelector('.label')?.innerText.trim() } : null;
+  });
+  if (!banner || !banner.aside || banner.label !== 'note') note(`the banner is not a 'note' panel: ${JSON.stringify(banner)}`);
+
+  // ---- R6: a selection in the scrollback is copied ---------------------------
+
+  const clipboard = () => page.evaluate(() => navigator.clipboard.readText());
+  const setClipboard = text => page.evaluate(text => navigator.clipboard.writeText(text), text);
+  const noteShown = () => page.evaluate(() => !document.getElementById('copied').hidden);
+
+  await submit(page, 'read readme.txt');
+  const readId = await lastId();
+  await setClipboard('sentinel');
+
+  // Dragged across the text as a mouse selects, and ended by lifting the button.
+  const block = await entry(readId).locator('div.text').boundingBox();
+  await page.mouse.move(block.x + 8, block.y + 8);
+  await page.mouse.down();
+  await page.mouse.move(block.x + block.width * 0.6, block.y + 30, { steps: 6 });
+  await page.mouse.up();
+
+  const selectedText = await page.evaluate(() => document.getSelection().toString());
+  const copiedIt = await page.waitForFunction(
+    wanted => navigator.clipboard.readText().then(text => text === wanted),
+    selectedText, { timeout: 5000, polling: 100 }).then(() => true, () => false);
+
+  if (!selectedText.trim()) {
+    note('dragging across the readme selected nothing, so copying could not be checked');
+  } else if (!copiedIt) {
+    note(`selecting ${JSON.stringify(selectedText)} left the clipboard holding ${JSON.stringify(await clipboard())}`);
+  } else {
+    const shown = await page.waitForFunction(() => !document.getElementById('copied').hidden, null, { timeout: 2000 })
+      .then(() => true, () => false);
+    const words = await page.evaluate(() => document.getElementById('copied').innerText.replace(/\s+/g, ' ').trim());
+    if (!shown || words !== 'note copied') note(`after copying, the note read ${JSON.stringify(words)}, shown: ${shown}`);
+    const faded = await page.waitForFunction(() => document.getElementById('copied').hidden, null, { timeout: 5000 })
+      .then(() => true, () => false);
+    if (!faded) note('the `copied` note did not fade');
+  }
+
+  // Nothing is copied from the input: a selection there is for editing.
+  await page.evaluate(() => document.getSelection().removeAllRanges());
+  await setClipboard('sentinel');
+  await page.focus('#cmd');
+  await page.fill('#cmd', 'echo from the input');
+  await page.evaluate(() => { const cmd = document.getElementById('cmd'); cmd.setSelectionRange(0, cmd.value.length); });
+  await page.waitForTimeout(1000);
+  if (await clipboard() !== 'sentinel' || await noteShown()) note('a selection in the input was copied');
+  await page.fill('#cmd', '');
+
+  // A tap is not a selection: tapping a cell still inserts it, and copies nothing.
+  await setClipboard('sentinel');
+  await entry(older).locator('.grid tbody td', { hasText: 'readme.txt' }).first().tap();
+  const afterCell = await value();
+  if (!/^"?\/?readme\.txt"?$/.test(afterCell)) note(`tapping 'readme.txt' in a listing made the line ${JSON.stringify(afterCell)}`);
+  await page.waitForTimeout(800);
+  if (await clipboard() !== 'sentinel') note('tapping a cell copied something');
+  await page.fill('#cmd', '');
+
+  // On a phone a long press selects. Headless Chromium has no long-press selection to
+  // try, so what is checked is that nothing on a cell or a word stops one: the page may
+  // cancel a press's pointerdown and mousedown to keep the focus, but never the touch,
+  // the selection starting, or the menu a long press opens.
+  const blocked = await page.evaluate(id => {
+    const targets = [document.querySelector(`.entry[data-id="${id}"] .grid tbody td`),
+                     document.querySelector('.entry .echo .t')];
+    const events = [
+      () => new TouchEvent('touchstart', { bubbles: true, cancelable: true }),
+      () => new Event('selectstart', { bubbles: true, cancelable: true }),
+      () => new MouseEvent('contextmenu', { bubbles: true, cancelable: true }),
+    ];
+    const found = [];
+    for (const target of targets) {
+      for (const make of events) {
+        const event = make();
+        target.dispatchEvent(event);
+        if (event.defaultPrevented) found.push(`${event.type} on ${target.className}`);
+      }
+    }
+    return found;
+  }, older);
+  if (blocked.length) note(`a long press could not select: the page cancels ${blocked.join(', ')}`);
+
+  // ---- R10: ↑ and ↓ walk the history, and leave the keyboard as it was ------------
+
+  await submit(page, 'echo one');
+  await submit(page, 'echo two');
+  await page.fill('#cmd', 'half typed');
+  await page.evaluate(() => document.getElementById('cmd').blur());
+
+  for (const [button, wanted] of [['older', 'echo two'], ['older', 'echo one'], ['newer', 'echo two'], ['newer', 'half typed']]) {
+    await page.tap(`#prompt #${button}`);
+    const line = await value();
+    if (line !== wanted) { note(`tapping ${button === 'older' ? '↑' : '↓'} made the line ${JSON.stringify(line)}, not ${JSON.stringify(wanted)}`); break; }
+  }
+  if (await focused()) note('tapping ↑ or ↓ with the keyboard down brought it up');
+
+  await page.focus('#cmd');
+  await page.evaluate(() => {
+    window.__historyBlurs = 0;
+    document.getElementById('cmd').addEventListener('blur', () => { window.__historyBlurs++; });
+  });
+  await page.tap('#prompt #older');
+  if (await page.evaluate(() => window.__historyBlurs) > 0 || !await focused()) note('tapping ↑ with the keyboard up closed it');
+  if (await value() !== 'echo two') note(`tapping ↑ with the keyboard up made the line ${JSON.stringify(await value())}`);
+  await page.fill('#cmd', '');
+
+  // ---- R11: a palette key leaves the caret at the end of what it put in -----------
+
+  await page.focus('#cmd');
+  await page.fill('#cmd', 'something typed');
+  await page.locator('#keys .key', { hasText: /^readme$/ }).tap();
+  await page.keyboard.type('X');
+  const keyed = await value();
+  if (keyed !== 'read readme.txtX') note(`typing after the readme key made the line ${JSON.stringify(keyed)}; the caret was not at its end`);
+
+  await page.fill('#cmd', '');
+  await page.evaluate(() => document.getElementById('cmd').blur());
+  await page.locator('#keys .key', { hasText: /^readme$/ }).tap();
+  if (await focused()) note('tapping a palette key with the keyboard down brought it up');
+  if (await value() !== 'read readme.txt') note(`the readme key with the keyboard down wrote ${JSON.stringify(await value())}`);
+  await page.fill('#cmd', '');
+}
+
 /** The chips in the completion row, in order. */
 const chips = page => page.locator('#complete .key:not(.more)').allInnerTexts();
 
@@ -499,6 +755,8 @@ async function main() {
     deviceScaleFactor: DEVICE_SCALE_FACTOR,
     isMobile: true,
     hasTouch: true,
+    // Copying a selection is checked by reading the clipboard back (Phase 9).
+    permissions: ['clipboard-read', 'clipboard-write'],
   });
 
   const page = await context.newPage();
@@ -523,7 +781,7 @@ async function main() {
     }
 
     const status = await boot(page);
-    console.log(`Booted at ${VIEWPORT.width}x${VIEWPORT.height}. Status: ${status}`);
+    console.log(`Booted at ${VIEWPORT.width}x${VIEWPORT.height}. Banner: ${status}`);
 
     // A headless Chromium has IndexedDB, so a run that reports otherwise means the
     // store failed to open, which the reload cases below would then fail on for a
@@ -531,6 +789,17 @@ async function main() {
     if (status.includes('not persisted')) {
       note('the page reports `not persisted`; the log is not reaching IndexedDB');
     }
+
+    // R12: no title and no `wasm` at the top. The scrollback is the first thing on the
+    // screen, and the banner, in it, is where the page says how its start went.
+    const top = await page.evaluate(() => ({
+      header: document.querySelectorAll('header, h1, #status').length,
+      wasm: document.body.innerText.includes('wasm'),
+      scrollTop: Math.round(document.getElementById('scroll').getBoundingClientRect().top),
+    }));
+    if (top.header > 0) note(`the page still has ${top.header} title or status element(s) at the top`);
+    if (top.wasm) note('the page still says `wasm` somewhere');
+    if (top.scrollTop > 12) note(`the scrollback starts ${top.scrollTop} pixels down, below something at the top`);
 
     // A listing is a real table from Phase 3: a header row from the columns and a cell
     // per value, not a run of chips and not preformatted text.
@@ -725,7 +994,7 @@ async function main() {
 
     await page.reload({ waitUntil: 'domcontentloaded' });
     const restored = await boot(page);
-    console.log(`Reloaded. Status: ${restored}`);
+    console.log(`Reloaded. Banner: ${restored}`);
 
     const banner = await page.locator('#banner').innerText();
 
@@ -917,6 +1186,12 @@ async function main() {
     }
 
     console.log(`Ran ${PHASE_8.length + 1} more for Phase 8, then checked the chips, the detail line, Tab and a tap.`);
+
+    // ---- Phase 9: the page ----------------------------------------------------
+
+    await submit(page, 'reset');
+    await checkPhase9(page, note);
+    console.log('Checked Phase 9: live listings, copying, the guide, the history buttons and the palette caret.');
 
     // ---- On a phone: nothing moves, opens or closes on its own ----------------
 
