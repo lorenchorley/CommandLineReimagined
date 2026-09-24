@@ -171,4 +171,5 @@ all with the option recommended:
 | 11.9 acceptance in the browser check | orchestrator | merged | this commit |
 | 11.9 docs | sub-agent | merged | fe68740 |
 | 11.9 spec | sub-agent | merged | ef56fbd |
+| 11.9 gaps the documents found | orchestrator | merged | d0b9455 |
 | 11.9 verifier, republish, As built | orchestrator | not started | |
