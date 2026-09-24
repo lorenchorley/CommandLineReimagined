@@ -45,27 +45,55 @@ let private columnIndex (invocation: Invocation) (table: Table) (name: string) =
 
 // ------------------------------------------------------------------------ where
 
+/// <summary>Keeps the rows a predicate is true for.</summary>
+/// <remarks>
+/// A table function like the others, written out rather than through `pure'` because
+/// it says more than its value: when a table with rows keeps none, the answer is still
+/// the empty table, with its columns, and beside it one note saying why (decision
+/// 0043, `Expr.explainEmpty`). The near names are `Expr.nearestNames`, the rule of
+/// `Nearest.names`, which is compiled after this file.
+/// </remarks>
 let where =
-    pure'
-        "where"
-        "Keep the rows a predicate is true for"
-        [ "filter"; "keep"; "select"; "match"; "query" ]
-        [ Parameter.predicate "predicate" "An expression over $row, such as $row.kind eq folder" ]
-        (fun invocation table ->
-            match Invocation.predicate "predicate" invocation with
-            | None -> Error(Fault.needsArgument "where" "predicate")
-            | Some expr ->
-                // A frame of its own per row, so `$row` is local to the predicate and
-                // a variable of that name outside it is left alone (decision 0008).
-                let keep (row: Value list) =
-                    let scope = invocation.Scope.Push().Bind "row" (Table.row table row)
-                    Expr.test scope expr
+    { Spec =
+        CommandSpec.create
+            "where"
+            "Keep the rows a predicate is true for"
+            [ "filter"; "keep"; "select"; "match"; "query" ]
+            [ Parameter.predicate "predicate" "An expression over $row, such as $row.kind eq folder"
+              tableParameter ]
+        |> CommandSpec.readOnly
+      Run =
+        fun invocation ->
+            async {
+                return
+                    outcome {
+                        let! table = tableOf invocation
 
-                table.Rows
-                |> Outcome.traverse (fun row -> keep row |> Outcome.map (fun kept -> row, kept))
-                |> Outcome.map (fun judged ->
-                    Value.Table
-                        { table with Rows = judged |> List.filter snd |> List.map fst }))
+                        match Invocation.predicate "predicate" invocation with
+                        | None -> return! Error(Fault.needsArgument "where" "predicate")
+                        | Some expr ->
+                            // A frame of its own per row, so `$row` is local to the
+                            // predicate and a variable of that name outside it is left
+                            // alone (decision 0008).
+                            let keep (row: Value list) =
+                                let scope = invocation.Scope.Push().Bind "row" (Table.row table row)
+                                Expr.test scope expr
+
+                            let! judged =
+                                table.Rows
+                                |> Outcome.traverse (fun row -> keep row |> Outcome.map (fun kept -> row, kept))
+
+                            let kept = judged |> List.filter snd |> List.map fst
+
+                            let notes =
+                                if List.isEmpty kept then
+                                    Expr.explainEmpty Expr.nearestNames invocation.Scope table expr
+                                else
+                                    []
+
+                            return { Value = Value.Table { table with Rows = kept }; Events = []; Notes = notes }
+                    }
+            } }
 
 // ----------------------------------------------------------------------- select
 

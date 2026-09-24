@@ -420,3 +420,265 @@ module Expr =
         parsed.Match(
             (fun (node: Tree.Value) -> ofNode node),
             (fun _ -> Error(Fault.notAPredicate path (text.Trim()))))
+
+    // ------------------------------------------- Why a filter kept nothing (0043)
+
+    /// <summary>`Nearest.names`, for the filters that cannot reach it yet.</summary>
+    /// <remarks>
+    /// A stand-in, and the same rule: the optimal string alignment distance ignoring
+    /// case, one slip in a word of up to four letters and two in a longer one, the word
+    /// itself left out, nearest first, ties in the order given. It is here because
+    /// `Nearest.fs` is compiled after this file and after `Commands/Tables.fs` and
+    /// `Commands/Files.fs`, so `where`, `find` and a view's listing cannot call it.
+    /// `explainEmpty` takes the rule as an argument, so once `Nearest.fs` is compiled
+    /// before the commands they pass `Nearest.names` and this goes.
+    /// </remarks>
+    let nearestNames (candidates: string list) (word: string) : string list =
+        let distance (a: string) (b: string) =
+            let a = a.ToLowerInvariant()
+            let b = b.ToLowerInvariant()
+            let d = Array2D.zeroCreate (a.Length + 1) (b.Length + 1)
+
+            for i in 0 .. a.Length do
+                d[i, 0] <- i
+
+            for j in 0 .. b.Length do
+                d[0, j] <- j
+
+            for i in 1 .. a.Length do
+                for j in 1 .. b.Length do
+                    let cost = if a[i - 1] = b[j - 1] then 0 else 1
+                    let best = min (min (d[i - 1, j] + 1) (d[i, j - 1] + 1)) (d[i - 1, j - 1] + cost)
+
+                    d[i, j] <-
+                        if i > 1 && j > 1 && a[i - 1] = b[j - 2] && a[i - 2] = b[j - 1] then
+                            min best (d[i - 2, j - 2] + 1)
+                        else
+                            best
+
+            d[a.Length, b.Length]
+
+        if String.IsNullOrEmpty word then
+            []
+        else
+            let limit = if word.Length <= 4 then 1 else 2
+
+            candidates
+            |> List.distinct
+            |> List.map (fun candidate -> candidate, distance word candidate)
+            |> List.filter (fun (_, d) -> d > 0 && d <= limit)
+            |> List.sortBy snd
+            |> List.map fst
+
+    /// `a`, `a or b`, `a, b or c`: how a note names several things.
+    let private inWords (items: string list) =
+        match List.rev items with
+        | [] -> ""
+        | [ only ] -> only
+        | last :: before -> String.concat ", " (List.rev before) + " or " + last
+
+    /// <summary>The columns a predicate reads through `$row.`, in the order written.</summary>
+    /// <remarks>
+    /// Each with the members read after it, so a fix can write `$row.name.length` back
+    /// whole. A nested pipeline's `$row` is its own predicate's, as in `readsTheRow`.
+    /// </remarks>
+    let rec private rowReads (expr: Expr) : (string * string list) list =
+        match expr with
+        | Expr.Variable("row", column :: rest) -> [ column, rest ]
+        | Expr.Compare(_, left, right)
+        | Expr.And(left, right)
+        | Expr.Or(left, right) -> rowReads left @ rowReads right
+        | Expr.Not operand -> rowReads operand
+        | Expr.Variable _
+        | Expr.Const _
+        | Expr.Nested _ -> []
+
+    /// <summary>The cells of a column that are not gaps, row by row.</summary>
+    /// <remarks>
+    /// The name is matched exactly, because that is how `$row.` reads it: a row is a
+    /// tag, and `$row.Kind` does not read `kind`. A column the table lists but no row
+    /// fills is one no row has (decision 0009: a gap is an attribute that is not there).
+    /// </remarks>
+    let private cellsOf (table: Table) (column: string) : Value list =
+        match table.Columns |> List.tryFindIndex (fun c -> c.Name = column) with
+        | Option.None -> []
+        | Some index ->
+            table.Rows
+            |> List.choose (fun row ->
+                match List.tryItem index row with
+                | Some cell when not (Value.isAbsent cell) -> Some cell
+                | _ -> Option.None)
+
+    /// <summary>`No row has knd; did you mean kind?`, with the fix for the nearest.</summary>
+    /// <remarks>
+    /// The nearest of the columns some row has, at most three as decision 0042 counts
+    /// them, and a fix for the first only (0043). A column that differs only in case is
+    /// named first: `Nearest` counts it no slip at all, and it is still not what `$row.`
+    /// read. With nothing near, the sentence ends at the column.
+    /// </remarks>
+    let private noRowHas nearest (had: string list) (column: string, members: string list) =
+        let sameButCase =
+            had
+            |> List.filter (fun name ->
+                name <> column && String.Equals(name, column, StringComparison.OrdinalIgnoreCase))
+
+        match sameButCase @ nearest had column |> List.distinct |> List.truncate 3 with
+        | [] -> Note.explanation (sprintf "No row has %s." column) []
+        | first :: _ as near ->
+            let written = String.concat "." ("$row" :: column :: members)
+            let corrected = String.concat "." ("$row" :: first :: members)
+
+            Note.explanation
+                (sprintf "No row has %s; did you mean %s?" column (inWords near))
+                [ Fix.Replace(written, corrected) ]
+
+    /// <summary>`kind is folder or text`: the values a column does have.</summary>
+    /// <remarks>
+    /// Distinct by what they display as, the way `eq` and `group` compare them; most
+    /// frequent first, ties in the order the rows had them; written as they would be on
+    /// the right of `eq`. At most five are named. With more, the sentence says how many
+    /// it left out rather than ending on one that is not the last:
+    /// `name is a, b, c, d, e or 3 more`.
+    /// </remarks>
+    let private valuesOf (column: string) (cells: Value list) =
+        let shown = cells |> List.map Value.display
+        let counts = shown |> List.countBy id |> Map.ofList
+
+        let ranked =
+            shown
+            |> List.distinct
+            |> List.sortBy (fun each -> -(Map.find each counts))
+            |> List.map (fun each -> asWritten (briefly (Value.Text each)))
+
+        let named = List.truncate 5 ranked
+
+        match List.length ranked - List.length named with
+        | 0 -> sprintf "%s is %s" column (inWords named)
+        | more -> sprintf "%s is %s or %d more" column (String.concat ", " named) more
+
+    /// <summary>`size runs from 0 to 1361`: the span of a column of numbers.</summary>
+    /// <remarks>
+    /// What explains `gt`, `ge`, `lt` and `le` keeping nothing, which a list of values
+    /// would not: the question was about where the numbers lie. Only when every cell and
+    /// the value compared read as numbers; an ordering of words is not explained.
+    /// </remarks>
+    let private spanOf (column: string) (cells: Value list) (compared: Value) =
+        match asNumber compared, cells |> List.map asNumber with
+        | Some _, numbers when not (List.isEmpty numbers) && numbers |> List.forall Option.isSome ->
+            let numbers = numbers |> List.choose id
+            let low = Value.display (Value.Number(List.min numbers))
+            let high = Value.display (Value.Number(List.max numbers))
+
+            if low = high then
+                Some(sprintf "%s is %s" column low)
+            else
+                Some(sprintf "%s runs from %s to %s" column low high)
+        | _ -> Option.None
+
+    /// <summary>A comparison of one column with something that is not the row.</summary>
+    /// <remarks>
+    /// Turned so the column is on the left: `100 lt $row.size` is asked as
+    /// `$row.size gt 100`. `like` and `has` are not turned: their sides are not
+    /// interchangeable. A read deeper than the column (`$row.name.length`) is not the
+    /// column's values, and is not explained.
+    /// </remarks>
+    let private comparison (expr: Expr) =
+        let turned op =
+            match op with
+            | "eq"
+            | "ne" -> Some op
+            | "gt" -> Some "lt"
+            | "lt" -> Some "gt"
+            | "ge" -> Some "le"
+            | "le" -> Some "ge"
+            | _ -> Option.None
+
+        match expr with
+        | Expr.Compare(op, Expr.Variable("row", [ column ]), other) when not (readsTheRow other) ->
+            Some(op, column, other)
+        | Expr.Compare(op, other, Expr.Variable("row", [ column ])) when not (readsTheRow other) ->
+            turned op |> Option.map (fun op -> op, column, other)
+        | _ -> Option.None
+
+    /// The operands of the `and`s at the top of a predicate: any one of them keeping no
+    /// row is enough for the whole to keep none.
+    let rec private conjuncts (expr: Expr) =
+        match expr with
+        | Expr.And(left, right) -> conjuncts left @ conjuncts right
+        | other -> [ other ]
+
+    /// <summary>Why a filter that read a table with rows kept none of them (decision 0043).</summary>
+    /// <remarks>
+    /// Asked by `where`, `find` and a view's listing when nothing was kept; the answer
+    /// is at most one `explanation` note, and the empty table stays the answer.
+    /// `nearest` is the rule for near names (`Nearest.names`); `scope` is the line's,
+    /// for a compared value that is a variable.
+    ///
+    /// First, a column the predicate reads through `$row.`, anywhere in it, that no row
+    /// has: the first one written, with the nearest columns (`noRowHas`). One at a time,
+    /// because a fix changes one place and the next run names the next. Otherwise, the
+    /// first operand of the predicate's top-level `and`s that compares one column with
+    /// a value not read off the row, and that on its own keeps no row:
+    ///
+    /// - `eq` and `like` answer the values the column does have (`valuesOf`);
+    /// - `gt`, `ge`, `lt` and `le` over numbers answer their span (`spanOf`);
+    /// - `ne` and `has` are not explained: `ne` keeping nothing means every row holds
+    ///   the one value, which the question already named, and what `has` looks inside
+    ///   is not a column's values.
+    ///
+    /// Anything else stays silent: an `or` or a `not` keeping nothing has no one part to
+    /// name, and a bare `$row.done` has no value it was compared with. So does a table
+    /// with no rows: an empty answer to an empty table needs no reason.
+    /// </remarks>
+    let explainEmpty
+        (nearest: string list -> string -> string list)
+        (scope: Scope)
+        (table: Table)
+        (expr: Expr)
+        : Note list =
+        if List.isEmpty table.Rows then
+            []
+        else
+            let had =
+                table.Columns
+                |> List.map (fun c -> c.Name)
+                |> List.filter (fun name -> not (List.isEmpty (cellsOf table name)))
+
+            let missing =
+                rowReads expr |> List.tryFind (fun (column, _) -> not (List.contains column had))
+
+            match missing with
+            | Some read -> [ noRowHas nearest had read ]
+            | Option.None ->
+                let explain part =
+                    match comparison part with
+                    | Option.None -> Option.None
+                    | Some(op, column, other) ->
+                        match evaluate scope other with
+                        | Error _ -> Option.None
+                        | Ok compared ->
+                            let cells = cellsOf table column
+
+                            let keepsNone =
+                                cells
+                                |> List.forall (fun cell ->
+                                    match compareValues op cell compared with
+                                    | Ok(Value.Boolean false) -> true
+                                    | _ -> false)
+
+                            if not keepsNone then
+                                Option.None
+                            else
+                                match op with
+                                | "eq"
+                                | "like" -> Some(valuesOf column cells)
+                                | "gt"
+                                | "ge"
+                                | "lt"
+                                | "le" -> spanOf column cells compared
+                                | _ -> Option.None
+
+                conjuncts expr
+                |> List.tryPick explain
+                |> Option.map (fun text -> Note.explanation text [])
+                |> Option.toList
