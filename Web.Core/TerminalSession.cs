@@ -165,7 +165,8 @@ public sealed class TerminalSession
             error,
             fault,
             Describe(response.Location),
-            Describe(response.Changes));
+            Describe(response.Changes),
+            response.Guide?.Value is { IsEmpty: false } guide ? Describe(guide) : null);
     }
 
     private static LogChangesInfo Describe(LogChanges changes) =>
@@ -508,7 +509,9 @@ public sealed record ExecutionResponse(
     string? Error,
     FaultInfo? Fault,
     LocationInfo Location,
-    LogChangesInfo Changes);
+    LogChangesInfo Changes,
+    // How to call the command when the line called it wrongly (decision 0038).
+    IReadOnlyList<ResultItem>? Guide = null);
 
 /// <summary>What a line did to the log, by the sequence numbers of the lines involved.</summary>
 /// <remarks>

@@ -48,7 +48,10 @@ type Response =
       Result: Value option
       Fault: Fault option
       Location: Location
-      Changes: LogChanges }
+      Changes: LogChanges
+      /// <summary>How to call the command, when the line called it wrongly (decision 0038).</summary>
+      /// <remarks>The value `help &lt;command&gt;` answers. `None` on every other line.</remarks>
+      Guide: Value option }
 
 /// <summary>Options a host can vary.</summary>
 /// <remarks>
@@ -413,7 +416,8 @@ type Session(log: ILog, options: SessionOptions, seed: Seed) =
                   Result = result
                   Fault = fault
                   Location = store.Current.Location
-                  Changes = since () }
+                  Changes = since ()
+                  Guide = None }
 
             if not initialised then
                 return respond (Some(Fault.notInitialised ())) None
@@ -468,7 +472,8 @@ type Session(log: ILog, options: SessionOptions, seed: Seed) =
                   Result = result
                   Fault = fault
                   Location = store.Current.Location
-                  Changes = LogChanges.none }
+                  Changes = LogChanges.none
+                  Guide = None }
 
             if not initialised then
                 return respond (Some(Fault.notInitialised ())) None

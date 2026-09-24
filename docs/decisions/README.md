@@ -46,6 +46,9 @@ a later record, **Rejected**.
 | [0034](0034-what-answers-a-predicate.md) | The word `true` or `false` answers a predicate, and so must every operand of `and`, `or` and `not` | Accepted |
 | [0035](0035-a-value-stage-ignores-its-input.md) | A value stage ignores what is piped into it | Accepted |
 | [0036](0036-the-guide-is-in-the-filesystem.md) | The guide to the terminal lives in its filesystem, and the banner points to it | Accepted |
+| [0037](0037-in-out-back-and-read.md) | Places are entered with `in`, left with `out`, retraced with `back`; files are read with `read` | Accepted |
+| [0038](0038-a-wrong-call-shows-its-help.md) | A command called wrongly shows its help | Accepted |
+| [0039](0039-the-pipe-comes-first.md) | After a complete stage, completion offers the pipe first | Accepted |
 
 Retrospective records document decisions taken before the log existed, so that the
 log is the one place to look. Their alternatives are the ones weighed at the time, as

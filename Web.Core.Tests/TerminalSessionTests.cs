@@ -44,6 +44,15 @@ public class TerminalSessionTests
 
     // ---- responses --------------------------------------------------------------
 
+    /// A line that did not call a command wrongly carries no guide (decision 0038): the
+    /// field is there for the page to draw, and absent until it has something to say.
+    [TestMethod]
+    public async Task ALineThatBindsCarriesNoGuide()
+    {
+        Assert.IsNull((await _session.ExecuteAsync("ls")).Guide);
+        Assert.IsNull((await _session.ExecuteAsync("cat missing.txt")).Guide);
+    }
+
     [TestMethod]
     public async Task ListingIsOneTableWithACellPerValue()
     {
