@@ -34,6 +34,7 @@
     <Compile Include="MetaCommandTests.fs" />
     <Compile Include="LogChangesTests.fs" />
     <Compile Include="SuggestionTests.fs" />
+    <Compile Include="SelectorTests.fs" />
     <Compile Include="CompletionTests.fs" />
     <Compile Include="ContextTests.fs" />
     <Compile Include="CommandCompletionTests.fs" />

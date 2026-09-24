@@ -55,6 +55,9 @@ type Takes =
     | CommandName
     /// Any value: the variables in scope are the things worth offering.
     | Value
+    /// A CSS selector over the document flowing into the stage (decision 0049): the
+    /// element names in it are the things worth offering.
+    | Selector
 
 type Parameter =
     { Name: string

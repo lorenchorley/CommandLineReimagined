@@ -1,6 +1,6 @@
 # Implementation plan: functional core, event-sourced store, attribute filesystem, tables
 
-**Status: Phases 1 to 10 complete.** Phases 1 to 10 are built, and each built phase ends
+**Status: Phases 1 to 10 complete; Phase 11 in progress.** Phases 1 to 10 are built, and each built phase ends
 with an "As built" section recording where the result differs from what it planned.
 [Phase 8](phase-8-intellisense.md) was added afterwards, from an audit of completion;
 unlike the others, it was divided into streams that ran in parallel after one
@@ -35,6 +35,7 @@ permission.
 | [phase-8-intellisense.md](phase-8-intellisense.md) | Completion that reads the line: the command, parameter and value at the cursor; value stages; predicate faults; hints and hover on the page. Seven parallel streams after one foundation checkpoint. |
 | [phase-9-guidance.md](phase-9-guidance.md) | The owner's requests from using it on a phone: `in`, `out`, `back` and `read`; help on a wrong call; the pipe first; live listings, copying and history buttons on the page. |
 | [phase-10-help-towards-understanding.md](phase-10-help-towards-understanding.md) | After Phase 9: did-you-mean for files and columns, empty answers that explain themselves, fixes as chips, and guidance drawn apart from output. |
+| [phase-11-reading-trees.md](phase-11-reading-trees.md) | After Phase 10: a tag's name and children with `@`, and `pick`, CSS selectors over nested tags and XML. |
 | [examples.md](examples.md) | Four one-screen programs, one per pillar, with golden results. The proof that the whole works as imagined. |
 | [scene-editor-direction.md](scene-editor-direction.md) | Not a phase. A proposed direction, pending [0029](../decisions/0029-scene-editor-direction.md): the ECS as a scene the command line edits, rendered on a canvas beside a DOM terminal. |
 

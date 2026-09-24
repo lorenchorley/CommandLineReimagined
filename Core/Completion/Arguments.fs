@@ -116,6 +116,7 @@ module ArgumentCompletion =
         | Takes.CommandName -> now (commands request)
         | Takes.Value -> now (variables request "$")
         // Nothing to pick: the signature says what is wanted.
+        | Takes.Selector
         | Takes.Count
         | Takes.Number
         | Takes.NewName

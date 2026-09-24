@@ -110,6 +110,7 @@ let private takesText (parameter: Parameter) =
         | Takes.Switch(on, Some off) -> sprintf "%s or %s" on off
         | Takes.Switch(on, None) -> on
         | Takes.VariableName -> "a variable name"
+        | Takes.Selector -> "a selector"
         | Takes.CommandName -> "a command name"
         | Takes.Value -> "a value"
 

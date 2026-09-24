@@ -27,6 +27,7 @@
     <Compile Include="Events.fs" />
     <Compile Include="Projection.fs" />
     <Compile Include="Table.fs" />
+    <Compile Include="Selector.fs" />
     <Compile Include="Xml.fs" />
     <Compile Include="Csv.fs" />
     <Compile Include="Store.fs" />
