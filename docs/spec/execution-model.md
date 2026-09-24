@@ -51,8 +51,20 @@ places, so writing a table out and reading it in again does not change it.
 
 An object or component displays as the tag notation: `<type a=1 b=two/>`, or with
 children `<type a=1><child/></type>`, braces for a component. Attributes are written as
-`name=value` in order (see below), with each value on one line as a
-[table cell](#displaying-a-table) is.
+`name=value` in order (see below), each value on one line: a nested table as
+`<n> row` or `<n> rows`, and line breaks folded to spaces, as in a
+[table cell](#displaying-a-table). A list in an attribute is written out, not
+summarised as a cell's is, so a row of what [`pick`](command-catalogue.md#picking-elements)
+answers shows its children. Here and in the examples that follow, `$d` is this
+document:
+
+```
+$ set d <library city=paris><book title=dune year=1965><author name=herbert/></book><book title=emma year=1815><author name=austen/></book><shelf/></library>
+<library city=paris><book title=dune year=1965><author name=herbert/></book><book title=emma year=1815><author name=austen/></book><shelf/></library>
+
+$ $d | pick book | first | set b
+<row @tag=book title=dune year=1965 @children=<author name=herbert/>/>
+```
 
 A `Fault` value is a failure a line kept going past: what `try` turns a stage's failure
 into, and what `else` pipes into the branch after it ([Recovery](#recovery)). Its
@@ -73,8 +85,31 @@ no trailing padding on a line.
 
 A cell **must** occupy one line. A cell holding a table **must** read as
 `<n> row` or `<n> rows`, and a cell holding text with a line break in it **must** have
-the breaks folded to spaces. The same rule applies to a tag's attribute values, because
-the tag notation is one line as well.
+the breaks folded to spaces. The same two rules apply to a tag's attribute values,
+because the tag notation is one line as well.
+
+A cell holding a list **must** be summarised rather than written out
+([decision 0051](../decisions/0051-a-list-in-a-table-cell-is-summarised.md)). In the
+column named exactly `@children` it reads `<n> children`, `1 child`, and nothing for an
+empty list; in any other column `<n> items`, `1 item`, and nothing for an empty list.
+Only the drawing changes: the cell still holds the whole list, `$row.@children` reads
+all of it, and a list shown on its own, outside a table, is still written out, its
+items' display strings separated by spaces. A tag's attribute holding a list is written
+out too (see [Values](#values)).
+
+```
+$ $d | pick "*"
+@tag     city   title  year  name     @children
+library  paris                        3 children
+book            dune   1965           1 child
+author                       herbert
+book            emma   1815           1 child
+author                       austen
+shelf
+```
+
+A host that draws a table itself **must** draw a list cell with the same text
+([Execution response](host-interfaces.md#execution-response)).
 
 ### Tables
 
@@ -127,7 +162,12 @@ is a table already. See [Documents](command-catalogue.md#documents).
 
 A row goes the other way as an object of type `row` whose attributes are the row's
 cells in column order, with absent cells left out. That is what `$row` is in a
-predicate over a table, and what `first` and `last` answer.
+predicate over a table, and what `first` and `last` answer. Its type is `row` whatever
+the children it was read from were called, so `$row.@tag` over a table read from
+`<list><i/><i/></list>` is `row`, not `i`; reading elements as rows, each with its own
+name, is what [`pick`](command-catalogue.md#picking-elements) is for, and its rows carry
+the name as a column `@tag`, which a row answers first (see
+[Evaluating a written value](#evaluating-a-written-value)).
 
 ### Comparison
 
@@ -190,7 +230,7 @@ and **should** let at most one accept the pipe, or a pipe becomes ambiguous.
 
 `Takes` says what a parameter's argument is: `Anything`, the default, `Path`, `Place`,
 `NewName`, `Url`, `Column`, `Count`, `Number`, `Text`, `Switch(on, off)`,
-`VariableName`, `CommandName` or `Value`. It is for completion, the signature hint and
+`VariableName`, `CommandName`, `Value` or `Selector`. It is for completion, the signature hint and
 `help <command>`, and binding **must not** read it: two commands that differ only in
 what their parameters take bind alike. What each one offers is in
 [Host interfaces](host-interfaces.md#what-a-parameter-takes).
@@ -451,11 +491,52 @@ own help. A host carries the guide as `guide` on the wire
 | An expression | Bound only to a parameter declared `Predicate`, unevaluated, as a `Query`. For any other parameter, fail with `'<command>' takes a value for '<parameter>', not an expression.` |
 | Anything else | Fail with `Unsupported argument value : <node>`, kind `Internal` |
 
-A member is read off a value like this: from an object or component, the attribute of
-that name, matched exactly and with case significant; from a `File`, `name`, `kind`,
-`folder`, `path` or `id`; from a `Fault`, `message`, `kind`, `path`, `stage` or
-`cause`. A member that is not there is `None`, not a fault, and a member of any other
-value is `None`.
+A member is read off a value like this (`Expr.readMember`):
+
+- From an object or component, the attribute of that name, matched exactly and with
+  case significant, whatever the name. A row's columns are its attributes, so a row
+  answers any of its columns by name, `@` or not: `$row.@id` reads a column `@id` from
+  a CSV header, and `$row.@tag` reads the `@tag` column of a row `pick` answered
+  ([decision 0050](../decisions/0050-at-names-are-words-and-columns.md)).
+- Where the tag has no attribute of that name, `@tag` is its type name as `Text` and
+  `@children` its children as a `List`, in order, the empty list when it has none
+  ([decision 0048](../decisions/0048-a-tags-own-parts-are-read-with-at.md)). Neither
+  the tag notation nor XML can write an attribute whose name begins with `@`, so on a
+  tag written or read either one always reads the tag's own part; only a row, whose
+  attributes are a table's columns, can hold one. A gap is no attribute, so on a row
+  whose `@tag` cell is a gap `$row.@tag` is the row's own type, `row`.
+- From a `File`, `name`, `kind`, `folder`, `path` or `id`; from a `Fault`, `message`,
+  `kind`, `path`, `stage` or `cause`.
+
+A member that is not there is `None`, not a fault, and a member of any other value is
+`None`. So is any other `@` name on a tag with no such attribute, and `@tag` and
+`@children` on anything that is not a tag: a list has no name, so `$d.@children.@tag`
+is `None`.
+
+```
+$ set v <thing a=1/>
+<thing a=1/>
+
+$ echo $v.@tag
+thing
+
+$ echo $v.a
+1
+
+$ echo $v.@children | count
+0
+
+$ ls | first | set r
+<row name=documents kind=folder folder=/ size=0 modified=2026-09-22T09:30:00.0000000+00:00/>
+
+$ echo $r.@tag
+row
+
+$ $d | pick book | where $row.@tag eq book | select title
+title
+dune
+emma
+```
 
 Number parsing — of a word here, and of text in a [comparison](#comparison) — **must**
 use the invariant culture and allow surrounding white space, a leading sign, a decimal

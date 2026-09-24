@@ -192,6 +192,18 @@ with missing cells as `None` ([decision 0009](../decisions/0009-table-coercion.m
 reads into the same tree, so a table-shaped document is a table for the same reason
 ([decision 0011](../decisions/0011-real-xml-files.md)).
 
+**A tree is read by its shape.** A tag's own parts are read with `@`: `$v.@tag` is its
+name and `$v.@children` its children, while a plain member stays an attribute
+([decision 0048](../decisions/0048-a-tags-own-parts-are-read-with-at.md)). Anything
+deeper is reached with `pick`, which answers every element a CSS selector matches as a
+table whose rows carry `@tag` and `@children` as columns, so a row reads as its element
+does and a word may start with `@` to name them
+([decisions 0049](../decisions/0049-pick-selects-elements-with-css-selectors.md) and
+[0050](../decisions/0050-at-names-are-words-and-columns.md)). Selectors pick by shape and
+`where` filters by value, so neither language grows into the other, and each element is
+answered once however the documents given overlap
+([decision 0052](../decisions/0052-pick-answers-each-element-once.md)).
+
 **Predicates use words and name the row.** `where $row.qty lt 10 and $row.kind eq part`.
 Word operators leave `<`, `>` and `|` to tags and pipes with no lookahead tricks
 ([decision 0007](../decisions/0007-notation-conflicts.md)), and `$row` is explicit so a
@@ -318,6 +330,18 @@ another.
 is a boolean operator inside a predicate, and one word meaning two things at two
 precedences is a trap.
 
+**Read a tag's name through a plain member or a function.** Rejected
+([0048](../decisions/0048-a-tags-own-parts-are-read-with-at.md)). `name`, `type` and
+`kind` are among the commonest attribute names, and whichever member were chosen would
+stop meaning the attribute; a function such as `tag($v)` does not chain as a member
+does. No attribute can be named with `@`, so `@tag` can never mean one.
+
+**XPath, or flattening a tree into one table, to reach inside it.** Rejected
+([0049](../decisions/0049-pick-selects-elements-with-css-selectors.md)). XPath's axes and
+positions are heavy to type on a phone, and a flattened table loses which element is
+inside which. A subset of CSS selectors is a line anyone who has written a stylesheet
+can read, and leaves comparing values to the predicate language.
+
 **Persist a snapshot of the filesystem in local storage.** Rejected in favour of the log
 in IndexedDB. A snapshot would persist the files and lose undo, redo and history across
 a reload, local storage is synchronous and small, and a snapshot format would need its
@@ -409,7 +433,9 @@ completion, which is comfortably fast because the input is one short line. Compl
 may also run the stages before the cursor to learn what flows into the one being
 written; that run is read-only, cached until the next commit, cancelled by the next
 keystroke, and given 150 milliseconds before completion answers without it
-([decision 0031](../decisions/0031-completion-reads-the-line.md)). A reload
+([decision 0031](../decisions/0031-completion-reads-the-line.md)). `pick` walks each
+document once and indexes nothing, since a document in a tab has at most thousands of
+elements ([decision 0049](../decisions/0049-pick-selects-elements-with-css-selectors.md)). A reload
 replays the whole log before the input is enabled; that is a fold over small events and
 is not noticeable at the sizes a tab reaches. Live output is coalesced to about one
 update every 40 milliseconds so that a fast-updating command does not spend more time

@@ -138,7 +138,7 @@ dropped when the command layer moved to the F# core.
 | [Values](#values) | `echo`, `set`, `vars`, `is-fault` |
 | [Long-running commands](#long-running-commands) | `progress`, `download` |
 | [Table functions](#table-functions) | `where`, `select`, `sort`, `take`, `skip`, `first`, `last`, `count`, `distinct`, `group`, `columns`, `rows`, `table` |
-| [Documents](#documents) | `from-xml`, `to-xml`, `from-csv`, `to-csv` |
+| [Documents](#documents) | `from-xml`, `to-xml`, `from-csv`, `to-csv`, `pick` |
 | [The log and the session](#the-log-and-the-session) | `undo`, `redo`, `history`, `reset`, `run`, `help`, `exit`, `UnknownCommand` |
 
 A command's name is one or more identifiers joined by hyphens with nothing either side
@@ -200,6 +200,8 @@ and a *rest* parameter adds `, any number`. A parameter that declares nothing ta
 | `from-csv`, `to-csv` | `delimiter` | `Text` | text |
 | `to-csv` | `path` | `Path` | a path |
 | `to-csv` | `value` | `Value` | a value |
+| `pick` | `selector` | `Selector` | a selector |
+| `pick` | `document` | `Value` | a value |
 | `run` | `path` | `Path` | a path |
 | `help` | `command` | `CommandName` | a command name |
 | `UnknownCommand` | `name`, `nearest` | `Anything` | not listed |
@@ -621,7 +623,8 @@ Errors: `'<name>' is not a valid variable name.` (`Invalid`);
 | Marks | `ReadOnly` |
 
 One row per variable in scope, ordered by name, its `value` cell the value itself, so a
-table reads as `4 rows` and a fault as its message. With nothing bound it **must** still
+table reads as `4 rows`, a list as `2 items`
+([Displaying a table](execution-model.md#displaying-a-table)) and a fault as its message. With nothing bound it **must** still
 return a table, so that `vars | count` is 0 rather than a fault, and writes one output
 line, `No variables. Try: set greeting hello`. It does not use the one-line summaries
 completion gives a variable ([Host interfaces](host-interfaces.md#a-value-in-one-line)).
@@ -790,7 +793,9 @@ the columns in the table's order and **must** omit a cell that is `None` or `Emp
 
 ## Documents
 
-Four commands over XML and CSV files ([decision 0011](../decisions/0011-real-xml-files.md)).
+Four commands over XML and CSV files ([decision 0011](../decisions/0011-real-xml-files.md)),
+and `pick`, which reads any tag as a document, whether it was typed or read from XML
+([decision 0049](../decisions/0049-pick-selects-elements-with-css-selectors.md)).
 The readers **must** resolve and read their file exactly as `read` does, raise the same
 faults for a missing path or a folder, be `ReadOnly` and emit no events. The writers
 **must** emit exactly the events `write` would for the text they serialise, so that
@@ -805,6 +810,7 @@ write leaves nothing behind.
 | `to-xml` | `path`, `value` (*piped*), `root` (*optional*), `row` (*optional*), `declaration` (*optional*) | `File` | none |
 | `from-csv` | `path` (*piped*), `delimiter` (*optional*, `,`) | `Table` | `ReadOnly` |
 | `to-csv` | `path`, `value` (*piped*), `delimiter` (*optional*, `,`) | `File` | none |
+| `pick` | `selector`, `document` (*optional*, *piped*) | `Table` | `ReadOnly` |
 
 The writers' options are reached by flag in practice: `to-xml out.xml -root listing
 -row entry -declaration`. `declaration` is a switch: the bare flag, or the word
@@ -887,6 +893,270 @@ their file text, as for XML. A table with no columns is the empty file.
 A `delimiter` is one character other than `"`, `\n` and `\r`, or the word `tab`;
 anything else raises `'delimiter' must be one character, or 'tab', not '<text>'.`
 (`Invalid`).
+
+### Picking elements
+
+`pick <selector>` reads what flows in as one or more documents and answers a table of
+every element the selector matches
+([decision 0049](../decisions/0049-pick-selects-elements-with-css-selectors.md)). It
+emits no events and is `ReadOnly`, so a live listing may re-run it. Its keywords are
+`select`, `query`, `css`, `find`, `xpath`, `elements`, `descendants` and `search`, so
+`xpath` and `css` typed as commands are suggested `pick`; `select`, a command of its
+own, does not have `pick` among its keywords. The selector is read before the document,
+so a selector outside the subset is its own fault whatever was piped.
+
+The examples below use `$d`, set as in the [execution model](execution-model.md#values)
+to this document:
+
+```
+<library city=paris><book title=dune year=1965><author name=herbert/></book><book title=emma year=1815><author name=austen/></book><shelf/></library>
+```
+
+#### The selector
+
+`selector` is an ordinary argument. The command line's grammar knows nothing of
+selectors, so one with a space, `>`, `,`, `[` or a quote in it is written as a string,
+`pick "book > author"`, while `pick book` and `pick *` are words. `pick` **must** read
+the argument's display string by this grammar, and accept nothing outside it:
+
+```
+Selector   ::= Space* Chain ( "," Space* Chain )*
+Chain      ::= Compound ( Combinator Compound )* Space*
+Combinator ::= Space* ">" Space*                       -- child
+             | Space+                                  -- descendant
+Compound   ::= ( Name | "*" ) Test*
+             | Test+
+Test       ::= "[" Space* Name Space* ( "]" | Operator Space* Value Space* "]" )
+Operator   ::= "=" | "^=" | "$=" | "*="
+Value      ::= '"' ( any character but '"' )* '"'
+             | "'" ( any character but "'" )* "'"
+             | ( any character but white space, "[", "]", '"' and "'" )+
+Name       ::= NameStart NameChar*
+NameStart  ::= a letter | "_"
+NameChar   ::= a letter | a digit | "_" | "-"
+Space      ::= any white space character
+```
+
+A `Name` in a `Compound` is a type, and matches an element of that name; `*` matches any
+element, and so does a compound of tests alone. In a `Test` the name is an attribute's:
+`[a]` holds when the element has the attribute, `[a=v]` when its value is `v`, `[a^=v]`
+when the value begins with `v`, `[a$=v]` when it ends with `v`, and `[a*=v]` when it
+contains `v`. Every test of a compound must hold. `A B` matches a `B` anywhere inside an
+`A`, and `A > B` a `B` directly inside one. Chains joined by commas are groups: the
+selector matches an element any of them matches.
+
+Letters and digits are as Unicode classes them. A name has no `.` or `:`, which CSS
+gives other meanings, so an element whose name holds one, such as a prefixed XML name,
+is matched only by `*` or by a test. A quoted value may be empty; a bare one may not, and
+may hold any character but those listed, `=`, `>` and `,` included.
+
+#### Matching
+
+- Each document is walked from its root, the root included, in document order: an
+  element, then each of its children that is a tag, in order, each walked the same way.
+  Children that are not tags are passed over.
+- An element is answered once, however many groups match it, at its place in document
+  order: `$d | pick "shelf, book, shelf"` answers the two books and then the shelf.
+- Names and attribute values **must** be compared exactly, ordinally and with case
+  significant, as XML compares them: `$d | pick BOOK` matches nothing. An attribute's
+  value is compared as its display string, so `[year=1965]` finds the number the tag
+  notation or `from-xml` read.
+- A prefix, suffix or substring test with an empty value, `[a^='']`, `[a$='']` or
+  `[a*='']`, matches nothing, as in CSS. `[a='']` matches an attribute whose display
+  string is empty.
+- A chain is read from its last compound back towards the root, as a browser reads one:
+  `>` needs the parent to match what is before it, and a space needs some ancestor to.
+  Nothing above a document's root is visible to a selector, so
+  `$d | pick "library > author"` matches nothing.
+
+#### What it reads
+
+The value piped in, or written for `document`, **must** be read as documents:
+
+| Value | Documents |
+| --- | --- |
+| An object or a component | One, whose root is that tag. |
+| A list | One per item, in order; every item **must** be a tag. The empty list is none. |
+| A table with a column `@tag`, matched ignoring case | One per row, the row read back as an element: `@tag` is its name, as the cell's display string; `@children` its children, a list's items, none for a gap, and a single value of any other kind as its one child; every other column an attribute, in column order, gaps left out. |
+
+So `pick` reads what `pick` answered, and `$d.@children | pick "*"` searches the
+library's three children as three documents:
+
+```
+$ $d.@children | pick "*" | select @tag
+@tag
+book
+author
+book
+author
+shelf
+
+$ $d | pick book | pick author | select name
+name
+herbert
+austen
+```
+
+A document read from XML is a tag like any other:
+
+```
+$ $d | to-xml library.xml
+library.xml
+
+$ from-xml library.xml | pick "book > author" | select name
+name
+herbert
+austen
+```
+
+#### Each element once
+
+When the documents given overlap, each element **must** be answered once
+([decision 0052](../decisions/0052-pick-answers-each-element-once.md)). A document that
+sits inside another document given is not searched again, and neither is an element
+given twice; the elements come in the order of the first document each was found in.
+The rows of `pick "*"` overlap, since a book is a row of its own and also inside the
+library's row, and picking from them finds each book once:
+
+```
+$ $d | pick "*" | pick "[year^=19]" | select title
+title
+dune
+```
+
+What is compared is which element a document is, not what it says. Two elements that
+are equal but separate, such as the two authors of
+`<pair><author name=x/><author name=x/></pair>`, are two, as documents in a list, as
+children of one document, and as rows.
+
+A row stands for the element it was made from. The reference implementation keeps that
+link beside the table rather than in it, keyed by the row's `@children` cell
+(`Selector.madeFrom` in `Selector.fs`), so the answer has no column it does not show.
+The link travels with the row through `where`, `sort`, `select`, `take`, `skip` and a
+variable. It is lost, and the row stands for itself, a new element with the row's name,
+attributes and children, in two cases:
+
+- **A table restored after a reload.** A table held in a variable is rebuilt from the
+  stored log, and its rows can no longer say which element they came from. The rows of
+  `pick "*"` are then separate documents, and an element inside more than one of them
+  is answered once for each: after a reload, with `$all` set to `$d | pick "*"` before
+  it, `$all | pick "[year^=19]"` answers `dune` twice. This falls short of decision 0052
+  ([Known deviations](conformance.md#known-deviations)).
+- **A row whose `@children` was dropped**, as by `select @tag title year`. Such a row
+  has no children, so it is a document of one element that no combinator can reach
+  past: `$d | pick "*" | select @tag title year | pick "library book"` matches nothing.
+
+#### What it answers
+
+A `Table` with:
+
+- `@tag` first, the element's name as `Text`;
+- then every attribute of the elements matched, each name once, in the order the names
+  first appear, each element's attributes taken in its own order, with a gap, `None`,
+  where an element lacks one;
+- then `@children` last, the element's children as a `List`, in order, the empty list
+  for none.
+
+One row per element matched, in the order [Matching](#matching) gives. Columns are typed
+from their cells as every table's are ([Tables](execution-model.md#tables)): `@tag` is
+`text`, an attribute's column is typed by its values, and `@children` is `text`, since a
+list is not a number, a boolean, a file or a tag. A table draws each `@children` cell
+summarised ([decision 0051](../decisions/0051-a-list-in-a-table-cell-is-summarised.md)),
+and `$row.@tag` and `$row.@children` read the columns
+([Evaluating a written value](execution-model.md#evaluating-a-written-value)), so a
+predicate filters by value what a selector picked by shape:
+
+```
+$ $d | pick book
+@tag  title  year  @children
+book  dune   1965  1 child
+book  emma   1815  1 child
+
+$ $d | pick book | columns
+name       type
+@tag       text
+title      text
+year       number
+@children  text
+
+$ $d | pick book | where $row.year gt 1900 | select title
+title
+dune
+```
+
+When nothing matches, and when there are no documents, the answer **must** be the empty
+table with the columns `@tag` and `@children` only, both `text`:
+
+```
+$ $d | pick nothing
+@tag  @children
+```
+
+#### Faults
+
+A selector outside the grammar is a fault of kind `Syntax` that says where it stopped:
+
+```
+The selector '<selector>' stops <where>: <why>.
+```
+
+`<where>` is `at its end`, or `at character <n>, '<c>'`, counting characters from one
+and naming the character. `<why>` is one of these:
+
+| Where it stopped | `<why>` |
+| --- | --- |
+| Where a compound should begin, at the end or at a digit, `,` or `>` | `an element name, '*' or '[' is expected <after>`, where `<after>` is `at the start`, `after '>'`, `after a space` or `after ','` |
+| Where a compound should begin, at any other character; or after a compound, at anything but white space, `>`, `,` or the end | `'<c>' is not part of the CSS that pick reads: names, *, [attribute] tests, spaces, > and commas` |
+| After `[`, where there is no attribute name | `an attribute name is expected after '['` |
+| After an attribute name, at `~=` or `\|=` | `'<c>=' is not part of the CSS that pick reads, whose tests are =, ^=, $= and *=` |
+| After an attribute name, at the end | `']' is expected to close '['` |
+| After an attribute name, at anything but `]` or an operator | `']' or one of =, ^=, $= and *= is expected after the attribute name` |
+| After an operator, at the end or where no bare value begins | `a value is expected after '<operator>'` |
+| At the opening quote of a value that never closes | `the quote is not closed` |
+| After a value, at anything but `]` | `']' is expected after the value` |
+
+A selector that is empty or only white space is
+`The selector is empty: write an element name, such as 'book', or '*' for every element.`
+(`Syntax`).
+
+```
+$ $d | pick "book >"
+The selector 'book >' stops at its end: an element name, '*' or '[' is expected after '>'.
+  [Syntax]
+
+$ $d | pick "[title~=dune]"
+The selector '[title~=dune]' stops at character 7, '~': '~=' is not part of the CSS that pick reads, whose tests are =, ^=, $= and *=.
+  [Syntax]
+
+$ $d | pick "#id"
+The selector '#id' stops at character 1, '#': '#' is not part of the CSS that pick reads: names, *, [attribute] tests, spaces, > and commas.
+  [Syntax]
+```
+
+A value `pick` cannot read as documents is a `Binding` fault naming what it was:
+
+```
+'pick' needs a tag, a list of tags or a table with a @tag column, not <what>.
+```
+
+`<what>` is the value's kind (`empty` when nothing flows in, `number`, `text` and so
+on), `a list whose item <n> is <kind>`, counting items from one, or
+`a table without a @tag column`. The message begins with the command's name, so the line
+carries `pick`'s help
+([decision 0038](../decisions/0038-a-wrong-call-shows-its-help.md)). A row of an element
+table whose `@tag` is a gap is
+`'pick' cannot read row <n> as an element: its @tag is empty.` (`Invalid`), counting
+rows from one.
+
+```
+$ pick book
+'pick' needs a tag, a list of tags or a table with a @tag column, not empty.
+  [Binding]
+
+$ ls | pick book
+'pick' needs a tag, a list of tags or a table with a @tag column, not a table without a @tag column.
+  [Binding]
+```
 
 ## The log and the session
 
@@ -1090,4 +1360,5 @@ None. `ls` and `in` quoting a missing folder as written rather than resolved, no
 under [Paths](#rules-every-command-follows), is deliberate and pinned by
 `FilesTests.AMissingFolderIsNamedAsItWasWritten`; the nearest folders it names are
 looked for from the resolved path. Where an explanation's fix falls short of the
-records, [Conformance](conformance.md#known-deviations) lists it.
+records, and where `pick` answers an element twice from a table restored after a
+reload, [Conformance](conformance.md#known-deviations) lists it.

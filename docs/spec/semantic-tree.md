@@ -58,9 +58,9 @@ producers and is not reachable from text.
 | --- | --- | --- |
 | `Value` | abstract | Base. |
 | `SimpleValue` | abstract | A value that is not a tag. |
-| `Identifier` | `Name: string` | A bare word or identifier, as written. Numbers are words too; what a word means is decided at [binding](execution-model.md#evaluating-a-written-value). |
+| `Identifier` | `Name: string` | A bare word or identifier, as written. Numbers are words too; what a word means is decided at [binding](execution-model.md#evaluating-a-written-value). A word may begin with `@`, so `select @tag` has the `Identifier` `@tag` ([decision 0050](../decisions/0050-at-names-are-words-and-columns.md)). |
 | `VariableReference` | `Name: VariableName`, `Members: List<MemberName>` | `$name`, or `$name.member`. |
-| `MemberName` | `Name: string` | The `.size` of `$row.size`. It carries its own stop, and its name is never empty: a stop with no name after it does not parse ([Tokens](lexical-grammar.md#tokens)). |
+| `MemberName` | `Name: string` | The `.size` of `$row.size`. It carries its own stop, and its name is never empty: a stop with no name after it does not parse ([Tokens](lexical-grammar.md#tokens)). A member written with `@` keeps it in its name: `.@tag` is the `MemberName` `@tag` ([decision 0048](../decisions/0048-a-tags-own-parts-are-read-with-at.md)). |
 | `Constant` | abstract | Base for literals. |
 | `StringConstant` | `Value: string`, `QuoteCount: int`, `QuoteString: string` | A string literal. |
 | `TagValue` | `Tag: InstanceTag` | A tag used where a value is expected. |
@@ -237,6 +237,11 @@ metres     identifier
 A value stage tokenises as the variable reference it is, whether it stands as a stage
 or as an argument: `$problem.kind` is `$` and `problem` as `variable`, then `.` and
 `kind` as `member`.
+
+A member written with `@` **must** tokenise exactly as a plain member does, so a host
+colours `$v.@tag` as it colours `$v.a`: `$` and `v` as `variable`, then `.` and `@tag` as
+`member`. The `@` is in the member's token, never a token of its own. A word that begins
+with `@`, as in `select @tag`, is an `identifier` like any other word.
 
 A token is what one write of the traversal produced, not a whole lexeme, and adjacent
 tokens are not merged. A host **must not** assume one token per lexeme: `$row.size` is

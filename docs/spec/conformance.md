@@ -33,14 +33,15 @@ second table counts from `dotnet test`.
 | Word operators, precedence, member access, reserved words, nested pipelines, the expression entry point | `Parser.Tests/ExpressionTests` | 21 |
 | `else`, `try`, `??`, pipelines in parentheses as stages and operands, the adjacent function parenthesis, reserved command names | `Parser.Tests/RecoveryTests` | 23 |
 | Value stages, the stop that must be followed by a name, the operator with nothing to compare with | `Parser.Tests/ValueStageTests` | 15 |
+| Members written with `@`, chained, compared and standing as a stage, their round trip, the `@` that must be followed by a name, and a word that starts with `@` (decisions 0048, 0050) | `Parser.Tests/OwnMemberTests` | 9 |
 | Agreement with the retained GOLD parser | `Parser.Tests/ParserEquivalenceTests` | 4 |
-| The two string forms of every value, and number formatting | `Core.Tests/ValueTests` | 17 |
+| The two string forms of every value, number formatting, and a list in a table cell summarised (decision 0051) | `Core.Tests/ValueTests` | 18 |
 | The Table value: coercion, columns, types, gaps, rows, display | `Core.Tests/TableTests` | 23 |
-| Evaluating a predicate: members, comparison, gaps, boolean words | `Core.Tests/ExpressionTests` | 21 |
+| Evaluating a predicate: members, a tag's `@tag` and `@children`, a row's `@` columns, and `@` on anything else (decisions 0048, 0050), comparison, gaps, boolean words | `Core.Tests/ExpressionTests` | 29 |
 | Folding events, and that every event inverts back to where it started | `Core.Tests/ProjectionTests` | 13 |
 | Path resolution over the projection, and kind inference | `Core.Tests/FilesTests` | 16 |
 | Committing, undo, redo, history, replay determinism, blobs, the store's own checks on names and folders | `Core.Tests/StoreTests` | 28 |
-| Binding, pipes, command forms, variables, tags, atomic lines, value stages, `$row` outside a predicate | `Core.Tests/ExecutionTests` | 51 |
+| Binding, pipes, command forms, variables, tags, atomic lines, value stages, `$row` outside a predicate, a tag's name and children read with `@` | `Core.Tests/ExecutionTests` | 53 |
 | The help a wrong call carries and when it carries none (decision 0038), an old name leading to the new one, and a line with nothing to say carrying no notes | `Core.Tests/GuidanceTests` | 15 |
 | File commands, attributes, saving tags, the name rule, renaming a folder with what it holds, and their undo | `Core.Tests/FileCommandTests` | 55 |
 | Variables and their undo | `Core.Tests/VariableCommandTests` | 14 |
@@ -62,16 +63,17 @@ second table counts from `dotnet test`.
 | The lexical rules: completion over the projection, the operators, the columns, the places and the keywords | `Core.Tests/CompletionTests` | 25 |
 | Where the cursor is: the place for every line of the Phase 8 finding table | `Core.Tests/ContextTests` | 4 |
 | Command names: after a pipe, not a path command after a table, by keyword, a short word only by a first keyword nobody else has, by edit distance, with descriptions | `Core.Tests/CommandCompletionTests` | 25 |
-| Variables, `$row` only in a predicate, members by what a variable holds, tag types and attributes, the summaries | `Core.Tests/VariableCompletionTests` | 18 |
-| Every parameter of every command by what it takes, flags, assignments, quoted paths, the signature, the pipe first after a complete stage (decision 0039) | `Core.Tests/ArgumentCompletionTests` | 51 |
+| Variables, `$row` only in a predicate, members by what a variable holds, a tag's own parts after its attributes and alone after `@`, tag types and attributes, the summaries | `Core.Tests/VariableCompletionTests` | 22 |
+| Every parameter of every command by what it takes, flags, assignments, quoted paths, the signature, the pipe first after a complete stage (decision 0039), a selector's element names after any upstream, each element counted once, and nothing inside brackets or with nothing flowing in (decision 0049) | `Core.Tests/ArgumentCompletionTests` | 61 |
 | Inside a predicate: operands, operators, a column's values, `and` and `or`, and the pipe after a place and a value stage | `Core.Tests/PredicateCompletionTests` | 24 |
-| What flows into a stage: the upstream run, refusals, the budget, the cache | `Core.Tests/ShapeTests` | 23 |
-| What a tapped token is: variables, members, commands, operators, arguments | `Core.Tests/HoverTests` | 12 |
+| What flows into a stage: the upstream run, refusals, the budget, the cache, the value a shape keeps | `Core.Tests/ShapeTests` | 27 |
+| What a tapped token is: variables, members and what `@tag` and `@children` read, commands, operators, arguments | `Core.Tests/HoverTests` | 14 |
+| `pick` (decisions 0049, 0052): each part of the selector subset, spacing, bare and quoted values, faults with where they stopped, matching with the root included in document order, exact comparison, empty partial values, groups each once, the table's shape and types, no match, a file from `from-xml`, reading what `pick` answered, a list as that many documents, each element once when documents overlap and through the table functions, equal elements kept apart, what it refuses, and the acceptance lines | `Core.Tests/SelectorTests` | 47 |
 | The phase's acceptance list, from a fresh session | `Core.Tests/AcceptanceTests` | 10 |
 | Replaying a log, seeding once, `reset`, giving an older log the guide once, and bringing the seeded files nobody changed to the seed (decision 0040) | `Core.Tests/PersistenceTests` | 29 |
 | The stored shape of a transaction, every event and value case, the trail's events, versioning up to 3 | `Web.Core.Tests/LogFormatTests` | 27 |
 | The browser's IndexedDB module, including a browser without it | `tools/store-check.mjs` | 20 |
-| DTO shapes including tables, views, refreshing and refreshing from where a listing was run (decision 0047), caught faults, documents, streaming, cancellation, completion, tokens, the guide, and no notes on a line with nothing to say | `Web.Core.Tests/TerminalSessionTests` | 57 |
+| DTO shapes including tables, a list in a cell summarised (decision 0051), views, refreshing and refreshing from where a listing was run (decision 0047), caught faults, documents, streaming, cancellation, completion, tokens, an `@` member drawn as a member, the guide, and no notes on a line with nothing to say | `Web.Core.Tests/TerminalSessionTests` | 60 |
 | A parse error in words: the phrase table, the explanations, the sentence carried with the parse | `Web.Core.Tests/ParseWordingTests` | 14 |
 | The hover record as the page receives it | `Web.Core.Tests/DescribeTests` | 7 |
 | Path and naming helpers | `Terminal.Tests/ValidCommandTests` | 2 |
@@ -81,11 +83,11 @@ Cases actually run, which is what the suite reports:
 
 | Project | Cases |
 | --- | --- |
-| `Parser.Tests` | 375 |
-| `Core.Tests` | 881 |
-| `Web.Core.Tests` | 145 |
+| `Parser.Tests` | 396 |
+| `Core.Tests` | 959 |
+| `Web.Core.Tests` | 150 |
 | `Terminal.Tests` | 32 |
-| Total | 1433 |
+| Total | 1537 |
 
 Run them with:
 
@@ -134,6 +136,10 @@ does not govern. They run in CI with the rest.
       a column name belongs after it.
 - [ ] A comparison operator with nothing after it fails where the operand should be,
       and says what the operator needs.
+- [ ] A member's name may begin with `@`, kept in the name; the `@` commits, so one with
+      no name after it fails there and says a name belongs after it; and an `@` member
+      is tokenised exactly as a plain one.
+- [ ] A bare word may begin with `@`, in an argument and in a tag attribute's value.
 
 **Runtime**
 
@@ -182,6 +188,25 @@ does not govern. They run in CI with the rest.
       and a tag that is not table-shaped names the child that broke the shape.
 - [ ] Columns are typed from their cells, and a `None` cell does not make a column
       mixed.
+- [ ] A member of a tag reads the attribute of that name first, whatever the name, so a
+      row answers any column; otherwise `@tag` is the tag's type name and `@children`
+      its children as a list; any other `@` member, and either one on a value that is
+      not a tag, is `None`.
+- [ ] A list in a table cell is drawn as `<n> children` in the column `@children` and
+      `<n> items` in any other, `1 child` and `1 item` for one and nothing for none,
+      while the cell holds the whole list and a list on its own is written out.
+- [ ] `pick` reads its selector by the subset's grammar and nothing else, failing with
+      kind `Syntax` and the character it stopped at; it matches every element of each
+      document, the root included, in document order, each once however many groups
+      match, comparing names and values exactly, with an empty partial value matching
+      nothing.
+- [ ] `pick` reads a tag as one document, a list of tags as one per item, and a table
+      with an `@tag` column as one per row, read back as its element; anything else is a
+      `Binding` fault naming what it was.
+- [ ] `pick` answers `@tag`, the attributes in the order they first appear with gaps,
+      and `@children`, or those two columns alone when nothing matches; and a document
+      inside another one given is not searched again, while two equal but separate
+      elements are two.
 - [ ] Comparisons are numeric when both sides read as numbers and ordinal otherwise, a
       comparison touching a gap is false, and two gaps are `eq`.
 - [ ] `sort` is stable in both directions.
@@ -254,6 +279,11 @@ does not govern. They run in CI with the rest.
       pipe.
 - [ ] What flows into a stage is learned by previewing the upstream read-only, under
       the budget, and a miss answers the current folder's columns rather than an error.
+- [ ] After `$v.` on a tag, `@tag` and `@children` follow its attributes, each saying
+      what it reads; a `Selector` parameter offers the distinct element names flowing
+      in, in document order, only where a plain name is being written.
+- [ ] A list in a table cell reaches the page as one item of kind `list` whose text is
+      its summary.
 - [ ] A tapped token is described by `Describe`, and a parse error carries a sentence
       that names no grammar label.
 - [ ] Wire formats match [Host interfaces](host-interfaces.md#wire-formats).
@@ -297,6 +327,10 @@ case.
 | XML element text is read as an attribute `text` and written back as content, so mixed content comes back with its text gathered before the children, trimmed; an XML attribute called `text` on an element with content is replaced by it; comments and processing instructions are dropped. | Intended for this release; see [decision 0025](../decisions/0025-xml-text-content.md). |
 | A document with a DTD is refused rather than read. | Intended. A file in the store is anyone's, and entity expansion is a way to stop a tab. |
 | Messages are English only and the client is published with invariant globalisation. | Intended for now; see [Design doc](design-doc.md#internationalisation). |
+| After a reload, `pick` over overlapping rows restored from the log answers an element once for each row it is inside: with `$all` set to `$d \| pick "*"` before the reload, `$all \| pick "[year^=19]"` answers `dune` twice, where it answered it once before. Which element a row stands for is kept in memory beside the table (`Selector.madeFrom`, `Core/Selector.fs`) and never stored, so a table rebuilt from the stored log cannot say ([Each element once](command-catalogue.md#each-element-once)). | Open. [Decision 0052](../decisions/0052-pick-answers-each-element-once.md) asks for each element once and says nothing of a restored table. |
+| The explanation of an empty `where` names `@tag` as a column no row has when a predicate reads `$row.@tag` over rows that have no such column, though every row answers it with its type name: `$w \| where $row.@tag eq i`, with `$w` set to `<list><i n=1/><i n=2/></list>`, explains `No row has @tag.`, and `$row.@tag` is `row` in every row. The explanation looks for a column by that name (`Expr.fs`, `noRowHas`); `readMember` answers the tag's own part where there is none. | Open. [Decision 0043](../decisions/0043-an-empty-filter-explains-itself.md) explains a column no row has; decision 0048 gives every row an `@tag`. |
+| Hover on an `@tag` or `@children` member of a variable holding a row with such a column, a row of what `pick` answered, says `the tag's name · text · "book"`, what the member reads on a tag, while completion after the same variable's stop gives the column's own summary, `text · "book"`. The member reads the column ([decision 0050](../decisions/0050-at-names-are-words-and-columns.md)). | Cosmetic. For `pick`'s rows the column is the element's name, so the words are right there. |
+| `pick` reads a column `@Children` as an element's children, matching `@tag` and `@children` ignoring case as table functions match columns, while a table draws a list as children only in a column named exactly `@children` (`Value.cellText`): `$d \| pick book \| distinct @Children` names its column as written, `@Children`, and its cells read `1 item`. | Cosmetic. `pick` itself always answers `@children`. |
 | A response with no notes carries `"notes":null`, as it carries `"guide":null`. `TerminalSession` passes null (`Web.Core/TerminalSession.cs`), and the bridge serialises with the web defaults, which write nulls. | Intended. A page reading `r.notes \|\| []` sees no difference, and `notes` follows `guide`; the Phase 10 plan's wire now says null. |
 
 ## Changing this specification

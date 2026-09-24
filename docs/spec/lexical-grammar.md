@@ -24,7 +24,7 @@ numbers, by looking ahead rather than by making a position mean something.
 ```
 IdentifierChar ::= "a".."z" | "A".."Z" | "0".."9" | "_" | Accented
 Accented       ::= one of  éèàäëïöüùçâêîôûÇÄÅÉæÆÖÜøØƒáíóúñÑÁÂÀãÃðÐÊËÈiÍÎÏÌÓßÔÒõÕµþÞÚÛÙýÝ
-WordStart      ::= IdentifierChar | "." | "\" | "/" | "~" | "*"
+WordStart      ::= IdentifierChar | "." | "\" | "/" | "~" | "*" | "@"
 WordChar       ::= IdentifierChar | "." | "\" | "/" | ":" | "~" | "+" | "@" | "%" | "-" | "*"
 Space          ::= " " | HT
 ```
@@ -35,6 +35,14 @@ widening it is a language change.
 
 `*` is a word character so that `like` takes a glob without quotes:
 `where $row.name like *.txt`. Nothing else in the grammar uses it.
+
+`@` starts a word as well as continuing one
+([decision 0050](../decisions/0050-at-names-are-words-and-columns.md)), so a column that
+[`pick`](command-catalogue.md#picking-elements) answers is written as it is shown:
+`select @tag`, `sort @children`. `echo @` writes `@`, `echo user@host` is one word, and
+a tag attribute's value may start with one: `<t a=@x/>`. Nothing else in the grammar
+begins with `@`. After a variable's stop, `@` belongs to the member
+([Tokens](#tokens)), which is read before any word could be.
 
 Every other printable character — `=`, `,`, `?`, `!`, `#`, `;`, `'`, the brackets and
 the quote — is outside both sets, so a word ends in front of it.
@@ -75,7 +83,7 @@ Word              ::= ( WordStart | "-" &Digit ) ( WordChar | "/" !( ">" | "}" )
 Flag              ::= "-" !Digit IdentifierChar+
 Digit             ::= "0".."9"
 VariableReference ::= "$" Identifier MemberName*
-MemberName        ::= "." Identifier
+MemberName        ::= "." "@"? Identifier
 ReservedWord      ::= "and" | "or" | "not" | "eq" | "ne" | "gt" | "ge" | "lt" | "le"
                     | "like" | "has" | "else" | "try"
 StringLiteral     ::= '"""' StringBody '"""'
@@ -151,6 +159,25 @@ explanation **should** say what belongs there. The reference implementation says
 `a column name belongs after the stop, as in $row.kind`, so `ls | where $row.` fails at
 column 16 rather than reaching `where` with a path called `.`. A member may be all
 digits, like any identifier: `$x.1` reads a member named `1`.
+
+A member's name **may** begin with `@`, which marks one of a tag's own parts rather than
+an attribute: `$v.@tag` and `$v.@children`
+([decision 0048](../decisions/0048-a-tags-own-parts-are-read-with-at.md)). The `@` is part
+of the member's name, so the tree, the tokens and the evaluator all see `@tag`, and
+re-serialising writes `.@tag` back. Any identifier may follow it: `$v.@other` parses, and
+what it reads is [execution](execution-model.md#evaluating-a-written-value). Members of
+both forms chain, `$d.@children.@tag.x`, and an `@` member may stand in a comparison,
+`where $row.@tag eq book`, or begin a value stage, `$v.@children | count`. An attribute
+name is an `Identifier`, in the tag notation as in XML, so no attribute can be written
+with a name that begins with `@`.
+
+The `@` commits as the stop does. Once a `MemberName` has read `.@`, an `Identifier`
+**must** follow, or the parse **must** fail where the name should have been; the
+explanation **should** say what belongs there. The reference implementation says
+`a name belongs after the @, as in $v.@tag`, so `echo $v.@` and `echo $v.@ x` both fail
+at column 9. A stop with nothing after it keeps its own explanation and its one expected
+symbol, `column name`. The form is the combinator parser's only; the retained GOLD
+grammar has no member access at all.
 
 A `CommandName` is one token, and appears in exactly two places: the name of a CLI
 expression and the name of a function expression. The hyphen **must** be adjacent to an
@@ -365,9 +392,9 @@ A failed parse **must** produce one of:
 
 The explanation is a sentence the grammar supplies when it knows *why* the input is
 wrong rather than only what could have appeared. The reference implementation gives one
-in four cases: a reserved word used as an argument, a reserved word used as a command
-name, a stop after a variable with no name after it, and a comparison operator with
-nothing to compare with. A host **should** show the explanation in preference to the
+in five cases: a reserved word used as an argument, a reserved word used as a command
+name, a stop after a variable with no name after it, an `@` after a variable's stop with
+no name after it, and a comparison operator with nothing to compare with. A host **should** show the explanation in preference to the
 expected symbols when there is one, and **should** say the expected symbols in words
 rather than as labels (see
 [Parse response](host-interfaces.md#parse-response)).
@@ -414,6 +441,8 @@ A closing tag whose type differs from its opening tag **must** fail with the mes
 | `$v x` | Syntax error at column 3, expecting `end of input`, `??`, `else`, `\|` |
 | `$row.` | Syntax error at column 5: `a column name belongs after the stop, as in $row.kind` |
 | `ls \| where $row.` | Syntax error at column 16, with the same explanation |
+| `echo $v.@` | Syntax error at column 9: `a name belongs after the @, as in $v.@tag` |
+| `echo $v.@ x` | Syntax error at column 9, with the same explanation |
 | `ls \| where $row.kind eq` | Syntax error at column 23: `eq needs a value to compare with, such as folder` |
 | `ls \| where $row.size gt` | Syntax error at column 23: `gt needs a value to compare with, such as 10` |
 | `ls \| where $row.name like` | Syntax error at column 25: `like needs a value to compare with, such as "*.txt"` |

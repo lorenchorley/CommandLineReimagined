@@ -373,7 +373,7 @@ is `Unknown`.
 | `Blank` | The line is empty or white space. | Nothing. The page shows its suggestion chips instead. |
 | `CommandName` | Where a stage's command is named: the head of a line, after `\|`, `else`, `try` or `(`. | The commands whose name starts with the word, each with its description as the detail. From three letters, also the commands with a keyword that starts with the word, detail `rm · matches "delete"`, and then the names one edit away from the word, two for a word longer than four letters, each with its description. A word of one or two letters also finds a command it is a keyword of by the rule [Resolving a command](execution-model.md#resolving-a-command) gives, its first keyword and nobody else's, so `cd` offers `in · matches "cd"` and `up` offers `out · matches "up"`, while `by`, a keyword of both `sort` and `group`, offers neither. Then `clear`, which the page handles, and the keyword `try`. After a pipe, only the commands with a parameter that takes the pipe, and not `clear`. When the stages before it were previewed and answered a table, not the commands whose piped parameters all take a `Path` or a `Place` either: `ls \| ` offers no `read`, `rm` or `in`, and `echo readme.txt \| ` offers all three. A line that could not be previewed keeps them. |
 | `Variable` | `$` or `<$` and the start of a name. | The variables in scope whose name starts with what is written, ordered by name, each with its [summary](#a-value-in-one-line) as the detail, with the sigil written. Inside an argument handed to a *predicate* parameter, `$row` first, detail `the row being tested`; anywhere else `$row` **must not** be offered. |
-| `Member` | After `$name.`, and after any members written after it. | The members of what the variable holds, the written members read first: a tag's attributes and a file's `name`, `kind`, `folder`, `path` and `id`, each with its summary; a fault's `kind`, `message`, `stage` and `path`, and `cause` when it has one. A number, a text, a boolean, a table and anything else have none; a table's columns are read off a row, through `$row.`. For `$row`, the columns of [what flows into the stage](#what-flows-into-a-stage), or of a listing of the current folder outside a stage, and after `$row.column.` the members of that column's value in the first row that has one. Each item is the whole word, `$row.kind`. |
+| `Member` | After `$name.`, and after any members written after it. | The members of what the variable holds, the written members read first: a tag's attributes, then its own parts `@tag`, detail `the tag's name`, and `@children`, detail `its children` ([decision 0048](../decisions/0048-a-tags-own-parts-are-read-with-at.md)), each name once, so a row with an `@tag` column offers the column with its summary; a file's `name`, `kind`, `folder`, `path` and `id`, each with its summary; a fault's `kind`, `message`, `stage` and `path`, and `cause` when it has one. A number, a text, a boolean, a table and anything else have none; a table's columns are read off a row, through `$row.`. For `$row`, the columns of [what flows into the stage](#what-flows-into-a-stage), or of a listing of the current folder outside a stage, and after `$row.column.` the members of that column's value in the first row that has one. Each item is the whole word, `$row.kind`, and is matched by prefix, so `$v.@` leaves only `@tag` and `@children` on a tag. A list, `$v.@children` included, has no members. |
 | `Argument`, a parameter | An argument that would bind to a declared parameter. | By what the parameter [takes](#what-a-parameter-takes), with `\|` first or alone where the stage could be complete ([The pipe first](#the-pipe-first)). |
 | `Argument`, a flag | A word that starts with `-`. | `-name` for each parameter of kind `Single` that is optional or a switch, does not take the pipe and is not already written, the flag's own name where it declares one, each with its description. |
 | `Argument`, an assignment | A plain word past the positional parameters of a command with an *assignments* parameter. | For `attr`, the attributes of the record its first plain argument names, as `name=`: its own attributes, then `name` and `kind`, leaving out `folder`, `created`, `modified` and `size` and those already assigned on the line, each with the summary of its value. Nothing once `name=` is written. |
@@ -443,6 +443,7 @@ parameter's.
 | `VariableName` | The variables in scope, without the `$`, each with its summary. |
 | `CommandName` | The commands, each with its description. |
 | `Value` | The variables in scope, with the `$`, each with its summary. |
+| `Selector` | The distinct element names of what flows into the stage, read as [`pick`](command-catalogue.md#what-it-reads) would read it, in document order, each element counted once as `pick` counts it, with how many elements have the name as the detail, `2 elements` or `1 element`. Only where the part of the selector being written is a plain name: the whole word, or what follows its last space, `>` or `,`, and only when that is empty or could be a name; not inside `[`, and not straight after `]` or `*`. The item keeps what is written before that part and replaces the rest, `"book > author"` for `"book > a`, and is quoted when the word is. A name a selector cannot write, such as one with a `:`, is not offered. Nothing at the head of a line, where nothing flows in, and nothing when what flows in is not something `pick` reads or could not be learned. |
 | `Count`, `Number`, `NewName`, `Text`, `Url` | Nothing. The signature says what is wanted. |
 
 `Anything` is the default, so a parameter that declares nothing is offered files and
@@ -485,6 +486,12 @@ follows, and **must** answer rather than fail whenever it cannot:
   that is not table-shaped, has no columns.
 - A refusal, a fault, an unset variable at the head, a missed budget and a cancellation
   all answer the current folder's listing columns, with no rows.
+- Beside its columns and rows, the answer keeps the value the upstream answered, or the
+  variable read, whatever it was (`Shape.Value`), for a place that reads more than a
+  table: a selector's element names come from a tree that has no columns at all
+  ([decision 0049](../decisions/0049-pick-selects-elements-with-css-selectors.md)). The
+  value is carried, not compared: two answers with the same columns and rows are equal.
+  The listing's columns, answered when nothing was run or read, keep no value.
 
 The budget is 150 milliseconds from the start of the run. A run that waits on
 something is answered for with the listing's columns when the budget is spent. It is
@@ -556,7 +563,7 @@ case a host shows the token's grammar role.
 | The token | `kind` | `detail` | `signature` |
 | --- | --- | --- | --- |
 | A variable | `variable` | Its summary, or `not set`. `$row` is `the row being tested` inside a predicate, and `the row a predicate is testing, only inside where, find, in and save-view` anywhere else. | none |
-| A member | `member` | For `$row.column`, `column · <type>` from what flows into the stage. For another variable, a table's column as `column · <type>`, or the summary of the member read, and none when there is no such member. | none |
+| A member | `member` | For `$row.column`, `column · <type>` from what flows into the stage. For another variable, a table's column as `column · <type>`, or the summary of the member read, and none when there is no such member. `@tag` and `@children` on a tag say what they read before what it is: `the tag's name · text · "thing"`, `its children · list · 0 items` ([decision 0048](../decisions/0048-a-tags-own-parts-are-read-with-at.md)); any other `@` member that reads nothing has no detail. | none |
 | A command's name | `command` | The command's description. | The command's, with nothing active. |
 | An operator in a predicate | `operator` | `and`: `true when both sides are true`; `or`: `true when either side is true`; `not`: `true when what follows is false`; a comparison: `true when <left> <meaning> <right>`, with `the value before it` or `the value after it` for a side that is not there. | none |
 | A flag | `flag` | `<parameter> · <description>` of the parameter it names. | The command's, with that parameter active. |
@@ -678,8 +685,8 @@ true when the log was emptied while the line ran; numbers start again after it, 
 host **must** forget the ones it remembered. A refresh's `changes` is always empty.
 
 `result` is the value flattened for display. Kinds are `file`, `folder`, `object`,
-`component`, `number`, `boolean`, `none`, `table`, `query`, `fault` and `text`. A list flattens
-into its items. `path` is present only for files, and is the value's argument string,
+`component`, `number`, `boolean`, `none`, `table`, `query`, `fault` and `text`, and `list`
+for a table cell that holds one (below). A list flattens into its items. `path` is present only for files, and is the value's argument string,
 so inserting it into a line resolves. `resultText` is the value's display string.
 
 A table is one item and keeps its shape, with `columns` and `rows` beside its `text`:
@@ -703,7 +710,21 @@ A host **must** draw it differently from a failed line, because the line did not
 
 A column's `type` is `text`, `number`, `boolean`, `file`, `object` or `mixed`. Each
 cell **must** be described by the same rules as a standalone value, so a file in a
-listing still carries its path.
+listing still carries its path, with one exception: a cell holding a list is one item of
+kind `list`, never its items, whose `text` is the summary the core's table text gives
+it, `2 children`, `1 child`, `3 items`, `1 item`, or empty for an empty list
+([Displaying a table](execution-model.md#displaying-a-table),
+[decision 0051](../decisions/0051-a-list-in-a-table-cell-is-summarised.md)). A list of one
+is still a list, not that one item. The rows of `$d | pick "*"`, with
+`$d` set to `<library><book title=dune><author name=herbert/></book><shelf/></library>`,
+end in these `@children` cells, one per row:
+
+```json
+{"kind":"list","text":"2 children","path":null,"columns":null,"rows":null,"faultKind":null}
+{"kind":"list","text":"1 child","path":null,"columns":null,"rows":null,"faultKind":null}
+{"kind":"list","text":"","path":null,"columns":null,"rows":null,"faultKind":null}
+{"kind":"list","text":"","path":null,"columns":null,"rows":null,"faultKind":null}
+```
 
 `error` carries a user-facing sentence, or null. For a line that does not parse it is
 the parse error's `sentence`; otherwise it is the fault's message. `fault` carries the
@@ -793,6 +814,19 @@ and for `ls | sort name d`:
 
 ```json
 {"items":[{"kind":"keyword","text":"desc","start":15,"end":16,"detail":"Write 'desc' to order downwards"}],"signature":{"command":"sort","description":"Order the rows by a column","parameters":[{"name":"column","optional":false,"description":"The column to order by"},{"name":"desc","optional":true,"description":"Write 'desc' to order downwards"},{"name":"table","optional":true,"description":"The table to work on; taken from the pipe when it is not written"}],"active":1}}
+```
+
+for `echo $v.`, with `v` set to `<thing a=1/>`:
+
+```json
+{"items":[{"kind":"member","text":"$v.a","start":5,"end":8,"detail":"number · 1"},{"kind":"member","text":"$v.@tag","start":5,"end":8,"detail":"the tag's name"},{"kind":"member","text":"$v.@children","start":5,"end":8,"detail":"its children"}],"signature":null}
+```
+
+and for `$d | pick `, with `$d` the library of the
+[command catalogue](command-catalogue.md#picking-elements):
+
+```json
+{"items":[{"kind":"value","text":"library","start":10,"end":10,"detail":"1 element"},{"kind":"value","text":"book","start":10,"end":10,"detail":"2 elements"},{"kind":"value","text":"author","start":10,"end":10,"detail":"2 elements"},{"kind":"value","text":"shelf","start":10,"end":10,"detail":"1 element"}],"signature":{"command":"pick","description":"Answer a table of every element a CSS selector matches, such as book or \"book > author\"","parameters":[{"name":"selector","optional":false,"description":"A CSS selector: names, *, [attribute] tests, a space, > and commas"},{"name":"document","optional":true,"description":"The tag, list of tags or table of elements to read; taken from the pipe"}],"active":0}}
 ```
 
 An item replaces the text from `start` to `end` with `text`. `kind` is one of `command`,
