@@ -226,7 +226,8 @@ reported, and answered on 2026-09-24:
 | 10.0 Foundation | orchestrator | merged | b3e8f9f |
 | A. Suggestions and fixes | stream agent | merged | 62ae118 |
 | Integration of A, B and C | orchestrator | merged | 197c76c |
-| Owner's answers (0045, 0046) | stream A, orchestrator | in progress | |
+| Owner's answers (0045, 0046) | stream A, orchestrator | merged | 2f2446a |
 | B. Empty answers | stream agent | merged | e0a1083 |
 | C. The page | stream agent | merged | 96b42b2 |
-| 10.9 docs, spec, verifier, republish | sub-agents, orchestrator | not started | |
+| 10.9 docs, spec | two sub-agents | in progress | |
+| 10.9 verifier, republish, As built | orchestrator | not started | |
