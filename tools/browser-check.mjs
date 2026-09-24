@@ -680,6 +680,242 @@ async function checkPhase9(page, note) {
   await page.fill('#cmd', '');
 }
 
+// ==== STUB: Phase 10's notes, until streams A and B are merged ======================
+//
+// The core on stream C's branch sends no notes for the two lines checkPhase10 draws, so
+// this adds to the real response exactly what A and B will send: `read notes` still
+// fails in the core, with the core's own message, and the stub adds A's suggestion;
+// `ls | where $row.kind eq foldr` still answers the core's empty table, and the stub
+// adds B's explanation, to that line's `Refresh` too, so a live listing keeps it. A
+// response that already has notes is left as it is, so once the core sends them the
+// stub stands aside, and checkPhase10 says so.
+//
+// To switch to the real lines: delete from this banner to the END STUB banner below,
+// and the one line `const stubbed = await stubNotes(page);` in checkPhase10 with the
+// `if (stubbed ...)` report that uses it. Nothing else refers to the stub.
+
+/** What A and B send for these lines: `when` says of which response ('error' or 'empty'). */
+const STUBBED_NOTES = [
+  { line: 'read notes', when: 'error',
+    notes: [{ kind: 'suggestion', text: 'Did you mean documents/notes.txt?', fixes: ['read documents/notes.txt'] }] },
+  { line: 'ls | where $row.kind eq foldr', when: 'empty',
+    notes: [{ kind: 'explanation', text: 'kind is folder or text', fixes: [] }] },
+];
+
+/** Wraps the page's Execute and Refresh so the lines above carry their notes. */
+async function stubNotes(page) {
+  return page.evaluate(stubs => {
+    window.__notesStubbed = [];
+    const real = DotNet.invokeMethodAsync.bind(DotNet);
+    DotNet.invokeMethodAsync = async (assembly, method, ...args) => {
+      const answer = await real(assembly, method, ...args);
+      if (method !== 'Execute' && method !== 'Refresh') return answer;
+
+      const stub = stubs.find(s => s.line === String(args[0] || '').trim());
+      if (!stub) return answer;
+
+      const response = JSON.parse(answer);
+      if (response.notes && response.notes.length) return answer;
+
+      const empty = !response.error &&
+        (response.result || []).some(item => item.kind === 'table' && !(item.rows || []).length);
+      if (stub.when === 'error' ? !response.error : !empty) return answer;
+
+      response.notes = stub.notes;
+      window.__notesStubbed.push(stub.line);
+      return JSON.stringify(response);
+    };
+    return true;
+  }, STUBBED_NOTES);
+}
+
+// ==== END STUB ========================================================================
+
+/**
+ * Phase 10, the page (stream C): G3's page side and G4, in a fresh store at `/`.
+ *
+ * A note is drawn under the answer or the error it is about, labelled with its kind; a
+ * fix is a chip that puts the corrected line in the input and runs nothing; a live
+ * listing's refresh redraws its notes with it; and every note, the guide, the banner
+ * and `copied` are drawn in the one guidance style, which no result or error has.
+ */
+async function checkPhase10(page, note) {
+  const lastId = () => page.evaluate(() => Number(document.body.dataset.finished || 0));
+  const entry = id => page.locator(`.entry[data-id="${id}"]`);
+  const value = () => page.evaluate(() => document.getElementById('cmd').value);
+  const focused = () => page.evaluate(() => document.activeElement === document.getElementById('cmd'));
+  const entries = () => page.locator('.entry').count();
+
+  const stubbed = await stubNotes(page);
+
+  // ---- a suggestion under the error, and its fix as a chip -----------------------
+
+  const missing = await submit(page, 'read notes');
+  const missingId = await lastId();
+  if (missing.fault !== 'notfound') note(`'read notes' failed as ${JSON.stringify(missing.fault)}, not 'notfound'`);
+  if (!missing.text.includes('File does not exist : /notes')) note(`'read notes' did not show its fault: ${JSON.stringify(missing.text)}`);
+
+  const suggestion = entry(missingId).locator('.tail > .err + .aside.note[data-kind="suggestion"]');
+  if (await suggestion.count() !== 1) {
+    note(`'read notes' drew no suggestion under its error. It showed: ${JSON.stringify(missing.text)}`);
+  } else {
+    const label = (await suggestion.locator('.label').innerText()).trim();
+    const said = (await suggestion.locator('.said').innerText()).trim();
+    const fixes = await suggestion.locator('.fix').allInnerTexts();
+    if (label !== 'did you mean') note(`the suggestion is labelled ${JSON.stringify(label)}, not 'did you mean'`);
+    if (said !== 'Did you mean documents/notes.txt?') note(`the suggestion says ${JSON.stringify(said)}`);
+    if (fixes.join('|') !== 'read documents/notes.txt') note(`the suggestion offers the chips ${JSON.stringify(fixes)}`);
+    const error = (await entry(missingId).locator('.tail .err').innerText()).trim();
+    if (/did you mean/i.test(error)) note(`the error still carries the suggestion: ${JSON.stringify(error)}`);
+    const box = await suggestion.locator('.fix').first().boundingBox();
+    if (!box || box.height < 44) note(`a fix chip is ${box ? box.height : 'not'} pixels tall; 44 is the minimum tap target`);
+  }
+
+  // ---- tapping the chip fills the input and runs nothing -----------------------------
+
+  const chip = entry(missingId).locator('.aside.note .fix', { hasText: 'read documents/notes.txt' }).first();
+  if (await chip.count() === 1) {
+    const ranBefore = await lastId(), shownBefore = await entries();
+
+    // With the keyboard down it stays down, and the caret is at the end once it opens.
+    await page.fill('#cmd', '');
+    await page.evaluate(() => document.getElementById('cmd').blur());
+    await chip.tap();
+    if (await value() !== 'read documents/notes.txt') note(`tapping the fix made the line ${JSON.stringify(await value())}`);
+    if (await focused()) note('tapping a fix with the keyboard down brought it up');
+    await page.focus('#cmd');
+    await page.keyboard.type('X');
+    if (await value() !== 'read documents/notes.txtX') {
+      note(`typing once the line had the focus after a fix made it ${JSON.stringify(await value())}; the caret was not at its end`);
+    }
+
+    // With the keyboard up it stays up; the fix replaces what was typed, caret at its end.
+    await page.fill('#cmd', 'something typed');
+    await page.evaluate(() => {
+      window.__fixBlurs = 0;
+      document.getElementById('cmd').addEventListener('blur', () => { window.__fixBlurs++; });
+    });
+    await chip.tap();
+    if (await value() !== 'read documents/notes.txt') note(`tapping the fix over a typed line made it ${JSON.stringify(await value())}`);
+    if (await page.evaluate(() => window.__fixBlurs) > 0 || !await focused()) note('tapping a fix with the keyboard up closed it');
+    const caret = await page.evaluate(() => {
+      const cmd = document.getElementById('cmd');
+      return [cmd.selectionStart, cmd.selectionEnd];
+    });
+    if (caret[0] !== 'read documents/notes.txt'.length || caret[1] !== caret[0]) note(`after tapping a fix the caret is at ${JSON.stringify(caret)}`);
+    await page.keyboard.type('Y');
+    if (await value() !== 'read documents/notes.txtY') note(`typing after tapping a fix made the line ${JSON.stringify(await value())}`);
+
+    await page.waitForTimeout(300);
+    if (await lastId() !== ranBefore || await entries() !== shownBefore) note('tapping a fix ran a line');
+    await page.fill('#cmd', '');
+  }
+
+  // ---- an explanation under an empty answer, redrawn with a live listing ------------------
+
+  const where = 'ls | where $row.kind eq foldr';
+  const empty = await submit(page, where);
+  const emptyId = await lastId();
+  if (empty.fault !== null) note(`'${where}' failed (${empty.fault}): ${JSON.stringify(empty.text)}`);
+
+  const explanation = () => entry(emptyId).locator('.tail > .grid + .aside.note[data-kind="explanation"]');
+  if (await explanation().count() !== 1) {
+    note(`'${where}' drew no explanation under its table. It showed: ${JSON.stringify(empty.text)}`);
+  } else {
+    const label = (await explanation().locator('.label').innerText()).trim();
+    const said = (await explanation().locator('.said').innerText()).trim();
+    if (label !== 'why') note(`the explanation is labelled ${JSON.stringify(label)}, not 'why'`);
+    if (said !== 'kind is folder or text') note(`the explanation says ${JSON.stringify(said)}`);
+    if (await explanation().locator('.fix').count() !== 0) note('the explanation, which has no fixes, drew a chip');
+  }
+
+  // The listing is live. Something of kind `foldr` gives it a row, and the explanation,
+  // which was about the empty table, goes with the redraw; undone, both come back.
+  const badge = (await entry(emptyId).locator('.watch .badge').innerText().catch(() => '')).trim();
+  if (badge !== 'live') {
+    note(`'${where}' is not a live listing: its badge reads ${JSON.stringify(badge)}`);
+  } else {
+    const redrawn = (rows, notes) => page.waitForFunction(
+      ({ id, rows, notes }) => {
+        const tail = document.querySelector(`.entry[data-id="${id}"] .tail`);
+        return tail && tail.querySelectorAll('.grid tbody tr').length === rows &&
+               tail.querySelectorAll('.aside.note').length === notes;
+      },
+      { id: emptyId, rows, notes }, { timeout: 10000 }).then(() => true, () => false);
+
+    await submit(page, 'save <foldr name=probe/>');
+    if (!await redrawn(1, 0)) note(`after 'save <foldr name=probe/>' the live listing was not redrawn with one row and no note`);
+    await submit(page, 'undo');
+    if (!await redrawn(0, 1)) note(`after undoing the save the live listing was not redrawn empty with its explanation`);
+  }
+
+  // ---- one guidance style, and output keeps its own ----------------------------------
+
+  // The guide under a call made wrongly (Phase 9's stub supplies it until the core does).
+  await submit(page, 'read');
+
+  const styles = await page.evaluate(() => {
+    const read = element => {
+      const s = getComputedStyle(element);
+      return {
+        what: element.id ? `#${element.id}` : element.className,
+        font: s.fontFamily,
+        // The accent is the left edge; the rest of the panel's border is the top's.
+        left: `${s.borderLeftStyle} ${s.borderLeftWidth} ${s.borderLeftColor}`,
+        border: `${s.borderLeftStyle} ${s.borderLeftWidth} ${s.borderLeftColor} / ${s.borderTopStyle} ${s.borderTopWidth} ${s.borderTopColor}`,
+      };
+    };
+    const outside = selector => [...document.querySelectorAll(selector)].filter(element => !element.closest('.aside'));
+    return {
+      guidance: [
+        ...document.querySelectorAll('.entry .aside.note'),
+        ...document.querySelectorAll('.entry .aside.guide'),
+        document.getElementById('banner'),
+        document.getElementById('copied'),
+      ].filter(Boolean).map(read),
+      notes: document.querySelectorAll('.entry .aside.note').length,
+      guides: document.querySelectorAll('.entry .aside.guide').length,
+      banner: !!document.getElementById('banner'),
+      copied: !!document.getElementById('copied'),
+      output: [
+        ...outside('.entry .tail .grid table'),
+        ...outside('.entry .tail .err'),
+        ...outside('.entry .tail div.text'),
+        ...outside('.entry .live .out'),
+      ].map(element => ({ ...read(element), aside: element.classList.contains('aside') })),
+      tables: outside('.entry .tail .grid table').length,
+      errors: outside('.entry .tail .err').length,
+    };
+  });
+
+  if (styles.notes < 2 || !styles.guides || !styles.banner || !styles.copied) {
+    note(`not every kind of guidance was on the page to compare: ${JSON.stringify(
+      { notes: styles.notes, guides: styles.guides, banner: styles.banner, copied: styles.copied })}`);
+  }
+  if (!styles.tables || !styles.errors) note(`no result table or no error was on the page to compare: ${styles.tables} table(s), ${styles.errors} error(s)`);
+
+  const [look] = styles.guidance;
+  if (look) {
+    if (/mono/i.test(look.font)) note(`guidance is drawn in the terminal's face: ${look.font}`);
+    for (const other of styles.guidance) {
+      if (other.font !== look.font || other.border !== look.border) {
+        note(`'${other.what}' is not in the guidance style: ${other.font}, ${other.border}; ` +
+             `'${look.what}' is ${look.font}, ${look.border}`);
+      }
+    }
+    for (const output of styles.output) {
+      if (output.aside || output.font === look.font || output.left === look.left) {
+        note(`output '${output.what}' has the guidance style: ${output.font}, ${output.border}`);
+      }
+    }
+  }
+
+  if (stubbed) {
+    const from = await page.evaluate(() => window.__notesStubbed);
+    console.log(from.length ? `  Notes stubbed for: ${[...new Set(from)].join(', ')}.` : '  The notes came from the core.');
+  }
+}
+
 /** The chips in the completion row, in order. */
 const chips = page => page.locator('#complete .key:not(.more)').allInnerTexts();
 
@@ -1206,6 +1442,12 @@ async function main() {
     await submit(page, 'reset');
     await checkPhase9(page, note);
     console.log('Checked Phase 9: live listings, copying, the guide, the history buttons and the palette caret.');
+
+    // ---- Phase 10: notes, fixes and the one guidance style --------------------
+
+    await submit(page, 'reset');
+    await checkPhase10(page, note);
+    console.log('Checked Phase 10: a suggestion and its fix chip, an explanation kept by a live listing, the guidance style.');
 
     // ---- On a phone: nothing moves, opens or closes on its own ----------------
 

@@ -91,6 +91,20 @@
   .aside div.text { font-family:var(--ui); border-left-color:var(--aside-line); padding:2px 0 2px 8px; }
   .aside .grid th, .aside .grid td { border-bottom-color:var(--aside-line); }
   .aside .problem { color:var(--bad); font-weight:600; }
+  /*
+    A note (decision 0041): what the terminal says about a line of its own accord, a
+    suggestion or the reason an answer is empty, under the answer or the error. Each fix
+    it offers is a whole corrected line (0044), drawn as a chip that puts the line in the
+    input; it is a line of the language, so it is set in the terminal's face, as a
+    `code` is inside a panel, and 44 pixels tall like every tap target.
+  */
+  .aside .fixes { display:flex; flex-wrap:wrap; gap:5px; margin-top:6px; }
+  .aside .fix {
+    font:12px ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-weight:400;
+    min-height:44px; padding:0 12px; border-radius:6px; text-align:left;
+    border:1px solid var(--aside-line); background:var(--panel); color:var(--fg);
+    overflow-wrap:anywhere; white-space:normal;
+  }
   #banner { margin:0 0 10px; }
   /* Over the foot of the scrollback, so it moves nothing; it fades on its own. */
   #pane { flex:1; min-height:0; position:relative; display:flex; flex-direction:column; }
@@ -567,6 +581,27 @@ function guideHtml(guide) {
   return `<div class="aside guide"><span class="label">help</span>${itemsHtml(guide)}</div>`;
 }
 
+/// What each kind of note is labelled with: the question it answers. A kind the page
+/// does not know yet is labelled with its own name rather than dropped.
+const NOTE_LABELS = { suggestion: 'did you mean', explanation: 'why' };
+
+/// The notes a line's response carries (decision 0041): each a panel in the terminal's
+/// own style, under the answer or the error and above any guide, with a chip for every
+/// fix it offers. A fix is a whole corrected line (0044): tapping it puts that line in
+/// the input and runs nothing (see the click handler).
+function notesHtml(notes) {
+  return (notes || []).map(note => {
+    const kind = String(note.kind || '');
+    const fixes = (note.fixes || []).map(line =>
+      `<button class="fix" data-line="${escape(line)}">${escape(line)}</button>`).join('');
+    return `<div class="aside note" data-kind="${escape(kind)}">` +
+      `<span class="label">${escape(NOTE_LABELS[kind] || kind || 'note')}</span>` +
+      `<span class="said">${escape(String(note.text || ''))}</span>` +
+      (fixes ? `<div class="fixes">${fixes}</div>` : '') +
+      `</div>`;
+  }).join('');
+}
+
 /// A fault that `try` or `else` made into a value (Phase 5). It reads like the failure
 /// it was, because it is that failure, and looks unlike one, because the line did not
 /// stop: the kind is the word `$problem.kind` would read, so what is on screen is what a
@@ -716,10 +751,12 @@ function finishEntry(entry, r) {
   entry.classList.remove('running');
   entry.querySelector('.live').innerHTML = linesHtml(r.output);
 
+  // The answer or the error first, then what the terminal says about it, then how the
+  // command is called when it was called wrongly.
   let tail = '';
   if (r.error === 'Stopped.') tail = `<div class="stopped">${escape(r.error)}</div>`;
-  else if (r.error) tail = faultHtml(r) + guideHtml(r.guide);
-  else tail = itemsHtml(r.result);
+  else if (r.error) tail = faultHtml(r) + notesHtml(r.notes) + guideHtml(r.guide);
+  else tail = itemsHtml(r.result) + notesHtml(r.notes);
 
   entry.querySelector('.tail').innerHTML = tail;
   toEnd();
@@ -829,12 +866,16 @@ function isListing(text) {
   return listings.includes(text.trim().split(/[\s|]/)[0]);
 }
 
-function markLive(entry, source, result) {
+/// What a listing answered, as compared from one refresh to the next: its result and
+/// the notes about it, since an explanation of an empty table goes when the table fills.
+const answerOf = r => JSON.stringify({ result: r.result || null, notes: r.notes && r.notes.length ? r.notes : null });
+
+function markLive(entry, source, response) {
   for (const other of watches) {
     if (other.on && !other.chosen) { other.on = false; drawWatch(other); }
   }
 
-  const watch = { entry, source, on: true, chosen: false, shown: JSON.stringify(result || null) };
+  const watch = { entry, source, on: true, chosen: false, shown: answerOf(response) };
   watches.add(watch);
   drawWatch(watch);
 }
@@ -884,13 +925,14 @@ async function refreshListing(watch) {
     const response = JSON.parse(await DotNet.invokeMethodAsync('WebClient', 'Refresh', watch.source));
     if (response.error || !watch.on || asked !== watch.asked || !watches.has(watch)) return;
 
-    const answer = JSON.stringify(response.result || null);
+    const answer = answerOf(response);
     if (answer === watch.shown) return;
     watch.shown = answer;
 
+    // The notes are redrawn with the table: they are about this answer, not the last.
     const tail = watch.entry.querySelector('.tail');
     forgetTables(tail);
-    tail.innerHTML = itemsHtml(response.result);
+    tail.innerHTML = itemsHtml(response.result) + notesHtml(response.notes);
 
     // A table that changed while you were reading it has to say so, or the numbers
     // just quietly disagree with what you remember.
@@ -1277,7 +1319,7 @@ async function run() {
       // The newest listing starts live, and only when it answered a table:
       // a failed `ls` has nothing to keep up to date.
       if (!result.error && isListing(text) && (result.result || []).some(item => item.kind === 'table')) {
-        markLive(entry, text, result.result);
+        markLive(entry, text, result);
       }
     }
   } catch (e) {
@@ -1484,6 +1526,16 @@ document.addEventListener('click', e => {
   const item = e.target.closest('.item');
   if (item) {
     insert(item.dataset.insert);
+    return;
+  }
+
+  // A fix is the whole corrected line (decision 0044). It replaces what is in the input,
+  // with the caret at its end, and is not run: the guess may be wrong, and the person
+  // runs it, or edits it first. Like a palette key, it leaves the keyboard as it was.
+  const fix = e.target.closest('.aside .fix');
+  if (fix) {
+    refocus();
+    setLine(fix.dataset.line);
   }
 });
 
