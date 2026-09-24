@@ -412,7 +412,7 @@ async function submit(page, line) {
 }
 
 /**
- * Phase 9, the page (stream C): R5, in a fresh store at `/`.
+ * Phase 9, the page (stream C): R5, R9 and R13, in a fresh store at `/`.
  *
  * R12, no title and no status at the top, is checked straight after the first boot.
  */
@@ -457,6 +457,94 @@ async function checkPhase9(page, note) {
   await submit(page, 'mkdir both-live');
   if (!await grows(older, olderNow)) note('with two listings live, the older did not gain a row for `mkdir both-live`');
   if (!await grows(newer, newerNow)) note('with two listings live, the newer did not gain a row for `mkdir both-live`');
+
+  // ---- R9 and R13: the guide under a call made wrongly -----------------------
+
+  // Stream B fills `guide`. Until its core is in, the response to `read` with no
+  // argument has none, so the check supplies what B will: the answer `help read` gives,
+  // asked through `Refresh`, which commits nothing. With B in, the real guide is drawn
+  // and this stands aside.
+  const stubbed = await page.evaluate(() => {
+    window.__guideStubbed = false;
+    const real = DotNet.invokeMethodAsync.bind(DotNet);
+    DotNet.invokeMethodAsync = async (assembly, method, ...args) => {
+      const answer = await real(assembly, method, ...args);
+      if (method !== 'Execute' || args[0] !== 'read') return answer;
+      const response = JSON.parse(answer);
+      if (response.guide && response.guide.length) return answer;
+      const help = JSON.parse(await real(assembly, 'Refresh', 'help read'));
+      response.guide = [...(help.output || []).map(text => ({ kind: 'text', text })), ...(help.result || [])];
+      window.__guideStubbed = true;
+      return JSON.stringify(response);
+    };
+    return true;
+  });
+
+  const wrong = await submit(page, 'read');
+  const wrongId = await lastId();
+  const helpNames = await page.evaluate(async () => {
+    const help = JSON.parse(await DotNet.invokeMethodAsync('WebClient', 'Refresh', 'help read'));
+    const table = (help.result || []).find(item => item.kind === 'table');
+    return table ? table.rows.map(row => row[0].text) : [];
+  });
+
+  if (wrong.fault !== 'binding') note(`'read' with no argument failed as ${JSON.stringify(wrong.fault)}, not 'binding'`);
+
+  const guide = entry(wrongId).locator('.tail .err + .aside.guide');
+  if (await guide.count() !== 1) {
+    note(`'read' with no argument drew no guide panel under its error. It showed: ${JSON.stringify(wrong.text)}`);
+  } else {
+    const label = (await guide.locator('.label').innerText()).trim();
+    const names = await guide.locator('.grid tbody tr td:first-child').allInnerTexts();
+    if (label !== 'help') note(`the guide panel is labelled ${JSON.stringify(label)}, not 'help'`);
+    if (!helpNames.length || names.join(' ') !== helpNames.join(' ')) {
+      note(`the guide under 'read' lists ${JSON.stringify(names)}; 'help read' answers ${JSON.stringify(helpNames)}`);
+    }
+
+    // It cannot be mistaken for output: a panel of its own with an accent border and
+    // background, in the interface's face, where a result is in the terminal's.
+    const style = await page.evaluate(id => {
+      const read = element => {
+        const s = getComputedStyle(element);
+        return { font: s.fontFamily, background: s.backgroundColor, border: s.borderLeftWidth, line: s.borderLeftColor };
+      };
+      const panel = document.querySelector(`.entry[data-id="${id}"] .aside.guide`);
+      const listing = [...document.querySelectorAll('.entry .tail .grid')].find(grid => !grid.closest('.aside'));
+      return {
+        panel: read(panel),
+        panelCell: read(panel.querySelector('.grid td')),
+        result: read(listing.closest('.tail')),
+        resultCell: read(listing.querySelector('td')),
+      };
+    }, wrongId);
+
+    const clear = colour => colour === 'transparent' || colour === 'rgba(0, 0, 0, 0)';
+    if (/mono/i.test(style.panelCell.font) || !/mono/i.test(style.resultCell.font)) {
+      note(`the guide is drawn in ${JSON.stringify(style.panelCell.font)} and a result in ${JSON.stringify(style.resultCell.font)}`);
+    }
+    if (clear(style.panel.background) || style.panel.background === style.result.background) {
+      note(`the guide panel's background is ${style.panel.background}, a result's ${style.result.background}`);
+    }
+    if (parseFloat(style.panel.border) < 2 || clear(style.panel.line)) {
+      note(`the guide panel has no accent border: ${style.panel.border} ${style.panel.line}`);
+    }
+  }
+
+  if (stubbed && !await page.evaluate(() => window.__guideStubbed)) {
+    console.log('  The guide came from the core.');
+  }
+
+  // A fault raised while a command runs is not a call made wrongly: no help.
+  const missing = await submit(page, 'read missing.txt');
+  if (missing.fault !== 'notfound') note(`'read missing.txt' failed as ${JSON.stringify(missing.fault)}`);
+  if (await entry(await lastId()).locator('.aside.guide').count() > 0) note(`'read missing.txt' drew a guide`);
+
+  // The banner is the terminal's own words too, in the same kind of panel.
+  const banner = await page.evaluate(() => {
+    const b = document.getElementById('banner');
+    return b ? { aside: b.classList.contains('aside'), label: b.querySelector('.label')?.innerText.trim() } : null;
+  });
+  if (!banner || !banner.aside || banner.label !== 'note') note(`the banner is not a 'note' panel: ${JSON.stringify(banner)}`);
 
 }
 
@@ -983,7 +1071,7 @@ async function main() {
 
     await submit(page, 'reset');
     await checkPhase9(page, note);
-    console.log('Checked Phase 9: live listings.');
+    console.log('Checked Phase 9: live listings and the guide.');
 
     // ---- On a phone: nothing moves, opens or closes on its own ----------------
 
