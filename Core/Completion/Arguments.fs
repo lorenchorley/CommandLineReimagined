@@ -205,24 +205,128 @@ module ArgumentCompletion =
             |> List.map (fun (name, value) ->
                 Request.item request "member" (name + "=") |> Request.withDetail (Summary.ofValue value))
 
+    /// <summary>The pipe, as the chip that sends a stage's result on (decision 0039).</summary>
+    let pipe (request: Request) =
+        Request.item request "operator" "|" |> Request.withDetail "send the result on"
+
+    /// Whether a written argument is a plain one, which a flag before it takes as its value.
+    let private isPlain (argument: Tree.Argument) =
+        argument :? Tree.RequiredArgument || argument :? Tree.ArgumentValue
+
+    /// <summary>The parameters a stage could still take an argument for, and whether each needs one.</summary>
+    /// <remarks>
+    /// Counted the way the binder fills them, from what is written apart from the word
+    /// under the cursor: a flag or a `name:` argument fills its parameter, a flag takes
+    /// the plain word after it as its value, and each positional parameter in order takes
+    /// the next plain word. Two kinds are never full: a `Rest` parameter, which takes as
+    /// many as are written, and the collector of `name=value` pairs. A parameter that
+    /// takes the pipe is full when a stage before this one feeds it, since the binder
+    /// hands it the pipe.
+    ///
+    /// A parameter needs an argument when it is not optional, and a `Rest` parameter
+    /// with nothing written for it needs one too: it is declared optional because none
+    /// left is the empty list rather than a missing argument, and `select` with no
+    /// column is a fault.
+    /// </remarks>
+    let private stillTaking (stage: Stage) (spec: CommandSpec) : (Parameter * bool) list =
+        let written = named stage
+
+        let isNamed (parameter: Parameter) =
+            Set.contains (parameter.Name.ToLowerInvariant()) written
+            || Set.contains ((flagOf parameter).ToLowerInvariant()) written
+
+        let takesAValue (flag: Tree.Flag) =
+            spec.Parameters
+            |> List.exists (fun parameter ->
+                String.Equals(parameter.Name, flag.Name, StringComparison.OrdinalIgnoreCase)
+                || String.Equals(flagOf parameter, flag.Name, StringComparison.OrdinalIgnoreCase))
+
+        let rec positional (arguments: Tree.Argument list) count =
+            match arguments with
+            | (:? Tree.Flag as flag) :: next :: rest when takesAValue flag && isPlain next -> positional rest count
+            | argument :: rest when isPlain argument -> positional rest (count + 1)
+            | _ :: rest -> positional rest count
+            | [] -> count
+
+        let fed (parameter: Parameter) = parameter.AcceptsPipe && stage.Index > 0
+
+        let rec fill (parameters: Parameter list) remaining =
+            match parameters with
+            | [] -> []
+            | parameter :: rest when isNamed parameter -> fill rest remaining
+            | parameter :: rest when parameter.Kind = ParamKind.Rest -> (parameter, remaining = 0) :: fill rest 0
+            | _ :: rest when remaining > 0 -> fill rest (remaining - 1)
+            | parameter :: rest when fed parameter -> fill rest remaining
+            | parameter :: rest -> (parameter, not parameter.Optional) :: fill rest remaining
+
+        fill (CommandSpec.positional spec) (positional stage.Written 0)
+        @ (CommandSpec.assignmentParameter spec |> Option.map (fun parameter -> parameter, false) |> Option.toList)
+
+    /// <summary>Where the pipe comes, for an argument place (decision 0039).</summary>
+    /// <remarks>
+    /// Only where nothing of the word is written, and only for a command: a name that
+    /// is not one says nothing about what it takes. `None` while a required parameter
+    /// is still to be written, as `sort `'s column is, so what it takes is offered
+    /// alone. Otherwise `Some true` when the command has nothing left to take, as
+    /// `vars` never has anything, so the pipe is all there is to offer; and `Some false`
+    /// when it could take more, so the pipe comes first and what it could take follows.
+    /// </remarks>
+    let private pipePlace (request: Request) (stage: Stage) : bool option =
+        let word = request.Context.Word
+
+        match stage.Spec with
+        | Some spec when word.Prefix = "" && not word.Quoted ->
+            let open' = stillTaking stage spec
+
+            if open' |> List.exists snd then None else Some(List.isEmpty open')
+        | _ -> None
+
     /// <summary>What an argument could be.</summary>
     /// <remarks>
     /// By the slot, and for a parameter by what it `Takes`: columns for a column, the
     /// switch's words for a switch, nothing for a count. A word past what the command
-    /// takes is offered files, as it always was. `else` is offered wherever an
-    /// argument is written, once two letters of it are there.
+    /// takes is offered files, as it always was, when the name is not a command's.
+    /// `else` is offered wherever an argument is written, once two letters of it are
+    /// there. Before any of it, where the stage is complete and the word empty, comes
+    /// the pipe (decision 0039, `pipePlace`); a command with nothing left to take offers
+    /// the pipe and nothing else, never files.
     /// </remarks>
     let suggest (request: Request) (stage: Stage) (slot: Slot) : Async<Completion list> =
         async {
+            let! items =
+                async {
+                    match slot with
+                    | Slot.Flag -> return flags request stage
+                    // The value of `name=`: anything at all.
+                    | Slot.Assignment(Some _) -> return []
+                    | Slot.Assignment None -> return keywords request @ attributes request stage
+                    | Slot.Surplus -> return keywords request @ PathCompletion.suggest request false
+                    | Slot.Parameter parameter ->
+                        let! items = byTakes request stage parameter
+                        return keywords request @ items
+                }
+
             match slot with
-            | Slot.Flag -> return flags request stage
-            // The value of `name=`: anything at all.
-            | Slot.Assignment(Some _) -> return []
-            | Slot.Assignment None -> return keywords request @ attributes request stage
-            | Slot.Surplus -> return keywords request @ PathCompletion.suggest request false
-            | Slot.Parameter parameter ->
-                let! items = byTakes request stage parameter
-                return keywords request @ items
+            // The value after `name=` or `-flag` is still being written.
+            | Slot.Flag
+            | Slot.Assignment(Some _) -> return items
+            | _ ->
+                // `sort name -desc ` may be followed by the switch's value, which the
+                // flag written before the word would take: that is still something to
+                // take, so it follows the pipe rather than giving way to it.
+                let aFlagsValue =
+                    match slot with
+                    | Slot.Parameter parameter ->
+                        let written = named stage
+
+                        Set.contains (parameter.Name.ToLowerInvariant()) written
+                        || Set.contains ((flagOf parameter).ToLowerInvariant()) written
+                    | _ -> false
+
+                match pipePlace request stage with
+                | Some true when not aFlagsValue -> return [ pipe request ]
+                | Some _ -> return pipe request :: items
+                | None -> return items
         }
 
     /// <summary>The signature of the command the cursor is in, if it is in one.</summary>

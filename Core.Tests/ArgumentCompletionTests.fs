@@ -187,8 +187,13 @@ type ArgumentCompletionTests() =
 
         Assert.AreEqual<string list>([ "name"; "kind"; "folder"; "size"; "modified" ], texts harness "ls | sort ")
 
-        for line in [ "select "; "ls | select "; "group "; "ls | group "; "distinct "; "ls | distinct " ] do
+        for line in [ "select "; "ls | select "; "group "; "ls | group " ] do
             Assert.AreEqual<string list>([ "name"; "kind"; "folder"; "size"; "modified" ], texts harness line, line)
+
+        // `distinct`'s column is optional, so the stage is complete and the pipe comes
+        // first (decision 0039).
+        for line in [ "distinct "; "ls | distinct " ] do
+            Assert.AreEqual<string list>([ "|"; "name"; "kind"; "folder"; "size"; "modified" ], texts harness line, line)
 
     [<TestMethod>]
     member _.AColumnSaysItsType() =
@@ -245,7 +250,7 @@ type ArgumentCompletionTests() =
 
         Assert.AreEqual<string list>([ "desc" ], texts harness "ls | sort name d")
         Assert.AreEqual<string list>([ "asc" ], texts harness "ls | sort name a")
-        Assert.AreEqual<string list>([ "desc"; "asc" ], texts harness "ls | sort name ")
+        Assert.AreEqual<string list>([ "|"; "desc"; "asc" ], texts harness "ls | sort name ")
 
     [<TestMethod>]
     member _.ASwitchWordIsAKeywordWithWhatItDoes() =
@@ -263,15 +268,23 @@ type ArgumentCompletionTests() =
     member _.ACountOffersNothing() =
         let harness = seeded ()
 
-        for line in [ "ls | take "; "ls | skip "; "take "; "progress "; "progress 5 " ] do
+        for line in [ "ls | take "; "ls | skip "; "take " ] do
             Assert.AreEqual<string list>([], texts harness line, line)
+
+        // `progress`'s numbers are both optional: only the pipe (decision 0039).
+        for line in [ "progress "; "progress 5 " ] do
+            Assert.AreEqual<string list>([ "|" ], texts harness line, line)
 
     [<TestMethod>]
     member _.ANewNameATextAndAUrlOfferNothing() =
         let harness = seeded ()
 
-        for line in [ "mkdir "; "mkdir d"; "save-view "; "download "; "from-csv readme.txt " ] do
+        for line in [ "mkdir "; "mkdir d"; "save-view " ] do
             Assert.AreEqual<string list>([], texts harness line, line)
+
+        // Optional, so the stage is complete: only the pipe (decision 0039).
+        for line in [ "download "; "from-csv readme.txt " ] do
+            Assert.AreEqual<string list>([ "|" ], texts harness line, line)
 
     /// Nothing to pick is where the signature earns its keep: it says what is wanted.
     [<TestMethod>]
@@ -327,7 +340,8 @@ type ArgumentCompletionTests() =
         Assert.AreEqual<string list>([ "$v" ], texts harness "set x ")
         Assert.AreEqual<string list>([ "$v" ], texts harness "echo ")
         Assert.AreEqual<string list>([ "$v" ], texts harness "echo v")
-        Assert.AreEqual<string list>([ "$v" ], texts harness "sort name desc ")
+        // The table is optional, and nothing feeds it at the head of a line.
+        Assert.AreEqual<string list>([ "|"; "$v" ], texts harness "sort name desc ")
         Assert.AreEqual<string option>(Some(Summary.ofValue (Value.Number 5.0)), (items harness "echo ").Head.Detail)
 
     // ------------------------------------------------------- 16: predicates
@@ -364,14 +378,15 @@ type ArgumentCompletionTests() =
     member _.AnAssignmentOffersTheRecordsAttributes() =
         let harness = seeded ()
 
-        Assert.AreEqual<string list>([ "name="; "kind=" ], texts harness "attr readme.txt ")
+        // `attr readme.txt` alone answers its attributes, so the pipe comes first.
+        Assert.AreEqual<string list>([ "|"; "name="; "kind=" ], texts harness "attr readme.txt ")
 
     [<TestMethod>]
     member _.AnAssignmentOffersAttributesAUserSet() =
         let harness = seeded ()
         harness.Run "attr readme.txt mood=good" |> ignore
 
-        Assert.AreEqual<string list>([ "mood="; "name="; "kind=" ], texts harness "attr readme.txt ")
+        Assert.AreEqual<string list>([ "|"; "mood="; "name="; "kind=" ], texts harness "attr readme.txt ")
         Assert.AreEqual<string list>([ "mood=" ], texts harness "attr readme.txt mo")
 
         match items harness "attr readme.txt mo" with
@@ -385,7 +400,7 @@ type ArgumentCompletionTests() =
         let harness = seeded ()
         let offered = texts harness "attr documents/notes.txt name=x "
 
-        Assert.AreEqual<string list>([ "kind=" ], offered)
+        Assert.AreEqual<string list>([ "|"; "kind=" ], offered)
 
         for owned in [ "folder="; "created="; "modified="; "size=" ] do
             assertDoesNotContain owned (texts harness "attr readme.txt ")
@@ -394,7 +409,7 @@ type ArgumentCompletionTests() =
     member _.AnAssignmentToNothingOffersNothing() =
         let harness = seeded ()
 
-        Assert.AreEqual<string list>([], texts harness "attr missing.txt ")
+        Assert.AreEqual<string list>([ "|" ], texts harness "attr missing.txt ")
 
     [<TestMethod>]
     member _.AnAssignmentIsMarkedInTheSignature() =
@@ -580,7 +595,7 @@ type ArgumentCompletionTests() =
         let harness = seeded ()
         harness.Run "save-view weekend $row.kind eq folder" |> ignore
 
-        Assert.AreEqual<string list>([ "documents/"; "examples/"; "guide/"; "projects/"; "weekend" ], texts harness "ls ")
+        Assert.AreEqual<string list>([ "|"; "documents/"; "examples/"; "guide/"; "projects/"; "weekend" ], texts harness "ls ")
         Assert.AreEqual<string list>([ "documents/"; "examples/"; "guide/"; "projects/"; "weekend" ], texts harness "cp readme.txt ")
 
     [<TestMethod>]
@@ -598,6 +613,71 @@ type ArgumentCompletionTests() =
 
         Assert.AreEqual<string list>([ "readme.txt" ], texts harness "read x re")
         Assert.AreEqual<string list>([ "readme.txt" ], texts harness "frob re")
+
+    // ---------------------------------------- decision 0039: the pipe first
+
+    /// `vars` takes nothing, so after it there is nothing to offer but the pipe: not
+    /// the files it used to offer (R7).
+    [<TestMethod>]
+    member _.ACommandThatTakesNothingOffersOnlyThePipe() =
+        let harness = seeded ()
+
+        match items harness "vars " with
+        | [ pipe ] ->
+            Assert.AreEqual<string>("|", pipe.Text)
+            Assert.AreEqual<string>("operator", pipe.Kind)
+            Assert.AreEqual<string option>(Some "send the result on", pipe.Detail)
+            Assert.AreEqual<int>(5, pipe.Start)
+            Assert.AreEqual<int>(5, pipe.End)
+        | other -> Assert.Fail(sprintf "%A" other)
+
+    /// Every argument written, or every parameter fed by the pipe: only the pipe.
+    [<TestMethod>]
+    member _.AStageWithNothingLeftToTakeOffersOnlyThePipe() =
+        let harness = seeded ()
+
+        for line in [ "vars "; "pwd "; "ls | count "; "ls | first "; "cp readme.txt documents "; "echo hello "; "read readme.txt " ] do
+            Assert.AreEqual<string list>([ "|" ], texts harness line, line)
+
+    /// `ls `'s path is optional: the pipe comes first, then what it offered before.
+    [<TestMethod>]
+    member _.ACompleteStageOffersThePipeFirst() =
+        let harness = seeded ()
+
+        match texts harness "ls " with
+        | "|" :: rest ->
+            Assert.AreEqual<string list>([ "documents/"; "examples/"; "guide/"; "projects/" ], rest)
+        | other -> Assert.Fail(sprintf "%A" other)
+
+        for line in [ "help "; "ls | sort name "; "ls | select name "; "ls | distinct "; "attr readme.txt " ] do
+            Assert.AreEqual<string>("|", List.head (texts harness line), line)
+
+    /// A required argument not yet written is what is offered, and the pipe is not.
+    [<TestMethod>]
+    member _.AStageMissingARequiredArgumentOffersNoPipe() =
+        let harness = seeded ()
+
+        Assert.AreEqual<string list>([ "name"; "kind"; "folder"; "size"; "modified" ], texts harness "ls | sort ")
+
+        // `read`'s path takes the pipe, and nothing feeds it at the head of a line;
+        // `select` with no column is a fault although its columns are a `Rest`.
+        for line in [ "ls | sort "; "read "; "cp "; "cp readme.txt "; "ls | select "; "ls | take "; "set "; "set x "; "echo "; "mkdir " ] do
+            assertDoesNotContain "|" (texts harness line)
+
+    /// Only where nothing of the word is written, and not in what is not a command.
+    [<TestMethod>]
+    member _.ThePipeIsOfferedOnlyForAnEmptyWordOfACommand() =
+        let harness = seeded ()
+
+        for line in [ "ls d"; "ls \""; "vars x"; "frob "; "ls -" ] do
+            assertDoesNotContain "|" (texts harness line)
+
+    /// After `-desc` the word may still be the switch's value, so that follows the pipe.
+    [<TestMethod>]
+    member _.AFlagsValueFollowsThePipe() =
+        let harness = seeded ()
+
+        Assert.AreEqual<string list>([ "|"; "desc"; "asc" ], texts harness "ls | sort name -desc ")
 
     // ------------------------------------------------------- else
 
