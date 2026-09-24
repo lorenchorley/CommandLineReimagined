@@ -262,7 +262,8 @@ Every checkpoint and stream, with these differences and findings.
   specification went to two sub-agents, and each wrote down where the code did not do
   what it was describing, which is how the gaps below were found. Nothing waited on the
   owner.
-- **Found by the documents and fixed:**
+- **Found by the documents and fixed**, which also closed the two deviations the
+  specification had first listed for them:
   - A value of the wrong kind for a parameter, like `ls | take x`, is an `Invalid`
     fault, and it carried no help. A fault whose message names the parameter
     (`'count' must be a whole number`) now does, as 0038 asks of every wrong call.
@@ -286,7 +287,6 @@ Every checkpoint and stream, with these differences and findings.
     10 moves suggestions into notes drawn as guidance
     ([decision 0041](phase-10-help-towards-understanding.md#decision-records)), and
     changing the sentence before then would change it twice.
-  - The two new deviations `conformance.md` lists are intended, and each has its record.
 - **Not verifiable here.** A real long press and its selection handles, and a real
   on-screen keyboard, cannot be run headless. The browser check makes a selection in
   code, as the handles do, and emulates a phone at 390 by 844 with touch. The owner's
