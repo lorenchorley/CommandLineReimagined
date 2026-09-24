@@ -199,8 +199,11 @@ let private attributeName: P<TagAttributeName> =
 /// The explanation for a stop with no name after it.
 let memberMissingExplanation = "a column name belongs after the stop, as in $row.kind"
 
-/// <summary><MemberName> ::= '.' <Identifier>, carrying its own dot so the tokeniser
-/// sees `.size` as one thing.</summary>
+/// The explanation for an `@` with no name after it.
+let memberAtMissingExplanation = "a name belongs after the @, as in $v.@tag"
+
+/// <summary><MemberName> ::= '.' ( '@' )? <Identifier>, carrying its own dot so the
+/// tokeniser sees `.size` as one thing.</summary>
 /// <remarks>
 /// Decision 0032: a stop after a variable must be followed by a name. It used to be
 /// attempted, so `ls | where $row.` left the stop behind as a second argument, a path
@@ -208,12 +211,20 @@ let memberMissingExplanation = "a column name belongs after the stop, as in $row
 /// Now the stop commits, and a stop with no name after it is a syntax error that says
 /// what belongs there. Fatal, so the explanation is not lost to whatever else could
 /// have followed the variable.
+///
+/// Decision 0048: the name may start with `@`, which marks a tag's own parts rather
+/// than an attribute: `$v.@tag` is its name and `$v.@children` its children. The `@`
+/// is part of the member's name, so the tree, the tokens and the evaluator all see
+/// `@tag`. The `@` commits too: `$v.@` with no name after it says what belongs there.
+/// Only this parser has the form; the GOLD grammar is not changed.
 /// </remarks>
 let private memberName: P<MemberName> =
-    pchar '.' >>. ((identifierText <?> "column name") <|> failFatally memberMissingExplanation)
+    let own = pchar '@' >>. (identifierText <|> failFatally memberAtMissingExplanation) |>> fun name -> "@" + name
+
+    pchar '.' >>. (((own <|> identifierText) <?> "column name") <|> failFatally memberMissingExplanation)
     |>> fun name -> MemberName(Name = name)
 
-/// <VariableReference> ::= '$' <VariableName> ( '.' <Identifier> )*
+/// <VariableReference> ::= '$' <VariableName> ( '.' '@'? <Identifier> )*
 ///
 /// Decision 0008: `$row.size` is how a predicate reads a column, and member access is
 /// the ordinary variable notation rather than a special form inside predicates.
