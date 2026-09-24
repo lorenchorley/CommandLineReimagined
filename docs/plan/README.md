@@ -37,6 +37,7 @@ permission.
 | [phase-10-help-towards-understanding.md](phase-10-help-towards-understanding.md) | After Phase 9: did-you-mean for files and columns, empty answers that explain themselves, fixes as chips, and guidance drawn apart from output. |
 | [phase-11-reading-trees.md](phase-11-reading-trees.md) | After Phase 10: a tag's name and children with `@`, and `pick`, CSS selectors over nested tags and XML. |
 | [examples.md](examples.md) | Four one-screen programs, one per pillar, with golden results. The proof that the whole works as imagined. |
+| [../vision.md](../vision.md) | Not a phase. The owner's vision, and a proposed route after Phase 11: replay and time, data, the functional language, customisation, output beyond text, and the scene. Each proposed phase is planned here when its records are accepted. |
 | [scene-editor-direction.md](scene-editor-direction.md) | Not a phase. A proposed direction, pending [0029](../decisions/0029-scene-editor-direction.md): the ECS as a scene the command line edits, rendered on a canvas beside a DOM terminal. |
 
 ## What is being built, in one paragraph

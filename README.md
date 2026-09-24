@@ -46,6 +46,7 @@ you type leaves the page, and your files are kept in the browser between visits.
 ## Documentation
 
 - **[Documentation index](docs/README.md)** — start here.
+- [Vision](docs/vision.md) — where the project is going, and what it would take.
 - [Getting started](docs/getting-started.md) — open a terminal and run something.
 - [Worked examples](docs/examples.md) — complete sessions to copy.
 - [Tables and predicates](docs/tables.md) — filter, sort, count and group a listing; keep a table in XML or CSV.
