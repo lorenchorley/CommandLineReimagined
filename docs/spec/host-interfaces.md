@@ -175,7 +175,10 @@ Values are written tagged with a kind `k`, one of `empty`, `none`, `text`, `numb
 `boolean`, `file`, `list`, `object`, `component`, `table`, `query` or `fault`. A `query`
 is its predicate's display text, read back through the grammar like a view. A `fault`
 is `{ "k": "fault", "kind": "NotFound", "message": ..., "stage": 1, "path": ...,
-"cause": null }`, where `kind` is the kind's word and `cause` is another fault or null. An implementation **must not**
+"cause": null }`, where `kind` is the kind's word and `cause` is another fault or null.
+A stored fault has no notes, and one read back **must** have none: a fault held as a
+value never carries any
+([decision 0041](../decisions/0041-guidance-is-drawn-apart-from-output.md)). An implementation **must not**
 write a value as the nearest JSON type: an attribute whose text is `2026` has to come
 back as text, and JSON cannot tell that from a number without being told.
 
@@ -240,6 +243,40 @@ The desktop shell keeps its log in memory, so its filesystem lives as long as th
 does; [decision 0012](../decisions/0012-browser-first.md) keeps it out of scope beyond
 compiling and running commands.
 
+## The session's response
+
+`Session.Execute` and `Session.Refresh` answer every line with a `Response`
+(`Core/Session.fs`), which is what a host draws and what `TerminalSession` maps to the
+[execution response](#execution-response):
+
+```fsharp
+type Response =
+    { Source: string            // the line as typed
+      Output: string list       // what the command wrote while it ran
+      Result: Value option      // the answer, when the line succeeded
+      Fault: Fault option       // the failure, when it did not
+      Location: Location        // where the session is after the line
+      Changes: LogChanges       // the lines it committed, undid and redid
+      Guide: Value option       // the help a wrong call carries (decision 0038)
+      Notes: Note list }        // what the terminal says of its own (decisions 0041 to 0045)
+```
+
+`Notes` is guidance, drawn apart from `Result` and never part of it
+([Notes](execution-model.md#notes)):
+
+- A failed line's notes are its fault's, with the nearest paths, folders or variables
+  the session names for a missing one ([Suggestions](execution-model.md#suggestions)).
+- A line that succeeded carries the notes its stages gave, those rolled back by `try`
+  or `else` excepted ([Gathering notes](execution-model.md#gathering-notes)).
+- Every fix **must** be a `Fix.Line`, a whole line made of `Source`
+  ([Resolving the fixes](execution-model.md#resolving-the-fixes)). `Note.fixLines`
+  reads them off for a host.
+- `Refresh` **must** fill `Notes` by the same rules as `Execute`, so a live listing that
+  keeps nothing carries its explanation. It fills no `Guide`, and its `Changes` is
+  empty.
+- A line with nothing to say has an empty list: a parse failure, a refusal, a
+  cancellation and an `Internal` fault have no notes.
+
 ## TerminalSession
 
 The reference host-side object, shared by both web front ends.
@@ -254,8 +291,8 @@ The reference host-side object, shared by both web front ends.
 | `IsRunning` | Whether a command is in flight. |
 | `OutputChanged` | `Action<int, IReadOnlyList<string>>`, raised with the execution id and the complete current output lines. |
 | `StoreChanged` | `Action<long>`, raised after every committed transaction with its sequence number. |
-| `ExecuteAsync(source, executionId, cancellation)` | Parses and runs one line; never throws. |
-| `RefreshAsync(source)` | Re-runs a read-only line for a live listing. Same response shape; commits nothing; refuses a line that names any command that could change something. |
+| `ExecuteAsync(source, executionId, cancellation)` | Parses and runs one line; never throws. The response carries the line's notes. |
+| `RefreshAsync(source)` | Re-runs a read-only line for a live listing. Same response shape, notes included; commits nothing; refuses a line that names any command that could change something. |
 | `Cancel()` | Cancels the running command; returns whether there was one. |
 | `CompleteAsync(text, cursor)` | What the word at the cursor could become, and the signature of the command it is in, as a `CompletionResponse`. Asynchronous; see [Completion](#completion). |
 | `DescribeAsync(text, offset)` | What the token ending at `offset` is, as a `HoverInfo`, or null. Asynchronous; see [Hover](#hover). |
@@ -694,6 +731,37 @@ what they would be without it. What `read` with no argument answers:
 and `read missing.txt`, which failed while `read` ran rather than in how it was called,
 ends `"guide":null`.
 
+`notes` is what the terminal says of its own about the line
+([The session's response](#the-sessions-response), decisions
+[0041](../decisions/0041-guidance-is-drawn-apart-from-output.md) to
+[0045](../decisions/0045-a-near-value-offers-a-fix.md)): a list of `NoteInfo`, in the
+order the session gave them, or null when there are none. `error`, `fault` and `result`
+are what they would be without them, and a host **must** draw them as guidance, apart
+from output ([The page](#the-page)).
+
+```csharp
+public sealed record NoteInfo(string Kind, string Text, IReadOnlyList<string> Fixes);
+```
+
+`kind` is `suggestion` or `explanation`, and a host **must** draw a kind it does not know
+rather than drop it. `text` is the note's sentence. Each of `fixes` is a whole line, the
+typed line corrected, which a host **may** offer to put in the input and **must not** run
+without the person running it
+([decision 0044](../decisions/0044-a-fault-may-carry-fixes.md)); a note may have none.
+`read notes` at the root answers
+
+```json
+{"type":"result","source":"read notes","tokens":[{"text":"read","kind":"command"},{"text":" ","kind":"whitespace"},{"text":"notes","kind":"identifier"}],"output":[],"result":null,"resultText":null,"error":"File does not exist : /notes","fault":{"kind":"NotFound","message":"File does not exist : /notes","stage":1,"path":"/notes"},"location":{"folder":"/","view":null},"changes":{"committed":[],"undone":[],"redone":[],"reset":false},"guide":null,"notes":[{"kind":"suggestion","text":"Did you mean documents/notes.txt?","fixes":["read documents/notes.txt"]}]}
+```
+
+and `ls | where $row.kind eq foldr`, whose answer is the empty table, ends
+
+```json
+"guide":null,"notes":[{"kind":"explanation","text":"kind is folder or text","fixes":["ls | where $row.kind eq folder"]}]}
+```
+
+which `Refresh` of the same line ends with too. `echo hello` ends `"guide":null,"notes":null}`.
+
 ### Completion response
 
 What `Complete(text, cursor)` answers, here for `$` in a session where `v`, `files` and
@@ -818,8 +886,11 @@ the ones above it that were live because they were newest pause when it arrives.
 `paused` makes a listing live again and asks its question at once, and tapping `live`
 pauses it; one made live by a tap stays live when a newer listing arrives. After a
 `storeChanged`, every live listing is asked again through `Refresh`, one after another,
-and a listing whose answer changed is redrawn in place. A refusal or a failure leaves
-what is on screen alone.
+and a listing whose answer changed is redrawn in place. A listing's answer is its
+`result` and its `notes` together, and its notes **must** be redrawn with its table,
+since they are about this answer and not the last: an explanation goes when a row comes
+back, and comes when the last one goes. A refusal or a failure leaves what is on screen
+alone.
 
 ## The page
 
@@ -832,12 +903,37 @@ otherwise.
   page has no title or status line: how its start is going, `restoring…`,
   `failed to load` or `failed to restore`, is said in the banner at the head of the
   scrollback, and so is `not persisted`.
+- **One guidance style.** What the terminal says of its own **must** be drawn in one
+  style of its own, which no output has
+  ([decision 0041](../decisions/0041-guidance-is-drawn-apart-from-output.md)):
+  every note, the guide under a wrong call, the banner, the `copied` note, and the
+  messages about restoring the session
+  ([decision 0046](../decisions/0046-restore-messages-are-guidance.md)). The reference
+  page draws each as a panel, the `.aside` class: an accent border, heavier on the left,
+  over an accent background, a small label, and the interface's proportional face rather
+  than the terminal's monospace. Output keeps its own look: a result, a table, a file's
+  text, a caught fault, and a failed line's error in red, whose kind is shown beside it.
+  The only red lines are the faults of lines someone ran; a word of warning inside a
+  panel, such as `failed to restore`, may be red, and the panel is still guidance.
+- **Notes.** A line whose response has `notes` **must** have each drawn under the line
+  it belongs to, after its answer or its error and before any guide, as a guidance
+  panel labelled by its kind: the reference page labels a `suggestion` `did you mean`,
+  an `explanation` `why`, and any other kind by its own word. The panel holds the
+  note's text and, for each of its fixes, a chip showing the whole line. Tapping a chip
+  **must** put that line in the input, in place of what was there, with the caret at its
+  end, and **must not** run it; like the palette keys, it **must not** open or close a
+  touch screen's keyboard. A chip is at least 44 pixels tall, and shows the line in the
+  terminal's face, since it is a line of the language. A line without notes gets no
+  panel.
 - **The guide.** A failed line whose response has a `guide` **must** have it drawn under
-  the error, its items drawn as a result's are, so the help is a table as `help`'s
-  answer is. It is the terminal's help rather than the line's answer, and **must** be
-  set apart so it cannot be mistaken for output: the reference page puts it in a panel
-  labelled `help`, in the interface's face rather than the terminal's. A line without a
-  guide gets no panel.
+  the error and its notes, its items drawn as a result's are, so the help is a table as
+  `help`'s answer is. It is the terminal's help rather than the line's answer, and is
+  drawn as guidance, in a panel labelled `help`. A line without a guide gets no panel.
+- **Restoring.** When the log cannot be read, the page says so as guidance, not as an
+  error: `Could not restore the session:` and the reason, in a panel labelled `note`,
+  with the banner saying `failed to restore`; and when stored lines were skipped,
+  `<n> stored line(s) could not be read and were skipped. reset starts over.` in the
+  same kind of panel. The banner and `copied` are labelled `note` too.
 - **Copy on select.** A selection made inside the scrollback **must** be copied to the
   clipboard when it ends, when the pointer that made it lifts, or, for a selection whose
   handles are dragged on a touch screen, once it has stopped changing for 600

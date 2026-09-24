@@ -76,6 +76,15 @@ case-sensitive; command names are resolved case-insensitively.
 Messages quote the resolved, absolute path, except `Directory does not exist : <path>`
 raised by `ls` and `in`, which quotes the path as written.
 
+**A missing path names the nearest.** Every fault for a path that is not there,
+`File does not exist`, `Nothing exists at`, `Directory does not exist` and `Target
+directory does not exist`, keeps its message and kind, and the line's response carries a
+`suggestion` naming the nearest paths, folders only for the last two, with a fix for
+each that writes it where the missing path was written
+([Suggestions](execution-model.md#suggestions),
+[decision 0042](../decisions/0042-a-missing-name-names-the-nearest.md)). An entry below
+lists the message only.
+
 **Records.** A folder is a record of kind `folder` with no content, and the root `/` is
 implicit: it is not a record, has no attributes and cannot be deleted
 ([decision 0016](../decisions/0016-folders-as-records.md)). Every record a command
@@ -218,7 +227,10 @@ only the records directly inside it.
 
 A view's listing **must** be built from the matching records alone, so its columns are
 their attributes rather than every attribute in the store. The view's predicate is
-evaluated once per record, with `$row` bound to that record's row, as for `find`.
+evaluated once per record, with `$row` bound to that record's row, as for `find`, and a
+listing that keeps no record carries the explanation `find` would
+([An empty filter explains itself](execution-model.md#an-empty-filter-explains-itself)).
+The line is `ls`, which does not hold the predicate, so the explanation offers no fix.
 Writing a path **must** list that folder and **must not** clear the view.
 
 The columns **must** be `name`, `kind`, `folder`, `size` and `modified`, followed by
@@ -370,9 +382,14 @@ record's row, exactly as `where` binds it
 ([execution model](execution-model.md#predicates)). A record is kept only where the
 answer is `Boolean true`.
 
+When no record is kept, the result **must** carry the explanation
+[An empty filter explains itself](execution-model.md#an-empty-filter-explains-itself)
+gives, read off every record in the store
+([decision 0043](../decisions/0043-an-empty-filter-explains-itself.md)).
+
 Errors: `'find' needs a predicate, such as $row.kind eq note.` (`Binding`) when the
 argument used no operator; `<predicate> never reads $row, so it is the same for every
-row.` (`Binding`) when it used one and never reads `$row`
+row.` (`Binding`) when it used one and never reads `$row`, with its suggestion
 ([Predicates](execution-model.md#predicates)); any fault the predicate raises for a
 record. A predicate with an operator always answers true or false, so the run check of
 decision 0033 never fails here.
@@ -720,9 +737,26 @@ checks of [decision 0033](../decisions/0033-a-predicate-is-a-question-about-the-
 ([Predicates](execution-model.md#predicates)): one that used an operator and never reads
 `$row` is `<predicate> never reads $row, so it is the same for every row.` (`Binding`),
 and the first row it answers anything but true, false or a gap for is
-`<predicate> is <kind> (<value>), not true or false.` (`Invalid`). Unlike `find`,
-`where` does not refuse an operand with no operator, so `where $row.done` keeps the rows
-whose `done` is true.
+`<predicate> is <kind> (<value>), not true or false.` (`Invalid`), each with its
+suggestion. Unlike `find`, `where` does not refuse an operand with no operator, so
+`where $row.done` keeps the rows whose `done` is true.
+
+When the table has rows and `where` keeps none, its result **must** carry the
+explanation [An empty filter explains itself](execution-model.md#an-empty-filter-explains-itself)
+gives ([decisions 0043](../decisions/0043-an-empty-filter-explains-itself.md) and
+[0045](../decisions/0045-a-near-value-offers-a-fix.md)), and is still the empty table:
+
+```
+$ ls | where $row.knd eq folder
+name  kind  folder  size  modified
+  explanation: No row has knd; did you mean kind?
+  fix: ls | where $row.kind eq folder
+
+$ ls | where $row.kind eq foldr
+name  kind  folder  size  modified
+  explanation: kind is folder or text
+  fix: ls | where $row.kind eq folder
+```
 
 `select` with no columns **must** raise `'select' needs at least one column.`
 (`Binding`) rather than answering an empty table. The *rest* parameter never takes the
@@ -990,10 +1024,23 @@ table   false     true   a value      The table to work on; taken from the pipe 
 `Text`. A command with no parameters answers a table with these columns and no rows.
 
 Errors: `Unknown command : <name>` (`UnknownCommand`) for a name that is not a command,
-`UnknownCommand` included, with the nearest command names after it as
+`UnknownCommand` included, with a suggestion naming the nearest commands as
 [Resolving a command](execution-model.md#resolving-a-command) gives them, keywords
-included: `Unknown command : lss. Did you mean ls?`, and `help cd` answers
-`Unknown command : cd. Did you mean in?`.
+included, and a fix for each that writes it in place of the name:
+
+```
+$ help lss
+Unknown command : lss
+  [UnknownCommand]
+  suggestion: Did you mean ls?
+  fix: help ls
+
+$ help cd
+Unknown command : cd
+  [UnknownCommand]
+  suggestion: Did you mean in?
+  fix: help in
+```
 
 What `help <command>` answers, its output line and its table, is also what a line that
 called that command wrongly carries as its guide
@@ -1021,13 +1068,16 @@ and a host with nothing to close **may** do nothing, as the browser does.
 | Events | None |
 | Marks | `Meta` |
 
-Raises `Unknown command : <name>` (`UnknownCommand`), followed by
-`. Did you mean <names>?` when there are any near names, at most three of them. The
-evaluator runs it with the name that did not resolve bound to `name` and the command
-names a slip away bound to `nearest`, nearest first. The names in the message **must**
-be the nearest [Resolving a command](execution-model.md#resolving-a-command) defines,
-which read keywords before slips, so an old name leads to the new one:
-`Unknown command : cd. Did you mean in?`. The reference session registers a variant that
+Raises `Unknown command : <name>` (`UnknownCommand`), and nothing more in the message
+([decision 0041](../decisions/0041-guidance-is-drawn-apart-from-output.md)). When there
+are near names, at most three of them, the fault carries a `suggestion` note,
+`Did you mean <names>?`, with a `Replace(<name>, <near>)` fix for each
+([Suggestions](execution-model.md#suggestions)). The evaluator runs it with the name
+that did not resolve bound to `name` and the command names a slip away bound to
+`nearest`, nearest first. The names in the note **must** be the nearest
+[Resolving a command](execution-model.md#resolving-a-command) defines, which read
+keywords before slips, so an old name leads to the new one: `cd` is suggested `in`. The
+reference session registers a variant that
 works them out itself from the registered commands and their keywords, because the
 evaluator knows only their names; it does not read `nearest`. It is not resolvable
 by name, so typing `UnknownCommand` is itself an unknown command,
@@ -1038,4 +1088,6 @@ completion.
 
 None. `ls` and `in` quoting a missing folder as written rather than resolved, noted
 under [Paths](#rules-every-command-follows), is deliberate and pinned by
-`FilesTests.AMissingFolderIsNamedAsItWasWritten`.
+`FilesTests.AMissingFolderIsNamedAsItWasWritten`; the nearest folders it names are
+looked for from the resolved path. Where an explanation's fix falls short of the
+records, [Conformance](conformance.md#known-deviations) lists it.

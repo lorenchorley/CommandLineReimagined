@@ -41,15 +41,20 @@ second table counts from `dotnet test`.
 | Path resolution over the projection, and kind inference | `Core.Tests/FilesTests` | 16 |
 | Committing, undo, redo, history, replay determinism, blobs, the store's own checks on names and folders | `Core.Tests/StoreTests` | 28 |
 | Binding, pipes, command forms, variables, tags, atomic lines, value stages, `$row` outside a predicate | `Core.Tests/ExecutionTests` | 51 |
-| The help a wrong call carries and when it carries none (decision 0038), and an old name leading to the new one | `Core.Tests/GuidanceTests` | 14 |
+| The help a wrong call carries and when it carries none (decision 0038), an old name leading to the new one, and a line with nothing to say carrying no notes | `Core.Tests/GuidanceTests` | 15 |
 | File commands, attributes, saving tags, the name rule, renaming a folder with what it holds, and their undo | `Core.Tests/FileCommandTests` | 55 |
 | Variables and their undo | `Core.Tests/VariableCommandTests` | 14 |
 | Asynchronous commands, live output, cancellation | `Core.Tests/AsyncCommandTests` | 14 |
-| `undo`, `redo`, `history` and `help` as commands, `help <command>`, and the nearest names an unknown command is given | `Core.Tests/MetaCommandTests` | 28 |
+| `undo`, `redo`, `history` and `help` as commands, `help <command>`, and the nearest names an unknown command's note gives | `Core.Tests/MetaCommandTests` | 28 |
 | What a line says it did to the log: the lines it committed, undid and redid | `Core.Tests/LogChangesTests` | 11 |
-| The table functions, as whole command lines, the two predicate faults of decision 0033, and what answers a predicate (decision 0034) | `Core.Tests/TableCommandTests` | 44 |
-| Views: `in` on a predicate, `ls` across folders, `out`, `find`, `save-view`, refreshing, and the bound check in each, a view read back from its record included | `Core.Tests/ViewTests` | 46 |
+| The table functions, as whole command lines, the two predicate faults of decision 0033, what answers a predicate (decision 0034), and the explanation of an empty `where`: a column no row has, the values a column has, most frequent first and at most five, a span of numbers, a near value's fix, the part of an `and` that kept nothing, and when it is silent (decisions 0043, 0045) | `Core.Tests/TableCommandTests` | 61 |
+| Views: `in` on a predicate, `ls` across folders, `out`, `find`, `save-view`, refreshing, and the bound check in each, a view read back from its record included; the explanation of an empty `find`, a view's listing and a live view's refresh | `Core.Tests/ViewTests` | 53 |
 | `back` and the trail (decision 0037): each step further, views, after `out`, the start and the end of the trail, undo and redo, a folder that is gone, across a reload, the fold | `Core.Tests/BackTests` | 21 |
+| A fix made a whole line: at a whole word only, dropped when it changes nothing, one line once, and a fault as a value without notes (decisions 0041, 0044) | `Core.Tests/FixTests` | 5 |
+| An unknown command's suggestion, a fix for each command named, and a name nothing is near | `Core.Tests/CommandSuggestionTests` | 3 |
+| The suggestions of the two predicate faults, worded alike, and an operand written twice offering no fix | `Core.Tests/PredicateSuggestionTests` | 5 |
+| The nearest paths for every missing path (decision 0042): files, folders only for a folder, `rm`, a target directory, written from the current folder, a path under a missing folder, the fix in place, at most three, a script, a nested pipeline, `try`, a refresh | `Core.Tests/PathSuggestionTests` | 13 |
+| The nearest variables: a slip, a start or another case, nothing near, and never `$row` | `Core.Tests/VariableSuggestionTests` | 4 |
 | Recovery: `else`, `try`, `??`, nested pipelines, fault values and their members, `is-fault`, what a refresh refuses, recovery around a value stage | `Core.Tests/RecoveryTests` | 37 |
 | XML documents: reading, text content, namespaces, refusals, writing, round trips, and the two commands | `Core.Tests/XmlTests` | 41 |
 | CSV files: RFC 4180 reading, column typing, gaps, faults naming the line, writing, round trips, and the two commands | `Core.Tests/CsvTests` | 33 |
@@ -66,7 +71,7 @@ second table counts from `dotnet test`.
 | Replaying a log, seeding once, `reset`, giving an older log the guide once, and bringing the seeded files nobody changed to the seed (decision 0040) | `Core.Tests/PersistenceTests` | 29 |
 | The stored shape of a transaction, every event and value case, the trail's events, versioning up to 3 | `Web.Core.Tests/LogFormatTests` | 27 |
 | The browser's IndexedDB module, including a browser without it | `tools/store-check.mjs` | 20 |
-| DTO shapes including tables, views, refreshing, caught faults, documents, streaming, cancellation, completion, tokens, the guide | `Web.Core.Tests/TerminalSessionTests` | 54 |
+| DTO shapes including tables, views, refreshing, caught faults, documents, streaming, cancellation, completion, tokens, the guide, and no notes on a line with nothing to say | `Web.Core.Tests/TerminalSessionTests` | 55 |
 | A parse error in words: the phrase table, the explanations, the sentence carried with the parse | `Web.Core.Tests/ParseWordingTests` | 14 |
 | The hover record as the page receives it | `Web.Core.Tests/DescribeTests` | 7 |
 | Path and naming helpers | `Terminal.Tests/ValidCommandTests` | 2 |
@@ -77,10 +82,10 @@ Cases actually run, which is what the suite reports:
 | Project | Cases |
 | --- | --- |
 | `Parser.Tests` | 375 |
-| `Core.Tests` | 823 |
-| `Web.Core.Tests` | 142 |
+| `Core.Tests` | 878 |
+| `Web.Core.Tests` | 143 |
 | `Terminal.Tests` | 32 |
-| Total | 1372 |
+| Total | 1428 |
 
 Run them with:
 
@@ -143,14 +148,15 @@ does not govern. They run in CI with the rest.
 - [ ] Piped input reaches only parameters that accept it and that were not written out.
 - [ ] Arity and missing-argument messages match the wording in
       [Execution model](execution-model.md#argument-binding).
-- [ ] An unknown name is reported as a fault of kind `UnknownCommand`, naming at most
-      three commands near it.
+- [ ] An unknown name is reported as a fault of kind `UnknownCommand`,
+      `Unknown command : <name>`, and the commands near it, at most three, are named in
+      a suggestion with a fix for each, not in the message.
 - [ ] A value stage answers the variable's value, ignores its input, and counts as
       read-only for a refresh.
 - [ ] `$row` read outside a predicate is a `NotFound` fault that says where it exists;
       any other unknown variable is `Unknown variable: $name`.
 - [ ] A predicate that wrote an operator and never reads `$row` is a `Binding` fault
-      when it is bound, suggesting its bare words as columns.
+      when it is bound, whose note suggests its bare words as columns.
 - [ ] A predicate's value for an item is `true`, `false` or absent, or the stage fails
       with an `Invalid` fault on the first item that answers anything else.
 - [ ] A pipeline threads values and stops at the first failure.
@@ -212,6 +218,28 @@ does not govern. They run in CI with the rest.
 - [ ] On load, a seeded file no undoable transaction has named, whose content differs
       from the seed's, is given the seed's content, all of them in one `seed update`
       transaction nobody can undo, and a load with nothing to change commits nothing.
+- [ ] No fault's message holds a suggestion. A note is never part of a value: a fault
+      that `try` or `else` makes a value has no notes at any depth, a stored fault has
+      none, and `else`, `try`, `??` and pipes behave as they would without them.
+- [ ] A line that succeeded carries the notes of the stages whose work stood, in order,
+      and none from a stage or branch that `try` or `else` rolled back; a failed line
+      carries its fault's notes only.
+- [ ] A missing file, record, folder or target folder, and an unknown variable other
+      than `$row`, are named with the nearest, first within the distance in the folder
+      looked in, then the same name or a name it begins anywhere, folders only for a
+      folder, at most three, each path written from the current folder.
+- [ ] Every fix leaves the session as a whole line of the typed line: a replacement at
+      the first place that holds it as a whole word, dropped when there is none, when
+      it changes nothing, and when it repeats an earlier line; a fault's replacement
+      whose text is in the line more than once is dropped.
+- [ ] When `where`, `find` or a view's listing keeps no row of a table that had some, it
+      carries one explanation: the first column read through `$row.` that no row has,
+      with the nearest; or else the first `and` operand that keeps nothing on its own,
+      `<column> is <values>` for `eq` and `like`, at most five then `or <n> more`, most
+      frequent first, `runs from … to …` for an ordering of numbers; and nothing for
+      `ne`, `has`, `or`, `not`, an empty table in, or a filter that keeps a row.
+- [ ] An `eq` explanation whose value, written in the line, is near a value the column
+      has offers the nearest as a fix; a value in a variable offers none.
 
 **Terminal**
 
@@ -237,6 +265,14 @@ does not govern. They run in CI with the rest.
       the first command.
 - [ ] A failed line's `guide` is drawn under its error, set apart from output, and a
       line without one draws no panel.
+- [ ] A response carries `notes`, each with a `kind`, a `text` and `fixes` that are
+      whole lines, null when there are none, and a refresh carries them as an execution
+      does.
+- [ ] Each note is drawn under its line, after the answer or error and before the guide,
+      labelled by its kind, with a chip per fix that fills the input with the caret at
+      its end and runs nothing; a live listing redraws its notes with its table.
+- [ ] Notes, the guide, the banner, `copied` and the restore messages share one guidance
+      style that no result or error has.
 - [ ] The page marks `body` with `data-ready` once it can run lines, keeps any number
       of listings live, copies a selection made in the scrollback, and walks the
       history with ↑ and ↓ as the keys do.
@@ -261,6 +297,9 @@ case.
 | XML element text is read as an attribute `text` and written back as content, so mixed content comes back with its text gathered before the children, trimmed; an XML attribute called `text` on an element with content is replaced by it; comments and processing instructions are dropped. | Intended for this release; see [decision 0025](../decisions/0025-xml-text-content.md). |
 | A document with a DTD is refused rather than read. | Intended. A file in the store is anyone's, and entity expansion is a way to stop a tab. |
 | Messages are English only and the client is published with invariant globalisation. | Intended for now; see [Design doc](design-doc.md#internationalisation). |
+| An explanation's fix is not held to the twice rule that a fault's is ([Resolving the fixes](execution-model.md#resolving-the-fixes)), so when the value it corrects is written earlier in the line too, the fix corrects the earlier place: `ls \| where $row.kind ne foldr \| where $row.kind eq foldr` explains `kind is folder or text` with the fix `ls \| where $row.kind ne folder \| where $row.kind eq foldr`, which changes the first filter and not the one that kept nothing. A successful line's notes are resolved with `Note.resolve` alone (`Core/Session.fs`, lines 625 and 681); the filter that drops an ambiguous replacement is inside `faultNotes`. | Open, reported for the owner to decide. [Decision 0044](../decisions/0044-a-fault-may-carry-fixes.md) makes a fix the corrected line. |
+| A value that differs from one the column has only in case offers no fix: `ls \| where $row.kind eq Folder` explains `kind is folder or text` and offers nothing, because `Nearest.names` leaves out a candidate at distance 0, which ignoring case this is (`Core/Nearest.fs`, line 68; `Expr.nearValue`). A column in the wrong case is named, and fixed, by a rule of its own (`$row.Kind` gives `No row has Kind; did you mean kind?`). | Open, reported for the owner to decide. [Decision 0045](../decisions/0045-a-near-value-offers-a-fix.md) offers a value within `Nearest`'s distance. |
+| A response with no notes carries `"notes":null`, as it carries `"guide":null`, where the Phase 10 plan's wire says `notes` is absent when there are none. `TerminalSession` passes null (`Web.Core/TerminalSession.cs`, line 170), and the bridge serialises with the web defaults, which write nulls. | Open, reported for the owner. A page reading `r.notes \|\| []` sees no difference; this document specifies null, as the code does. |
 
 ## Changing this specification
 
