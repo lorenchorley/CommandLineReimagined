@@ -11,7 +11,7 @@ a later record, **Rejected**.
 | # | Decision | Status |
 | --- | --- | --- |
 | [0001](0001-record-decisions.md) | Keep a decision log | Accepted |
-| [0002](0002-combinator-parser.md) | Parser combinators in F# replace the GOLD table parser | Accepted, retrospective |
+| [0002](0002-combinator-parser.md) | Parser combinators in F# replace the GOLD table parser | Accepted, retrospective; one sentence superseded by 0055 |
 | [0003](0003-execute-in-the-browser.md) | The browser executes commands itself; no server round trip | Accepted, retrospective |
 | [0004](0004-dom-not-canvas.md) | The browser terminal renders to the DOM, not a canvas | Accepted, retrospective |
 | [0005](0005-dotnet-10.md) | .NET 10 LTS, with dependencies managed centrally | Accepted, retrospective |
@@ -21,7 +21,7 @@ a later record, **Rejected**.
 | [0009](0009-table-coercion.md) | Table-shaped tags become tables implicitly, missing cells are None | Accepted; one sentence superseded by 0028 |
 | [0010](0010-undo-by-event-sourcing.md) | Undo and persistence through an event-sourced store | Accepted |
 | [0011](0011-real-xml-files.md) | XML is read and written as real files | Accepted |
-| [0012](0012-browser-first.md) | The desktop shell stays out of scope | Accepted |
+| [0012](0012-browser-first.md) | The desktop shell stays out of scope | Superseded by 0054 |
 | [0013](0013-attribute-filesystem.md) | An attribute-and-query filesystem in the style of BeOS and Haiku | Accepted |
 | [0014](0014-recovery-operator.md) | Error recovery is spelled `else`, not `or` | Accepted |
 | [0015](0015-atomic-lines.md) | A command line is one atomic transaction | Accepted |
@@ -38,7 +38,7 @@ a later record, **Rejected**.
 | [0026](0026-inventory-sorts-its-reorder-list.md) | The inventory program sorts its reorder list before writing it | Accepted |
 | [0027](0027-save-takes-a-tag.md) | `save` takes its attributes in the tag, not as assignments | Accepted |
 | [0028](0028-mixed-columns.md) | A column whose cells disagree is typed `mixed`, not `text` | Accepted |
-| [0029](0029-scene-editor-direction.md) | The entity component system becomes a scene the command line edits | Proposed |
+| [0029](0029-scene-editor-direction.md) | The entity component system becomes a scene the command line edits | Proposed; its desktop parts superseded by 0054 |
 | [0030](0030-undo-takes-the-line-back-on-screen.md) | On screen, undo takes the line back rather than adding one | Accepted |
 | [0031](0031-completion-reads-the-line.md) | Completion reads the line, and may run what comes before the cursor | Accepted |
 | [0032](0032-a-stage-may-be-a-value.md) | A stage may be a value: `$files` and `$problem.kind` are lines | Accepted |
@@ -63,6 +63,10 @@ a later record, **Rejected**.
 | [0051](0051-a-list-in-a-table-cell-is-summarised.md) | A list in a table cell is summarised | Accepted |
 | [0052](0052-pick-answers-each-element-once.md) | `pick` answers each element once, when the documents overlap | Accepted |
 | [0053](0053-a-programming-language-functional-first.md) | The language is a programming language, functional first | Accepted |
+| [0054](0054-the-windows-front-end-is-removed.md) | The Windows front end is removed | Accepted |
+| [0055](0055-the-gold-parser-is-removed.md) | The GOLD parser is removed | Accepted |
+| [0056](0056-pipelines-grow-into-a-live-notebook.md) | Pipelines grow into a live notebook | Accepted |
+| [0057](0057-english-only.md) | The terminal is English only, for now | Accepted |
 
 Retrospective records document decisions taken before the log existed, so that the
 log is the one place to look. Their alternatives are the ones weighed at the time, as

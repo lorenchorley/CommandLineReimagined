@@ -425,9 +425,10 @@ least 44 pixels tall.
 
 Identifiers accept a defined set of accented letters. Numbers parse and print with the
 invariant culture, so a decimal point means the same thing everywhere, including in a
-CSV file. Messages are English only, and the client is published with invariant
-globalisation to keep the payload small; localisation would require both decisions to
-be revisited.
+CSV file. Messages, commands, keywords and the guide are English only, by the owner's
+choice ([decision 0057](../decisions/0057-english-only.md)), and the client is published
+with invariant globalisation to keep the payload small. Localisation would be a new
+decision.
 
 ### Performance
 
