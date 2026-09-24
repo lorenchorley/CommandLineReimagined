@@ -91,7 +91,8 @@ let everyEventShape () =
       VariableChanged("w", None, Some(Value.Number 2.0))
       VariableChanged("v", Some(Value.Number 1.0), None)
       VariableChanged("v", Some(Value.Number 1.0), Some(Value.Number 9.0))
-      LocationChanged({ Folder = "/"; View = None }, { Folder = "/documents"; View = None }) ]
+      LocationChanged({ Folder = "/"; View = None }, { Folder = "/documents"; View = None })
+      TrailPushed { Folder = "/documents"; View = None } ]
 
 /// <summary>Membership assertions over F# lists.</summary>
 /// <remarks>

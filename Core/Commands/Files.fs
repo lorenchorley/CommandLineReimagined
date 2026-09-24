@@ -183,6 +183,15 @@ let private folderValue (projection: Projection) (folder: string) =
         | Some record -> Record.toValue record
         | Option.None -> Value.Text folder
 
+/// <summary>The events of a move made by `in` or `out`.</summary>
+/// <remarks>
+/// The place left goes on the trail, so `back` can return to it (decision 0037). Both
+/// are events of the same line, so `undo` takes the move back and the place off the
+/// trail together.
+/// </remarks>
+let private move (invocation: Invocation) (after: Location) =
+    [ TrailPushed invocation.Location; LocationChanged(invocation.Location, after) ]
+
 /// Moving somewhere clears any view: a folder and a view are two answers to the same
 /// question, and holding both would leave `ls` with two things to list.
 let private enterFolder (invocation: Invocation) (target: string) =
@@ -197,7 +206,7 @@ let private enterFolder (invocation: Invocation) (target: string) =
             // past it rather than having a no-op to take back.
             Invocation.pure' value
         else
-            Invocation.withEvents value [ LocationChanged(invocation.Location, after) ]
+            Invocation.withEvents value (move invocation after)
 
 /// <summary>Entering a query rather than a folder (decision 0013).</summary>
 /// <remarks>
@@ -211,7 +220,7 @@ let private enterView (invocation: Invocation) (expr: Expr) =
     if after = invocation.Location then
         Invocation.pure' (Value.Query expr)
     else
-        Invocation.withEvents (Value.Query expr) [ LocationChanged(invocation.Location, after) ]
+        Invocation.withEvents (Value.Query expr) (move invocation after)
 
 /// <summary>Entering something named: a folder, or a saved view.</summary>
 /// <remarks>
@@ -280,7 +289,7 @@ let into =
 let out =
     { Spec =
         CommandSpec.create "out" "Come out of the current view, or up out of the folder"
-            [ "up"; "move"; "parent"; "back"; "navigate"; "view" ] []
+            [ "up"; "move"; "parent"; "navigate"; "view" ] []
       Run =
         fun invocation ->
             async {
@@ -291,11 +300,61 @@ let out =
                 | Some _ ->
                     let after = { invocation.Location with View = Option.None }
 
-                    return
-                        Invocation.withEvents
-                            (Value.Text invocation.Location.Folder)
-                            [ LocationChanged(invocation.Location, after) ]
+                    return Invocation.withEvents (Value.Text invocation.Location.Folder) (move invocation after)
                 | Option.None -> return enterFolder invocation ".."
+            } }
+
+/// <summary>Back to where you were before the last move (decision 0037).</summary>
+/// <remarks>
+/// Like a browser's back button: each `back` goes one step further along the trail
+/// `in` and `out` leave, and does not add to it. A place that is no longer there, a
+/// folder since deleted or renamed, is passed over rather than failing, because a
+/// `back` that failed on it would fail for ever: nothing else takes a place off the
+/// trail. Nor is where you already are a step back. With nowhere left to go it is not
+/// a fault: it says where you are and that there is nowhere further back, and commits
+/// nothing.
+///
+/// Not read-only, for the same reason `in` is not: `undo` takes it back, which puts the
+/// place back on the trail.
+/// </remarks>
+let back =
+    { Spec =
+        CommandSpec.create
+            "back"
+            "Go back to where you were before the last move"
+            [ "previous"; "return"; "retrace"; "navigate" ]
+            []
+      Run =
+        fun invocation ->
+            async {
+                let here = invocation.Location
+
+                let reachable (place: Location) =
+                    not (Projection.samePlace place here) && Files.folderExists invocation.Projection place.Folder
+
+                // The places passed over, and the one to go to, if any.
+                let rec walk passed trail =
+                    match trail with
+                    | [] -> passed, Option.None
+                    | place :: _ when reachable place -> place :: passed, Some place
+                    | place :: rest -> walk (place :: passed) rest
+
+                match walk [] invocation.Projection.Trail with
+                | passed, Some place ->
+                    let value =
+                        match place.View with
+                        | Some expr -> Value.Query expr
+                        | Option.None -> folderValue invocation.Projection place.Folder
+
+                    let popped = passed |> List.rev |> List.map TrailPopped
+                    return Invocation.withEvents value (popped @ [ LocationChanged(here, place) ])
+                | _, Option.None ->
+                    let where =
+                        match here.View with
+                        | Some expr -> Value.exprText expr
+                        | Option.None -> here.Folder
+
+                    return Invocation.pure' (Value.Text $"Nowhere further back: you are in {where}")
             } }
 
 let pwd =

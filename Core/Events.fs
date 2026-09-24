@@ -43,6 +43,16 @@ type Event =
     | ContentChanged of id: FileId * before: Hash option * after: Hash option
     | VariableChanged of name: string * before: Value option * after: Value option
     | LocationChanged of before: Location * after: Location
+    /// <summary>A place left by `in` or `out`, put on the trail `back` retraces (decision 0037).</summary>
+    /// <remarks>
+    /// The trail is a stack, and a push and a pop are each other's inverse, so each
+    /// carries only the place: the event is its own record of both sides. A whole-trail
+    /// before and after would have made every move cost the length of the trail.
+    /// </remarks>
+    | TrailPushed of Location
+    /// A place taken off the trail: by `back` going there, or by undoing the move that
+    /// left it.
+    | TrailPopped of Location
 
 /// <summary>One command line's worth of change (decision 0015).</summary>
 /// <remarks>

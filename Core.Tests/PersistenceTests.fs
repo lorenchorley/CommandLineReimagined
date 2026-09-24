@@ -74,6 +74,34 @@ type PersistenceTests() =
         run (session.Initialize())
         log
 
+    /// The first guide file, which the tests of decision 0040 change or leave alone.
+    let firstGuide = Seed.guideFiles.Head
+    let guidePath = "guide/" + firstGuide.Name
+    let guideText = firstGuide.Content.Value
+
+    /// <summary>A log seeded when the seed said something else (decision 0040).</summary>
+    /// <remarks>
+    /// Every file with content is seeded with an older text, the way a visitor who came
+    /// before decision 0037 has them: a guide and a readme that say `cat` for `read`.
+    /// </remarks>
+    let seededEarlier () =
+        let log = InMemoryLog()
+        let options = SessionOptions.defaults
+
+        let files =
+            Seed.standardFiles
+            |> List.map (fun file ->
+                match file.Content with
+                | Some text -> { file with Content = Some("An older text.\n" + text.Replace("read ", "cat ")) }
+                | None -> file)
+
+        let session = Session(log, options, Seed.ofFiles options.NewId options.Clock files)
+        run (session.Initialize())
+        log
+
+    let sources (session: Session) =
+        session.History() |> List.map (fun entry -> entry.Transaction.Source)
+
     // ----------------------------------------------------------------- replaying
 
     /// <summary>A reload brings back what was there.</summary>
@@ -280,3 +308,149 @@ type PersistenceTests() =
         run (second.BringUpToDate()) |> ignore
         Assert.AreEqual<string>("mine", display second "read readme.txt")
         Assert.AreEqual<string>("documents examples guide projects readme.txt", names second "ls")
+
+    // ------------------------------------------- seeded files follow the seed (0040)
+
+    /// A returning visitor reads the guide and the readme as the seed says them now.
+    [<TestMethod>]
+    member _.AnUntouchedGuideFileAndReadmeAreBroughtUpToDate() =
+        let session = reopen (seededEarlier ())
+
+        Assert.AreEqual<int>(0, run (session.BringUpToDate()), "No record is created: the files are all there.")
+        Assert.AreEqual<string>(guideText, display session ("read " + guidePath))
+        Assert.AreEqual<string>(Seed.readme, display session "read readme.txt")
+
+        // Every other seeded file with it, the example programs included.
+        for file in Seed.standardFiles do
+            match file.Content with
+            | Some text -> Assert.AreEqual<string>(text, display session ("read " + file.Folder + "/" + file.Name), file.Name)
+            | None -> ()
+
+    /// One transaction, the system's, with the source `seed update`, and nobody's to undo.
+    [<TestMethod>]
+    member _.TheSeedUpdateIsOneTransactionNobodyCanUndo() =
+        let session = reopen (seededEarlier ())
+        run (session.BringUpToDate()) |> ignore
+
+        Assert.AreEqual<string list>([ "seed"; "seed update" ], sources session)
+        Assert.IsFalse((List.last (session.History())).Transaction.Undoable)
+        Assert.AreEqual<string>("Nothing to undo.", display session "undo")
+        Assert.AreEqual<string>(guideText, display session ("read " + guidePath))
+
+    [<TestMethod>]
+    member _.AnEditedFileIsLeftAlone() =
+        let log = seededEarlier ()
+        run ((reopen log).Execute("echo mine | write " + guidePath)) |> ignore
+
+        let session = reopen log
+        run (session.BringUpToDate()) |> ignore
+
+        Assert.AreEqual<string>("mine", display session ("read " + guidePath))
+        Assert.AreEqual<string>(Seed.readme, display session "read readme.txt", "The files nobody changed still follow.")
+
+    /// Written to and put back by `undo` is still written to: the line was the user's.
+    [<TestMethod>]
+    member _.AFileEditedAndUndoneIsStillTheUsers() =
+        let log = seededEarlier ()
+        let first = reopen log
+        display first ("echo mine | write " + guidePath) |> ignore
+        display first "undo" |> ignore
+
+        let session = reopen log
+        run (session.BringUpToDate()) |> ignore
+
+        StringAssert.StartsWith(display session ("read " + guidePath), "An older text.")
+
+    /// A renamed file is somewhere the seed does not describe, and is not replaced or
+    /// made again at its old name.
+    [<TestMethod>]
+    member _.ARenamedFileIsLeftAlone() =
+        let log = seededEarlier ()
+        display (reopen log) ("attr " + guidePath + " name=mine.txt") |> ignore
+
+        let session = reopen log
+        run (session.BringUpToDate()) |> ignore
+
+        StringAssert.StartsWith(display session "read guide/mine.txt", "An older text.")
+        Assert.IsFalse((names session "ls guide").Split(' ') |> Array.contains firstGuide.Name)
+
+    /// Renaming the folder and back moves every file in it, and a moved file is the
+    /// user's even when it is back at the path the seed describes.
+    [<TestMethod>]
+    member _.AFileMovedAndMovedBackIsLeftAlone() =
+        let log = seededEarlier ()
+        let first = reopen log
+        display first "attr guide name=manual" |> ignore
+        display first "attr manual name=guide" |> ignore
+
+        let session = reopen log
+        run (session.BringUpToDate()) |> ignore
+
+        StringAssert.StartsWith(display session ("read " + guidePath), "An older text.")
+
+    [<TestMethod>]
+    member _.ATaggedFileIsLeftAlone() =
+        let log = seededEarlier ()
+        display (reopen log) ("attr " + guidePath + " level=first") |> ignore
+
+        let session = reopen log
+        run (session.BringUpToDate()) |> ignore
+
+        StringAssert.StartsWith(display session ("read " + guidePath), "An older text.")
+
+    [<TestMethod>]
+    member _.ADeletedFileIsNotBroughtBack() =
+        let log = seededEarlier ()
+        display (reopen log) ("rm " + guidePath) |> ignore
+
+        let session = reopen log
+        run (session.BringUpToDate()) |> ignore
+
+        Assert.IsFalse((names session "ls guide").Split(' ') |> Array.contains firstGuide.Name)
+
+    /// A file of the user's own at a seeded path, made after they deleted the seed's,
+    /// is theirs.
+    [<TestMethod>]
+    member _.AFileMadeAgainAtASeededPathIsTheUsers() =
+        let log = seededEarlier ()
+        let first = reopen log
+        display first "rm readme.txt" |> ignore
+        display first "echo mine | write readme.txt" |> ignore
+
+        let session = reopen log
+        run (session.BringUpToDate()) |> ignore
+
+        Assert.AreEqual<string>("mine", display session "read readme.txt")
+
+    /// Once up to date, a second load finds nothing to change and commits nothing.
+    [<TestMethod>]
+    member _.ASecondLoadChangesNothing() =
+        let log = seededEarlier ()
+        run ((reopen log).BringUpToDate()) |> ignore
+        let count = log.Count
+
+        let second = reopen log
+        Assert.AreEqual<int>(0, run (second.BringUpToDate()))
+        Assert.AreEqual<int>(count, log.Count)
+        Assert.AreEqual<string list>([ "seed"; "seed update" ], sources second)
+
+    /// A fresh log already has the seed's current text, so there is nothing to update.
+    [<TestMethod>]
+    member _.AFreshLogIsAlreadyUpToDate() =
+        let session = reopen (InMemoryLog())
+        run (session.BringUpToDate()) |> ignore
+
+        Assert.AreEqual<string list>([ "seed" ], sources session)
+
+    /// The user's own lines stay in the log beneath it, and `undo` still reaches them.
+    [<TestMethod>]
+    member _.TheUsersLinesAreUntouchedByTheUpdate() =
+        let log = seededEarlier ()
+        display (reopen log) "mkdir mine" |> ignore
+
+        let session = reopen log
+        run (session.BringUpToDate()) |> ignore
+
+        Assert.AreEqual<string list>([ "seed"; "mkdir mine"; "seed update" ], sources session)
+        Assert.AreEqual<string>("Undone: mkdir mine", display session "undo")
+        Assert.AreEqual<string>(guideText, display session ("read " + guidePath))

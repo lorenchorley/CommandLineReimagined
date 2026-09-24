@@ -207,6 +207,7 @@ type Session(log: ILog, options: SessionOptions, seed: Seed) =
         [ Commands.Files.ls
           Commands.Files.into
           Commands.Files.out
+          Commands.Files.back
           Commands.Files.pwd
           Commands.Files.find
           Commands.Files.saveView options.NewId options.Clock
@@ -348,27 +349,36 @@ type Session(log: ILog, options: SessionOptions, seed: Seed) =
             initialised <- true
         }
 
-    /// <summary>Adds what the standard seed has gained since this log was begun.</summary>
+    /// <summary>Brings a replayed log up to what the standard seed is today.</summary>
     /// <remarks>
-    /// Today that is the guide (decision 0036), added once, as a transaction that is
-    /// nobody's to undo, like the seed. Answers how many records it created. A host
-    /// that seeds the standard filesystem calls it after `Initialize`; on a fresh log it
-    /// finds the guide already there and does nothing.
+    /// Two steps, each a transaction that is nobody's to undo, like the seed. First the
+    /// guide, added once to a log that never had one (decision 0036). Then every seeded
+    /// file nobody has changed is given the seed's current content (decision 0040), in
+    /// one transaction with the source `seed update`, so a returning visitor reads the
+    /// guide as it is now; a file someone has written to, renamed, moved, tagged or
+    /// deleted is left as it is. Answers how many records it created. A host that seeds
+    /// the standard filesystem calls it after `Initialize`; on a fresh log, or a second
+    /// time, it finds nothing to do and commits nothing.
     /// </remarks>
     member _.BringUpToDate() =
         async {
-            let! events = Seed.guideFor options.NewId options.Clock store.Transactions store.Current blobsForSeed
+            let! guide = Seed.guideFor options.NewId options.Clock store.Transactions store.Current blobsForSeed
 
-            if List.isEmpty events then
-                return 0
-            else
-                let! _ = store.CommitSystem "guide" events
+            if not (List.isEmpty guide) then
+                let! _ = store.CommitSystem "guide" guide
+                ()
 
-                return
-                    events
-                    |> List.sumBy (function
-                        | FileCreated _ -> 1
-                        | _ -> 0)
+            let! updates = Seed.updatesFor Seed.standardFiles store.Transactions store.Current blobsForSeed
+
+            if not (List.isEmpty updates) then
+                let! _ = store.CommitSystem "seed update" updates
+                ()
+
+            return
+                guide
+                |> List.sumBy (function
+                    | FileCreated _ -> 1
+                    | _ -> 0)
         }
 
     /// How many transactions the log had when it was replayed. The page reports it, so

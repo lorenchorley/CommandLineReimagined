@@ -165,3 +165,55 @@ module Seed =
 
                     return guide @ readmeEvents
             }
+
+    /// <summary>Every record a line someone typed has created, changed or deleted.</summary>
+    /// <remarks>
+    /// Undoing and redoing are lines too: they are undoable transactions, so a file
+    /// written to and then put back by `undo` has still been touched.
+    /// </remarks>
+    let private touchedByAnyone (history: Transaction list) =
+        history
+        |> List.filter (fun transaction -> transaction.Undoable)
+        |> List.collect (fun transaction -> transaction.Events)
+        |> List.choose (function
+            | FileCreated record
+            | FileDeleted record -> Some record.Id
+            | AttributesChanged(id, _, _)
+            | ContentChanged(id, _, _) -> Some id
+            | _ -> None)
+        |> Set.ofList
+
+    /// <summary>What brings the seeded files nobody has changed to the seed's current text (decision 0040).</summary>
+    /// <remarks>
+    /// A file the seed describes is still the terminal's when the record at its path has
+    /// never been named by a line anyone typed. Every record is made by some transaction,
+    /// so one no undoable transaction has named was made by a system one: the seed, or
+    /// the guide added by <c>guideFor</c>. Its content is replaced when it differs from
+    /// the seed's; its attributes, `modified` included, are left as they were, as 0036's
+    /// readme update left them. A file someone has written to, renamed, moved, tagged or
+    /// deleted is theirs: it has been named by their line, or is not at the path any
+    /// more. Content is compared by hash, which is what the log addresses it by, so a
+    /// load that has nothing to change puts nothing in the blob store.
+    /// </remarks>
+    let updatesFor (files: SeedFile list) (history: Transaction list) (projection: Projection) : Seed =
+        fun blobs ->
+            async {
+                let theirs = touchedByAnyone history
+                let mutable events = []
+
+                for file in files do
+                    match file.Content with
+                    | None -> ()
+                    | Some text ->
+                        match Files.tryFindIn projection file.Folder file.Name with
+                        | Some record when
+                            not (Set.contains record.Id theirs)
+                            && not (Record.isFolder record)
+                            && record.Content <> Some(Hash.ofText text)
+                            ->
+                            let! hash = blobs.Put text
+                            events <- events @ [ ContentChanged(record.Id, record.Content, Some hash) ]
+                        | _ -> ()
+
+                return events
+            }

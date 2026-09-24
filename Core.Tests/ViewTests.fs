@@ -501,3 +501,304 @@ type ViewTests() =
         let harness = journal ()
 
         Assert.AreEqual<string>("saturday stray", harness.Names "find $row.mood eq great and not $row.nothing")
+
+/// <summary>`back`: to where you were before the last move (decision 0037).</summary>
+/// <remarks>
+/// `in` and `out` leave a trail of the places they left, folders and views alike, and
+/// `back` retraces it one step at a time, like a browser's back button. The trail is a
+/// fold over the log, so `undo` takes a `back` back, and a reload replays it.
+/// </remarks>
+[<TestClass>]
+type BackTests() =
+
+    /// A session over a log, standing for a tab; a second one over the same log is a reload.
+    let open' (log: ILog) =
+        let mutable counter = 100
+
+        let options =
+            { SessionOptions.defaults with
+                Clock = (fun () -> System.DateTimeOffset(2026, 9, 21, 12, 0, 0, System.TimeSpan.Zero))
+                NewId =
+                    fun () ->
+                        counter <- counter + 1
+                        sprintf "id-%d" counter }
+
+        let session = Session(log, options, SessionOptions.standardSeed options)
+        Async.RunSynchronously(session.Initialize())
+        session
+
+    let display (session: Session) (line: string) =
+        let response = Async.RunSynchronously(session.Execute line)
+
+        match response.Fault with
+        | Some fault -> raise (AssertFailedException(sprintf "'%s' failed: %s" line fault.Message))
+        | None -> response.Result |> Option.map Value.display |> Option.defaultValue ""
+
+    let spec (harness: Harness) (name: string) =
+        harness.Session.Commands |> List.find (fun c -> c.Name = name)
+
+    [<TestMethod>]
+    member _.EachBackGoesOneStepFurther() =
+        let harness = seeded ()
+        harness.Run "in documents" |> ignore
+        harness.Run "in /examples" |> ignore
+
+        harness.Run "back" |> ignore
+        Assert.AreEqual<string>("/documents", harness.Location)
+
+        harness.Run "back" |> ignore
+        Assert.AreEqual<string>("/", harness.Location)
+
+    /// It answers what `in` would have: the folder's record, a chip to tap and pipe.
+    [<TestMethod>]
+    member _.BackAnswersTheFolderItReturnedTo() =
+        let harness = seeded ()
+        harness.Run "in documents" |> ignore
+        harness.Run "in /examples" |> ignore
+
+        match harness.Run "back" with
+        | Value.File file -> Assert.AreEqual<string>("documents", file.Name)
+        | other -> Assert.Fail(sprintf "back answered %s, not a folder." (Value.kind other))
+
+        Assert.AreEqual<Value>(Value.Text "/", harness.Run "back")
+
+    [<TestMethod>]
+    member _.BackFromAViewReturnsToTheFolder() =
+        let harness = seeded ()
+        harness.Run "in documents" |> ignore
+        harness.Run "in $row.kind eq folder" |> ignore
+
+        harness.Run "back" |> ignore
+
+        Assert.AreEqual<string>("/documents", harness.Location)
+        Assert.AreEqual<Expr option>(None, harness.View)
+
+    /// A view is a place on the trail like a folder, so leaving one and going back
+    /// asks the same question again.
+    [<TestMethod>]
+    member _.BackReturnsToAView() =
+        let harness = seeded ()
+        harness.Run "in $row.kind eq folder" |> ignore
+        harness.Run "in documents" |> ignore
+
+        match harness.Run "back" with
+        | Value.Query expr -> Assert.AreEqual<string>("$row.kind eq folder", Expr.display expr)
+        | other -> Assert.Fail(sprintf "back answered %s, not the view." (Value.kind other))
+
+        Assert.AreEqual<string>("/", harness.Location)
+        Assert.AreEqual<string>("$row.kind eq folder", harness.ViewText)
+
+    /// `out` is a move like `in`: going back after it returns to where `out` left.
+    [<TestMethod>]
+    member _.BackAfterOutReturnsToWhereOutLeft() =
+        let harness = seeded ()
+        harness.Run "in documents" |> ignore
+        harness.Run "out" |> ignore
+
+        harness.Run "back" |> ignore
+        Assert.AreEqual<string>("/documents", harness.Location)
+
+        harness.Run "back" |> ignore
+        Assert.AreEqual<string>("/", harness.Location)
+
+    /// Putting a view down with `out` is a move too.
+    [<TestMethod>]
+    member _.BackAfterOutOfAViewPutsTheViewBack() =
+        let harness = seeded ()
+        harness.Run "in $row.kind eq folder" |> ignore
+        harness.Run "out" |> ignore
+
+        harness.Run "back" |> ignore
+
+        Assert.AreEqual<string>("$row.kind eq folder", harness.ViewText)
+
+    /// At the start of the trail it is not a fault: it says where you are, and changes
+    /// nothing, so there is nothing for `undo` to take back.
+    [<TestMethod>]
+    member _.BackAtTheStartSaysThereIsNowhereFurtherBack() =
+        let harness = seeded ()
+
+        Assert.AreEqual<string>("Nowhere further back: you are in /", harness.Text "back")
+        Assert.AreEqual<string>("/", harness.Location)
+        Assert.AreEqual<string list>([ "seed" ], harness.History())
+        Assert.AreEqual<string>("Nothing to undo.", harness.Text "undo")
+
+    [<TestMethod>]
+    member _.BackAtTheEndOfTheTrailSaysWhereYouAre() =
+        let harness = seeded ()
+        harness.Run "in documents" |> ignore
+        harness.Run "back" |> ignore
+
+        Assert.AreEqual<string>("Nowhere further back: you are in /", harness.Text "back")
+
+    /// A log written before the trail existed moved without leaving one, so a returning
+    /// visitor starts with nowhere further back, and in a view that names the view.
+    [<TestMethod>]
+    member _.AMoveFromBeforeTheTrailLeavesNothingToGoBackTo() =
+        let log = InMemoryLog()
+        let first = open' log
+
+        let view =
+            match Expr.parse "test" "$row.kind eq folder" with
+            | Ok expr -> expr
+            | Error fault -> failwith fault.Message
+
+        // What `in $row.kind eq folder` committed before Phase 9: the move alone.
+        Async.RunSynchronously(
+            first.Store.Commit
+                "in $row.kind eq folder"
+                [ LocationChanged({ Folder = "/"; View = None }, { Folder = "/"; View = Some view }) ])
+        |> ignore
+
+        let second = open' log
+
+        Assert.AreEqual<string>("Nowhere further back: you are in $row.kind eq folder", display second "back")
+
+    /// `back` is a line like any move: in `history`, and `undo` takes it back, which
+    /// puts the place back on the trail as well.
+    [<TestMethod>]
+    member _.UndoTakesABackBack() =
+        let harness = seeded ()
+        harness.Run "in documents" |> ignore
+        harness.Run "back" |> ignore
+
+        Assert.AreEqual<string>("Undone: back", harness.Text "undo")
+        Assert.AreEqual<string>("/documents", harness.Location)
+
+        // The place is on the trail again, so `back` goes there again.
+        harness.Run "back" |> ignore
+        Assert.AreEqual<string>("/", harness.Location)
+
+    [<TestMethod>]
+    member _.RedoGoesBackAgain() =
+        let harness = seeded ()
+        harness.Run "in documents" |> ignore
+        harness.Run "in /examples" |> ignore
+        harness.Run "back" |> ignore
+        harness.Run "undo" |> ignore
+
+        Assert.AreEqual<string>("Redone: back", harness.Text "redo")
+        Assert.AreEqual<string>("/documents", harness.Location)
+
+        harness.Run "back" |> ignore
+        Assert.AreEqual<string>("/", harness.Location)
+
+    /// Undoing a move takes back the place it left too, so `back` does not return to
+    /// somewhere the undone move never left.
+    [<TestMethod>]
+    member _.UndoingAMoveTakesItsPlaceOffTheTrail() =
+        let harness = seeded ()
+        harness.Run "in documents" |> ignore
+        harness.Run "in /examples" |> ignore
+        harness.Run "undo" |> ignore
+
+        Assert.AreEqual<string>("/documents", harness.Location)
+        harness.Run "back" |> ignore
+        Assert.AreEqual<string>("/", harness.Location)
+        Assert.AreEqual<string>("Nowhere further back: you are in /", harness.Text "back")
+
+    [<TestMethod>]
+    member _.BackIsInHistory() =
+        let harness = seeded ()
+        harness.Run "in documents" |> ignore
+        harness.Run "back" |> ignore
+
+        Assert.AreEqual<string list>([ "seed"; "in documents"; "back" ], harness.History())
+
+    /// A move that goes nowhere leaves nothing on the trail: `in` where you already
+    /// are commits nothing.
+    [<TestMethod>]
+    member _.AMoveToWhereYouAreLeavesNoStep() =
+        let harness = seeded ()
+        harness.Run "in documents" |> ignore
+        harness.Run "in ." |> ignore
+
+        harness.Run "back" |> ignore
+        Assert.AreEqual<string>("/", harness.Location)
+
+    /// A folder deleted since is passed over: a `back` that failed on it would fail
+    /// every time, because nothing else takes a place off the trail.
+    [<TestMethod>]
+    member _.BackPassesOverAFolderThatIsGone() =
+        let harness = seeded ()
+        harness.Run "in documents" |> ignore
+        harness.Run "mkdir sub" |> ignore
+        harness.Run "in sub" |> ignore
+        harness.Run "in /" |> ignore
+        harness.Run "rm documents/sub" |> ignore
+
+        harness.Run "back" |> ignore
+
+        Assert.AreEqual<string>("/documents", harness.Location)
+
+    /// The trail is in the log, so a reload keeps it, and `undo` of a `back` still
+    /// works after one.
+    [<TestMethod>]
+    member _.BackWorksAcrossAReload() =
+        let log = InMemoryLog()
+        let first = open' log
+        display first "in documents" |> ignore
+        display first "in /examples" |> ignore
+
+        let second = open' log
+        display second "back" |> ignore
+        Assert.AreEqual<string>("/documents", second.Location.Folder)
+
+        let third = open' log
+        Assert.AreEqual<string>("/documents", third.Location.Folder)
+        Assert.AreEqual<string>("Undone: back", display third "undo")
+        Assert.AreEqual<string>("/examples", third.Location.Folder)
+        display third "back" |> ignore
+        display third "back" |> ignore
+        Assert.AreEqual<string>("/", third.Location.Folder)
+        Assert.AreEqual<string>("Nowhere further back: you are in /", display third "back")
+
+    /// A view on the trail survives a reload, stored as its text and read back.
+    [<TestMethod>]
+    member _.AViewOnTheTrailSurvivesAReload() =
+        let log = InMemoryLog()
+        let first = open' log
+        display first "in $row.kind eq folder" |> ignore
+        display first "in documents" |> ignore
+
+        let second = open' log
+        display second "back" |> ignore
+
+        Assert.AreEqual<string>(
+            "$row.kind eq folder",
+            second.Location.View |> Option.map Expr.display |> Option.defaultValue "")
+
+    /// `back` changes where you are, so it is not read-only: a live view must not re-run it.
+    [<TestMethod>]
+    member _.BackIsNotReadOnly() =
+        Assert.IsFalse((spec (seeded ()) "back").ReadOnly)
+
+    /// `back` came from `up`'s keywords; it is a command of its own now, so `out` no
+    /// longer answers to it.
+    [<TestMethod>]
+    member _.OutNoLongerAnswersToBack() =
+        let harness = seeded ()
+
+        Assert.IsFalse(List.contains "back" (spec harness "out").Keywords)
+        Assert.IsTrue(List.contains "up" (spec harness "out").Keywords)
+
+    /// Leaving a place pushes it; undoing that pops it; both are replayed.
+    [<TestMethod>]
+    member _.TheTrailIsAFoldThatUndoInverts() =
+        let documents = { Folder = "/documents"; View = None }
+        let pushed = Projection.apply Projection.empty (TrailPushed documents)
+
+        Assert.AreEqual<Location list>([ documents ], pushed.Trail)
+        Assert.AreEqual<Location list>([], (Projection.apply pushed (Projection.invert (TrailPushed documents))).Trail)
+        Assert.AreEqual<Event>(TrailPushed documents, Projection.invert (Projection.invert (TrailPushed documents)))
+
+    /// Forgiving, like the rest of the fold: taking off a place that is not there
+    /// changes nothing rather than failing a replay.
+    [<TestMethod>]
+    member _.PoppingAPlaceThatIsNotThereChangesNothing() =
+        let documents = { Folder = "/documents"; View = None }
+        let projection = Projection.apply Projection.empty (TrailPushed documents)
+
+        let popped = Projection.apply projection (TrailPopped { Folder = "/elsewhere"; View = None })
+
+        Assert.AreEqual<Location list>([ documents ], popped.Trail)
