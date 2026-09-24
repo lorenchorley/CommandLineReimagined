@@ -35,6 +35,7 @@ drive. `..` and `.` work.
 | [`ls`](#ls) | List a directory, or the view you are in | no |
 | [`mkdir`](#mkdir) | Create a directory | yes |
 | [`out`](#out) | Come out of the view, or up out of the folder | yes, where you are |
+| [`pick`](#pick) | The elements of a tree a CSS selector matches, as a table | no |
 | [`progress`](#progress) | Run a progress bar, to exercise long commands | no |
 | [`pwd`](#pwd) | Where you are: a directory, or a view | no |
 | [`read`](#read) | Show what a file says | no |
@@ -63,7 +64,9 @@ The thirteen table functions — `columns`, `count`, `distinct`, `first`, `group
 table from the pipe, coerce a table-shaped tag, and change nothing.
 [Tables and predicates](tables.md) is the guide to them; this is the reference.
 The four document commands — `from-csv`, `from-xml`, `to-csv` and `to-xml` — are covered
-in [Reading and writing files](tables.md#reading-and-writing-files).
+in [Reading and writing files](tables.md#reading-and-writing-files). `pick` reads inside
+a tag that is a tree rather than a table, typed or read from a file:
+[Reading a tree with `pick`](tables.md#reading-a-tree-with-pick).
 
 `in`, `out` and `read` were called `cd`, `up` and `cat`; typing an old name offers the
 new one, and running it names the new one in a note, with the line to run
@@ -1070,6 +1073,68 @@ Like `in`, it puts the place it left on the trail, so [`back`](#back) after `out
 back in.
 
 **Undo** returns you to where you were, view and all.
+
+---
+
+## pick
+
+Answers a table of every element a CSS selector matches, from a tag, a list of tags,
+or a table `pick` answered
+([decision 0049](decisions/0049-pick-selects-elements-with-css-selectors.md)).
+
+**Parameters**
+
+| Name | Notes |
+| --- | --- |
+| `selector` | The CSS selector: an element name, `*`, attribute tests `[a]`, `[a=v]`, `[a^=v]`, `[a$=v]` and `[a*=v]`, several of those together, a space for a descendant, `>` for a child, and commas between alternatives. Quote it when it has a space, `>`, `[` or `,` in it. |
+| `document` | optional, piped. The tag, list of tags or table of elements to read. Taken from the pipe when it is not written. |
+
+**Returns** a table with a row for every element matched, the one piped in included, in
+document order, each element once. The columns are `@tag`, the element's name; the
+attributes of the elements matched, in the order they first appear, with a gap where
+an element lacks one; and `@children`, the element's children as a list, which a cell
+shows as `N children`. Nothing matched is a table with only `@tag` and `@children`.
+
+From a fresh tab:
+
+```
+$ set d <library city=paris><book title=dune year=1965><author name=herbert/></book><book title=emma year=1815><author name=austen/></book><shelf/></library>
+<library city=paris><book title=dune year=1965><author name=herbert/></book><book title=emma year=1815><author name=austen/></book><shelf/></library>
+$ $d | pick book
+@tag  title  year  @children
+book  dune   1965  1 child
+book  emma   1815  1 child
+$ $d | pick "book > author" | select name
+name
+herbert
+austen
+$ $d | pick book | where $row.year gt 1900 | select title
+title
+dune
+$ $d | pick book | pick author | select name
+name
+herbert
+austen
+```
+
+Names and values are compared exactly, and an attribute as the text it shows. A table
+whose rows have an `@tag` column is read back as the elements they were made from, so
+`pick` reads what `pick` answered; where the documents given overlap, an element inside
+two of them is still answered once
+([decision 0052](decisions/0052-pick-answers-each-element-once.md)). A list of tags,
+such as `$d.@children`, is that many documents. On the page, completion offers the
+element names of what flows in, as `book · 2 elements`.
+[Reading a tree with `pick`](tables.md#reading-a-tree-with-pick) is the guide, with a
+document read from a file. It changes nothing.
+
+**Errors**
+
+| Message | Cause |
+| --- | --- |
+| `The selector '<selector>' stops at <where>: <what was expected>.` | A selector outside the subset. `<where>` is `character <n>, '<c>'`, counted from one, or `its end`. Kind `syntax`, and `else` and `try` catch it. [Selector errors](errors.md#selector-errors) lists them. |
+| `The selector is empty: write an element name, such as 'book', or '*' for every element.` | `pick ""`. Kind `syntax`. |
+| `'pick' needs a tag, a list of tags or a table with a @tag column, not <kind>.` | Nothing with elements in it was piped in, such as text, a listing, or with `not empty`, nothing at all. |
+| `'pick' cannot read row <n> as an element: its @tag is empty.` | A table with an `@tag` column has a row with nothing in it. |
 
 ---
 

@@ -469,7 +469,8 @@ really is here.
 
 - [Worked examples](examples.md) for complete sessions to copy, and the four
   [example programs](examples.md#programs) with their output.
-- [Tables and predicates](tables.md) for filtering, sorting and counting a listing.
+- [Tables and predicates](tables.md) for filtering, sorting and counting a listing,
+  and for reading inside a nested tag or document with `pick`.
 - [The filesystem](filesystem.md) for attribute records, views and `find`.
 - [The command language](language.md) for tags, components, variables and the function
   call form.

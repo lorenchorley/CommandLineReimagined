@@ -2,7 +2,8 @@
 
 Every listing is a table. `ls` does not return a list of names, it returns rows with
 columns, and a table is a value like any other: you can filter it, sort it, count it,
-pick a column out of it, and pipe what is left into something else.
+keep only the columns you want, and pipe what is left into something else. A tag is a
+table when it has that shape, and `pick` makes one out of any tree.
 
 The examples below are pasted from a real session, not typed from memory. Timestamps
 are whatever the clock said at the time. Each section says where it starts; a fresh tab
@@ -448,6 +449,9 @@ $ <items><item sku=A1/><other sku=B2/></items> | count
 `table` is the explicit form, for seeing what a tag reads as. Everywhere else the
 coercion is implicit, so `where`, `count` and the rest take a tag directly.
 
+A tree is not a dead end. `pick` finds the elements inside it and answers them as a
+table: [Reading a tree with `pick`](#reading-a-tree-with-pick).
+
 ## Reading and writing files
 
 A table can live in a file, as XML or as CSV, and comes back out as the same value it
@@ -556,6 +560,263 @@ gathered, trimmed, into one attribute and written back before the children. Comm
 and processing instructions are dropped, a prefixed name such as `x:item` is kept as
 written, and a document with a DTD is refused.
 
+## Reading a tree with `pick`
+
+A tag whose children have children of their own is a tree, not a table, and the table
+functions refuse it. `pick <selector>` reaches inside one. The selector is a CSS
+selector, the kind a stylesheet uses to pick elements out of a web page, and the answer
+is a table of every element it matches, which `where`, `select` and `sort` then work on
+([decision 0049](decisions/0049-pick-selects-elements-with-css-selectors.md)). Selectors
+pick by shape; comparing values stays with `where`.
+
+### A tree typed as a tag
+
+From a fresh tab. A library holds two books, each with an author, and an empty shelf:
+
+```
+$ set d <library city=paris><book title=dune year=1965><author name=herbert/></book><book title=emma year=1815><author name=austen/></book><shelf/></library>
+<library city=paris><book title=dune year=1965><author name=herbert/></book><book title=emma year=1815><author name=austen/></book><shelf/></library>
+
+$ $d | count
+<library> is not a table: child 1 has children of its own.
+
+$ $d | pick book
+@tag  title  year  @children
+book  dune   1965  1 child
+book  emma   1815  1 child
+
+$ $d | pick "book > author" | select name
+name
+herbert
+austen
+```
+
+The table always has the same shape. `@tag`, the element's name, comes first. Then the
+attributes of the elements matched, in the order they first appear, with a gap where
+an element lacks one. Then `@children`, the element's children as a list. A cell is
+one line, so a list in one says how many items it holds, `1 child` or `3 children`, and
+an element with none has an empty cell
+([decision 0051](decisions/0051-a-list-in-a-table-cell-is-summarised.md)). The cell
+still holds the whole list: `$row.@children` reads it.
+
+The rows are in document order, the order the elements are written in, and the element
+piped in is one of them. `*` matches every element:
+
+```
+$ $d | pick "*"
+@tag     city   title  year  name     @children
+library  paris                        3 children
+book            dune   1965           1 child
+author                       herbert
+book            emma   1815           1 child
+author                       austen
+shelf
+
+$ $d | pick "shelf, author"
+@tag    name     @children
+author  herbert
+author  austen
+shelf
+```
+
+A group, several selectors joined by commas, still answers in document order and names
+each element once, however many of its selectors match it. A selector that matches
+nothing answers a table with only `@tag` and `@children`. Names and values are compared
+exactly, as XML compares them, so `BOOK` is not `book`:
+
+```
+$ $d | pick BOOK
+@tag  @children
+```
+
+### The selector
+
+`pick` reads a subset of CSS. Every example is over `$d` above:
+
+| Selector | Matches | In `$d` |
+| --- | --- | --- |
+| `book` | every element of that name | the two books |
+| `*` | every element | all six, the library first |
+| `[year]` | elements that have the attribute | the two books |
+| `[year=1965]` | the attribute is exactly that | `dune` |
+| `[title^=du]` | it starts with that | `dune` |
+| `[title$=ma]` | it ends with that | `emma` |
+| `[title*=m]` | it contains that | `emma` |
+| `book[year][title]` | all of those together, with no spaces between them | the two books |
+| `library author` | an `author` anywhere inside a `library`: the space is the descendant combinator | both authors |
+| `book > author` | an `author` whose parent is a `book`: the child combinator | both authors; `library > author` matches none |
+| `shelf, author` | anything any of them matches, in document order | both authors, then the shelf |
+
+An attribute is compared as the text it shows, so `[year=1965]` finds the number
+`1965`. A value may be bare or quoted with `'`, as in `[title='dune']`. A prefix, suffix
+or part that is empty matches nothing, as in CSS. Spaces around `>`, `=` and inside the
+brackets do not matter: `book>author` and `book > author` are the same selector.
+
+A selector with a space, `>`, `[` or `,` in it goes in double quotes, since otherwise
+it would be split into several arguments or not parse; a plain name, and `*`, need none.
+Anything outside the subset (`#id`, `.class`, `:first-child`, `+`, `~`) is a fault of
+kind `syntax` that says where the selector stopped and why:
+
+```
+$ $d | pick "book >"
+The selector 'book >' stops at its end: an element name, '*' or '[' is expected after '>'.
+```
+
+Completion knows the document: `$d | pick ` offers the element names of what flows in,
+each with how many there are, as `book · 2 elements`
+([Completions](web-terminal.md#completions)).
+
+### Where, select and sort
+
+What `pick` answers is an ordinary table, so the rest of a question is the table
+functions. The columns named with `@` are written as they are shown, with no quotes,
+and a predicate reads them off `$row` like any other column. Still in the same tab:
+
+```
+$ $d | pick book | where $row.year gt 1900 | select title
+title
+dune
+
+$ $d | pick book | sort year | select title year
+title  year
+emma   1815
+dune   1965
+
+$ $d | pick "*" | group @tag
+key      rows
+library  1 row
+book     2 rows
+author   2 rows
+shelf    1 row
+
+$ $d | pick "*" | where $row.@tag eq author | select name
+name
+herbert
+austen
+```
+
+`group @tag` is a quick way to see what a document you have never looked at is made of.
+
+### Picking from a pick
+
+A table whose rows have an `@tag` column is read back as the elements they were made
+from, so `pick` works on what `pick` answered. `$d.@children`, a list of tags, is read
+as that many documents, each with its own root
+([Members](language.md#members)):
+
+```
+$ $d | pick book | pick author | select name
+name
+herbert
+austen
+
+$ $d | pick "*" | pick "[year^=19]" | select title
+title
+dune
+
+$ $d.@children | pick "*" | select @tag
+@tag
+book
+author
+book
+author
+shelf
+```
+
+The rows of `pick "*"` overlap: a book is a row of its own and also inside the library's
+row. An element is still answered once, in the order of the first document it was
+found in, which is why `dune` appears once above
+([decision 0052](decisions/0052-pick-answers-each-element-once.md)). Two elements that
+are equal but separate, such as the same tag typed twice, are still two.
+
+### A document read from a file
+
+`from-xml` reads a file into the same tree a tag makes, so `pick` reads it the same way.
+From a fresh tab, and continuing in the same one to the end of this section, a shop's
+catalogue, with a department inside another. The XML is written with `'` around its
+attribute values, since a string cannot hold a `"`:
+
+```
+$ write shop.xml "<shop><dept name='tools'><item sku='A1' price='4.5'>Hammer</item><item sku='A2' price='12'>Saw</item></dept><dept name='garden'><item sku='B1' price='3'>Trowel</item><dept name='seeds'><item sku='B7' price='1.2'>Basil</item></dept></dept></shop>"
+shop.xml
+
+$ from-xml shop.xml | table
+<shop> is not a table: child 1 has children of its own.
+
+$ from-xml shop.xml | pick item
+@tag  sku  price  text    @children
+item  A1   4.5    Hammer
+item  A2   12     Saw
+item  B1   3      Trowel
+item  B7   1.2    Basil
+
+$ from-xml shop.xml | pick dept
+@tag  name    @children
+dept  tools   2 children
+dept  garden  2 children
+dept  seeds   1 child
+```
+
+An element's text is its `text` attribute, as it is everywhere a document is read
+([Text inside an element](#text-inside-an-element)), and `price` is a number column
+because every price reads as one. The descendant and child combinators tell the
+garden's own items from the seeds department's:
+
+```
+$ from-xml shop.xml | pick "dept[name=garden] item" | select sku text
+sku  text
+B1   Trowel
+B7   Basil
+
+$ from-xml shop.xml | pick "dept[name=garden] > item" | select sku text
+sku  text
+B1   Trowel
+
+$ from-xml shop.xml | pick item | where $row.price lt 5 | sort price | select text price
+text    price
+Basil   1.2
+Trowel  3
+Hammer  4.5
+
+$ from-xml shop.xml | pick dept | where $row.name eq garden | pick item | select sku text
+sku  text
+B1   Trowel
+B7   Basil
+```
+
+The last line picks the departments, keeps the one `where` chose by value, and picks
+inside it: a selector cannot compare numbers, and `where` cannot see inside a tree, so
+between them they ask either kind of question.
+
+A picked table is written to a file like any other, once it has only the columns a
+document can hold. XML has no name that starts with `@`, so `select` the ones you want
+first:
+
+```
+$ from-xml shop.xml | pick item | to-xml items.xml
+'@tag' is not a name XML allows.
+
+$ from-xml shop.xml | pick item | select sku price text | to-xml items.xml -root items -row item
+items.xml
+
+$ read items.xml
+<items>
+  <item sku="A1" price="4.5">Hammer</item>
+  <item sku="A2" price="12">Saw</item>
+  <item sku="B1" price="3">Trowel</item>
+  <item sku="B7" price="1.2">Basil</item>
+</items>
+
+$ from-xml items.xml | sort price desc
+sku  price  text
+A2   12     Saw
+A1   4.5    Hammer
+B1   3      Trowel
+B7   1.2    Basil
+```
+
+`items.xml` is table-shaped, so it is a table again without `pick`.
+
 ## The other tables
 
 `ls` is not the only command that answers one.
@@ -613,3 +874,6 @@ that `select`, `sort`, `distinct` or `group` cannot find is named without one.
 | `'to-xml' needs a tag, a table or a list of tags, not text.` | Only something with elements in it can be written as a document. |
 | `'first name' is not a name XML allows.` | A column name that XML cannot hold, often from a CSV header with a space in it. |
 | `/stock/r.csv line 3 has 1 fields where the header has 2.` | A CSV record of a different width from its header. A table has one width. |
+| `The selector 'book >' stops at its end: an element name, '*' or '[' is expected after '>'.` | A selector `pick` cannot read. It says where it stopped, a character or the end, and what it expected there. [Error reference](errors.md#selector-errors) has them all. |
+| `'pick' needs a tag, a list of tags or a table with a @tag column, not text.` | Something with no elements in it was piped into `pick`, such as text or a listing. A listing's rows are records, not elements. |
+| `'@tag' is not a name XML allows.` | A table from `pick` was written with `to-xml` as it stands. `select` the attribute columns first. |

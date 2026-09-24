@@ -155,8 +155,8 @@ A command returns a value. The kinds are:
 | Number | `echo 42`, `count`, `progress` | the number |
 | Boolean | a flag with no value | `true` or `false` |
 | File | `mkdir`, `write`, `attr`, `save`, a listing's `name` column | the record's name |
-| List | `rows`, an argument that collected several | its items, space separated |
-| Table | `ls`, `vars`, `history`, `help`, every table function | a header and one line per row |
+| List | `rows`, `$v.@children`, an argument that collected several | its items, space separated; in a table cell, how many there are, as `2 children` |
+| Table | `ls`, `vars`, `history`, `help`, `pick`, every table function | a header and one line per row |
 | Object | `<thing a=1/>`, a row taken out of a table | the tag as written |
 | Component | `{renderer/}` | the tag as written |
 | Query | `pwd` inside a view | the predicate as written |
