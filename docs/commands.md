@@ -14,6 +14,7 @@ drive. `..` and `.` work.
 | Command | Purpose | Changes anything? |
 | --- | --- | --- |
 | [`attr`](#attr) | Show a file's attributes, or set them | only when given `name=value` |
+| [`back`](#back) | Go back to where you were before the last move | yes, where you are |
 | [`columns`](#columns) | A table's columns and their types | no |
 | [`count`](#count) | How many rows a table has | no |
 | [`cp`](#cp) | Copy a file into a directory | yes |
@@ -65,7 +66,8 @@ The four document commands — `from-csv`, `from-xml`, `to-csv` and `to-xml` —
 in [Reading and writing files](tables.md#reading-and-writing-files).
 
 `in`, `out` and `read` were called `cd`, `up` and `cat`; typing an old name offers the
-new one.
+new one, and running it says which to use
+([decision 0037](decisions/0037-in-out-back-and-read.md)). `back` is new with them.
 
 The column says whether the command produces events. A line made only of commands that
 change nothing leaves no trace at all, which is why `undo` after `ls` reverses the line
@@ -78,9 +80,33 @@ commands are the ones marked "no" above except `exit` and `progress`.
 
 A name that is not a command fails with `Unknown command : <name>`, followed by
 `Did you mean ...?` when a command or two are a slip away, as in
-`Unknown command : lss. Did you mean ls?`. That includes `UnknownCommand`, the name the
+`Unknown command : lss. Did you mean ls?`, or when the name is an old one, as in
+`Unknown command : cd. Did you mean in?`. That includes `UnknownCommand`, the name the
 terminal uses internally to report one. `help <command>` describes one command's
 parameters.
+
+A command called wrongly shows its help
+([decision 0038](decisions/0038-a-wrong-call-shows-its-help.md)). When what you wrote
+does not fit what a command declared (an argument missing, one too many, a flag it does
+not have, a word a switch does not take), the line fails with the same fault as ever,
+and the page draws that command's help under the error: its description and the table
+`help <command>` answers, in a panel labelled `help`. Below, the indented lines under
+an error are that panel:
+
+```
+$ read
+'read' needs an argument for 'path'.
+  help
+  Show what a file says
+  name  required  piped  takes   description
+  path  true      true   a path  The file to read
+```
+
+A fault raised while the command runs is not a wrong call, and shows no help:
+`read missing.txt` says `File does not exist : /missing.txt` and nothing more. Nor does an
+unknown command, which already says what it probably meant, nor a question that never
+reads `$row`, which says what to write instead. `else` and `try` see the same fault
+either way.
 
 `clear` is handled by the page rather than by a command: it is about the screen rather
 than about the filesystem. See
@@ -175,6 +201,85 @@ Undo restores every attribute the record had.
 | `'<name>' is not a valid file name: it already names a directory.` | The new name is `.` or `..`. |
 | `A directory cannot change its kind : <path>` | A `kind=` assignment on a directory. |
 | `A file with content cannot become a directory : <path>` | `kind=folder` on a file with content. |
+
+---
+
+## back
+
+Goes back to where you were before the last move, like a browser's back button.
+
+```
+back
+```
+
+**Parameters** none.
+
+`in` and `out` leave a trail of the places they left, folders and views alike. `back`
+goes to the most recent and takes it off the trail, so each `back` goes one step further;
+it does not add to the trail itself. **Returns** where it took you: a directory as a
+file, the root as the text `/`, a view as its question.
+
+```
+$ in documents
+documents
+$ in /examples
+examples
+$ back
+documents
+$ back
+/
+$ back
+Nowhere further back: you are in /
+```
+
+At the start of the trail, as in a fresh tab, it is not a fault: it says where you are
+and that there is nowhere further back, and changes nothing. In a view it names the
+view's question instead of the folder.
+
+A view is a place like any other, so `back` returns to one:
+
+```
+$ in $row.kind eq folder
+$row.kind eq folder
+$ in documents
+documents
+$ back
+$row.kind eq folder
+$ back
+/
+```
+
+A place that is no longer there, a folder since deleted or renamed, is passed over, and
+so is the place you are already in:
+
+```
+$ mkdir scratch
+scratch
+$ in scratch
+scratch
+$ in /documents
+documents
+$ rm /scratch
+Removed scratch
+$ back
+/
+```
+
+**Undo** returns you to where you were before the `back`, and puts the place back on the
+trail:
+
+```
+$ in documents
+documents
+$ back
+/
+$ undo
+Undone: back
+$ pwd
+/documents
+```
+
+The trail is kept in the log, so it survives a reload.
 
 ---
 
@@ -609,11 +714,11 @@ the rest `name...`.
 
 ```
 $ help | take 4
-name     parameters                        description
-attr     <path> [assignments]              Show a file's attributes, or set them with name=value
-columns  [table]                           The table's columns and their types
-count    [table]                           How many rows there are
-cp       <sourcePathAndFile> <targetPath>  Copy a file into a directory
+name     parameters            description
+attr     <path> [assignments]  Show a file's attributes, or set them with name=value
+back                           Go back to where you were before the last move
+columns  [table]               The table's columns and their types
+count    [table]               How many rows there are
 $ help | where $row.name eq set | select name description
 name  description
 set   Bind a value, or whatever was piped in, to a variable
@@ -645,6 +750,19 @@ Unknown command : lss. Did you mean ls?
 
 The description is written above the table rather than being part of it, so the table
 can be questioned like any other: `help where | count` counts the parameters.
+
+The same description and table are what the page draws under a command called wrongly
+(see [the summary](#summary)). `help` called wrongly shows its own, since `help` is the
+command that was called wrongly, not the one it was asked about:
+
+```
+$ help where extra
+'help' takes 1 argument, but 2 were given.
+  help
+  The commands, with their parameters and what they do
+  name     required  piped  takes           description
+  command  false     false  a command name  The command to describe; every command when it is not written
+```
 
 It changes nothing and leaves nothing to undo.
 
@@ -733,13 +851,16 @@ See [The filesystem](filesystem.md#views).
 `in ..` normalises, so the working directory shows the parent's real name rather than a
 path ending in `..`. Entering a directory puts down whatever view was held.
 
+The place it left goes on the trail [`back`](#back) retraces. Going in where you already
+are is no move, and leaves nothing on it.
+
 **Undo** returns you to where you were, view and all.
 
 **Errors**
 
 | Message | Cause |
 | --- | --- |
-| `'in' needs an argument for 'TargetPath'.` | No path given and nothing piped in. |
+| `'in' needs an argument for 'TargetPath'.` | No path given and nothing piped in. The page shows `in`'s help under it. |
 | `kind eq folder never reads $row, so it is the same for every row. Did you mean $row.kind eq folder?` | A question that never mentions the row, so it would hold of everything or nothing. |
 | `Directory does not exist : <path>` | No such directory, and no view file of that name. The path is shown as you wrote it. |
 | `'<path>' does not hold a predicate : <text>` | A view file whose content is not a predicate, such as `'/weekend' does not hold a predicate : monday`. |
@@ -906,6 +1027,9 @@ $ out
 
 Two `out`s from a view over a subdirectory come out in the order they went in: the
 question first, the directory second. At the root with no view, `out` stays at the root.
+
+Like `in`, it puts the place it left on the trail, so [`back`](#back) after `out` goes
+back in.
 
 **Undo** returns you to where you were, view and all.
 
