@@ -1149,8 +1149,11 @@ function applyCompletion(c, keepTab = false) {
   const inserted = text + trailing;
   cmd.value = base.slice(0, c.start) + inserted + rest;
   const caret = c.start + inserted.length;
-  cmd.setSelectionRange(caret, caret);
-  refreshMirror(); refreshCompletions(keepTab); refocus();
+  // Placing the caret gives the line the focus, so on a phone with the keyboard down,
+  // where the tap left the focus elsewhere, the caret is not placed (see setLine).
+  refocus();
+  if (document.activeElement === cmd) cmd.setSelectionRange(caret, caret);
+  refreshMirror(); refreshCompletions(keepTab);
 }
 
 /// Puts one chip in place while stepping: no space after it, and nothing asked again,
@@ -1314,6 +1317,8 @@ function afterRun(text) {
   Undo and redo sit before it and are there everywhere, the root included: there is
   always a last line to take back. They run the `undo` and `redo` commands, so what
   they do is exactly what typing them does, entry hidden and brought back included.
+  After them, ↑ and ↓ walk the lines already run, as the Up and Down keys do, for a
+  phone keyboard that has neither.
 */
 async function refreshPrompt() {
   if (!ready) return;
@@ -1329,11 +1334,17 @@ async function refreshPrompt() {
   $('prompt').innerHTML =
     '<button class="step" id="undo" title="undo" aria-label="undo">\u21B6</button>' +
     '<button class="step" id="redo" title="redo" aria-label="redo">\u21B7</button>' +
+    '<button class="step" id="older" title="the line before" aria-label="previous line">\u2191</button>' +
+    '<button class="step" id="newer" title="the line after" aria-label="next line">\u2193</button>' +
     (canGoOut ? '<button class="out" id="out">out</button> ' : ' ') +
     `<span id="where">${where}</span>`;
 
   $('undo').onclick = () => press('undo');
   $('redo').onclick = () => press('redo');
+  // The arrows walk the history as Up and Down do, and only change the line: they run
+  // nothing, and like every button they leave the keyboard as it was.
+  $('older').onclick = () => { refocus(); historyBack(); };
+  $('newer').onclick = () => { refocus(); historyForward(); };
   if (canGoOut) $('out').onclick = () => press('out');
 }
 
@@ -1357,25 +1368,8 @@ cmd.addEventListener('keydown', e => {
   if (e.key === 'Escape' && running) { e.preventDefault(); stop(); return; }
 
   // Walk back through what has already been run.
-  if (e.key === 'ArrowUp') {
-    e.preventDefault();
-    if (!history.length) return;
-    if (historyIndex === -1) { draft = cmd.value; historyIndex = history.length; }
-    historyIndex = Math.max(0, historyIndex - 1);
-    cmd.value = history[historyIndex];
-    refreshMirror(); refreshCompletions();
-    return;
-  }
-
-  if (e.key === 'ArrowDown') {
-    e.preventDefault();
-    if (historyIndex === -1) return;
-    historyIndex++;
-    if (historyIndex >= history.length) { historyIndex = -1; cmd.value = draft; }
-    else cmd.value = history[historyIndex];
-    refreshMirror(); refreshCompletions();
-    return;
-  }
+  if (e.key === 'ArrowUp') { e.preventDefault(); historyBack(); return; }
+  if (e.key === 'ArrowDown') { e.preventDefault(); historyForward(); return; }
 
   // Tab takes the only completion, or the common prefix of several, and after that
   // steps through them. It waits for the answer to the last keystroke first, which may
@@ -1486,9 +1480,37 @@ document.addEventListener('click', e => {
 /// Appends to the line being typed, with a space before it if something is there.
 function insert(text) {
   if (!text) return;
-  cmd.value = (cmd.value ? cmd.value.replace(/\s*$/, ' ') : '') + text;
-  refreshMirror(); refreshCompletions();
   refocus();
+  setLine((cmd.value ? cmd.value.replace(/\s*$/, ' ') : '') + text);
+}
+
+/// Puts a whole line in the input with the caret at its end, where typing goes on from.
+///
+/// Replacing the text of an editable line drops the caret, and focusing it afterwards
+/// puts it at the start, so a key's text was typed in front of. The caret is placed only
+/// when the line has the focus: placing it in a line without it would give it the
+/// focus, and on a phone that opens the keyboard, which the page never does on its own.
+function setLine(text) {
+  cmd.value = text;
+  if (document.activeElement === cmd) cmd.setSelectionRange(cmd.value.length);
+  refreshMirror(); refreshCompletions();
+}
+
+/// Up, and the ↑ button: one line further back through what has been run. What was
+/// being typed is kept, and comes back at the end of the walk.
+function historyBack() {
+  if (!history.length) return;
+  if (historyIndex === -1) { draft = cmd.value; historyIndex = history.length; }
+  historyIndex = Math.max(0, historyIndex - 1);
+  setLine(history[historyIndex]);
+}
+
+/// Down, and the ↓ button: one line forward again, and past the newest, what was typed.
+function historyForward() {
+  if (historyIndex === -1) return;
+  historyIndex++;
+  if (historyIndex >= history.length) { historyIndex = -1; setLine(draft); }
+  else setLine(history[historyIndex]);
 }
 
 runButton.onclick = run;
@@ -1513,9 +1535,7 @@ runButton.onclick = run;
   .forEach(([label, value]) => {
     const b = document.createElement('button');
     b.className = 'key'; b.innerHTML = label;
-    b.onclick = () => {
-      cmd.value = value; refreshMirror(); refreshCompletions(); refocus();
-    };
+    b.onclick = () => { refocus(); setLine(value); };
     $('keys').appendChild(b);
   });
 

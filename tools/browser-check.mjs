@@ -412,7 +412,7 @@ async function submit(page, line) {
 }
 
 /**
- * Phase 9, the page (stream C): R5, R6, R9 and R13, in a fresh store at `/`.
+ * Phase 9, the page (stream C): R5, R6, R9, R10, R11 and R13, in a fresh store at `/`.
  *
  * R12, no title and no status at the top, is checked straight after the first boot.
  */
@@ -625,6 +625,45 @@ async function checkPhase9(page, note) {
   }, older);
   if (blocked.length) note(`a long press could not select: the page cancels ${blocked.join(', ')}`);
 
+  // ---- R10: ↑ and ↓ walk the history, and leave the keyboard as it was ------------
+
+  await submit(page, 'echo one');
+  await submit(page, 'echo two');
+  await page.fill('#cmd', 'half typed');
+  await page.evaluate(() => document.getElementById('cmd').blur());
+
+  for (const [button, wanted] of [['older', 'echo two'], ['older', 'echo one'], ['newer', 'echo two'], ['newer', 'half typed']]) {
+    await page.tap(`#prompt #${button}`);
+    const line = await value();
+    if (line !== wanted) { note(`tapping ${button === 'older' ? '↑' : '↓'} made the line ${JSON.stringify(line)}, not ${JSON.stringify(wanted)}`); break; }
+  }
+  if (await focused()) note('tapping ↑ or ↓ with the keyboard down brought it up');
+
+  await page.focus('#cmd');
+  await page.evaluate(() => {
+    window.__historyBlurs = 0;
+    document.getElementById('cmd').addEventListener('blur', () => { window.__historyBlurs++; });
+  });
+  await page.tap('#prompt #older');
+  if (await page.evaluate(() => window.__historyBlurs) > 0 || !await focused()) note('tapping ↑ with the keyboard up closed it');
+  if (await value() !== 'echo two') note(`tapping ↑ with the keyboard up made the line ${JSON.stringify(await value())}`);
+  await page.fill('#cmd', '');
+
+  // ---- R11: a palette key leaves the caret at the end of what it put in -----------
+
+  await page.focus('#cmd');
+  await page.fill('#cmd', 'something typed');
+  await page.locator('#keys .key', { hasText: /^readme$/ }).tap();
+  await page.keyboard.type('X');
+  const keyed = await value();
+  if (keyed !== 'read readme.txtX') note(`typing after the readme key made the line ${JSON.stringify(keyed)}; the caret was not at its end`);
+
+  await page.fill('#cmd', '');
+  await page.evaluate(() => document.getElementById('cmd').blur());
+  await page.locator('#keys .key', { hasText: /^readme$/ }).tap();
+  if (await focused()) note('tapping a palette key with the keyboard down brought it up');
+  if (await value() !== 'read readme.txt') note(`the readme key with the keyboard down wrote ${JSON.stringify(await value())}`);
+  await page.fill('#cmd', '');
 }
 
 /** The chips in the completion row, in order. */
@@ -1152,7 +1191,7 @@ async function main() {
 
     await submit(page, 'reset');
     await checkPhase9(page, note);
-    console.log('Checked Phase 9: live listings, the guide and copying.');
+    console.log('Checked Phase 9: live listings, copying, the guide, the history buttons and the palette caret.');
 
     // ---- On a phone: nothing moves, opens or closes on its own ----------------
 
