@@ -1,12 +1,18 @@
 # Execution model
 
 Normative semantics: the value model, how arguments bind, how a line runs and commits,
-how tags evaluate, what undo, redo and history guarantee, how scripts run, and how
-cancellation behaves.
+how tags evaluate, what undo, redo and history guarantee, how scripts run, how
+cancellation behaves, and what the terminal says about a line beside its answer.
 
 Reference implementation: `Core` (assembly `CommandLineReimagined.Core`), in F#
 ([decision 0006](../decisions/0006-functional-core-in-fsharp.md)). The files named
 below are in that project.
+
+Transcripts marked `$` are pasted from `tools/transcript.fsx`, which runs lines against
+the real core. After a failed line's message it prints the fault's kind in brackets;
+after the answer or the fault it prints each [note](#notes) as `suggestion:` or
+`explanation:`, and each of the note's fixes as `fix:`. Those markers are the script's,
+not the screen's: a page draws a note as guidance and a fix as a chip.
 
 ## Values
 
@@ -223,13 +229,33 @@ Look up the name case-insensitively among the registered definitions, so `ECHO h
 If there is no match, the implementation **must** resolve the definition named
 `UnknownCommand` instead, bind the written name to its first parameter and the nearest
 command names to the rest, and execute it with no pipe input. That command fails with
-kind `UnknownCommand` and the message `Unknown command : <name>`, followed, when any
-command name is near, by the nearest names, at most three:
+kind `UnknownCommand` and the message `Unknown command : <name>`, and nothing more
+([decision 0041](../decisions/0041-guidance-is-drawn-apart-from-output.md)). When any
+command name is near, the fault **must** carry a `suggestion` [note](#notes) naming the
+nearest, at most three, `Did you mean <names>?`, with a fix for each that writes it in
+place of the name as written ([Suggestions](#suggestions)):
 
 ```
-Unknown command : lss. Did you mean ls?
-Unknown command : rum. Did you mean rm or run?
-Unknown command : rn. Did you mean in, rm or run?
+$ lss
+Unknown command : lss
+  [UnknownCommand]
+  suggestion: Did you mean ls?
+  fix: ls
+
+$ rum
+Unknown command : rum
+  [UnknownCommand]
+  suggestion: Did you mean rm or run?
+  fix: rm
+  fix: run
+
+$ rn
+Unknown command : rn
+  [UnknownCommand]
+  suggestion: Did you mean in, rm or run?
+  fix: in
+  fix: rm
+  fix: run
 ```
 
 Reporting through a command rather than directly means an unknown name renders like
@@ -257,22 +283,52 @@ The nearest names are found in two ways, the first before the second (`Nearest.f
    equally near ones in name order.
 
 ```
-Unknown command : cd. Did you mean in?
-Unknown command : cat. Did you mean read?
-Unknown command : delete. Did you mean rm?
-Unknown command : navigate. Did you mean back, in or out?
+$ cd documents
+Unknown command : cd
+  [UnknownCommand]
+  suggestion: Did you mean in?
+  fix: in documents
+
+$ cat documents/notes.txt
+Unknown command : cat
+  [UnknownCommand]
+  suggestion: Did you mean read?
+  fix: read documents/notes.txt
+
+$ delete x
+Unknown command : delete
+  [UnknownCommand]
+  suggestion: Did you mean rm?
+  fix: rm x
+
+$ navigate
+Unknown command : navigate
+  [UnknownCommand]
+  suggestion: Did you mean back, in or out?
+  fix: back
+  fix: in
+  fix: out
+
+$ by
 Unknown command : by
-Unknown command : as. Did you mean ls?
+  [UnknownCommand]
+
+$ as
+Unknown command : as
+  [UnknownCommand]
+  suggestion: Did you mean ls?
+  fix: ls
 ```
 
 `cd` is `in`'s first keyword and nobody else's, so it names `in`, although it is one slip
 from `cp`. `by` is `group`'s first keyword and one of `sort`'s as well, so it names
-neither, and nothing is one slip from it. `as` is a keyword of `table` but not its first,
-so it is corrected as a slip. The same nearest names answer `help` for a name that is not
-a command, and completion finds a command by keyword by the same rule for a word of one
-or two letters ([Host interfaces](host-interfaces.md#reading-the-place)).
+neither, and nothing is one slip from it, so it has no note. `as` is a keyword of `table`
+but not its first, so it is corrected as a slip. The fix keeps the rest of the line:
+`cd documents` offers `in documents`. The same nearest names answer `help` for a name
+that is not a command, and completion finds a command by keyword by the same rule for a
+word of one or two letters ([Host interfaces](host-interfaces.md#reading-the-place)).
 
-If `UnknownCommand` is not registered, fail with the same message directly.
+If `UnknownCommand` is not registered, fail with the same fault directly, notes and all.
 
 A hyphenated name is one name: `ls-l` is an unknown command, not `ls` with a flag
 ([decision 0022](../decisions/0022-hyphenated-command-names.md)).
@@ -362,7 +418,8 @@ about its own arguments is a wrong call when its message begins with the command
 name, as `'select' needs at least one column.` and
 `'find' needs a predicate, such as $row.kind eq note.` do, and so is a predicate that
 never reads `$row`, `kind eq folder never reads $row, so it is the same for every row.`,
-whose own sentence names the fix while the help says the rest.
+whose [suggestion](#suggestions) names the fix while the help says the rest. A line that
+carries a guide carries its notes as well.
 
 The guide **must** be what `help <command>` answers, asked the way a refresh asks, so
 that it cannot drift from `help`, commits nothing and writes nothing: a `List` of the
@@ -387,7 +444,7 @@ own help. A host carries the guide as `guide` on the wire
 | --- | --- |
 | String literal | `Text` of the string's value |
 | Identifier or word | `Number` if it parses as a number with the invariant culture, otherwise `Text` |
-| `$name` | The variable's value, or fail with `Unknown variable: $<name>`, kind `NotFound`, path `$<name>`. `$row` outside a predicate fails differently; see [The row outside a predicate](#the-row-outside-a-predicate). |
+| `$name` | The variable's value, or fail with `Unknown variable: $<name>`, kind `NotFound`, path `$<name>`, whose response names the nearest variables ([Suggestions](#suggestions)). `$row` outside a predicate fails differently; see [The row outside a predicate](#the-row-outside-a-predicate). |
 | `$name.member` | The member read off the variable's value, and so on for each member written. See below. |
 | `( pipeline )` | The value the nested pipeline answered. See [Nested pipelines](#nested-pipelines). |
 | A tag | The object or component it builds, binding its variable if it names one. See [Evaluating tags](#evaluating-tags). |
@@ -431,20 +488,39 @@ parameter, and the argument wrote an operator, the expression **must** read `$ro
 somewhere, or the stage fails with a `Binding` fault before anything runs. A `$row`
 inside a nested pipeline does not count: that pipeline runs once for the line, not once
 per row. The check is made on the expression as written, before any nested pipeline's
-value is put in its place, so the message quotes what was typed:
+value is put in its place, so the message quotes what was typed. The message is
+`<predicate> never reads $row, so it is the same for every row.` and nothing more; what
+was probably meant is a `suggestion` [note](#notes) on the fault, with a fix that writes
+it in place of the predicate as written:
 
 ```
-kind eq folder never reads $row, so it is the same for every row. Did you mean $row.kind eq folder?
-3 lt size never reads $row, so it is the same for every row. Did you mean 3 lt $row.size?
-not done never reads $row, so it is the same for every row. Did you mean not $row.done?
+$ ls | where kind eq folder
+kind eq folder never reads $row, so it is the same for every row.
+  [Binding]
+  suggestion: Did you mean $row.kind eq folder?
+  fix: ls | where $row.kind eq folder
+
+$ ls | where 3 lt size
+3 lt size never reads $row, so it is the same for every row.
+  [Binding]
+  suggestion: Did you mean 3 lt $row.size?
+  fix: ls | where 3 lt $row.size
+
+$ ls | where not done
+not done never reads $row, so it is the same for every row.
+  [Binding]
+  suggestion: Did you mean not $row.done?
+  fix: ls | where not $row.done
+
+$ ls | where $v eq 5
 $v eq 5 never reads $row, so it is the same for every row.
+  [Binding]
 ```
 
 The suggestion reads the bare words the predicate compared as columns: in a comparison,
 its left side when that is a word, and otherwise its right; under `and`, `or` and
 `not`, an operand that is a word on its own. A word here is a letter or `_` followed by
-letters, digits and `_`. When nothing can be read that way, the sentence ends after
-`every row.`.
+letters, digits and `_`. When nothing can be read that way, the fault has no note.
 
 Because the check is where every *predicate* parameter is bound, `where`, `find`, `in`
 and `save-view` all make it. Going `in` a saved view **must** make it too, on the
@@ -465,26 +541,62 @@ item in order, and what the whole predicate answers for it decides:
   ([decision 0034](../decisions/0034-what-answers-a-predicate.md)). `attr f done=true`
   stores the word, and `where $row.done` asks whether it is done.
 - Anything else **must** fail the stage with an `Invalid` fault on the first item that
-  answers it, naming what the predicate answered and how to ask a question of it:
+  answers it, `<predicate> is <kind> (<value>), not true or false.`, naming what the
+  predicate answered. How to ask a question of it is a `suggestion` [note](#notes) on
+  the fault, worded like every other suggestion, with a fix that writes it in place of
+  the expression as written:
 
 ```
-$row.kind is text (folder), not true or false. Compare it: $row.kind eq folder.
-$row.size is number (0), not true or false. Compare it: $row.size eq 0.
-kind is text (kind), not true or false. Did you mean $row.kind?
+$ ls | where $row.kind
+$row.kind is text (folder), not true or false.
+  [Invalid]
+  suggestion: Did you mean $row.kind eq folder?
+  fix: ls | where $row.kind eq folder
+
+$ ls | where $row.size
+$row.size is number (0), not true or false.
+  [Invalid]
+  suggestion: Did you mean $row.size eq 0?
+  fix: ls | where $row.size eq 0
+
+$ ls | where kind
+kind is text (kind), not true or false.
+  [Invalid]
+  suggestion: Did you mean $row.kind?
+  fix: ls | where $row.kind
 ```
 
 The value is shown by its display string, its first line only, cut to 40 characters.
-The fix is `Compare it: <predicate> eq <value>.` when the predicate reads `$row`, with
-the value quoted when it would not read back as one word, `Did you mean $row.<word>?`
-when the predicate is a bare word, and nothing otherwise.
+The suggestion is `Did you mean <predicate> eq <value>?` when the predicate reads
+`$row`, with the value quoted when it would not read back as one word,
+`Did you mean $row.<word>?` when the predicate is a bare word, and there is no note
+otherwise.
 
 The same rule **must** hold for each operand of `and`, `or` and `not`
 ([decision 0034](../decisions/0034-what-answers-a-predicate.md)), and the fault names
-the operand rather than the whole predicate. `where not $row.kind` fails on the first
-row with `$row.kind is text (folder), not true or false. Compare it: $row.kind eq
-folder.`, as does `where $row.kind eq text or $row.kind`. `and` and `or` still short
-circuit, so an operand that is never read is never checked:
-`where $row.kind eq nothing and $row.kind` answers an empty table.
+the operand rather than the whole predicate, so the fix writes the question in place of
+the operand. `and` and `or` still short circuit, so an operand that is never read is
+never checked, and `where $row.kind eq nothing and $row.kind` answers an empty table,
+which [explains itself](#an-empty-filter-explains-itself). An operand written twice is
+suggested and offers no fix, because the fault does not say which of the two it was
+about ([Resolving the fixes](#resolving-the-fixes)):
+
+```
+$ ls | where not $row.kind
+$row.kind is text (folder), not true or false.
+  [Invalid]
+  suggestion: Did you mean $row.kind eq folder?
+  fix: ls | where not $row.kind eq folder
+
+$ ls | where $row.kind eq text or $row.kind
+$row.kind is text (folder), not true or false.
+  [Invalid]
+  suggestion: Did you mean $row.kind eq folder?
+
+$ ls | where $row.kind eq nothing and $row.kind
+name  kind  folder  size  modified
+  explanation: kind is folder or text
+```
 
 ## Running a line
 
@@ -556,7 +668,8 @@ $row is the row a predicate is testing. It exists only inside where, find, in an
 
 `$row`, `echo $row`, `$row.kind` and `echo <$row>` all answer it. A variable that a
 person did bind as `row` is read as any other variable outside a predicate, and is
-shadowed inside one.
+shadowed inside one. The fault carries no note: it already says where `$row` exists,
+and `row` is never named as a variable near another ([Suggestions](#suggestions)).
 
 ### Recovery
 
@@ -599,7 +712,25 @@ An implementation **must**:
   line whatever its default;
 - evaluate a default as a written value, running any pipeline in parentheses in it
   only when the default is used;
-- never recover from `Cancelled`, with `try` or with `else`.
+- never recover from `Cancelled`, with `try` or with `else`;
+- make a fault a value only without its notes, at any depth of `cause`
+  (`Fault.asValue`), so the `Fault` that `try` hands on and the one `else` pipes in
+  carry none, and `$problem` is the same whether or not the terminal had something to
+  say ([decision 0041](../decisions/0041-guidance-is-drawn-apart-from-output.md));
+- restore the notes gathered so far with the working projection, so a stage that `try`
+  rolled back, and a branch that `else` rolled back, take their notes with them
+  ([Gathering notes](#gathering-notes)).
+
+```
+$ try read notes | set p
+File does not exist : /notes
+
+$ $p.message
+File does not exist : /notes
+
+$ ls | where $row.knd eq folder | read zzz else echo recovered
+recovered
+```
 
 ### Nested pipelines
 
@@ -780,6 +911,9 @@ can keep a listing on screen up to date as the store changes. Where it does:
 - The run **must** commit nothing, whatever events it gathers, and **must** leave the
   history and the undo chain untouched. What it writes to its output while it runs goes
   nowhere.
+- Its response **must** carry the line's [notes](#notes) exactly as executing it would,
+  so a live listing that keeps no row carries its explanation, and loses it when a row
+  comes back. It carries no guide.
 
 ## The store
 
@@ -954,6 +1088,23 @@ may be piped) executes it:
 - A script may run a script, to a depth of eight. Deeper fails with
   `Scripts are only allowed to run scripts 8 deep.`, kind `Invalid`.
 
+A fault from a line of the script keeps its notes, so a mistake in a script is still
+suggested. Its fixes are resolved against the line that ran the script, which does not
+hold the mistake, so it offers none ([Resolving the fixes](#resolving-the-fixes)). The
+notes of a script's lines that succeeded are not carried: `run` answers with none of
+its own.
+
+```
+$ write bad.clr "read notes"
+bad.clr
+
+$ run bad.clr
+> read notes
+/bad.clr line 1: File does not exist : /notes
+  [NotFound]
+  suggestion: Did you mean documents/notes.txt?
+```
+
 `run` is a meta command and commits nothing of its own, which is what lets each line it
 runs commit its own. A script is therefore **not** atomic: lines that succeeded before a
 failure stay committed, `undo` after a script undoes its last line, and recovering from
@@ -979,7 +1130,7 @@ Failure is a value (`Faults.fs`). A command returns `Error fault`; no command ra
 and no exception crosses a module boundary.
 
 ```
-Fault = { Kind; Message; Stage; Path; Cause }
+Fault = { Kind; Message; Stage; Path; Cause; Notes }
 Kind  = Syntax | Binding | UnknownCommand | NotFound | Conflict | Invalid | Cancelled | Internal
 ```
 
@@ -987,6 +1138,13 @@ Every message in the [error reference](../errors.md) is preserved word for word 
 `Message`. The kind is additional and **must not** replace it. `Path` names the path or
 variable a fault is about, where there is one: `/nowhere` for a missing file, `$x` for
 an unknown variable.
+
+A message says what went wrong and nothing more
+([decision 0041](../decisions/0041-guidance-is-drawn-apart-from-output.md)). What was
+probably meant is never part of it: no message ends in `Did you mean …?`, and a
+message **must** read the same whether or not the terminal found anything near. The
+suggestions are `Notes` ([Notes](#notes)), which are guidance and not part of the fault
+as a value: a fault made a value by `try` or `else`, or kept in the log, has none.
 
 The evaluator **must** stamp `Stage` with the one-based position of the failing stage,
 and **must not** overwrite a stage already set, so the innermost failure keeps its own
@@ -1008,3 +1166,424 @@ An implementation **must not** let a failure end the session. `Session.Execute` 
 not** raise: a parse failure is `Syntax`, a cancellation is `Cancelled` with the message
 `Stopped.`, and an unexpected exception is `Internal`, with the message
 `<exception type> : <exception message>`.
+
+## Notes
+
+Decisions [0041](../decisions/0041-guidance-is-drawn-apart-from-output.md) to
+[0045](../decisions/0045-a-near-value-offers-a-fix.md). Output is what a command
+answered: a table, a file's text, a value, and a fault's message. A **note** is
+something the terminal says of its own about a line, beside the answer: what was
+probably meant, or why an answer is empty (`Faults.fs`).
+
+```
+Note = { Kind; Text; Fixes }
+Kind = "suggestion" | "explanation"
+Fix  = Line of string                   -- the whole corrected line
+     | Replace of written * corrected    -- what was written, as it should have been
+```
+
+A `suggestion` says what was probably meant; an `explanation` says why a filter kept
+nothing. `Text` is one sentence. `Fixes` are corrected lines, which a host offers to put
+in the input without running them
+([decision 0044](../decisions/0044-a-fault-may-carry-fixes.md)).
+
+A note is **guidance**, and an implementation **must** keep it out of every value:
+
+- A command's result carries its notes beside its value and events (`CommandResult.Notes`,
+  `Invocation.withNotes`), and a fault carries its own (`Fault.Notes`,
+  `Fault.withNotes`). The next stage sees neither: the pipe carries the value.
+- A fault that `try` or `else` makes into a value **must** have no notes, at any depth
+  of `cause` (`Fault.asValue`), so `$problem.message` is the message alone.
+- A stored fault carries no notes, and one read back from the log has none
+  ([Host interfaces](host-interfaces.md#the-stored-shape)).
+- `else`, `try`, `??` and pipes **must** behave exactly as they would if no note had been
+  made, and a line with notes commits exactly what it would without them.
+
+### Gathering notes
+
+The evaluator gathers the notes of the commands a line ran, in the order they gave them,
+into `Execution.Notes`, and the session carries them in its response
+(`Session.Response.Notes`, [Host interfaces](host-interfaces.md#the-sessions-response)):
+
+- A line that **succeeded** carries the notes of every stage whose work stood, the stages
+  of a pipeline in parentheses included. Notes are saved and restored with the working
+  projection, so a stage that `try` rolled back, and every stage of a branch that `else`
+  rolled back, take theirs with them ([Recovery](#recovery)).
+- A line that **failed** carries its fault's notes, with the nearest names the session
+  adds for a missing path or variable ([Suggestions](#suggestions)), and no other: the
+  notes of the stages before the one that failed go with the line.
+- A [refresh](#refreshing) carries notes by the same rules.
+- A line with nothing to say carries none.
+
+```
+$ echo (ls | where $row.knd eq folder)
+name  kind  folder  size  modified
+  explanation: No row has knd; did you mean kind?
+  fix: echo (ls | where $row.kind eq folder)
+
+$ echo (ls | where $row.knd eq folder) (read zzz)
+File does not exist : /zzz
+  [NotFound]
+
+$ try echo (ls | where $row.knd eq folder) (read zzz)
+File does not exist : /zzz
+```
+
+### Suggestions
+
+A suggestion names what was probably meant, nearest first and at most three, in one
+sentence: `Did you mean a?`, `Did you mean a or b?`, `Did you mean a, b or c?`
+(`Fault.nearestNote`). With nothing near there is no note, and the fault is as it would
+be without one. The fixes, when there are any, are one per name, in the same order, and
+at most three.
+
+| What failed | What is named | The fix for each |
+| --- | --- | --- |
+| `Unknown command : <name>` | The nearest commands, by [Resolving a command](#resolving-a-command) | The command in place of the name as written |
+| `<predicate> never reads $row, so it is the same for every row.` | The predicate with its bare words read as columns ([Predicates](#predicates)) | That predicate in place of the one written |
+| `<expression> is <kind> (<value>), not true or false.` | `<expression> eq <value>`, or `$row.<word>` ([Predicates](#predicates)) | That in place of the expression written |
+| `File does not exist : <path>`, `Nothing exists at : <path>` | The nearest records | The path in place of the argument that named the missing one |
+| `Directory does not exist : <path>`, `Target directory does not exist : <path>` | The nearest folders | As for a file |
+| `Unknown variable: $<name>` | The nearest variables | The variable in place of `$<name>` |
+
+The first three are made with the fault. A missing path or variable is found by a
+command that cannot see what else there is, so the session names the nearest when it
+builds the response (`Session.faultNotes`), reading what is missing from the fault's
+kind, `NotFound`, its `Path` and its message, which a script's prefix may stand in front
+of (`Fault.missing`). It looks in the projection as it stands after the line: after a
+failed line, what there was before it. `$row` is never a missing variable in this sense.
+
+**Nearest records** (`Nearest.paths`,
+[decision 0042](../decisions/0042-a-missing-name-names-the-nearest.md)). The missing
+path is made absolute against the current folder first, since `ls` and `in` name it as
+written. It splits into a folder and a name; a missing path that is `/`, or whose name is
+empty, names nothing. Then:
+
+1. **Here.** The records in that folder whose name is within `Nearest.threshold` of the
+   name and is not the name itself, a name that differs only in case included, ordered by
+   distance and then by name, ordinally. For a name written on its own the folder is the
+   current one, so `read note` in `/documents` names `notes.txt`.
+2. **Anywhere.** Every record whose name is the name, ignoring case, or begins with it,
+   ignoring case (`notes` for `notes.txt`, `doc` for `documents`): the same name before
+   a name it begins, then the shallower before the deeper, then by path, ordinally. The
+   missing path itself is left out.
+3. The two lists joined, each path once, and at most three.
+
+A folder is looked for among folders only, for `Directory does not exist` and `Target
+directory does not exist`. A file is looked for among every record, since `rm` takes
+either.
+
+A path is named as a person would write it standing in the current folder: relative
+when it is inside the current folder, absolute otherwise, and quoted when it would not
+read back as one word, as a value on the right of `eq` is quoted. Its fix is the line
+with that written path in place of the argument that named the missing path, or a path
+under it, whose remainder the fix keeps: `mkdir documnts/x` offers `mkdir documents/x`.
+The argument is found by splitting the line at white space, `|`, `(`, `)` and `=`,
+reading a quoted word whole, and passing over the first word of the line and of each
+stage, and the word after `try`, `else` or `??`, since each names a command; a word
+beginning `$`, `-` or `<` is not a path. The first argument that resolves, against the
+current folder, to the missing path or a path under it is the place. A line without one,
+such as one that ran a script with the mistake, gets the note and no fix.
+
+```
+$ read notes
+File does not exist : /notes
+  [NotFound]
+  suggestion: Did you mean documents/notes.txt?
+  fix: read documents/notes.txt
+
+$ read zzz
+File does not exist : /zzz
+  [NotFound]
+
+$ in documnts
+Directory does not exist : documnts
+  [NotFound]
+  suggestion: Did you mean documents?
+  fix: in documents
+
+$ rm readme.tx
+Nothing exists at : /readme.tx
+  [NotFound]
+  suggestion: Did you mean readme.txt?
+  fix: rm readme.txt
+
+$ cp readme.txt doc
+Target directory does not exist : /doc
+  [NotFound]
+  suggestion: Did you mean documents?
+  fix: cp readme.txt documents
+
+$ mkdir documnts/x
+Directory does not exist : /documnts
+  [NotFound]
+  suggestion: Did you mean documents?
+  fix: mkdir documents/x
+
+$ read guide/1-strat.txt
+File does not exist : /guide/1-strat.txt
+  [NotFound]
+  suggestion: Did you mean guide/1-start.txt?
+  fix: read guide/1-start.txt
+
+$ echo (read notes)
+File does not exist : /notes
+  [NotFound]
+  suggestion: Did you mean documents/notes.txt?
+  fix: echo (read documents/notes.txt)
+```
+
+and, standing in `/documents`:
+
+```
+$ read readme
+File does not exist : /documents/readme
+  [NotFound]
+  suggestion: Did you mean /readme.txt?
+  fix: read /readme.txt
+```
+
+**Nearest variables** (`Nearest.variables`). Among the variables that are set, `row`
+excepted: first those within `Nearest.threshold` of the name and not the name itself,
+nearest first, a name that differs only in case included; then those the name is the
+start of, ignoring case; equals in name order, each once, and at most three. Each is
+named with its `$`. Its fix is the line with the variable in place of the first
+`$<name>` written as a whole variable, with or without members read off it, so
+`echo $fles.name` offers `echo $files.name`. A line without one gets no fix. After
+`ls | set files`:
+
+```
+$ echo $fles
+Unknown variable: $fles
+  [NotFound]
+  suggestion: Did you mean $files?
+  fix: echo $files
+
+$ echo $fil
+Unknown variable: $fil
+  [NotFound]
+  suggestion: Did you mean $files?
+  fix: echo $files
+
+$ echo $fles.name
+Unknown variable: $fles
+  [NotFound]
+  suggestion: Did you mean $files?
+  fix: echo $files.name
+
+$ echo $zzzz
+Unknown variable: $zzzz
+  [NotFound]
+```
+
+**The distance.** Every nearness here is `Nearest.distance`, the edit distance
+[Resolving a command](#resolving-a-command) defines, ignoring case, within
+`Nearest.threshold` of the word written: one for a word of up to four letters, two for a
+longer one.
+
+### Resolving the fixes
+
+Whatever finds a mistake rarely knows the line it was written in, so it may say a fix as
+`Replace(written, corrected)`. Before a response leaves the session, every fix **must**
+be a whole line made of the typed line, `Source` (`Note.resolve`, `Fix.apply`):
+
+- `Replace(written, corrected)` becomes the line with the first place that holds
+  `written` as a whole word written as `corrected`. A place is whole when the characters
+  either side of it, where there are any, do not continue a word: a letter, a digit,
+  `_`, `-`, `.` or `$`. So replacing `kind` reaches neither `kinds` nor `$row.kind`. An
+  empty `written` makes no line.
+- A replacement the line has no place for is dropped: a mistake inside a script that
+  `run` ran, or inside a view's predicate read back from its record.
+- A fix that makes the line it was given, and a fix that makes the same line as an
+  earlier one, are dropped.
+- The note stays when every fix is dropped: what it says is still true.
+
+**Written twice.** A fault's replacement whose `written` is in the line, as a whole word,
+in more than one place **must** be dropped (`Session.faultNotes`): the fault does not
+say which of them it was about, and the first can be the wrong one.
+`ls | where $row.kind eq text or $row.kind` is suggested and offers no fix
+([Predicates](#predicates)). A fix that is already a whole line, as the fix for a path
+or a variable is, is not held to this. An explanation's replacement is not held to it
+either, and is resolved against the first place (see
+[Conformance](conformance.md#known-deviations)).
+
+### An empty filter explains itself
+
+Decisions [0043](../decisions/0043-an-empty-filter-explains-itself.md) and
+[0045](../decisions/0045-a-near-value-offers-a-fix.md). When `where`, `find` or a view's
+listing (`ls` while a view is set) keeps no row of a table that had some, its result
+**must** carry at most one `explanation` note (`Expr.explainEmpty`), and the empty
+table stays the answer, so a pipe, `try` and `else` see what they saw before. An empty
+table in, or a filter that keeps a row, says nothing. The table read is, for `where`,
+the table it was given, and for `find` and a view, every record in the store as a row of
+the shape `ls` gives.
+
+A column **has** a value when the table lists it and at least one row's cell in it is not
+a gap; a column is matched by name exactly, as `$row.` reads it. The explanation is the
+first of these that applies:
+
+1. **A column no row has.** The first column the predicate reads through `$row.`,
+   anywhere in it and in the order written, that no row has. The text is
+   `No row has <column>; did you mean <names>?`, the names being the columns some row
+   has that differ from it only in case, then those `Nearest.names` finds near it, each
+   once and at most three, joined as a suggestion's are; or `No row has <column>.` with
+   none. It offers one fix, for the first name: `$row.<column>`, with any members read
+   after it, replaced by `$row.<name>` with the same members. One column at a time: a
+   fix changes one place.
+2. **A comparison that keeps no row.** Otherwise, the first operand of the predicate's
+   top-level `and`s, taken in order, that has an explanation below: one that compares
+   one column, read as `$row.<column>` with no member after it, with an operand that
+   does not read `$row`, and that on its own keeps no row, every cell that is not a gap
+   comparing false. A predicate with no `and` is its own one operand. The column is put on
+   the left, `100 lt $row.size` being asked as `$row.size gt 100`; `like` and `has` are
+   not turned, and with the column on their right are not explained. The other operand
+   is evaluated in the line's scope, so it may be a constant, a variable or the value of
+   a pipeline in parentheses; one that fails to evaluate is not explained. By operator:
+   - `eq` and `like`: `<column> is <values>`, the values the column does have;
+   - `gt`, `ge`, `lt` and `le`, when the operand and every cell read as numbers:
+     `<column> runs from <least> to <greatest>`, or `<column> is <value>` when they are
+     all one number. An ordering of words is not explained;
+   - `ne` and `has` have no explanation. `ne` keeping nothing means every row holds the
+     one value the question named, and what `has` looks inside is not a column's values.
+3. Otherwise nothing. An `or` or a `not` keeping nothing has no one part to name, a bare
+   `$row.done` was compared with nothing, and a read deeper than a column
+   (`$row.name.length`) is not the column's values.
+
+**The values** are the column's cells that are not gaps, distinct by display string,
+most frequent first, ties in the order the rows of the table read had them, each written
+as it would be on the right of `eq`: its first line, cut to 40 characters, quoted when it
+would not read back as one word. At most five are named, joined `a`, `a or b`,
+`a, b or c` and so on up to five. With more, the first five are joined with commas and
+the sentence ends `or <n> more`, where `n` is how many were left out.
+
+**A near value** ([decision 0045](../decisions/0045-a-near-value-offers-a-fix.md)). For
+`eq` only, when the compared operand is written in the line as a constant and
+`Nearest.names` finds values of the column near its display string, the explanation
+offers one fix: the value, written as it would be on the right of `eq`, replaced by the
+nearest, written the same way. The text is the same with or without it. A value held in
+a variable has no place in the line and offers none, and nor does a value with nothing
+near.
+
+```
+$ ls | where $row.knd eq folder
+name  kind  folder  size  modified
+  explanation: No row has knd; did you mean kind?
+  fix: ls | where $row.kind eq folder
+
+$ ls | where $row.Kind eq folder
+name  kind  folder  size  modified
+  explanation: No row has Kind; did you mean kind?
+  fix: ls | where $row.kind eq folder
+
+$ ls | where $row.zzz eq 1
+name  kind  folder  size  modified
+  explanation: No row has zzz.
+
+$ ls | where $row.kind eq foldr
+name  kind  folder  size  modified
+  explanation: kind is folder or text
+  fix: ls | where $row.kind eq folder
+
+$ ls | where $row.kind eq "foldr"
+name  kind  folder  size  modified
+  explanation: kind is folder or text
+  fix: ls | where $row.kind eq "folder"
+
+$ ls | where $row.kind eq zzzzzz
+name  kind  folder  size  modified
+  explanation: kind is folder or text
+
+$ ls | where $row.kind eq $k
+name  kind  folder  size  modified
+  explanation: kind is folder or text
+
+$ ls | where $row.name eq zzz
+name  kind  folder  size  modified
+  explanation: name is documents, examples, guide, projects or readme.txt
+
+$ ls | where $row.size eq 7
+name  kind  folder  size  modified
+  explanation: size is 0 or 193
+  fix: ls | where $row.size eq 0
+
+$ ls | where $row.size gt 1000
+name  kind  folder  size  modified
+  explanation: size runs from 0 to 193
+
+$ ls | where 1000 lt $row.size
+name  kind  folder  size  modified
+  explanation: size runs from 0 to 193
+
+$ ls documents | where $row.size gt 100
+name  kind  folder  size  modified
+  explanation: size is 50
+
+$ ls | where $row.kind eq foldr and $row.size gt 1000
+name  kind  folder  size  modified
+  explanation: kind is folder or text
+  fix: ls | where $row.kind eq folder and $row.size gt 1000
+
+$ ls | where $row.kind eq folder | where $row.name eq zz
+name  kind  folder  size  modified
+  explanation: name is documents, examples, guide or projects
+
+$ find $row.kind eq foldr
+name  kind  folder  size  modified
+  explanation: kind is text, folder or script
+  fix: find $row.kind eq folder
+```
+
+where `$k` was set to `foldr`. Over the whole store, with more than five names:
+
+```
+$ find $row.name eq zzz
+name  kind  folder  size  modified
+  explanation: name is documents, tables.clr, 1-start.txt, 2-values.txt, 3-tables.txt or 12 more
+```
+
+Each of these keeps nothing and says nothing:
+
+```
+$ ls documents | where $row.kind ne text
+name  kind  folder  size  modified
+
+$ ls | where $row.name has zz
+name  kind  folder  size  modified
+
+$ ls | where $row.kind eq x or $row.kind eq y
+name  kind  folder  size  modified
+
+$ ls | where not $row.size ge 0
+name  kind  folder  size  modified
+
+$ ls | where $row.name.lenght eq 3
+name  kind  folder  size  modified
+
+$ ls | take 0 | where $row.kind eq x
+name  kind  folder  size  modified
+```
+
+A view's listing is `ls`, which does not hold the view's predicate, so its explanation
+offers no fix. With the view `$row.kind eq foldr` set:
+
+```
+$ ls
+name  kind  folder  size  modified
+  explanation: kind is text, folder or script
+```
+
+Each filter in a line may explain itself, and a filter given an empty table says
+nothing, so it is the filter that kept nothing that is explained. `try` and `else` do
+not change what a filter says:
+
+```
+$ ls | where $row.knd eq folder else echo x
+name  kind  folder  size  modified
+  explanation: No row has knd; did you mean kind?
+  fix: ls | where $row.kind eq folder else echo x
+
+$ ls | where $row.knd eq folder | count
+0
+  explanation: No row has knd; did you mean kind?
+  fix: ls | where $row.kind eq folder | count
+```
