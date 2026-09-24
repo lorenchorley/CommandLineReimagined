@@ -59,6 +59,12 @@ entry ([Argument binding](execution-model.md#argument-binding)):
 - `'<command>' takes a value for '<parameter>', not an expression.` (`Binding`) for an
   operator written where a parameter is not a *predicate*.
 
+A line that fails with one of these carries the command's help beside the fault, as
+[A wrong call carries its help](execution-model.md#a-wrong-call-carries-its-help)
+describes ([decision 0038](../decisions/0038-a-wrong-call-shows-its-help.md)). So does a
+fault of kind `Binding` that a command raises about its own arguments and words with its
+name first, such as `'select' needs at least one column.`
+
 **Paths.** The filesystem is the store's projection, not a disk
 ([decision 0013](../decisions/0013-attribute-filesystem.md)). A path is resolved
 against the current folder, `Location.Folder`, unless it begins with `/`, and is
@@ -117,7 +123,7 @@ dropped when the command layer moved to the F# core.
 
 | Group | Commands |
 | --- | --- |
-| [Navigation](#navigation) | `ls`, `in`, `out`, `pwd`, `find`, `save-view` |
+| [Navigation](#navigation) | `ls`, `in`, `out`, `back`, `pwd`, `find`, `save-view` |
 | [Files](#files) | `read`, `write`, `rm`, `cp`, `mkdir` |
 | [Attributes](#attributes) | `attr`, `save` |
 | [Values](#values) | `echo`, `set`, `vars`, `is-fault` |
@@ -189,7 +195,8 @@ and a *rest* parameter adds `, any number`. A parameter that declares nothing ta
 | `help` | `command` | `CommandName` | a command name |
 | `UnknownCommand` | `name`, `nearest` | `Anything` | not listed |
 
-`out`, `pwd`, `vars`, `undo`, `redo`, `history`, `reset` and `exit` have no parameters.
+`out`, `back`, `pwd`, `vars`, `undo`, `redo`, `history`, `reset` and `exit` have no
+parameters.
 A command added later **should** declare what each of its parameters takes; one that
 does not is offered files and folders for every argument.
 
@@ -233,7 +240,7 @@ also when it names a file.
 | --- | --- |
 | Parameters | `TargetPath` (*piped*, *predicate*) |
 | Returns | `File` of the folder entered, `Text` `/` for the root, or `Query` of the view entered |
-| Events | `LocationChanged`, or none when the location does not change |
+| Events | `TrailPushed` of the location left, then `LocationChanged`; none when the location does not change |
 | Marks | none |
 
 Its first keyword **must** be `cd`, the name it had before
@@ -255,8 +262,10 @@ what it is:
 
 The target **must** be normalised, so `in ..` yields the parent's real path. Entering
 the location already held, folder and view together, **must** emit no event, so the
-line commits nothing and `undo` reaches past it. Reversing an `in` restores the previous
-location, view included.
+line commits nothing, `undo` reaches past it and the [trail](execution-model.md#the-trail)
+gains nothing. Any other entry **must** emit `TrailPushed` of the location it leaves
+before the `LocationChanged`, so [`back`](#back) can return there. Reversing an `in`
+restores the previous location, view included, and takes that place off the trail.
 
 Errors: `Directory does not exist : <target>` (`NotFound`), quoting the target as
 written, also when it names a file; `<predicate> never reads $row, so it is the same for
@@ -272,7 +281,7 @@ a view record is not held to the first of these (see
 | --- | --- |
 | Parameters | none |
 | Returns | With a view set, `Text` of the current folder's path. Otherwise as `in ..`: `File` of the parent folder, or `Text` `/` at the root |
-| Events | `LocationChanged`, or none at the root with no view |
+| Events | `TrailPushed` of the location left, then `LocationChanged`; none at the root with no view |
 | Marks | none |
 
 Its first keyword **must** be `up`, its name before decision 0037.
@@ -282,10 +291,58 @@ With a view set, `out` **must** clear `Location.View` and **must** leave
 Two `out`s from a view over a subfolder therefore leave the view, then the folder.
 
 At the root, moving up **must** leave the location unchanged, emit nothing and **must
-not** fail.
+not** fail. Every move it does make **must** put the location it leaves on the trail
+first, as `in` does.
 
 `out` is not `ReadOnly`, because it emits `LocationChanged`; a refresh of it is refused
 with `A live refresh only re-reads : out`.
+
+### back
+
+| Field | Value |
+| --- | --- |
+| Parameters | none |
+| Returns | `File` of the folder gone back to, `Text` `/` for the root, or `Query` of the view gone back to; with nowhere to go, `Text` saying so |
+| Events | `TrailPopped` of each place taken off the trail, most recent first, then `LocationChanged`; none when there is nowhere to go |
+| Marks | none |
+
+Goes back to where you were before the last move, like a browser's back button
+([decision 0037](../decisions/0037-in-out-back-and-read.md)). The places are the
+[trail](execution-model.md#the-trail) that `in` and `out` leave; `back` takes from it
+and never adds to it, so each `back` goes one step further.
+
+`back` **must** walk the trail from its most recent place and pass over a place that is
+where you already are, or whose folder no longer exists, such as one deleted or renamed
+since. It **must** go to the first place it does not pass over, folder and view
+together, and **must** take off the trail every place it passed over and the one it went
+to. Places are compared by folder and by the view's display text
+(`Projection.samePlace`).
+
+```
+$ in documents
+documents
+
+$ in /examples
+examples
+
+$ back
+documents
+
+$ back
+/
+
+$ back
+Nowhere further back: you are in /
+```
+
+When the walk reaches the end of the trail with nowhere to go, `back` **must not** fail
+and **must** emit nothing, so the line commits nothing and the trail is left as it was.
+It answers `Nowhere further back: you are in <where>`, where `<where>` is the view's
+display text when a view is set and the folder otherwise.
+
+Reversing a `back` restores the location it left and puts every place it took back on
+the trail, in order, so `in documents`, `back`, `undo` is in `/documents` again with
+`/` on the trail. `back` is not `ReadOnly`, as `in` and `out` are not.
 
 ### pwd
 
@@ -814,8 +871,8 @@ command list instead.
 | Marks | `Meta` |
 
 Reverses the latest undoable, uncompensated line that is not itself a compensation
-([Undo](execution-model.md#undo)). A line that moved the location, such as `in` or
-`out`, is a line like any other. The seed is not undoable
+([Undo](execution-model.md#undo)). A line that moved the location, such as `in`, `out`
+or `back`, is a line like any other. The seed is not undoable
 ([decision 0018](../decisions/0018-the-seed-is-not-a-line-anyone-typed.md)), so `undo`
 in a fresh session answers `Nothing to undo.` Having nothing to undo **must not** be a
 fault.
@@ -934,8 +991,13 @@ table   false     true   a value      The table to work on; taken from the pipe 
 
 Errors: `Unknown command : <name>` (`UnknownCommand`) for a name that is not a command,
 `UnknownCommand` included, with the nearest command names after it as
-[Resolving a command](execution-model.md#resolving-a-command) gives them:
-`Unknown command : lss. Did you mean ls?`.
+[Resolving a command](execution-model.md#resolving-a-command) gives them, keywords
+included: `Unknown command : lss. Did you mean ls?`, and `help cd` answers
+`Unknown command : cd. Did you mean in?`.
+
+What `help <command>` answers, its output line and its table, is also what a line that
+called that command wrongly carries as its guide
+([A wrong call carries its help](execution-model.md#a-wrong-call-carries-its-help)).
 
 ### exit
 
@@ -960,10 +1022,14 @@ and a host with nothing to close **may** do nothing, as the browser does.
 | Marks | `Meta` |
 
 Raises `Unknown command : <name>` (`UnknownCommand`), followed by
-`. Did you mean <names>?` when `nearest` holds any, at most three of them. The
-evaluator runs it with the name that did not resolve bound to `name` and the nearest
-command names to `nearest`, nearest first
-([Resolving a command](execution-model.md#resolving-a-command)). It is not resolvable
+`. Did you mean <names>?` when there are any near names, at most three of them. The
+evaluator runs it with the name that did not resolve bound to `name` and the command
+names a slip away bound to `nearest`, nearest first. The names in the message **must**
+be the nearest [Resolving a command](execution-model.md#resolving-a-command) defines,
+which read keywords before slips, so an old name leads to the new one:
+`Unknown command : cd. Did you mean in?`. The reference session registers a variant that
+works them out itself from the registered commands and their keywords, because the
+evaluator knows only their names; it does not read `nearest`. It is not resolvable
 by name, so typing `UnknownCommand` is itself an unknown command,
 `Unknown command : UnknownCommand`, and it is not listed by `help` or offered by
 completion.
