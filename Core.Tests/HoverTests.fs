@@ -139,6 +139,17 @@ type HoverTests() =
         let attribute = expect (describe harness "echo $v.a‸")
         Assert.AreEqual<string option>(Some "number · 1", attribute.Detail)
 
+    /// A row's own `@tag` column is only a column (decision 0050), so hover says what it
+    /// holds, as completion does, and not that it is the tag's name.
+    [<TestMethod>]
+    member _.ARowsAtColumnIsDescribedAsAColumn() =
+        let harness = seeded ()
+        harness.Run "set d <library><book title=dune/></library>" |> ignore
+        harness.Run "$d | pick book | first | set b" |> ignore
+
+        let tag = expect (describe harness "echo $b.@tag‸")
+        Assert.AreEqual<string option>(Some(Summary.ofValue (Value.Text "book")), tag.Detail)
+
     /// Any other `@` name reads nothing, so there is nothing to say about what it holds.
     [<TestMethod>]
     member _.AnyOtherAtMemberSaysNothingOfWhatItHolds() =

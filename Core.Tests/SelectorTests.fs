@@ -409,6 +409,20 @@ type SelectorTests() =
     /// The rows of `pick "*"` overlap: a book is a row of its own and inside the
     /// library's. The book's row is not searched again.
     [<TestMethod>]
+    member _.ASingleRowIsReadBackAsItsElement() =
+        let harness = withLibrary ()
+        harness.Run "$d | pick book | first | set b" |> ignore
+
+        // Its @tag and @children are the element's own parts, not two more attributes.
+        Assert.AreEqual<string list>(
+            [ "@tag"; "title"; "year"; "name"; "@children" ],
+            Table.names (harness.Table "$b | pick \"*\"")
+        )
+
+        Assert.AreEqual<string list>([ "book"; "author" ], harness.Column "$b | pick \"*\"" "@tag")
+        Assert.AreEqual<string list>([ "herbert" ], harness.Column "$b | pick author" "name")
+
+    [<TestMethod>]
     member _.OverlappingRowsAnswerEachElementOnce() =
         let harness = withLibrary ()
 

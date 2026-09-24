@@ -1511,7 +1511,9 @@ first of these that applies:
    once and at most three, joined as a suggestion's are; or `No row has <column>.` with
    none. It offers one fix, for the first name: `$row.<column>`, with any members read
    after it, replaced by `$row.<name>` with the same members. One column at a time: a
-   fix changes one place.
+   fix changes one place. `@tag` and `@children` are never a column no row has, since every row
+   answers them (decisions 0048, 0050); a comparison of one with no column of that name
+   to read values from **must** be explained with nothing.
 2. **A comparison that keeps no row.** Otherwise, the first operand of the predicate's
    top-level `and`s, taken in order, that has an explanation below: one that compares
    one column, read as `$row.<column>` with no member after it, with an operand that

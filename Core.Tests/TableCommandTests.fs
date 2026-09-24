@@ -546,6 +546,17 @@ type TableCommandTests() =
         // The script is a row of its own now, so `script` is among the kinds.
         Assert.AreEqual<Note list>([ TableCommandTests.Explanation "kind is folder, script or text" ], response.Notes)
 
+    /// Every row answers `@tag` and `@children` (decisions 0048, 0050), so neither is a
+    /// column no row has; with no column to read values from, nothing is explained.
+    [<TestMethod>]
+    member _.ATagsOwnPartsAreNeverAColumnNoRowHas() =
+        let harness = seeded ()
+        harness.Run "set w <list><i n=1/><i n=2/></list>" |> ignore
+
+        let response = harness.Respond "$w | where $row.@tag eq i"
+        TableCommandTests.AnsweredNothing response
+        Assert.AreEqual<Note list>([], response.Notes)
+
     /// A value with nothing near is explained and offers nothing, and so is a near one
     /// held in a variable, which has no place in the line to correct (0045).
     [<TestMethod>]

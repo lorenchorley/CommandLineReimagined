@@ -158,3 +158,9 @@ type ValueTests() =
             Value.display (Value.Table table))
 
         Assert.AreEqual<string>("<book/> <shelf/>", Value.display (Value.List [ tag "book"; tag "shelf" ]))
+
+    /// `@children` is matched as a table's columns are, without case.
+    [<TestMethod>]
+    member _.AChildrenColumnIsSummarisedWhateverItsCase() =
+        let table = Table.ofColumns [ "@Children" ] [ [ Value.List [ Value.Object(Tag.create "a" [] []) ] ] ]
+        Assert.AreEqual<string>("@Children\n1 child", Value.display (Value.Table table))

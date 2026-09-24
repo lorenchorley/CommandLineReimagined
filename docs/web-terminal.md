@@ -147,7 +147,7 @@ column's type or a value's count comes with the chip but is not on the screen. S
 | The first word of a stage: the start of the line, and after `else`, `try` or `(` | Command names, each with its description, and `try` and the page's `clear` | `wh`: `where · Keep the rows a predicate is true for` |
 | Straight after a pipe | Only the commands that take the piped value, and `try`. After a table, not the ones that take a path or a place from the pipe, since a table is not a name | `ls \| `: `columns`, `count`, `distinct` … `where`, `write`, `try`; not `ls` or `mkdir`, which would ignore it, nor `read`, `rm` or `in`. `echo readme.txt \| ` offers `read`, `rm` and `in` too |
 | A command name written another way, once three letters are typed, or a whole keyword of any length | A command found by what it does, or one a slip away | `delete`: `rm · matches "delete"`; `cd`, the old name of `in`: `in · matches "cd"`; `lss`: `ls` |
-| After `$` | The variables in name order, each saying what it holds | `$`: `$files · table · 4 rows · name, kind, folder…`, `$problem · fault · NotFound · File does not exist : /missing.txt`, `$v · number · 5` |
+| After `$` | The variables in name order, each saying what it holds | `$`: `$files · table · 5 rows · name, kind, folder…`, `$problem · fault · NotFound · File does not exist : /missing.txt`, `$v · number · 5` |
 | After `$` inside a predicate | `$row` first, then the variables | `ls \| where $`: `$row · the row being tested`, then `$files`, `$problem`, `$v` |
 | After `$name.` | The members of what the variable holds: a tag's or a file's attributes, a fault's `kind`, `message`, `stage` and `path`; nothing for a number, a text, a boolean or a table. A tag's attributes are followed by its own parts, `@tag` and `@children` | `$problem.`: `$problem.kind · text · "NotFound"`, `$problem.message`, `$problem.stage · number · 1`, `$problem.path`; `$v.`: nothing; `$t.`: `$t.a · number · 1`, `$t.@tag · the tag's name`, `$t.@children · its children` |
 | After `$name.@` | A tag's own parts alone, since no attribute starts with `@`; nothing on anything else | `$t.@`: `$t.@tag`, `$t.@children`; `$v.@`: nothing |
@@ -189,7 +189,7 @@ offers:
 | Bound by | Detail |
 | --- | --- |
 | `set v 5` | `number · 5` |
-| `ls \| set files` | `table · 4 rows · name, kind, folder…` |
+| `ls \| set files` | `table · 5 rows · name, kind, folder…` |
 | `try read missing.txt \| set problem` | `fault · NotFound · File does not exist : /missing.txt` |
 | `set b (is-fault $v)` | `boolean · false` |
 | `set t hello` | `text · "hello"` |
@@ -217,7 +217,8 @@ A result is rendered by kind:
   many items: `3 children` in the `@children` column `pick` answers, `2 items` in any
   other, and nothing for an empty list, where it used to write every item out
   ([decision 0051](decisions/0051-a-list-in-a-table-cell-is-summarised.md)). The cell
-  still holds the list, and tapping it appends what it says, as any other cell does.
+  still holds the list. Tapping a summarised cell, `3 children` or `2 rows`, writes
+  nothing: it says how much is there, not what.
 - **Paths, objects, components, numbers and booleans** become chips, and a list becomes
   a row of them. Tapping a chip appends its text to the input — for a file, its full
   path — which is how you avoid typing a file name on a phone. A path that is not a bare
@@ -492,7 +493,7 @@ order:
    `take <count> [table] · How many rows to keep`. After a `-`, before a flag is
    chosen, nothing is bold and the command's own description follows.
 2. **Otherwise, the selected chip's detail**: `where · Keep the rows a predicate is
-   true for` while typing `wh`, or `$files · table · 4 rows · name, kind, folder…`
+   true for` while typing `wh`, or `$files · table · 5 rows · name, kind, folder…`
    while typing `$`.
 3. **Otherwise, a parse error already behind the word being typed**, in red: see
    [Typing](#typing).
@@ -508,7 +509,7 @@ back, not just on results. In the same tab as the examples above:
 
 | You tap | The detail line says |
 | --- | --- |
-| A variable: `$files` in `echo $files` | `$files · table · 4 rows · name, kind, folder…` |
+| A variable: `$files` in `echo $files` | `$files · table · 5 rows · name, kind, folder…` |
 | A command: `where` in `ls \| where $row.kind eq folder` | `where <predicate> [table] · Keep the rows a predicate is true for` |
 | A column: `kind` in `ls \| where $row.kind eq folder` | `$row.kind · column · text` |
 | A member: `kind` in `echo $problem.kind` | `$problem.kind · text · "NotFound"` |

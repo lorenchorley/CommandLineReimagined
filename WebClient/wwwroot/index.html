@@ -685,6 +685,9 @@ function sortedRows(table) {
   inserts what it is, as it always has.
 */
 function insertionFor(column, cell) {
+  // A summarised cell, `3 children` or `2 rows`, says how much is there rather than what,
+  // so there is nothing to write for it (decision 0051).
+  if (cell.kind === 'list' || cell.kind === 'table') return '';
   if (cell.kind === 'folder') return 'in ' + asWord(cell.path || cell.text);
   if (column && column.name === 'folder' && cell.text) return 'in ' + asWord(cell.text);
   if (cell.kind === 'file') return asWord(cell.path || cell.text);

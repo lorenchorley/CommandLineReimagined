@@ -465,18 +465,27 @@ module Selector =
                     (sprintf "'%s' needs a tag, a list of tags or a table with a @tag column, not %s." command what)
             )
 
-        let itself (tag: Tag) = { Root = tag; Element = tag }
+        // A single row of an element table, such as `first` answers, is read back as
+        // its element the way a table's rows are, so its `@tag` and `@children` are
+        // the element's own parts and not two more attributes.
+        let itself (index: int) (tag: Tag) =
+            if tag.Attributes |> Map.exists (fun name _ -> String.Equals(name, tagColumn, StringComparison.OrdinalIgnoreCase)) then
+                let cells = Value.orderedAttributes tag
+                let table = Table.ofColumns (cells |> List.map fst) [ cells |> List.map snd ]
+                ofRow command table index (List.head table.Rows)
+            else
+                Ok { Root = tag; Element = tag }
 
         match value with
         | Value.Object tag
-        | Value.Component tag -> Ok [ itself tag ]
+        | Value.Component tag -> itself 1 tag |> Result.map List.singleton
         | Value.List items ->
             items
             |> List.mapi (fun index item -> index + 1, item)
             |> Outcome.traverse (fun (index, item) ->
                 match item with
                 | Value.Object tag
-                | Value.Component tag -> Ok(itself tag)
+                | Value.Component tag -> itself index tag
                 | other -> needs (sprintf "a list whose item %d is %s" index (Value.kind other)))
         | Value.Table table when isElements table ->
             table.Rows

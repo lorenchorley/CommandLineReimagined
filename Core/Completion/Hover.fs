@@ -133,8 +133,11 @@ module Hover =
                         | other ->
                             // Decision 0048: a tag's own part says what it reads before
                             // what it holds, since `@tag` names no attribute.
+                            // A row's own column of that name is only a column (0050).
                             let reads =
                                 match other with
+                                | Value.Object tag
+                                | Value.Component tag when Map.containsKey wanted tag.Attributes -> None
                                 | Value.Object _
                                 | Value.Component _ when wanted = Expr.tagMember -> Some VariableCompletion.tagDetail
                                 | Value.Object _

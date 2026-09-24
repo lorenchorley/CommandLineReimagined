@@ -256,7 +256,10 @@ module Value =
         | Value.Table nested ->
             let count = List.length nested.Rows
             sprintf "%d row%s" count (if count = 1 then "" else "s")
-        | Value.List items -> count (if column = "@children" then "child" else "item") items
+        | Value.List items ->
+            // Matched as a table's columns are, without case, as `pick` reads it back.
+            let children = String.Equals(column, "@children", StringComparison.OrdinalIgnoreCase)
+            count (if children then "child" else "item") items
         | other -> inlineText other
 
     /// One line of a value, for inside something else: a tag's attribute, or a cell.

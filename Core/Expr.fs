@@ -637,8 +637,14 @@ module Expr =
                 |> List.map (fun c -> c.Name)
                 |> List.filter (fun name -> not (List.isEmpty (cellsOf table name)))
 
+            // `@tag` and `@children` are never missing: every row answers them, with its
+            // own column where it has one and with the row's own parts where it has not
+            // (decisions 0048, 0050).
+            let answersAnyway (column: string) = column = tagMember || column = childrenMember
+
             let missing =
-                rowReads expr |> List.tryFind (fun (column, _) -> not (List.contains column had))
+                rowReads expr
+                |> List.tryFind (fun (column, _) -> not (List.contains column had) && not (answersAnyway column))
 
             match missing with
             | Some read -> [ noRowHas nearest had read ]
@@ -649,6 +655,10 @@ module Expr =
                     | Some(op, column, other) ->
                         match evaluate scope other with
                         | Error _ -> Option.None
+                        | Ok compared when List.isEmpty (cellsOf table column) ->
+                            // A part every row answers without a column for it, such as
+                            // `@tag` on rows made from children: there are no values to name.
+                            Option.None
                         | Ok compared ->
                             let cells = cellsOf table column
 
