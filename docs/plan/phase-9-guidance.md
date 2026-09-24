@@ -297,4 +297,4 @@ Every checkpoint and stream, with these differences and findings.
   pass (823 in Core.Tests), and so do the smaller suites; the four example programs
   give their golden results and every example in the guide runs; the browser check
   passes. The payload is 10.7 MB the way `build.yml` measures it, and 18.5 MB as the
-  whole `wwwroot`, both under 20 MB. The Artifact was republished as version 18.
+  whole `wwwroot`, both under 20 MB. The Artifact was republished from the final head as version 19.
