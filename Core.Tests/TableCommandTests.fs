@@ -453,3 +453,202 @@ type TableCommandTests() =
         Assert.AreEqual<string>(
             "readme.txt documents examples guide projects",
             harness.Names "ls | sort size desc")
+
+    // ------------------------------------- an empty answer explains itself (0043)
+
+    /// An explanation, with its fixes as the whole lines the session makes of them.
+    static member private Explanation (text: string, ?fixes: string list) =
+        Note.explanation text (defaultArg fixes [] |> List.map Fix.Line)
+
+    /// The line answered a table with no rows: the explanation never replaces it.
+    static member private AnsweredNothing (response: Response) =
+        Assert.AreEqual<Fault option>(None, response.Fault, response.Source)
+
+        match response.Result with
+        | Some(Value.Table table) ->
+            Assert.AreEqual<int>(0, List.length table.Rows, response.Source)
+            Assert.IsFalse(List.isEmpty table.Columns, "The empty table keeps its columns.")
+        | other -> Assert.Fail(sprintf "'%s' answered %A, not a table." response.Source other)
+
+    /// The first acceptance line: a column no row has, the nearest one, and the fix as
+    /// the whole line with it written in.
+    [<TestMethod>]
+    member _.AColumnNoRowHasNamesTheNearestAndFixesTheLine() =
+        let harness = seeded ()
+        let response = harness.Respond "ls | where $row.knd eq folder"
+
+        TableCommandTests.AnsweredNothing response
+
+        Assert.AreEqual<Note list>(
+            [ TableCommandTests.Explanation(
+                  "No row has knd; did you mean kind?",
+                  [ "ls | where $row.kind eq folder" ]) ],
+            response.Notes)
+
+    /// The second: the column is there and the value is not, so the values it has are
+    /// named, most frequent first.
+    [<TestMethod>]
+    member _.AValueNoRowHasNamesTheValuesTheColumnHas() =
+        let harness = seeded ()
+        let response = harness.Respond "ls | where $row.kind eq foldr"
+
+        TableCommandTests.AnsweredNothing response
+        Assert.AreEqual<Note list>([ TableCommandTests.Explanation "kind is folder or text" ], response.Notes)
+
+    /// Three values or more are joined `a, b or c`; the most frequent comes first and
+    /// equally frequent ones keep the order the rows had them in.
+    [<TestMethod>]
+    member _.ValuesAreNamedMostFrequentFirstThenAsTheyCame() =
+        let harness = notes ()
+        harness.Run "save <note name=wednesday mood=great tag=work/>" |> ignore
+
+        Assert.AreEqual<Note list>(
+            [ TableCommandTests.Explanation "mood is great, good or tired" ],
+            (harness.Respond "ls | where $row.mood eq happy").Notes)
+
+    /// At most five, and the sentence says how many more there are rather than ending
+    /// on a value as if it were the last.
+    [<TestMethod>]
+    member _.AtMostFiveValuesAreNamed() =
+        let harness = bare ()
+        harness.Run "mkdir many" |> ignore
+        harness.Run "in many" |> ignore
+
+        for name in [ "a"; "b"; "c"; "d"; "e"; "f"; "g" ] do
+            harness.Run(sprintf "save <note name=%s/>" name) |> ignore
+
+        Assert.AreEqual<Note list>(
+            [ TableCommandTests.Explanation "name is a, b, c, d, e or 2 more" ],
+            (harness.Respond "ls | where $row.name eq z").Notes)
+
+    /// Nothing near: the sentence ends at the column, and there is nothing to offer.
+    [<TestMethod>]
+    member _.AColumnWithNothingNearIsNamedAlone() =
+        let harness = seeded ()
+        let response = harness.Respond "ls | where $row.zzzzzz eq folder"
+
+        TableCommandTests.AnsweredNothing response
+        Assert.AreEqual<Note list>([ TableCommandTests.Explanation "No row has zzzzzz." ], response.Notes)
+
+    /// `$row.` reads a column by its exact name, so `Kind` is a column no row has, and
+    /// `kind`, the same but for case, is the one it was meant to be.
+    [<TestMethod>]
+    member _.AColumnWrittenInTheWrongCaseIsNamed() =
+        let harness = seeded ()
+
+        Assert.AreEqual<Note list>(
+            [ TableCommandTests.Explanation(
+                  "No row has Kind; did you mean kind?",
+                  [ "ls | where $row.kind eq folder" ]) ],
+            (harness.Respond "ls | where $row.Kind eq folder").Notes)
+
+    /// A column only some rows have is a column: its gaps are gaps (decision 0009), and
+    /// the values the other rows have are what is named.
+    [<TestMethod>]
+    member _.AColumnSomeRowsHaveIsNotOneNoRowHas() =
+        let harness = notes ()
+        harness.Run "save <note name=sunday tag=home/>" |> ignore
+
+        Assert.AreEqual<Note list>(
+            [ TableCommandTests.Explanation "mood is good, great or tired" ],
+            (harness.Respond "ls | where $row.mood eq happy").Notes)
+
+    /// One column at a time, the first written: a fix changes one place, and the line
+    /// it makes names the next.
+    [<TestMethod>]
+    member _.OnlyTheFirstColumnNoRowHasIsNamed() =
+        let harness = seeded ()
+
+        Assert.AreEqual<Note list>(
+            [ TableCommandTests.Explanation(
+                  "No row has knd; did you mean kind?",
+                  [ "ls | where $row.kind eq folder and $row.nme eq readme.txt" ]) ],
+            (harness.Respond "ls | where $row.knd eq folder and $row.nme eq readme.txt").Notes)
+
+    /// An empty table in has nothing to explain, whatever the predicate reads.
+    [<TestMethod>]
+    member _.AnEmptyTableInSaysNothing() =
+        let harness = seeded ()
+        harness.Run "mkdir empty" |> ignore
+        let response = harness.Respond "ls empty | where $row.knd eq folder"
+
+        TableCommandTests.AnsweredNothing response
+        Assert.AreEqual<Note list>([], response.Notes)
+
+    /// A filter that keeps a row says nothing, even when part of it reads a column no
+    /// row has: the answer is not empty, so there is nothing to explain.
+    [<TestMethod>]
+    member _.AFilterThatKeepsARowSaysNothing() =
+        let harness = seeded ()
+
+        for line in [ "ls | where $row.kind eq folder"; "ls | where $row.knd eq folder or $row.kind eq text" ] do
+            Assert.AreEqual<Note list>([], (harness.Respond line).Notes, line)
+
+    /// An empty table flowing on is still the empty table: a later stage counts it, and
+    /// only the stage that kept nothing of something explains itself.
+    [<TestMethod>]
+    member _.TheStageThatKeptNothingIsTheOneExplained() =
+        let harness = seeded ()
+        let response = harness.Respond "ls | where $row.kind eq foldr | where $row.knd eq folder | count"
+
+        Assert.AreEqual<string>("0", Value.display (defaultArg response.Result Value.Empty))
+        Assert.AreEqual<Note list>([ TableCommandTests.Explanation "kind is folder or text" ], response.Notes)
+
+    /// Decision 0041: the note is beside the answer, never in it, so `try` and `else`
+    /// see the empty table they always saw: `try` has no fault to catch and `else` no
+    /// failure to take over from.
+    [<TestMethod>]
+    member _.TryAndElseSeeTheSameEmptyTable() =
+        let harness = seeded ()
+
+        Assert.AreEqual<string>("0", harness.Text "ls | try where $row.knd eq folder | count")
+        Assert.AreEqual<string>("0", harness.Text "ls | try where $row.kind eq foldr | count")
+
+        // `else` takes the rest of the line as its alternative, which is not run.
+        TableCommandTests.AnsweredNothing(harness.Respond "ls | where $row.knd eq folder else echo none")
+        TableCommandTests.AnsweredNothing(harness.Respond "ls | where $row.kind eq foldr else echo none | count")
+
+    /// Of the parts of an `and`, the one that keeps no row on its own is named.
+    [<TestMethod>]
+    member _.ThePartOfAnAndThatKeepsNothingIsExplained() =
+        let harness = seeded ()
+
+        Assert.AreEqual<Note list>(
+            [ TableCommandTests.Explanation "name is documents, examples, guide, projects or readme.txt" ],
+            (harness.Respond "ls | where $row.kind eq folder and $row.name eq nothing").Notes)
+
+    /// A value held in a variable is compared like one written out.
+    [<TestMethod>]
+    member _.AValueInAVariableIsExplainedToo() =
+        let harness = seeded ()
+        harness.Run "set wanted foldr" |> ignore
+
+        Assert.AreEqual<Note list>(
+            [ TableCommandTests.Explanation "kind is folder or text" ],
+            (harness.Respond "ls | where $row.kind eq $wanted").Notes)
+
+    /// `gt`, `ge`, `lt` and `le` over numbers are answered by the span of the column,
+    /// whichever side the column is written on.
+    [<TestMethod>]
+    member _.AnOrderingOverNumbersNamesTheSpan() =
+        let harness = seeded ()
+
+        for line in [ "ls | where $row.size gt 5000"; "ls | where 5000 lt $row.size" ] do
+            Assert.AreEqual<Note list>(
+                [ TableCommandTests.Explanation "size runs from 0 to 193" ],
+                (harness.Respond line).Notes,
+                line)
+
+    /// What cannot be put down to one comparison is left silent: an `or`, a `not`, an
+    /// `ne`, and an `and` whose parts each keep a row.
+    [<TestMethod>]
+    member _.APredicateThatCannotBeExplainedIsSilent() =
+        let harness = seeded ()
+
+        for line in
+            [ "ls | where $row.kind eq foldr or $row.kind eq txt"
+              "ls | where not $row.size ge 0"
+              "ls | where $row.kind ne folder and $row.kind ne text" ] do
+            let response = harness.Respond line
+            TableCommandTests.AnsweredNothing response
+            Assert.AreEqual<Note list>([], response.Notes, line)
