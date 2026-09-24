@@ -789,7 +789,9 @@ async function checkPhase10(page, note) {
     const said = (await explanation().locator('.said').innerText()).trim();
     if (label !== 'why') note(`the explanation is labelled ${JSON.stringify(label)}, not 'why'`);
     if (said !== 'kind is folder or text') note(`the explanation says ${JSON.stringify(said)}`);
-    if (await explanation().locator('.fix').count() !== 0) note('the explanation, which has no fixes, drew a chip');
+    // `foldr` is one slip from `folder`, so the explanation offers it (decision 0045).
+    const fixes = await explanation().locator('.fix').allInnerTexts();
+    if (fixes.join('|') !== 'ls | where $row.kind eq folder') note(`the explanation offered the fixes ${JSON.stringify(fixes)}`);
   }
 
   // The listing is live. Something of kind `foldr` gives it a row, and the explanation,

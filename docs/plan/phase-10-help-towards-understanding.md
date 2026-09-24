@@ -153,6 +153,24 @@ After 10.0, A, B and C start together from its commit.
   the checks to real lines at integration.
 - **Owns** `WebClient/wwwroot/index.html`, `tools/browser-check.mjs`.
 
+## The owner's answers
+
+The streams' reports raised four questions, asked together after A, B and C had
+reported, and answered on 2026-09-24:
+
+- Every fault for a missing path names the nearest paths, not only `File does not
+  exist` and `Directory does not exist`: `Nothing exists at` (`rm`) and `Target directory
+  does not exist` (`cp`, `download`), the second offering folders only. This is 0042 as
+  written, so it needs no record. Stream A, sent back.
+- The note under a predicate that is not true or false is worded like every other
+  suggestion: `Did you mean $row.kind eq folder?`, not `Compare it: …`. Stream A.
+- A value one slip from one the column has offers it as a fix
+  ([0045](../decisions/0045-a-near-value-offers-a-fix.md)). The orchestrator, in B's
+  explanation, since B had finished.
+- The page's messages about restoring a session are guidance
+  ([0046](../decisions/0046-restore-messages-are-guidance.md)). The orchestrator, in the
+  page.
+
 ## Who touches what
 
 | File | 10.0 | A | B | C | 10.9 |
