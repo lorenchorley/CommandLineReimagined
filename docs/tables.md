@@ -2,7 +2,8 @@
 
 Every listing is a table. `ls` does not return a list of names, it returns rows with
 columns, and a table is a value like any other: you can filter it, sort it, count it,
-pick a column out of it, and pipe what is left into something else.
+keep only the columns you want, and pipe what is left into something else. A tag is a
+table when it has that shape, and `pick` makes one out of any tree.
 
 The examples below are pasted from a real session, not typed from memory. Timestamps
 are whatever the clock said at the time. Each section says where it starts; a fresh tab
