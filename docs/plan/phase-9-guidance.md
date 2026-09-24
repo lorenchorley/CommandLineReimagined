@@ -216,8 +216,8 @@ After 9.1, A, B and C start together from its commit.
 | 9.1 The rename | sub-agent | merged | 75d105f |
 | A. `back` | stream agent | merged | e62c9df |
 | B. Guidance in the core | stream agent | merged | 2dc822f |
-| C. The page | stream agent | in progress | |
-| 9.9 docs, spec | two sub-agents | not started | |
+| C. The page | stream agent | merged | cebe5a2 |
+| 9.9 docs, spec | two sub-agents | in progress | |
 | 9.9 verifier, republish, As built | orchestrator | not started | |
 
 ## Acceptance
