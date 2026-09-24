@@ -412,7 +412,7 @@ async function submit(page, line) {
 }
 
 /**
- * Phase 9, the page (stream C): R5, R9 and R13, in a fresh store at `/`.
+ * Phase 9, the page (stream C): R5, R6, R9 and R13, in a fresh store at `/`.
  *
  * R12, no title and no status at the top, is checked straight after the first boot.
  */
@@ -546,6 +546,85 @@ async function checkPhase9(page, note) {
   });
   if (!banner || !banner.aside || banner.label !== 'note') note(`the banner is not a 'note' panel: ${JSON.stringify(banner)}`);
 
+  // ---- R6: a selection in the scrollback is copied ---------------------------
+
+  const clipboard = () => page.evaluate(() => navigator.clipboard.readText());
+  const setClipboard = text => page.evaluate(text => navigator.clipboard.writeText(text), text);
+  const noteShown = () => page.evaluate(() => !document.getElementById('copied').hidden);
+
+  await submit(page, 'read readme.txt');
+  const readId = await lastId();
+  await setClipboard('sentinel');
+
+  // Dragged across the text as a mouse selects, and ended by lifting the button.
+  const block = await entry(readId).locator('div.text').boundingBox();
+  await page.mouse.move(block.x + 8, block.y + 8);
+  await page.mouse.down();
+  await page.mouse.move(block.x + block.width * 0.6, block.y + 30, { steps: 6 });
+  await page.mouse.up();
+
+  const selectedText = await page.evaluate(() => document.getSelection().toString());
+  const copiedIt = await page.waitForFunction(
+    wanted => navigator.clipboard.readText().then(text => text === wanted),
+    selectedText, { timeout: 5000, polling: 100 }).then(() => true, () => false);
+
+  if (!selectedText.trim()) {
+    note('dragging across the readme selected nothing, so copying could not be checked');
+  } else if (!copiedIt) {
+    note(`selecting ${JSON.stringify(selectedText)} left the clipboard holding ${JSON.stringify(await clipboard())}`);
+  } else {
+    const shown = await page.waitForFunction(() => !document.getElementById('copied').hidden, null, { timeout: 2000 })
+      .then(() => true, () => false);
+    const words = await page.evaluate(() => document.getElementById('copied').innerText.replace(/\s+/g, ' ').trim());
+    if (!shown || words !== 'note copied') note(`after copying, the note read ${JSON.stringify(words)}, shown: ${shown}`);
+    const faded = await page.waitForFunction(() => document.getElementById('copied').hidden, null, { timeout: 5000 })
+      .then(() => true, () => false);
+    if (!faded) note('the `copied` note did not fade');
+  }
+
+  // Nothing is copied from the input: a selection there is for editing.
+  await page.evaluate(() => document.getSelection().removeAllRanges());
+  await setClipboard('sentinel');
+  await page.focus('#cmd');
+  await page.fill('#cmd', 'echo from the input');
+  await page.evaluate(() => { const cmd = document.getElementById('cmd'); cmd.setSelectionRange(0, cmd.value.length); });
+  await page.waitForTimeout(1000);
+  if (await clipboard() !== 'sentinel' || await noteShown()) note('a selection in the input was copied');
+  await page.fill('#cmd', '');
+
+  // A tap is not a selection: tapping a cell still inserts it, and copies nothing.
+  await setClipboard('sentinel');
+  await entry(older).locator('.grid tbody td', { hasText: 'readme.txt' }).first().tap();
+  const afterCell = await value();
+  if (!/^"?\/?readme\.txt"?$/.test(afterCell)) note(`tapping 'readme.txt' in a listing made the line ${JSON.stringify(afterCell)}`);
+  await page.waitForTimeout(800);
+  if (await clipboard() !== 'sentinel') note('tapping a cell copied something');
+  await page.fill('#cmd', '');
+
+  // On a phone a long press selects. Headless Chromium has no long-press selection to
+  // try, so what is checked is that nothing on a cell or a word stops one: the page may
+  // cancel a press's pointerdown and mousedown to keep the focus, but never the touch,
+  // the selection starting, or the menu a long press opens.
+  const blocked = await page.evaluate(id => {
+    const targets = [document.querySelector(`.entry[data-id="${id}"] .grid tbody td`),
+                     document.querySelector('.entry .echo .t')];
+    const events = [
+      () => new TouchEvent('touchstart', { bubbles: true, cancelable: true }),
+      () => new Event('selectstart', { bubbles: true, cancelable: true }),
+      () => new MouseEvent('contextmenu', { bubbles: true, cancelable: true }),
+    ];
+    const found = [];
+    for (const target of targets) {
+      for (const make of events) {
+        const event = make();
+        target.dispatchEvent(event);
+        if (event.defaultPrevented) found.push(`${event.type} on ${target.className}`);
+      }
+    }
+    return found;
+  }, older);
+  if (blocked.length) note(`a long press could not select: the page cancels ${blocked.join(', ')}`);
+
 }
 
 /** The chips in the completion row, in order. */
@@ -637,6 +716,8 @@ async function main() {
     deviceScaleFactor: DEVICE_SCALE_FACTOR,
     isMobile: true,
     hasTouch: true,
+    // Copying a selection is checked by reading the clipboard back (Phase 9).
+    permissions: ['clipboard-read', 'clipboard-write'],
   });
 
   const page = await context.newPage();
@@ -1071,7 +1152,7 @@ async function main() {
 
     await submit(page, 'reset');
     await checkPhase9(page, note);
-    console.log('Checked Phase 9: live listings and the guide.');
+    console.log('Checked Phase 9: live listings, the guide and copying.');
 
     // ---- On a phone: nothing moves, opens or closes on its own ----------------
 

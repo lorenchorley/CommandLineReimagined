@@ -100,7 +100,7 @@
   }
   #copied::before { content:''; position:absolute; inset:0; border-radius:inherit; background:var(--aside); }
   #copied > * { position:relative; }
-  #copied .label { display:inline; margin:0 6px 0 0; }
+  #copied .label { display:inline; margin:0 3px 0 0; }
   #copied.fade { animation:fade 1.6s ease-in forwards; }
   @keyframes fade { 0%, 55% { opacity:1; } 100% { opacity:0; } }
 
@@ -270,7 +270,7 @@
 <body>
   <div id="pane">
     <div id="scroll"><div class="aside" id="banner"><span class="label">note</span><span id="said">Loading the terminal…</span></div></div>
-    <div class="aside" id="copied" hidden><span class="label">note</span><span>copied</span></div>
+    <div class="aside" id="copied" hidden><span class="label">note</span> <span>copied</span></div>
   </div>
 
   <div id="bar">
@@ -411,6 +411,68 @@ if (touchScreen) {
     });
   }
 }
+
+/*
+  A selection made in the scrollback is copied when it ends, and a `copied` note says
+  so and fades. On a phone, selecting is a long press and dragging its handles, and
+  there is no copy key to reach for afterwards.
+
+  It ends when the mouse or finger that made it lifts, or, for the handles of a
+  selection on a phone, which say nothing to the page as they move, once it has stopped
+  changing for a moment. The long press itself is left alone: the pointerdown and
+  mousedown above keep the focus, and neither stops a press from selecting, since
+  Chrome sends no mousedown for a long press and a pointerdown's default is not a
+  selection. Only the scrollback is copied from; the input is where you edit, and a
+  selection there is for that. A tap selects nothing, so tapping a cell or a word does
+  what it did.
+*/
+(function copyOnSelect() {
+  const note = $('copied');
+  let settle = 0, dragging = false, copied = '';
+
+  /// The selected text, when the selection is inside the scrollback.
+  const selected = () => {
+    const selection = document.getSelection();
+    if (!selection || selection.isCollapsed || !selection.rangeCount) return '';
+    const range = selection.getRangeAt(0);
+    return scroll.contains(range.commonAncestorContainer) ? selection.toString() : '';
+  };
+
+  function show() {
+    note.hidden = false;
+    note.classList.remove('fade');
+    void note.offsetWidth;
+    note.classList.add('fade');
+  }
+  note.addEventListener('animationend', () => { note.hidden = true; note.classList.remove('fade'); });
+
+  // Called straight from the event that ended the selection where there is one, so the
+  // browser counts the write as the person's own.
+  function copy() {
+    clearTimeout(settle);
+    const text = selected();
+    if (!text.trim() || text === copied) return;
+    copied = text;
+
+    const fallback = () => { try { if (document.execCommand('copy')) show(); } catch {} };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(show, fallback);
+    } else {
+      fallback();
+    }
+  }
+
+  document.addEventListener('selectionchange', () => {
+    clearTimeout(settle);
+    if (!selected()) { copied = ''; return; }
+    if (!dragging) settle = setTimeout(copy, 600);
+  });
+
+  // A mouse drags a selection with the button down: it has ended when the button lifts.
+  document.addEventListener('pointerdown', e => { if (e.pointerType === 'mouse') dragging = true; }, true);
+  document.addEventListener('pointerup', () => { dragging = false; if (selected()) copy(); }, true);
+  document.addEventListener('pointercancel', () => { dragging = false; }, true);
+})();
 
 let atEnd = true;   // whether the scrollback is showing its last line
 
