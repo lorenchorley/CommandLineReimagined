@@ -26,6 +26,7 @@ buttons, and the title bar goes.
 | R10 | Up and down arrow buttons beside undo, redo and out, to walk the history | C |
 | R11 | Tapping a palette example leaves the caret at the end of what it inserted | C |
 | R12 | Remove the title and the green `wasm` at the top of the screen | C |
+| R13 | What the terminal adds, that a command did not answer, looks clearly different from output | C |
 
 ## Decision records
 
@@ -128,7 +129,7 @@ After 9.1, A, B and C start together from its commit.
 
 ### C. The page
 
-**Closes** R5, R6, R9 (page side), R10, R11, R12. **Size** L.
+**Closes** R5, R6, R9 (page side), R10, R11, R12, R13. **Size** L.
 
 - **Live listings (R5):** every listing keeps its badge. A frozen one reads `paused`,
   and tapping it makes it live again; any number can be live, and each is refreshed
@@ -139,6 +140,13 @@ After 9.1, A, B and C start together from its commit.
   long press must still select text.
 - **The guide (R9):** a failed line whose response has `guide` draws it under the
   error, as the `help` table is drawn.
+- **The terminal's own words look like its own (R13):** everything the page shows that
+  is not what a command answered (the guide under an error, the `copied` note, the
+  banner, `Did you mean` suggestions) is drawn so it cannot be mistaken for output: a
+  panel of its own, set apart by an accent border and background, a small label saying
+  what it is (`help`, `note`), and a different face (the proportional UI font rather
+  than the terminal's monospace). Output keeps the look it has. The browser check reads
+  the style of the guide panel against a result's.
 - **History buttons (R10):** ↑ and ↓ beside ↶, ↷ and `out`, doing what the Up and Down
   keys do. Like the other buttons, they neither open nor close the keyboard.
 - **Palette (R11):** a key puts its text in the line with the caret at its end.
