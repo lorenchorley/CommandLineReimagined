@@ -3,29 +3,30 @@
 Symptoms that are not error messages, and what is behind them. For messages, see the
 [error reference](errors.md).
 
-## The page says `starting…` and the input stays disabled
+## The page says `Loading the terminal…` and the input stays disabled
 
-The .NET runtime has not finished loading. A first visit fetches about 10 MB; later
-visits come from the browser cache. If the status turns red and reads `failed to load`,
-the runtime did not start within about forty seconds, so its files are missing or
-blocked: reload, and if it persists check that your host serves `.wasm` files with the
-`application/wasm` content type.
+The .NET runtime has not finished loading. The banner, the `note` at the top of the
+scrollback, is where the page says how its start is going; there is no status line. A
+first visit fetches about 10 MB; later visits come from the browser cache. If the banner
+says `failed to load` in red, the runtime did not start within about forty seconds, so
+its files are missing or blocked: reload, and if it persists check that your host serves
+`.wasm` files with the `application/wasm` content type.
 
-If the status reads `restoring…` for a moment and then `failed to restore`, the runtime
+If the banner reads `restoring…` for a moment and then `failed to restore`, the runtime
 loaded but replaying the stored log failed. The scrollback says why. The input stays
 disabled, because showing an empty filesystem that may not be empty would be worse.
 
 ## My files disappeared
 
-They should not, so it is worth reading the status line at the top of the page.
+They should not, so it is worth reading the banner at the top of the scrollback.
 
 If it says **`not persisted`**, this browser is not keeping the log and the session
 lasted only as long as the tab. A private or incognito window is the usual reason:
 IndexedDB is unavailable there. Site-data settings that block storage for this origin
-do the same. Hover the tag to see what the browser said.
+do the same. Hover the mark to see what the browser said.
 
 If storage goes away while the page is open, the session carries on in memory, and the
-status changes to `not persisted` after the next line you run. What you do from then on
+banner says `not persisted` after the next line you run. What you do from then on
 is not kept, and the next load shows the files as they were when storage went.
 
 Otherwise, the filesystem is stored by your browser for this site, so anything that
@@ -63,6 +64,33 @@ Reset. 17 files restored.
 It empties the log and seeds the filesystem again. It cannot be undone, which is why it
 is not one of the suggestion keys.
 
+## `cd`, `up` or `cat` says `Unknown command`
+
+They were renamed `in`, `out` and `read`
+([decision 0037](decisions/0037-in-out-back-and-read.md)), and the message says which to
+use: `Unknown command : cd. Did you mean in?`. Typing the old name offers the new one as
+a chip. To go back to where you were before a move, use `back`.
+
+## The guide in my filesystem changed
+
+A seeded file you have not changed follows the terminal's own copy, so when the guide or
+the readme is revised, yours is brought up to date on the next load
+([decision 0040](decisions/0040-seeded-files-follow-the-seed.md)). One you have written
+to, renamed, moved or tagged is left as it is; `reset` gives you the current one.
+
+## A listing stopped updating
+
+Only the newest listing starts live; an older one pauses when a newer one arrives, and
+its badge reads `paused`. Tap `paused` to make it live again. Any number can be live at
+once.
+
+## A line that failed shows a table under the error
+
+That is the command's help, in a panel labelled `help`: the command was called wrongly,
+with an argument missing, one too many or a flag it does not have, and the panel says
+what it takes ([decision 0038](decisions/0038-a-wrong-call-shows-its-help.md)). The line
+failed as it would have anyway.
+
 ## A file name with a space is split into two arguments
 
 Quote it: `write "my notes.txt" hello`. Unquoted words end at a space. Tapping a chip or
@@ -87,6 +115,10 @@ chip is the intended path there.
 After the first Tab has filled in all the chips have in common, each further Tab puts
 the next chip in place, and Shift+Tab the one before. Escape puts back what you had
 typed before the first Tab.
+
+After a command that has what it needs, such as `ls `, the first chip is `|`
+([decision 0039](decisions/0039-the-pipe-comes-first.md)), so the first Tab there puts
+`|` in place. Tab again for the chip after it.
 
 ## `where` used to answer an empty table and now fails
 
