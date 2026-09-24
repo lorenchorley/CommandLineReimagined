@@ -61,8 +61,8 @@ and [<RequireQualifiedAccess>] Fix =
 /// <remarks>
 /// A fault is made where the path or variable is found missing, which is often below
 /// anything that can see the whole filesystem, so the session reads this off the fault
-/// and names the nearest itself, from the projection the line left. A path is
-/// absolute; a variable's name has no `$`.
+/// and names the nearest itself, from the projection the line left. A path is absolute,
+/// or a folder as written (`Fault.directoryDoesNotExist`); a variable's name has no `$`.
 /// </remarks>
 [<RequireQualifiedAccess>]
 type Missing =
@@ -365,14 +365,16 @@ module Fault =
     /// <remarks>
     /// `kind` is the value's kind and `shown` what it displays as, both for the row it
     /// was first seen on. `suggestion` is how to ask a question of it, when there is a
-    /// way: what the note says (`Compare it: $row.kind eq folder.`, `Did you mean
-    /// $row.kind?`) and the fix that writes it. A note, not part of the message (0041).
+    /// way: the comparison (`$row.kind eq folder`) when it reads `$row`, or the column
+    /// (`$row.kind`) when it is a bare word. It is said in a note worded like every other
+    /// (`Did you mean $row.kind eq folder?`), with the fix that writes it in place of the
+    /// expression, not in the message (0041, 0044).
     /// </remarks>
-    let notTrueOrFalse (text: string) (kind: string) (shown: string) (suggestion: (string * Fix) option) =
+    let notTrueOrFalse (text: string) (kind: string) (shown: string) (suggestion: string option) =
         create Invalid (sprintf "%s is %s (%s), not true or false." text kind shown)
         |> withNotes (
             match suggestion with
-            | Some(said, fix) -> [ Note.suggestion said [ fix ] ]
+            | Some suggested -> nearestNote [ suggested ] [ Fix.Replace(text, suggested) ]
             | None -> []
         )
 
@@ -403,6 +405,8 @@ module Fault =
 
     let private folderMissing = "Directory does not exist : "
     let private fileMissing = "File does not exist : "
+    let private nothingMissing = "Nothing exists at : "
+    let private targetMissing = "Target directory does not exist : "
 
     /// <summary>A folder that is not there.</summary>
     /// <remarks>
@@ -420,19 +424,23 @@ module Fault =
     /// <summary>What a fault says is not there, when it is a file, a folder or a variable.</summary>
     /// <remarks>
     /// Read from the kind, the path and the sentence the constructors here wrote, which
-    /// a script's name and line number may have been put in front of. A file's path is
-    /// absolute; a folder's may be as written (`directoryDoesNotExist`). `$row` is never
-    /// set by anyone, so it is never missing in this sense.
+    /// a script's name and line number may have been put in front of. `Nothing exists
+    /// at` is any record, so it is a file in this sense, and a target directory is a
+    /// folder. A file's path is absolute; a folder's may be as written
+    /// (`directoryDoesNotExist`). `$row` is never set by anyone, so it is never missing
+    /// in this sense.
     /// </remarks>
     let missing (fault: Fault) : Missing option =
+        let says (sentence: string) (path: string) = fault.Message.Contains(sentence + path)
+
         match fault.Kind, fault.Path with
         | NotFound, Some path when path.StartsWith "$" ->
             if path <> "$row" && fault.Message.Contains("Unknown variable: " + path) then
                 Some(Missing.Variable(path.Substring 1))
             else
                 None
-        | NotFound, Some path when fault.Message.Contains(fileMissing + path) -> Some(Missing.File path)
-        | NotFound, Some path when fault.Message.Contains(folderMissing + path) -> Some(Missing.Folder path)
+        | NotFound, Some path when says fileMissing path || says nothingMissing path -> Some(Missing.File path)
+        | NotFound, Some path when says folderMissing path || says targetMissing path -> Some(Missing.Folder path)
         | _ -> None
 
     let isADirectory path =
@@ -444,11 +452,14 @@ module Fault =
     let targetFileExists path =
         create Conflict (sprintf "Target file already exists : %s" path) |> withPath path
 
+    /// The folder `cp` or `download` was to put something in. The session names the
+    /// nearest folders (0042, `missing`).
     let targetDirectoryDoesNotExist path =
-        create NotFound (sprintf "Target directory does not exist : %s" path) |> withPath path
+        create NotFound (targetMissing + path) |> withPath path
 
+    /// A path `rm` has nothing at, file or folder. The session names the nearest (0042).
     let nothingExistsAt path =
-        create NotFound (sprintf "Nothing exists at : %s" path) |> withPath path
+        create NotFound (nothingMissing + path) |> withPath path
 
     let directoryNotEmpty path =
         create Invalid (sprintf "Directory is not empty : %s" path) |> withPath path

@@ -337,17 +337,13 @@ module Expr =
         | other ->
             let shown = briefly other
 
-            // What to write instead, said in a note with the fix that writes it
-            // (decisions 0041, 0044) rather than in the fault's sentence.
+            // What to write instead: the comparison, or the column. Said in a note with
+            // the fix that writes it (decisions 0041, 0044), not in the fault's sentence.
             let suggestion =
                 if readsTheRow expr then
-                    let compared = sprintf "%s eq %s" (display expr) (asWritten shown)
-                    Some(sprintf "Compare it: %s." compared, Fix.Replace(display expr, compared))
+                    Some(sprintf "%s eq %s" (display expr) (asWritten shown))
                 else
-                    match asColumn expr with
-                    | Some column ->
-                        Some(sprintf "Did you mean %s?" (display column), Fix.Replace(display expr, display column))
-                    | Option.None -> Option.None
+                    asColumn expr |> Option.map display
 
             Error(Fault.notTrueOrFalse (display expr) (Value.kind other) shown suggestion)
 
