@@ -208,5 +208,5 @@ After 10.0, A, B and C start together from its commit.
 | 10.0 Foundation | orchestrator | merged | b3e8f9f |
 | A. Suggestions and fixes | stream agent | in progress | |
 | B. Empty answers | stream agent | in progress | |
-| C. The page | stream agent | in progress | |
+| C. The page | stream agent | merged | 96b42b2 |
 | 10.9 docs, spec, verifier, republish | sub-agents, orchestrator | not started | |
