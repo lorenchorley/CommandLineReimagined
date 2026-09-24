@@ -197,8 +197,8 @@ const PHASE_8 = [
   { line: 'try read missing.txt | set problem', caught: 'NotFound' },
   { line: '$v', expect: ['5'] },
   { line: '$files | count', expect: ['5'] },
-  // A name that is not a command says which one it is near.
-  { line: 'lss', fault: 'unknowncommand', expect: ['Unknown command : lss. Did you mean ls?'] },
+  // A name that is not a command says so; which one it is near is a note (0041).
+  { line: 'lss', fault: 'unknowncommand', expect: ['Unknown command : lss'] },
 ];
 
 const BEFORE_RELOAD = [
@@ -680,57 +680,6 @@ async function checkPhase9(page, note) {
   await page.fill('#cmd', '');
 }
 
-// ==== STUB: Phase 10's notes, until streams A and B are merged ======================
-//
-// The core on stream C's branch sends no notes for the two lines checkPhase10 draws, so
-// this adds to the real response exactly what A and B will send: `read notes` still
-// fails in the core, with the core's own message, and the stub adds A's suggestion;
-// `ls | where $row.kind eq foldr` still answers the core's empty table, and the stub
-// adds B's explanation, to that line's `Refresh` too, so a live listing keeps it. A
-// response that already has notes is left as it is, so once the core sends them the
-// stub stands aside, and checkPhase10 says so.
-//
-// To switch to the real lines: delete from this banner to the END STUB banner below,
-// and the one line `const stubbed = await stubNotes(page);` in checkPhase10 with the
-// `if (stubbed ...)` report that uses it. Nothing else refers to the stub.
-
-/** What A and B send for these lines: `when` says of which response ('error' or 'empty'). */
-const STUBBED_NOTES = [
-  { line: 'read notes', when: 'error',
-    notes: [{ kind: 'suggestion', text: 'Did you mean documents/notes.txt?', fixes: ['read documents/notes.txt'] }] },
-  { line: 'ls | where $row.kind eq foldr', when: 'empty',
-    notes: [{ kind: 'explanation', text: 'kind is folder or text', fixes: [] }] },
-];
-
-/** Wraps the page's Execute and Refresh so the lines above carry their notes. */
-async function stubNotes(page) {
-  return page.evaluate(stubs => {
-    window.__notesStubbed = [];
-    const real = DotNet.invokeMethodAsync.bind(DotNet);
-    DotNet.invokeMethodAsync = async (assembly, method, ...args) => {
-      const answer = await real(assembly, method, ...args);
-      if (method !== 'Execute' && method !== 'Refresh') return answer;
-
-      const stub = stubs.find(s => s.line === String(args[0] || '').trim());
-      if (!stub) return answer;
-
-      const response = JSON.parse(answer);
-      if (response.notes && response.notes.length) return answer;
-
-      const empty = !response.error &&
-        (response.result || []).some(item => item.kind === 'table' && !(item.rows || []).length);
-      if (stub.when === 'error' ? !response.error : !empty) return answer;
-
-      response.notes = stub.notes;
-      window.__notesStubbed.push(stub.line);
-      return JSON.stringify(response);
-    };
-    return true;
-  }, STUBBED_NOTES);
-}
-
-// ==== END STUB ========================================================================
-
 /**
  * Phase 10, the page (stream C): G3's page side and G4, in a fresh store at `/`.
  *
@@ -746,7 +695,6 @@ async function checkPhase10(page, note) {
   const focused = () => page.evaluate(() => document.activeElement === document.getElementById('cmd'));
   const entries = () => page.locator('.entry').count();
 
-  const stubbed = await stubNotes(page);
 
   // ---- a suggestion under the error, and its fix as a chip -----------------------
 
@@ -809,6 +757,21 @@ async function checkPhase10(page, note) {
     await page.waitForTimeout(300);
     if (await lastId() !== ranBefore || await entries() !== shownBefore) note('tapping a fix ran a line');
     await page.fill('#cmd', '');
+  }
+
+  // ---- the other acceptance lines, each with the fix the core sends ---------------------
+
+  for (const { line, kind, fix, before } of [
+    { line: 'lss', kind: 'suggestion', fix: 'ls' },
+    { line: 'ls | where kind eq folder', kind: 'suggestion', fix: 'ls | where $row.kind eq folder' },
+    { line: 'ls | where $row.knd eq folder', kind: 'explanation', fix: 'ls | where $row.kind eq folder' },
+    { line: 'echo $fles', kind: 'suggestion', fix: 'echo $files', before: 'ls | set files' },
+  ]) {
+    if (before) await submit(page, before);
+    const shown = await submit(page, line);
+    const id = await lastId();
+    const fixes = await entry(id).locator(`.aside.note[data-kind="${kind}"] .fix`).allInnerTexts();
+    if (fixes.join('|') !== fix) note(`'${line}' offered the fixes ${JSON.stringify(fixes)}, not ${JSON.stringify(fix)}. It showed: ${JSON.stringify(shown.text)}`);
   }
 
   // ---- an explanation under an empty answer, redrawn with a live listing ------------------
@@ -910,10 +873,6 @@ async function checkPhase10(page, note) {
     }
   }
 
-  if (stubbed) {
-    const from = await page.evaluate(() => window.__notesStubbed);
-    console.log(from.length ? `  Notes stubbed for: ${[...new Set(from)].join(', ')}.` : '  The notes came from the core.');
-  }
 }
 
 /** The chips in the completion row, in order. */

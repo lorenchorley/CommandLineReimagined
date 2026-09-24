@@ -50,8 +50,7 @@ let private columnIndex (invocation: Invocation) (table: Table) (name: string) =
 /// A table function like the others, written out rather than through `pure'` because
 /// it says more than its value: when a table with rows keeps none, the answer is still
 /// the empty table, with its columns, and beside it one note saying why (decision
-/// 0043, `Expr.explainEmpty`). The near names are `Expr.nearestNames`, the rule of
-/// `Nearest.names`, which is compiled after this file.
+/// 0043, `Expr.explainEmpty`), with the near names `Nearest.names` gives.
 /// </remarks>
 let where =
     { Spec =
@@ -87,7 +86,7 @@ let where =
 
                             let notes =
                                 if List.isEmpty kept then
-                                    Expr.explainEmpty Expr.nearestNames invocation.Scope table expr
+                                    Expr.explainEmpty Nearest.names invocation.Scope table expr
                                 else
                                     []
 

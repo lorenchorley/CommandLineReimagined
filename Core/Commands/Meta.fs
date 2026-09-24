@@ -132,9 +132,8 @@ let private takesText (parameter: Parameter) =
 /// `help where | count` counts parameters, as any other table would be counted.
 ///
 /// The specs arrive as a function rather than a list because the list includes this
-/// command, and a value cannot contain itself. `nearest` is `Nearest.names`, which is
-/// compiled after this file, so it is handed in: it names what an unknown command was
-/// probably meant to be.
+/// command, and a value cannot contain itself. `nearest` is the rule the session hands
+/// in, `Nearest.names`: it names what an unknown command was probably meant to be.
 /// </remarks>
 let helpWith (nearest: string list -> string -> string list) (specs: unit -> CommandSpec list) =
     { Spec =
@@ -339,8 +338,8 @@ let unknown =
             "Reports a command name that could not be resolved"
             []
             [ Parameter.optional "name" "The name that was written"
-              // Filled by the evaluator with `Nearest.names`, which is compiled after
-              // this file: the command cannot look for them itself.
+              // Filled by the evaluator with `Nearest.names`: the command is told
+              // them rather than looking for them itself.
               Parameter.rest "nearest" "The commands it was probably meant to be, nearest first" ]
         |> CommandSpec.meta
       Run =

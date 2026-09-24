@@ -108,7 +108,7 @@ let private listMatching (invocation: Invocation) (expr: Expr) =
                 Invocation.pure' (Value.Table(Table.ofRecords size matched))
                 |> Invocation.withNotes (
                     if List.isEmpty matched then
-                        Expr.explainEmpty Expr.nearestNames invocation.Scope candidates expr
+                        Expr.explainEmpty Nearest.names invocation.Scope candidates expr
                     else
                         []
                 )

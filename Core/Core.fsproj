@@ -34,6 +34,7 @@
     <Compile Include="Tree.fs" />
     <Compile Include="Expr.fs" />
     <Compile Include="Commands/Spec.fs" />
+    <Compile Include="Nearest.fs" />
     <Compile Include="Binder.fs" />
     <Compile Include="Commands/Files.fs" />
     <Compile Include="Commands/Values.fs" />
@@ -41,7 +42,6 @@
     <Compile Include="Commands/Tables.fs" />
     <Compile Include="Commands/Documents.fs" />
     <Compile Include="Commands/Meta.fs" />
-    <Compile Include="Nearest.fs" />
     <Compile Include="Evaluator.fs" />
     <!--
       Phase 8: completion reads the line. `Context` says where the cursor is, each

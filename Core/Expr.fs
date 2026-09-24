@@ -427,53 +427,6 @@ module Expr =
 
     // ------------------------------------------- Why a filter kept nothing (0043)
 
-    /// <summary>`Nearest.names`, for the filters that cannot reach it yet.</summary>
-    /// <remarks>
-    /// A stand-in, and the same rule: the optimal string alignment distance ignoring
-    /// case, one slip in a word of up to four letters and two in a longer one, the word
-    /// itself left out, nearest first, ties in the order given. It is here because
-    /// `Nearest.fs` is compiled after this file and after `Commands/Tables.fs` and
-    /// `Commands/Files.fs`, so `where`, `find` and a view's listing cannot call it.
-    /// `explainEmpty` takes the rule as an argument, so once `Nearest.fs` is compiled
-    /// before the commands they pass `Nearest.names` and this goes.
-    /// </remarks>
-    let nearestNames (candidates: string list) (word: string) : string list =
-        let distance (a: string) (b: string) =
-            let a = a.ToLowerInvariant()
-            let b = b.ToLowerInvariant()
-            let d = Array2D.zeroCreate (a.Length + 1) (b.Length + 1)
-
-            for i in 0 .. a.Length do
-                d[i, 0] <- i
-
-            for j in 0 .. b.Length do
-                d[0, j] <- j
-
-            for i in 1 .. a.Length do
-                for j in 1 .. b.Length do
-                    let cost = if a[i - 1] = b[j - 1] then 0 else 1
-                    let best = min (min (d[i - 1, j] + 1) (d[i, j - 1] + 1)) (d[i - 1, j - 1] + cost)
-
-                    d[i, j] <-
-                        if i > 1 && j > 1 && a[i - 1] = b[j - 2] && a[i - 2] = b[j - 1] then
-                            min best (d[i - 2, j - 2] + 1)
-                        else
-                            best
-
-            d[a.Length, b.Length]
-
-        if String.IsNullOrEmpty word then
-            []
-        else
-            let limit = if word.Length <= 4 then 1 else 2
-
-            candidates
-            |> List.distinct
-            |> List.map (fun candidate -> candidate, distance word candidate)
-            |> List.filter (fun (_, d) -> d > 0 && d <= limit)
-            |> List.sortBy snd
-            |> List.map fst
-
     /// `a`, `a or b`, `a, b or c`: how a note names several things.
     let private inWords (items: string list) =
         match List.rev items with

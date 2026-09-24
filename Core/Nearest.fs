@@ -1,8 +1,9 @@
 /// Which known words a mistyped one was probably meant to be (Phase 8).
 ///
 /// Used twice: by completion, so `lss` still finds `ls`, and by the evaluator, so
-/// `lss` says `Did you mean ls?` rather than only that it is unknown. Registered before
-/// the evaluator for that second use. From Phase 9 a word can also name a command by
+/// `lss` says `Did you mean ls?` rather than only that it is unknown. Registered just
+/// after the command specs, before every command, so that from Phase 10 the filters can
+/// name the nearest columns too (decision 0043). From Phase 9 a word can also name a command by
 /// one of its keywords, which is how an old name leads to the new one (decision 0037):
 /// `cd` says `Did you mean in?`. From Phase 10 a missing file, folder or variable names
 /// the nearest ones too (decision 0042), in a note with a fix for each (0041, 0044).

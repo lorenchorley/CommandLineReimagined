@@ -59,9 +59,10 @@ and [<RequireQualifiedAccess>] Fix =
 
 /// <summary>What a fault says is not there, for the notes that name the nearest (0042).</summary>
 /// <remarks>
-/// A command that finds a path or a variable missing cannot see what else there is
-/// (`Nearest` is compiled after the commands), so the session reads this off the fault
-/// and names the nearest itself. A path is absolute; a variable's name has no `$`.
+/// A fault is made where the path or variable is found missing, which is often below
+/// anything that can see the whole filesystem, so the session reads this off the fault
+/// and names the nearest itself, from the projection the line left. A path is
+/// absolute; a variable's name has no `$`.
 /// </remarks>
 [<RequireQualifiedAccess>]
 type Missing =
