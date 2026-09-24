@@ -127,7 +127,8 @@ help as well as the fault: the value `help write` would answer, carried beside t
 fault as the response's guide, which the page draws under the error
 ([decision 0038](decisions/0038-a-wrong-call-shows-its-help.md)). The fault itself is
 unchanged, so `else` and `try` see only it. A fault raised once the command is running,
-such as a file that is not there, carries no guide.
+such as a file that is not there, carries no guide, though it may carry a note: see
+[Notes beside the answer](#notes-beside-the-answer).
 
 Nothing is passed as a string on the way in. An unquoted word arrives as a number if it
 reads as one and as text otherwise, `$name` arrives as whatever the variable holds, a
@@ -201,6 +202,8 @@ its input. A fault is a value like any other, which is why a variable can hold o
 A branch of an `else` that failed, and a `try` stage that failed, are put back exactly
 as a failed line is: the working copy returns to where it was before them. What goes
 on to be committed is the work of the branch that produced the value, and nothing else.
+The notes those stages gathered go with them, and the fault that becomes a value has
+none.
 
 ### Output versus results
 
@@ -219,6 +222,36 @@ needs a window, and all of them can be tested headlessly. It is also why long-ru
 commands work in WebAssembly at all. In the browser the updates are coalesced to about
 one every 40 milliseconds and pushed into the page, which is what you see moving while
 a command runs.
+
+### Notes beside the answer
+
+A line's answer is a value or a fault, and the session can add something of its own
+beside it: **notes**, which are neither
+([decision 0041](decisions/0041-guidance-is-drawn-apart-from-output.md)). A note has a
+kind, a text and, where it can, **fixes**: whole corrected lines
+([decision 0044](decisions/0044-a-fault-may-carry-fixes.md)).
+
+- A **suggestion** comes with a fault: the commands an unknown name was probably meant
+  to be, the question a predicate that is not one was probably meant to ask, or the
+  nearest files, folders or variables to one that is not there
+  ([decision 0042](decisions/0042-a-missing-name-names-the-nearest.md)). The fault's
+  message says only what went wrong.
+- An **explanation** comes with an answer: when `where`, `find` or a view keeps no row
+  of a table that had some, why
+  ([decision 0043](decisions/0043-an-empty-filter-explains-itself.md)).
+
+What finds a mistake rarely knows the line it was written in: `where` sees a predicate,
+not what you typed. So a fix may be said as a replacement of what was written, and the
+session makes it a whole line against the line you typed. A mistake with no place in
+that line, such as one in a line of a script, keeps its suggestion and loses its fix.
+Nearest paths and variables are worked out by the session itself, from the fault's kind
+and path and the projection it already holds.
+
+The evaluator gathers the notes of the stages whose work stood, and a stage that `try`
+or `else` rolled back takes its notes with it. Notes are never in a value: `try` and
+`else` see the fault alone, so `$problem.message` is the same sentence with a note shown
+or without. The page draws each note as a panel of its own, apart from output, with a
+chip for each fix that puts the line in the input and does not run it.
 
 ## 4. Commit
 
