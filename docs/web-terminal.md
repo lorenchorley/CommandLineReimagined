@@ -28,8 +28,8 @@ Nothing the page does on its own opens or closes the keyboard, or moves what is 
 screen:
 
 - The keyboard stays as you left it. Tapping Run, `out`, ↶, ↷, ↑, ↓, a chip, a
-  suggestion key, a table cell, a listing's badge or a word neither closes it nor opens
-  it, and a line run from the keyboard leaves it up. The return key is a plain return,
+  fix, a suggestion key, a table cell, a listing's badge or a word neither closes it nor
+  opens it, and a line run from the keyboard leaves it up. The return key is a plain return,
   so it does not close the keyboard either.
 - The terminal fits the part of the screen the keyboard leaves. The input sits just
   above the keyboard, and running a line does not move it.
@@ -221,6 +221,9 @@ A result is rendered by kind:
 - **Errors** are shown in red under the command, and a command called wrongly has its
   help drawn under the error: see [How a failure looks](#how-a-failure-looks). A
   command you stopped shows `Stopped.` in amber instead.
+- **Notes** follow the answer or the error they are about: what you probably meant, or
+  why an answer is empty, with a chip for each corrected line. They are the terminal's
+  words, not the answer's: see [Notes and fixes](#notes-and-fixes).
 - **A caught fault** is drawn in amber: see [How a failure looks](#how-a-failure-looks).
 
 Tapping a header sorts what you are looking at. `ls | sort size desc` is the one that
@@ -269,7 +272,8 @@ the answer above it wrong.
 A line is kept live when its first word is `ls` or `find` and it answered a table. Every
 change is an entry in the log, so the page knows the moment one lands. It asks the same
 question again, silently, and replaces the table in place with a brief flash so you can
-see that it moved. The re-run leaves no entry in the scrollback, no transaction and
+see that it moved. Its notes are redrawn with it, so an explanation of an empty listing
+comes and goes with the rows. The re-run leaves no entry in the scrollback, no transaction and
 nothing in `history`. A line naming any command that could change something, such as
 `ls | set files`, is refused rather than re-run, and the table it drew stays as it was.
 
@@ -305,11 +309,43 @@ font rather than the terminal's monospace. Output keeps the look it has always h
 | Panel | Label | What it says |
 | --- | --- | --- |
 | The banner, at the top of the scrollback | `note` | Where to begin, whether this browser is keeping your files, and how loading went: see [Loading](#loading). |
+| Under a line that failed, when something near was meant | `did you mean` | The command, file, folder, variable or question you probably meant, with a chip for each corrected line: see [Notes and fixes](#notes-and-fixes). |
+| Under an answer, when a `where`, a `find` or a view in the line kept no row | `why` | Why nothing was kept, with a chip when a column or value was a slip away. |
 | Under a line that called a command wrongly | `help` | That command's help: see [How a failure looks](#how-a-failure-looks). |
 | The note after a selection | `note` | `copied`: see [Copying](#copying). |
+| In the scrollback, when a stored session could not be restored in full | `note` | How many stored lines were skipped, or why the session could not be restored: see [Loading](#loading). |
 
-A failure's own message, `Did you mean` suggestions included, is the line's answer
-rather than the page's, and stays in red with its kind tag.
+This is one style for everything the terminal says of its own
+([decision 0041](decisions/0041-guidance-is-drawn-apart-from-output.md)). What a
+command answered, a table, a file's text, a value, and a failure's message, is output:
+the message stays in red with its kind tag, and says only what went wrong. A red error
+with a kind tag is only ever the fault of a line someone ran
+([decision 0046](decisions/0046-restore-messages-are-guidance.md)). Under a failed
+line, the order is the message, then any note, then any help.
+
+### Notes and fixes
+
+A note is what the terminal adds about one line: a suggestion under a fault, labelled
+`did you mean`, or an explanation under an empty answer, labelled `why`. Each fix it
+offers is a whole corrected line, drawn as a chip in the terminal's monospace, since it
+is a line of the language
+([decision 0044](decisions/0044-a-fault-may-carry-fixes.md)). After `read notes` at the
+root, the panel under the red line says `Did you mean documents/notes.txt?`, with the
+chip `read documents/notes.txt`.
+
+Tapping a fix puts its line in the input, in place of whatever was there, with the
+caret at the end. It does not run it: the guess may be wrong, and a line run by a tap
+could change the files without anyone having asked. Run it, or change it first. Like a
+suggestion key, the chip leaves the keyboard as it was. That is the difference from a
+chip in a result, which adds its text to the line you are writing: a fix is the whole
+line.
+
+A note's text is never part of the answer. A script reading `$problem.message` gets the
+message alone, and a live listing's explanation is redrawn with its table: it appears
+when a change empties the listing, and goes when a row comes back.
+[Notes beside a message](errors.md#notes-beside-a-message) has the rules for what is
+suggested, and [An empty answer says why](tables.md#an-empty-answer-says-why) for what
+is explained.
 
 ## Undo on screen
 
@@ -390,10 +426,11 @@ $ ls | sort name up
 
 The help is the called command's, so `help where extra` shows `help`'s own, since `help`
 is what was called wrongly. A failure while a command runs is not a wrong call and shows
-no panel: `read missing.txt` fails with `File does not exist : /missing.txt` alone. Nor
-does an unknown command, whose message already says what it probably meant
-(`Unknown command : cd. Did you mean in?`), nor a question that never reads `$row`,
-which says what to write instead.
+no help: `read missing.txt` fails with `File does not exist : /missing.txt` alone, and
+`read notes` at the root has a `did you mean` note under its message instead. Nor does
+an unknown command show help: `cd documents` fails with `Unknown command : cd`, and its
+note offers `in documents`. A question that never reads `$row` has both, the note that
+says what to write and, under it, the help of the command it was given to.
 
 A fault that `try` caught, or that `else` handed on, is not a failure: the line went on
 and answered with it. The page draws it in amber, with a left rule like any other
@@ -508,7 +545,7 @@ Once the runtime is up the page replays the session's log before enabling the in
 and the banner reads `restoring…` while it does. Nothing may run until that has
 finished: an empty filesystem and a lost one look identical, so the page refuses to show
 one as the other. If the replay fails, the banner says `failed to restore` in red and
-that nothing can run until the session is restored, the scrollback says
+that nothing can run until the session is restored, a `note` in the scrollback says
 `Could not restore the session:` and why, and the input stays disabled.
 
 The banner then says what happened — a first visit, or how many lines came back —
@@ -516,7 +553,9 @@ points to `read readme.txt` (the `readme` key writes it), and says whether this 
 keeping your files. When it is not, the banner says so and ends with a `not persisted`
 mark; hover it to see the reason the browser gave. That is said before you have typed,
 rather than after a morning's work turns out not to have been saved. If some stored
-lines could not be read, a red line in the scrollback says how many were skipped.
+lines could not be read, a `note` in the scrollback says how many were skipped, and that
+`reset` starts over. Both are notes, in the terminal's own style, rather than errors: no
+line anybody ran failed ([decision 0046](decisions/0046-restore-messages-are-guidance.md)).
 
 ## Where the log is kept
 

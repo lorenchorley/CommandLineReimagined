@@ -15,10 +15,14 @@ The argument to where is a question about each row. $row is the row being asked 
   ls | where $row.size gt 0 and $row.kind ne folder
   ls | where $row.name like *.txt
 
-A question has to read $row and answer true or false, so these two say what to write instead of answering an empty table:
+A question has to read $row and answer true or false, so these two fail rather than answer an empty table, and under each the terminal says what you probably meant, with the corrected line as a chip. Tapping it puts the line in the input; it does not run it.
 
   ls | where kind eq folder
   ls | where $row.kind
+
+A question that is asked properly and matches nothing answers an empty table, and says why under it: here, the kinds there are, and folder as a chip.
+
+  ls | where $row.kind eq foldr
 
 Tapping a column header re-sorts the table on screen. Tapping a cell puts it in the line.
 

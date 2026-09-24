@@ -374,7 +374,9 @@ Each command declares parameters in order. Binding happens in one pass:
 
 A call that fails either way, or names a flag the command does not have, is a call made
 wrongly, and the page shows the command's help under the error: what `help <command>`
-answers ([decision 0038](decisions/0038-a-wrong-call-shows-its-help.md)).
+answers ([decision 0038](decisions/0038-a-wrong-call-shows-its-help.md)). Like the
+notes that name what you probably meant, it is drawn in the terminal's own style, apart
+from output, and is not part of the fault.
 
 So `write` takes a path and a text, and these are all the same call:
 
@@ -512,7 +514,7 @@ line succeeded. A fault reads as its message, and these members can be read off 
 | Member | Holds |
 | --- | --- |
 | `kind` | The fault's kind as a word: `NotFound`, `Conflict`, `Invalid`, `Binding`, `Syntax`, `UnknownCommand`, `Internal`. See [the kinds](errors.md). |
-| `message` | The sentence the red line would have shown. |
+| `message` | The sentence the red line would have shown, without any note beside it. |
 | `path` | The path it was about, when there was one; nothing otherwise. |
 | `stage` | Which stage failed, counted from one. |
 | `cause` | The fault underneath, when there was one; nothing otherwise. |
@@ -530,6 +532,27 @@ $ echo fine | is-fault
 false
 ```
 
+What the terminal says beside a failure, a `Did you mean …?` and the corrected lines it
+offers, is a note for whoever reads the screen, and never part of the fault
+([decision 0041](decisions/0041-guidance-is-drawn-apart-from-output.md)). A fault that
+`try` or `else` hands on has no notes, so a script reads the same message whether or not
+a suggestion was shown. The indented lines are the note:
+
+```
+$ read notes
+File does not exist : /notes
+  suggestion: Did you mean documents/notes.txt?
+  fix: read documents/notes.txt
+$ try read notes | set lost
+File does not exist : /notes
+$ echo $lost.message
+File does not exist : /notes
+$ echo $lost.path
+/notes
+```
+
+See [Notes beside a message](errors.md#notes-beside-a-message).
+
 Neither `try` nor `else` catches [Stop](web-terminal.md). A stopped line stops, whatever
 is written around the stage that was running
 ([decision 0024](decisions/0024-stop-is-not-recoverable.md)).
@@ -542,9 +565,15 @@ an empty table, for instance.
 ```
 $ first (ls | where $row.kind eq view) ?? "no views yet"
 no views yet
+  explanation: kind is folder or text
 $ echo hello ?? "never used"
 hello
 ```
+
+The indented line is a note, not part of the answer: the `where` inside the parentheses
+kept nothing, and the terminal says why
+([An empty answer says why](tables.md#an-empty-answer-says-why)). What flows on is
+`no views yet`.
 
 The default belongs to the stage, so it flows on down the pipe:
 `first (ls) ?? "none" | set latest` sets `$latest` either way. It is only evaluated when
@@ -583,7 +612,8 @@ $ echo $entries | count
 
 Names may contain letters, digits and underscore. Writing `set $x 1` does not name a
 variable `x`; `$x` is read as a variable reference, so it reports
-`Unknown variable: $x`.
+`Unknown variable: $x`. A name a slip from one that is bound gets a note naming it, with
+the line that uses it: see [`Unknown variable`](errors.md#unknown-variable-name).
 
 On the page, typing `$` offers every bound variable as a completion, each saying what
 it holds, such as `table · 5 rows · name, kind, folder…`. See

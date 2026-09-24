@@ -38,6 +38,55 @@ matches on: `$problem.kind` reads the word in the second column.
 | none | — | You stopped it. `Stopped.` is drawn in amber with no tag, and is never caught, so never read. |
 | `internal` | `Internal` | A defect. Not your mistake; worth reporting. |
 
+## Notes beside a message
+
+A message says what went wrong and nothing more
+([decision 0041](decisions/0041-guidance-is-drawn-apart-from-output.md)). What the
+terminal can add of its own, what you probably meant, comes beside it as a **note**,
+under the red line, and a note is not part of the fault. There are two kinds:
+
+- a **suggestion**, under a fault: the command, file, folder or variable you probably
+  meant, or the question you probably meant to ask. The nearest names are found as
+  [decision 0042](decisions/0042-a-missing-name-names-the-nearest.md) says: first a name
+  in the folder it was looked for in that is a slip or two away, then the same name, or
+  a name it is the start of, anywhere; at most three.
+- an **explanation**, under an empty answer that is not a fault: why `where`, `find` or
+  a view kept nothing. See
+  [An empty answer says why](tables.md#an-empty-answer-says-why).
+
+A note can offer **fixes**, each a whole corrected line
+([decision 0044](decisions/0044-a-fault-may-carry-fixes.md)). In the transcripts on
+this page a note is shown indented under the message, its kind and its text, then each
+fix after `fix:`:
+
+```
+$ read notes
+File does not exist : /notes
+  suggestion: Did you mean documents/notes.txt?
+  fix: read documents/notes.txt
+```
+
+On the page the note is a panel labelled `did you mean` for a suggestion and `why` for
+an explanation, drawn in the terminal's own style rather than as output, and each fix
+is a chip. Tapping the chip puts the line in the input with the caret at the end, and
+does not run it: the guess may be wrong, so you run it, or change it first. See
+[The terminal's own words](web-terminal.md#the-terminals-own-words).
+
+A mistake that has no place in the line you typed, such as one in a line of a script
+`run` ran, is still suggested, and offers no fix.
+
+A script never sees a note. `$problem.message` is the message alone, and `else` and
+`try` behave as they always did; the suggestion is there for whoever reads the screen:
+
+```
+$ try read notes | set problem
+File does not exist : /notes
+$ echo $problem.message
+File does not exist : /notes
+$ read notes else echo "no notes here"
+no notes here
+```
+
 ## Parse errors
 
 These appear before anything runs, because the line could not be turned into a tree.
@@ -186,13 +235,14 @@ It is the help of the command that was called wrongly: `help where extra` shows
 brings it, and so do the other `binding` faults that name their command, such as
 `'count' needs a table, not text.` and `'select' needs at least one column.`. The
 messages here whose kind is `notfound`, an unknown variable and `$row` outside a
-predicate, do not. A question that never reads `$row` does, under the sentence that
-says what to write instead, and so does a value of the wrong kind for a parameter, such
+predicate, do not. A question that never reads `$row` does, under the note that says
+what to write instead, and so does a value of the wrong kind for a parameter, such
 as `ls | take x` (`'count' must be a whole number, not 'x'.`). A failure raised while a
 command runs, such as
 `File does not exist : /missing.txt`, is not a wrong call and shows no help; nor is an
-unknown command, which says what it probably meant. `else` and `try` see the same fault
-whether the page shows help or not.
+unknown command, whose note says what it probably meant. When a line has both, the
+note comes first and the help under it. `else` and `try` see the same fault whether
+the page shows help or not.
 
 ### `'<command>' needs an argument for '<parameter>'.`
 
@@ -245,6 +295,18 @@ Its kind is `notfound`.
 ```
 $ echo $nothing
 Unknown variable: $nothing
+```
+
+When a variable is bound whose name is a slip away, or starts with the name written, a
+note names it, nearest first, with a fix that writes the first in its place:
+
+```
+$ set greeting hello
+hello
+$ echo $greting
+Unknown variable: $greting
+  suggestion: Did you mean $greeting?
+  fix: echo $greeting
 ```
 
 ### `$row is the row a predicate is testing. It exists only inside where, find, in and save-view: ls | where $row.kind eq folder.`
@@ -323,26 +385,40 @@ From the table functions, from predicates, and from reading a tag as a table.
 A predicate is a yes-or-no question about the row
 ([decision 0033](decisions/0033-a-predicate-is-a-question-about-the-row.md)). The two
 predicates that cannot be one used to answer an empty table in silence, which looks
-like a real answer. Both are faults now, and both say what to write instead.
+like a real answer. Both are faults now, and a note under each says what to write
+instead, with the line as a fix.
+
+A predicate that is a question and keeps no row is not a fault: the answer is the
+empty table, and an explanation says why nothing was kept. See
+[An empty answer says why](tables.md#an-empty-answer-says-why).
 
 ### `<predicate> never reads $row, so it is the same for every row.`
 
 A predicate with an operator in it that never mentions `$row` compares two fixed
-values, so it keeps every row or none. The bare words it compared are named as the
-likely columns, when there are any. It is found when the predicate is bound, before
-any row is tested, and `where`, `find`, `in` and `save-view` all say it. Kind
-`binding`.
+values, so it keeps every row or none. The note under it reads the bare words it
+compared as the likely columns, when there are any, and offers the line with `$row.`
+in front of them. It is found when the predicate is bound, before any row is tested,
+and `where`, `find`, `in` and `save-view` all say it. Kind `binding`, so the command's
+help is drawn under the note.
 
 ```
 $ ls | where kind eq folder
-kind eq folder never reads $row, so it is the same for every row. Did you mean $row.kind eq folder?
+kind eq folder never reads $row, so it is the same for every row.
+  suggestion: Did you mean $row.kind eq folder?
+  fix: ls | where $row.kind eq folder
 $ ls | where 3 lt size
-3 lt size never reads $row, so it is the same for every row. Did you mean 3 lt $row.size?
+3 lt size never reads $row, so it is the same for every row.
+  suggestion: Did you mean 3 lt $row.size?
+  fix: ls | where 3 lt $row.size
 $ set v 5
 5
 $ ls | where $v eq 5
 $v eq 5 never reads $row, so it is the same for every row.
 ```
+
+The message used to end with the suggestion, as
+`… for every row. Did you mean $row.kind eq folder?`; the suggestion is the note now,
+and the message stops at `row.`.
 
 A plain word with no operator is not a question and is not checked here: `in journal`
 is a path.
@@ -350,15 +426,25 @@ is a path.
 ### `<predicate> is <kind> (<value>), not true or false.`
 
 A predicate whose value for a row is neither true nor false, such as a column read on
-its own. The message names the value it had on the first such row, and how to ask a
-question of it. Kind `invalid`.
+its own. The message names the value it had on the first such row, and the note under
+it how to ask a question of it: a comparison with that value, or, for a bare word, the
+column it probably meant. Kind `invalid`.
 
 ```
 $ ls | where $row.kind
-$row.kind is text (folder), not true or false. Compare it: $row.kind eq folder.
+$row.kind is text (folder), not true or false.
+  suggestion: Did you mean $row.kind eq folder?
+  fix: ls | where $row.kind eq folder
 $ ls | where name
-name is text (name), not true or false. Did you mean $row.name?
+name is text (name), not true or false.
+  suggestion: Did you mean $row.name?
+  fix: ls | where $row.name
 ```
+
+The message used to go on `Compare it: $row.kind eq folder.`; that is the note now,
+worded like every other suggestion. When the part to change is written more than once in
+the line, as in `ls | where $row.kind eq text or $row.kind`, the note names the
+comparison and offers no fix, since it cannot tell which of the two to change.
 
 A column that really is true or false can be read bare. `history`'s `undone` is one:
 `history | where $row.undone` keeps the lines that were undone. A missing value counts
@@ -408,24 +494,39 @@ From `run`.
 Raised by commands themselves. The command reports the path it actually used, which is
 resolved against the current directory.
 
-### `Unknown command : <name>. Did you mean <command>?`
+### `Unknown command : <name>`
 
 No command by that name. When one or more commands are a slip or two away, or the
-name is one of a command's keywords, up to three are named, nearest first; when none
-is, the message stops at the name. Run `help`, or type the start of a name to see the
+name is one of a command's keywords, a note names up to three, nearest first, with a
+fix for each: the line with that command in place of the name, the rest as you wrote
+it. When none is, there is no note. Run `help`, or type the start of a name to see the
 commands as completions. Kind `unknowncommand`. It shows no help under it: there is no
 command whose help it could be.
 
 ```
 $ lss
-Unknown command : lss. Did you mean ls?
+Unknown command : lss
+  suggestion: Did you mean ls?
+  fix: ls
 $ sot
-Unknown command : sot. Did you mean set or sort?
+Unknown command : sot
+  suggestion: Did you mean set or sort?
+  fix: set
+  fix: sort
 $ rn
-Unknown command : rn. Did you mean in, rm or run?
+Unknown command : rn
+  suggestion: Did you mean in, rm or run?
+  fix: in
+  fix: rm
+  fix: run
 $ delete readme.txt
-Unknown command : delete. Did you mean rm?
+Unknown command : delete
+  suggestion: Did you mean rm?
+  fix: rm readme.txt
 ```
+
+The message used to carry the suggestion, as `Unknown command : lss. Did you mean ls?`;
+it stops at the name now, and `$problem.message` reads `Unknown command : lss`.
 
 The keywords are how the old names lead to the new ones. `cd`, `up` and `cat` were
 renamed `in`, `out` and `read`
@@ -434,18 +535,75 @@ command's first keyword:
 
 ```
 $ cd documents
-Unknown command : cd. Did you mean in?
+Unknown command : cd
+  suggestion: Did you mean in?
+  fix: in documents
 $ up
-Unknown command : up. Did you mean out?
+Unknown command : up
+  suggestion: Did you mean out?
+  fix: out
 $ cat readme.txt
-Unknown command : cat. Did you mean read?
+Unknown command : cat
+  suggestion: Did you mean read?
+  fix: read readme.txt
 ```
 
 Completion finds them the same way: typing `cd` offers `in`, and `delete` offers `rm`.
 A short word that merely equals a keyword by accident is not taken for one: `by` is
-`Unknown command : by`, with nothing after it. Typing `UnknownCommand`, the name of the
+`Unknown command : by`, with no note. Typing `UnknownCommand`, the name of the
 command that reports this, gets `Unknown command : UnknownCommand` like any other
 unknown name.
+
+### A path that is not there
+
+`File does not exist`, `Directory does not exist`, `Nothing exists at` and
+`Target directory does not exist` name the path the command looked for, as the table
+below says. When something near it is there, a note names it, at most three, with a
+fix that writes each in place of the path you wrote. A folder is looked for among
+folders only: `in` and `ls` want one, and so do the target of `cp` and `download` and
+the parent `write` and `mkdir` write into. A path is written as you would type it
+standing where you are: relative when it is inside the current folder, absolute
+otherwise:
+
+```
+$ read notes
+File does not exist : /notes
+  suggestion: Did you mean documents/notes.txt?
+  fix: read documents/notes.txt
+$ in documnts
+Directory does not exist : documnts
+  suggestion: Did you mean documents?
+  fix: in documents
+$ rm documents/note.txt
+Nothing exists at : /documents/note.txt
+  suggestion: Did you mean documents/notes.txt?
+  fix: rm documents/notes.txt
+$ cp readme.txt documnts
+Target directory does not exist : /documnts
+  suggestion: Did you mean documents?
+  fix: cp readme.txt documents
+```
+
+With nothing near, the message is all there is:
+
+```
+$ read missing.txt
+File does not exist : /missing.txt
+$ in nowhere
+Directory does not exist : nowhere
+```
+
+A mistake inside a script is suggested too, with no fix, since the line to correct is
+in the script rather than in the input:
+
+```
+$ write typo.clr "read notes"
+typo.clr
+$ run typo.clr
+> read notes
+/typo.clr line 1: File does not exist : /notes
+  suggestion: Did you mean documents/notes.txt?
+```
 
 | Message | Meaning |
 | --- | --- |
@@ -508,7 +666,11 @@ Not errors from the language, but from the session.
 
 Written by the browser page itself rather than by the session. There is no status
 line: the page says how its start went in the banner, the panel labelled `note` at the
-top of the scrollback. See [The web terminal](web-terminal.md#loading).
+top of the scrollback. None of these is a fault of a line anyone ran, so each is said
+in a panel labelled `note`, in the terminal's own style, and never as an error
+([decision 0046](decisions/0046-restore-messages-are-guidance.md)): a red error with a
+kind tag is only ever the fault of a line you ran. See
+[The web terminal](web-terminal.md#loading).
 
 | Message | Meaning |
 | --- | --- |
@@ -516,9 +678,9 @@ top of the scrollback. See [The web terminal](web-terminal.md#loading).
 | `restoring…` | The banner while the log is replayed. The input is still disabled. |
 | `not persisted` | A mark at the end of the banner: this browser is not keeping the log. Hover it for the browser's reason. |
 | `failed to load` | In red in the banner, when the runtime did not start within about forty seconds. Reloading may help. |
-| `failed to restore` | In red in the banner, when replaying the log failed, with `Could not restore the session: <message>` in the scrollback. The input stays disabled. |
+| `failed to restore` | In red in the banner, when replaying the log failed, with `Could not restore the session: <message>` in a `note` in the scrollback. The input stays disabled. |
 | `copied` | A `note` over the foot of the scrollback, when text selected there has been copied to the clipboard. It fades on its own. |
-| `<n> stored line(s) could not be read and were skipped. reset starts over.` | The log holds lines this build cannot decode, usually from a different build. The rest were replayed. |
+| `<n> stored line(s) could not be read and were skipped. reset starts over.` | A `note` in the scrollback: the log holds lines this build cannot decode, usually from a different build. The rest were replayed. |
 
 ## Reading a path in a message
 

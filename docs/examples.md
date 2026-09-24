@@ -1,7 +1,9 @@
 # Worked examples
 
 Complete sessions you can type line by line. Output is what the terminal shows; result
-chips are written as plain words.
+chips are written as plain words. A note the terminal adds of its own, beside the
+answer rather than in it, is shown indented under the answer: its kind and text, then
+each corrected line it offers after `fix:`, which the page draws as a chip.
 
 Each example starts from a fresh tab, except that examples 1, 2, 3 and 8 run in
 sequence: the second uses the directory the first made, the third lists it, and the
@@ -187,8 +189,15 @@ $ ls | where $row.kind eq
 Column 23: eq needs a value to compare with, such as folder
 
 $ lss
-Unknown command : lss. Did you mean ls?
+Unknown command : lss
+  suggestion: Did you mean ls?
+  fix: ls
 ```
+
+The last is not the parser's: `lss` is a well-formed line naming a command there is not.
+The message says only that, and the note under it, a panel labelled `did you mean` on
+the page, says what was probably meant. Tapping the `ls` chip puts `ls` in the input
+without running it.
 
 ## 7. Same call, three ways
 
@@ -485,13 +494,19 @@ parenthesis is a pipeline whose result `first` is given:
 ```
 $ first (ls | where $row.kind eq view) ?? "no views yet"
 no views yet
+  explanation: kind is folder or text
 
 $ first (ls | where $row.kind eq view) ?? "no views yet" | set latest
 no views yet
+  explanation: kind is folder or text
 
 $ echo $latest
 no views yet
 ```
+
+The indented line is the terminal saying why the `where` kept nothing: no record is a
+`view`, and these are the kinds there are. It is a note, not part of any value, so
+`$latest` holds `no views yet` and nothing else.
 
 The last line is the one that shows what recovery does not do. `mkdir today` succeeds,
 `in nowhere` fails, and the pipeline on the left of the `else` fails with it. The right
@@ -512,9 +527,11 @@ today.txt   text    /       14    2026-09-22T09:30:00.0000000+00:00
 
 $ find $row.name eq today | count
 0
+  explanation: name is documents, tables.clr, 1-start.txt, 2-values.txt, 3-tables.txt or 13 more
 ```
 
-`today.txt` is there; `today` never was. The line that tried to make it wrote nothing
+`today.txt` is there; `today` never was, and the note says so by naming the names there
+are instead. The line that tried to make it wrote nothing
 the store needed to remember, so `undo` steps straight past it to the line before:
 
 ```
@@ -720,7 +737,8 @@ Undone: rm tuesday
 Failure as a value: `else` recovers, `try` keeps a fault to read later, `??` gives a
 default for nothing, and a pipeline in parentheses answers a value. The last lines show
 that a failed branch leaves nothing behind. [Example 12](#12-recover-without-leaving-the-line)
-walks through it a line at a time.
+walks through it a line at a time. The lines a script runs carry no notes, so the
+explanations example 12 shows beside the `??` lines are not in the program's output.
 
 ```
 # Failure is a value: recover with else, inspect with try, default with ??.

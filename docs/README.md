@@ -21,9 +21,9 @@ The terminal teaches itself. Type `read readme.txt` in it, and the readme leads 
 | [Tables and predicates](tables.md) | Question a listing: filter, sort, count, group; keep a table in an XML or CSV file. |
 | [The filesystem](filesystem.md) | Files as attribute records, and queries as places. |
 | [Command reference](commands.md) | Look up one command's arguments and behaviour. |
-| [The web terminal](web-terminal.md) | Learn the screen: chips, completion, Stop, undo. |
+| [The web terminal](web-terminal.md) | Learn the screen: chips, completion, notes and fixes, Stop, undo. |
 | [How it works](concepts.md) | See what happens between pressing Enter and the answer. |
-| [Error reference](errors.md) | Find out what a message means and how to clear it. |
+| [Error reference](errors.md) | Find out what a message means, what the note beside it offers, and how to clear it. |
 | [Troubleshooting](troubleshooting.md) | Fix a symptom that is not an error message. |
 | [Building and testing](building.md) | Build, test, publish and deploy the project. |
 
@@ -64,4 +64,6 @@ Because the parse is a tree, the screen can show what the parser decided. Tap an
 in the scrollback and the terminal tells you whether it was a command, a flag, a string,
 a variable, a type or punctuation. Because a command only describes its change and the
 whole line is committed at once, the last line can always be taken back, and put back
-again.
+again. And when a line fails, or a question comes back empty, the terminal says beside
+the answer what you probably meant, and offers the corrected line as a chip to tap,
+never mixing its own words into the answer itself.

@@ -157,15 +157,22 @@ a missing cell is not a small one. Two gaps are `eq`, and that is the only excep
 
 A predicate is asked once for every row, so it has to be a yes-or-no question about
 that row ([decision 0033](decisions/0033-a-predicate-is-a-question-about-the-row.md)).
-Two ways of writing one are not, and both fail with a message that says what to write
-instead. From a fresh tab:
+Two ways of writing one are not, and both fail, with a note under the message that
+says what to write instead. The indented lines are the note: its text, and the line it
+offers as a fix, which on the page is a chip that puts the line in the input without
+running it ([Notes beside a message](errors.md#notes-beside-a-message)). From a fresh
+tab:
 
 ```
 $ ls | where kind eq folder
-kind eq folder never reads $row, so it is the same for every row. Did you mean $row.kind eq folder?
+kind eq folder never reads $row, so it is the same for every row.
+  suggestion: Did you mean $row.kind eq folder?
+  fix: ls | where $row.kind eq folder
 
 $ ls | where $row.kind
-$row.kind is text (folder), not true or false. Compare it: $row.kind eq folder.
+$row.kind is text (folder), not true or false.
+  suggestion: Did you mean $row.kind eq folder?
+  fix: ls | where $row.kind eq folder
 ```
 
 The first compares the word `kind` with the word `folder`, which is false whatever the
@@ -226,15 +233,84 @@ and the fault names the part that was not a question. Back in a fresh tab, at th
 
 ```
 $ ls | where not $row.kind
-$row.kind is text (folder), not true or false. Compare it: $row.kind eq folder.
+$row.kind is text (folder), not true or false.
+  suggestion: Did you mean $row.kind eq folder?
+  fix: ls | where not $row.kind eq folder
 
 $ ls | where $row.kind eq text or $row.kind
-$row.kind is text (folder), not true or false. Compare it: $row.kind eq folder.
+$row.kind is text (folder), not true or false.
+  suggestion: Did you mean $row.kind eq folder?
 ```
+
+The second offers no fix: `$row.kind` is written twice in the line, and the note cannot
+tell which of the two to change.
 
 A part that is never read is never checked: in
 `ls | where $row.kind eq nothing and $row.kind`, the left side is false for every row,
-so the right side is not looked at and the answer is an empty table.
+so the right side is not looked at and the answer is an empty table, explained as the
+next section describes.
+
+### An empty answer says why
+
+An empty table is a real answer, and it is also what a misspelt column or value gives,
+so when `where`, `find` or a view keeps no row of a table that had some, the terminal
+says why beside it ([decision 0043](decisions/0043-an-empty-filter-explains-itself.md)).
+The answer is still the empty table; the explanation is a note, labelled `why` on the
+page. Still in the same tab:
+
+```
+$ ls | where $row.knd eq folder
+name  kind  folder  size  modified
+  explanation: No row has knd; did you mean kind?
+  fix: ls | where $row.kind eq folder
+
+$ ls | where $row.kind eq foldr
+name  kind  folder  size  modified
+  explanation: kind is folder or text
+  fix: ls | where $row.kind eq folder
+
+$ ls | where $row.kind eq view
+name  kind  folder  size  modified
+  explanation: kind is folder or text
+
+$ ls | where $row.size gt 1000
+name  kind  folder  size  modified
+  explanation: size runs from 0 to 193
+```
+
+There is at most one explanation, and it is the first of these that applies:
+
+- **A column no row has.** A column the predicate reads through `$row.` that no row
+  carries, with the nearest columns some row does carry, and a fix for the first. With
+  nothing near, it says only `No row has knd.` A column only some rows carry is not one
+  of these: a gap is an ordinary cell, and a filter over mixed records reads one.
+- **The values a column has.** For `eq` or `like` of a column with a value no row has,
+  the values the column does have, most frequent first, at most five, and then how many
+  more there are, as in `name is documents, examples, guide, projects or readme.txt`.
+  When the value compared is a slip or two from one of them, the explanation offers
+  that one as a fix ([decision 0045](decisions/0045-a-near-value-offers-a-fix.md)):
+  `foldr` offers `folder`, and `view` offers nothing.
+- **The span of a column of numbers.** For `gt`, `ge`, `lt` or `le` over numbers, where
+  the numbers lie.
+
+In an `and`, the first side that keeps nothing on its own is the one explained. Anything
+else stays silent: `ne` and `has`, an `or` or a `not` that keeps nothing, and a
+predicate whose every part keeps a row though the whole keeps none, as
+`$row.kind eq folder and $row.size gt 0` does here. So does a filter that keeps a row,
+and one given an empty table: an empty answer to an empty question needs no reason.
+
+A script never sees an explanation. The answer is the empty table, so `count` gives `0`
+and `else` has nothing to recover from:
+
+```
+$ ls | where $row.kind eq view | count
+0
+  explanation: kind is folder or text
+```
+
+The note is still shown, because the `where` that kept nothing is part of the line. A
+line of a script that `run` runs is not explained: `run` answers with the script's last
+value, and no notes.
 
 ### The reserved words
 
@@ -514,6 +590,11 @@ table   false     true   a value      The table to work on; taken from the pipe 
 
 ## When it goes wrong
 
+An empty answer is not a failure, and is not in this table: its note says why nothing
+was kept, as [An empty answer says why](#an-empty-answer-says-why) describes. The two
+predicates that are not questions carry a note offering the corrected line. A column
+that `select`, `sort`, `distinct` or `group` cannot find is named without one.
+
 | Message | What happened |
 | --- | --- |
 | `'count' needs a table, not text.` | Something that is not a table, and cannot be read as one, reached a table function. |
@@ -523,8 +604,8 @@ table   false     true   a value      The table to work on; taken from the pipe 
 | `<items> is not a table: child 2 is <other> where the first is <item>.` | A tag whose children disagree about their type, or one that has children of its own. |
 | `Column 5: 'eq' is an operator; write "eq" to pass it as text` | A reserved word in argument position. The column is where the word starts. |
 | `'echo' takes a value for 'text', not an expression.` | A comparison was written for a command that does not take a predicate. |
-| `kind eq folder never reads $row, so it is the same for every row. Did you mean $row.kind eq folder?` | A predicate that compares two fixed words. Name the column with `$row.`. |
-| `$row.kind is text (folder), not true or false. Compare it: $row.kind eq folder.` | A predicate that is a value rather than a question. Compare it with something. |
+| `kind eq folder never reads $row, so it is the same for every row.` | A predicate that compares two fixed words. Name the column with `$row.`: the note under it offers the line that does. |
+| `$row.kind is text (folder), not true or false.` | A predicate that is a value rather than a question. Compare it with something: the note under it offers a comparison. |
 | `$row is the row a predicate is testing. It exists only inside where, find, in and save-view: ls \| where $row.kind eq folder.` | `$row` read outside a predicate, where no row is being tested. |
 | `Column 16: a column name belongs after the stop, as in $row.kind` | `$row.` with no column after the full stop. |
 | `Column 23: eq needs a value to compare with, such as folder` | A comparison with nothing on its right. |

@@ -15,6 +15,8 @@ While you type, the chips under the input offer what can come next: commands, fi
 
 The curved arrows above the input undo and redo. The up and down arrows beside them bring back the lines you have run, as the Up and Down keys do. Select text in the scrollback and it is copied.
 
+What the terminal says of its own, like the note at the top, the help under an error or a guess at what you meant, is drawn in a panel with a small label, so it is never mistaken for what a command answered.
+
 Your files live in this browser and are never sent anywhere.
 
 Next: read guide/2-values.txt
