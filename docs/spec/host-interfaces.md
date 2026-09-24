@@ -68,37 +68,108 @@ implementation **must not** serialise the F# types directly, or renaming a union
 would make a stored filesystem unreadable.
 
 Every document carries `"v"`, and a reader exists per version. This build writes
-version 2 and reads 1 and 2. Version 2 added the `query` and `fault` value kinds, which
-a variable can hold (`try read x | set problem`); every version 1 document
-is a valid version 2 one, so one reader serves both, and the version exists so that a
-build which only knew version 1 refuses a log it would misread rather than failing on
-an unknown kind halfway through it.
+version 3 and reads 1, 2 and 3 (`Web.Core/LogFormat.cs`). Version 2 added the `query`
+and `fault` value kinds, which a variable can hold (`try read x | set problem`).
+Version 3 added the two events of the trail `back` retraces
+([decision 0037](../decisions/0037-in-out-back-and-read.md)), `trailPushed` and
+`trailPopped`. Every earlier document is a valid document of each later version, so one
+reader serves all three, and the version exists so that a build which knew only an
+earlier one refuses a log it would misread, by its number, rather than failing on an
+unknown kind or event type halfway through it.
+
+What `write notes.txt hello` stores, from a session with the clock pinned and ids
+counted:
 
 ```json
 {
-  "v": 2,
+  "v": 3,
   "seq": 2,
-  "at": "2026-09-21T12:34:56.7890000+02:00",
+  "at": "2026-09-22T09:30:00.0000000+00:00",
   "source": "write notes.txt hello",
   "undoable": true,
   "compensates": null,
   "events": [
-    { "type": "fileCreated",
-      "record": { "id": "id-1",
-                  "attributes": { "name": { "k": "text", "v": "notes.txt" } },
-                  "content": null } },
-    { "type": "contentChanged", "id": "id-1", "before": null, "after": "abc123" }
+    {
+      "type": "fileCreated",
+      "record": {
+        "id": "id-18",
+        "attributes": {
+          "created": {
+            "k": "text",
+            "v": "2026-09-22T09:30:00.0000000+00:00"
+          },
+          "folder": {
+            "k": "text",
+            "v": "/"
+          },
+          "kind": {
+            "k": "text",
+            "v": "text"
+          },
+          "modified": {
+            "k": "text",
+            "v": "2026-09-22T09:30:00.0000000+00:00"
+          },
+          "name": {
+            "k": "text",
+            "v": "notes.txt"
+          }
+        },
+        "content": null
+      }
+    },
+    {
+      "type": "contentChanged",
+      "id": "id-18",
+      "before": null,
+      "after": "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824"
+    }
   ]
 }
 ```
 
 Event types are `fileCreated`, `fileDeleted`, `attributesChanged`, `contentChanged`,
-`variableChanged` and `locationChanged`.
+`variableChanged`, `locationChanged`, `trailPushed` and `trailPopped`. Writing an event
+case that has no stored shape **must** fail rather than write something no reader
+knows; adding an event case means adding its shape and a version.
 
 A `locationChanged` event's two sides are each `{ "folder": ..., "view": ... }`, where
 `view` is null or the predicate's display text. It is stored as text and read back
 through the grammar's expression entry point, so it is the same text a saved view
-holds and the same text the location line shows.
+holds and the same text the location line shows. A `trailPushed` or `trailPopped`
+event carries one place, `place`, in the same shape. What the next line, `in documents`,
+stores:
+
+```json
+{
+  "v": 3,
+  "seq": 3,
+  "at": "2026-09-22T09:30:00.0000000+00:00",
+  "source": "in documents",
+  "undoable": true,
+  "compensates": null,
+  "events": [
+    {
+      "type": "trailPushed",
+      "place": {
+        "folder": "/",
+        "view": null
+      }
+    },
+    {
+      "type": "locationChanged",
+      "before": {
+        "folder": "/",
+        "view": null
+      },
+      "after": {
+        "folder": "/documents",
+        "view": null
+      }
+    }
+  ]
+}
+```
 
 Values are written tagged with a kind `k`, one of `empty`, `none`, `text`, `number`,
 `boolean`, `file`, `list`, `object`, `component`, `table`, `query` or `fault`. A `query`
@@ -176,7 +247,7 @@ The reference host-side object, shared by both web front ends.
 | Member | Contract |
 | --- | --- |
 | `TerminalSession(ILog? log)` | Builds a session over the log, in memory by default. Does not replay it. |
-| `InitializeAsync()` | Replays the log, and seeds it when it was empty. **Must** be awaited before any execution. |
+| `InitializeAsync()` | Replays the log, and seeds it when it was empty; then brings it up to date, with the guide once and the seeded files nobody has changed ([Starting and starting over](execution-model.md#starting-and-starting-over)). **Must** be awaited before any execution. |
 | `ReplayedCount` | How many transactions came back. Zero on a first visit. |
 | `Commands` | Every command as `CommandSummary`, sorted by name, excluding `UnknownCommand`. |
 | `Location` | Where the session is: a folder, and the predicate being looked through, if any. |
@@ -257,17 +328,17 @@ is `Unknown`.
 | Place | Where the word is | Offers |
 | --- | --- | --- |
 | `Blank` | The line is empty or white space. | Nothing. The page shows its suggestion chips instead. |
-| `CommandName` | Where a stage's command is named: the head of a line, after `\|`, `else`, `try` or `(`. | The commands whose name starts with the word, each with its description as the detail. From three letters, also the commands with a keyword that starts with the word, detail `rm · matches "delete"`, and at any length the commands with a keyword that is the whole word, so `cd` offers `in · matches "cd"`, and then the names one edit away from the word, two for a word longer than four letters, each with its description. Then `clear`, which the page handles, and the keyword `try`. After a pipe, only the commands with a parameter that takes the pipe, and not `clear`. When the stages before it were previewed and answered a table, not the commands whose piped parameters all take a `Path` or a `Place` either: `ls \| ` offers no `read`, `rm` or `in`, and `echo readme.txt \| ` offers all three. A line that could not be previewed keeps them. |
+| `CommandName` | Where a stage's command is named: the head of a line, after `\|`, `else`, `try` or `(`. | The commands whose name starts with the word, each with its description as the detail. From three letters, also the commands with a keyword that starts with the word, detail `rm · matches "delete"`, and then the names one edit away from the word, two for a word longer than four letters, each with its description. A word of one or two letters also finds a command it is a keyword of by the rule [Resolving a command](execution-model.md#resolving-a-command) gives, its first keyword and nobody else's, so `cd` offers `in · matches "cd"` and `up` offers `out · matches "up"`, while `by`, a keyword of both `sort` and `group`, offers neither. Then `clear`, which the page handles, and the keyword `try`. After a pipe, only the commands with a parameter that takes the pipe, and not `clear`. When the stages before it were previewed and answered a table, not the commands whose piped parameters all take a `Path` or a `Place` either: `ls \| ` offers no `read`, `rm` or `in`, and `echo readme.txt \| ` offers all three. A line that could not be previewed keeps them. |
 | `Variable` | `$` or `<$` and the start of a name. | The variables in scope whose name starts with what is written, ordered by name, each with its [summary](#a-value-in-one-line) as the detail, with the sigil written. Inside an argument handed to a *predicate* parameter, `$row` first, detail `the row being tested`; anywhere else `$row` **must not** be offered. |
 | `Member` | After `$name.`, and after any members written after it. | The members of what the variable holds, the written members read first: a tag's attributes and a file's `name`, `kind`, `folder`, `path` and `id`, each with its summary; a fault's `kind`, `message`, `stage` and `path`, and `cause` when it has one. A number, a text, a boolean, a table and anything else have none; a table's columns are read off a row, through `$row.`. For `$row`, the columns of [what flows into the stage](#what-flows-into-a-stage), or of a listing of the current folder outside a stage, and after `$row.column.` the members of that column's value in the first row that has one. Each item is the whole word, `$row.kind`. |
-| `Argument`, a parameter | An argument that would bind to a declared parameter. | By what the parameter [takes](#what-a-parameter-takes). |
+| `Argument`, a parameter | An argument that would bind to a declared parameter. | By what the parameter [takes](#what-a-parameter-takes), with `\|` first or alone where the stage could be complete ([The pipe first](#the-pipe-first)). |
 | `Argument`, a flag | A word that starts with `-`. | `-name` for each parameter of kind `Single` that is optional or a switch, does not take the pipe and is not already written, the flag's own name where it declares one, each with its description. |
 | `Argument`, an assignment | A plain word past the positional parameters of a command with an *assignments* parameter. | For `attr`, the attributes of the record its first plain argument names, as `name=`: its own attributes, then `name` and `kind`, leaving out `folder`, `created`, `modified` and `size` and those already assigned on the line, each with the summary of its value. Nothing once `name=` is written. |
-| `Argument`, surplus | More arguments than the command takes, or any argument of a name that is not a command. | Files and folders, as for a path. |
+| `Argument`, surplus | More arguments than the command takes, or any argument of a name that is not a command. | Files and folders, as for a path. For a command, with the word empty, only `\|` ([The pipe first](#the-pipe-first)). |
 | `Predicate`, an operand | Where a value starts in an argument handed to a *predicate* parameter: its start, after `not`, `and` or `or`. | `$row.`, `not` and `(`, each with a detail. For `in`'s first word, where a plain operand is a path ([decision 0013](../decisions/0013-attribute-filesystem.md)), folders and views instead. |
 | `Predicate`, after an operand | An operand is written and nothing joins it to anything. | The eight comparison operators, `eq`, `ne`, `gt`, `ge`, `lt`, `le`, `like` and `has`. |
 | `Predicate`, the right of a comparison | After a comparison operator whose left side is `$row.column`. | The distinct display texts of that column in the rows that flow in, most frequent first and then by ordinal comparison, at most 12, each with its count as the detail, `3 rows`. After `like`, each is followed by `*`. A value that would not read back as one word is written quoted. Nothing when the rows are not known, or the left side is anything else. |
-| `Predicate`, after a comparison | A whole comparison is written. | `and` and `or`. |
+| `Predicate`, after a comparison | A whole comparison is written. | `and` and `or`, after `\|` when the word is empty ([The pipe first](#the-pipe-first)). |
 | `TagType` | A word that starts with `<`. | `<type` for each kind of record in the store other than `folder` and `view`, and each type of tag a variable holds, alone or in a list, ordered by name, with the detail `4 records` and, for a variable's tag, `1 tag in variables`. |
 | `TagAttribute` | Inside an open tag, after its type. | `name=` for each attribute that records of that kind, and tags of that type held by variables, carry: `name` first, then by name, leaving out `kind`, `folder`, `created`, `modified` and `size` and those already written in the tag, with how many of the records and tags carry it as the detail, `2 of 3 carry it`. |
 | `Unknown` | No variant of the line parses, or the word is a tag attribute's value. | The [lexical rules](#the-lexical-rules). |
@@ -277,7 +348,41 @@ In a parameter's argument, an assignment's name and a surplus argument, the keyw
 
 An implementation **must** answer each place by its own rule, and **must not** fall back
 to files where a parameter takes something else. How items are ranked within a rule is
-left to the implementation ([Design doc](design-doc.md#degree-of-constraint)).
+left to the implementation ([Design doc](design-doc.md#degree-of-constraint)), except
+for the pipe, which the next section places.
+
+#### The pipe first
+
+Decision [0039](../decisions/0039-the-pipe-comes-first.md). After a complete stage the
+likelier next step is to send its result on, so the pipe is offered first there: an
+item of kind `operator`, text `|` and detail `send the result on`
+(`Completion/Arguments.fs`, `ArgumentCompletion.pipe`).
+
+In an `Argument` place for a parameter, an assignment's name or a surplus argument, the
+pipe is considered only when the stage names a command, and the word under the cursor is
+empty and not quoted. A flag being written, and the value after `name=`, never offer it.
+What the stage could still take is counted from what is written apart from the word, the
+way the binder fills parameters: a `name:` argument or a flag fills its parameter, and a
+flag that names a parameter takes the plain word after it as its value; each positional
+parameter, in declaration order, takes the next plain word; a parameter that takes the
+pipe, in a stage after the first, is filled by the pipe. A *rest* parameter is never
+full, and needs an argument while nothing is written for it, because `select` with no
+column is a fault; an *assignments* parameter is never full and never needs one; any
+other parameter still open needs one when it is not optional. Then:
+
+| What the stage could still take | Offers |
+| --- | --- |
+| A parameter that needs an argument | What that place offers, and no pipe: `ls \| sort ` offers the columns, `ls \| select ` too, and `ls \| take ` nothing. |
+| Nothing at all | `\|` alone, never files: `vars `, `pwd `, `back `, `ls documents `, `ls \| first `. When the word is the value of a flag written before it, `ls \| sort name -desc `, `\|` comes first and the flag's values follow. |
+| Something optional | `\|` first, then what the place offered before: `ls ` offers `\|` and then the folders, `ls \| select name ` `\|` and then the other columns, `attr readme.txt ` `\|` and then `name=` and `kind=`. |
+
+In a `Predicate` place after a whole comparison with the word empty, the question is a
+complete argument, so `\|` comes first there too, before `and` and `or`:
+`ls | where $row.kind eq folder ` offers `|`, `and`, `or`.
+
+A name that is not a command says nothing about what it takes, so `foo ` is offered
+files and folders and no pipe. The pipe is not offered in any other place, which leaves
+two complete stages without it (see [Known deviations](conformance.md#known-deviations)).
 
 #### What a parameter takes
 
@@ -574,6 +679,21 @@ A host **must** keep `error` as the sentence it always was; `fault` is additiona
 or the predicate as it was written. The two are independent: a view does not replace
 the folder, because a new file still lands there.
 
+`guide` is the help a line that called a command wrongly carries
+([A wrong call carries its help](execution-model.md#a-wrong-call-carries-its-help),
+[decision 0038](../decisions/0038-a-wrong-call-shows-its-help.md)), and null on every
+other line, a refresh included. It is a list of result items, described by the same
+rules as `result`: the command's description as a `text` item, then the table of its
+parameters that `help <command>` answers, as a `table` item. `error` and `fault` are
+what they would be without it. What `read` with no argument answers:
+
+```json
+{"type":"result","source":"read","tokens":[{"text":"read","kind":"command"}],"output":[],"result":null,"resultText":null,"error":"'read' needs an argument for 'path'.","fault":{"kind":"Binding","message":"'read' needs an argument for 'path'.","stage":1,"path":null},"location":{"folder":"/","view":null},"changes":{"committed":[],"undone":[],"redone":[],"reset":false},"guide":[{"kind":"text","text":"Show what a file says","path":null,"columns":null,"rows":null,"faultKind":null},{"kind":"table","text":"name  required  piped  takes   description\npath  true      true   a path  The file to read","path":null,"columns":[{"name":"name","type":"text"},{"name":"required","type":"boolean"},{"name":"piped","type":"boolean"},{"name":"takes","type":"text"},{"name":"description","type":"text"}],"rows":[[{"kind":"text","text":"path","path":null,"columns":null,"rows":null,"faultKind":null},{"kind":"boolean","text":"true","path":null,"columns":null,"rows":null,"faultKind":null},{"kind":"boolean","text":"true","path":null,"columns":null,"rows":null,"faultKind":null},{"kind":"text","text":"a path","path":null,"columns":null,"rows":null,"faultKind":null},{"kind":"text","text":"The file to read","path":null,"columns":null,"rows":null,"faultKind":null}]],"faultKind":null}]}
+```
+
+and `read missing.txt`, which failed while `read` ran rather than in how it was called,
+ends `"guide":null`.
+
 ### Completion response
 
 What `Complete(text, cursor)` answers, here for `$` in a session where `v`, `files` and
@@ -581,6 +701,18 @@ What `Complete(text, cursor)` answers, here for `$` in a session where `v`, `fil
 
 ```json
 {"items":[{"kind":"variable","text":"$files","start":0,"end":1,"detail":"table · 4 rows · name, kind, folder…"},{"kind":"variable","text":"$problem","start":0,"end":1,"detail":"fault · NotFound · File does not exist : /missing.txt"},{"kind":"variable","text":"$v","start":0,"end":1,"detail":"number · 5"}],"signature":null}
+```
+
+for `vars `, where the pipe is all there is:
+
+```json
+{"items":[{"kind":"operator","text":"|","start":5,"end":5,"detail":"send the result on"}],"signature":{"command":"vars","description":"List the variables in scope","parameters":[],"active":null}}
+```
+
+for `ls `, where it comes first:
+
+```json
+{"items":[{"kind":"operator","text":"|","start":3,"end":3,"detail":"send the result on"},{"kind":"folder","text":"documents/","start":3,"end":3,"detail":null},{"kind":"folder","text":"examples/","start":3,"end":3,"detail":null},{"kind":"folder","text":"guide/","start":3,"end":3,"detail":null},{"kind":"folder","text":"projects/","start":3,"end":3,"detail":null}],"signature":{"command":"ls","description":"List files and directories in a directory, the current directory by default","parameters":[{"name":"path","optional":true,"description":"Directory to list; defaults to the current one"}],"active":0}}
 ```
 
 and for `ls | sort name d`:
@@ -677,6 +809,46 @@ the call the page is still awaiting, so:
   execution is refused like any other concurrent call.
 - A missed `storeChanged` **must** cost nothing worse than a stale table until the
   next one.
+
+A page **may** keep any number of listings live at once. The reference page keeps
+every listing, a line whose first command is `ls` or `find`, with a badge that says
+whether it is kept up to date: `live` or `paused`. The newest listing that answered a
+table starts live, and
+the ones above it that were live because they were newest pause when it arrives. Tapping
+`paused` makes a listing live again and asks its question at once, and tapping `live`
+pauses it; one made live by a tap stays live when a newer listing arrives. After a
+`storeChanged`, every live listing is asked again through `Refresh`, one after another,
+and a listing whose answer changed is redrawn in place. A refusal or a failure leaves
+what is on screen alone.
+
+## The page
+
+What the reference page, `WebClient/wwwroot/index.html`, **must** do beyond drawing
+the responses above. How it looks is its own business, except where this section says
+otherwise.
+
+- **Ready.** When `Initialize` has answered and the input is enabled, the page **must**
+  set the attribute `data-ready` on `body`. It is what a browser check waits on. The
+  page has no title or status line: how its start is going, `restoring…`,
+  `failed to load` or `failed to restore`, is said in the banner at the head of the
+  scrollback, and so is `not persisted`.
+- **The guide.** A failed line whose response has a `guide` **must** have it drawn under
+  the error, its items drawn as a result's are, so the help is a table as `help`'s
+  answer is. It is the terminal's help rather than the line's answer, and **must** be
+  set apart so it cannot be mistaken for output: the reference page puts it in a panel
+  labelled `help`, in the interface's face rather than the terminal's. A line without a
+  guide gets no panel.
+- **Copy on select.** A selection made inside the scrollback **must** be copied to the
+  clipboard when it ends, when the pointer that made it lifts, or, for a selection whose
+  handles are dragged on a touch screen, once it has stopped changing for 600
+  milliseconds, and a short `copied` note says so and fades. Nothing is copied from the
+  input. A tap selects nothing, so tapping a cell or a token **must** still do what it
+  does, and a long press on a touch screen **must** still select.
+- **History buttons.** Beside undo, redo and `out`, the buttons ↑ and ↓ **must** do what
+  the Up and Down keys do in the input: one line further back through the lines already
+  run, keeping what was being typed, and one line forward again, back to what was being
+  typed past the newest. Like the other buttons, they **must not** take the focus from
+  the input, so they neither open nor close a touch screen's keyboard.
 
 ## ASP.NET host
 
