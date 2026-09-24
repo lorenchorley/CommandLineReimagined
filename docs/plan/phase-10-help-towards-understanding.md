@@ -212,7 +212,7 @@ reported, and answered on 2026-09-24:
 | --- | --- |
 | `read notes` in `/` | the fault, a suggestion naming `documents/notes.txt`, and a fix chip `read documents/notes.txt` |
 | `ls | where $row.knd eq folder` | the empty table, and `No row has knd; did you mean kind?` with the fix `ls | where $row.kind eq folder` |
-| `ls | where $row.kind eq foldr` | the empty table, and `kind is folder or text` |
+| `ls | where $row.kind eq foldr` | the empty table, and `kind is folder or text` with the fix `ls | where $row.kind eq folder` (0045) |
 | `lss` | the fault, and a fix chip `ls` |
 | `ls | where kind eq folder` | the fault, and a fix chip `ls | where $row.kind eq folder` |
 | `echo $fles` after `ls | set files` | the fault, and a fix chip `echo $files` |
@@ -225,9 +225,9 @@ reported, and answered on 2026-09-24:
 | --- | --- | --- | --- |
 | 10.0 Foundation | orchestrator | merged | b3e8f9f |
 | A. Suggestions and fixes | stream agent | merged | 62ae118 |
-| Integration of A, B and C | orchestrator | merged | 197c76c |
-| Owner's answers (0045, 0046) | stream A, orchestrator | merged | 2f2446a |
 | B. Empty answers | stream agent | merged | e0a1083 |
 | C. The page | stream agent | merged | 96b42b2 |
+| Integration of A, B and C | orchestrator | merged | 197c76c |
+| Owner's answers (0045, 0046) | stream A, orchestrator | merged | 2f2446a |
 | 10.9 docs, spec | two sub-agents | in progress | |
 | 10.9 verifier, republish, As built | orchestrator | not started | |
