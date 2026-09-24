@@ -24,12 +24,14 @@ prerequisites.
 **The ASP.NET host.** `dotnet run --project Web` serves the same client plus a
 `/api/parse` endpoint and a WebSocket at `/ws` for tooling.
 
-The status in the top right reads `wasm` in green once the .NET runtime has loaded,
-which takes a second or two on a first visit. The input is disabled until then.
+The .NET runtime takes a second or two to load on a first visit. Until it has, and
+the log has been replayed, the input is disabled and the note at the top of the
+scrollback says `Loading the terminal…` and then `restoring…`. There is no title bar or
+status line: that note, the banner, is where the page says how its start went.
 
 ## Start with the readme
 
-The first line in the scrollback says where to begin:
+The first thing in the scrollback, a panel labelled `note`, says where to begin:
 
 ```
 A command line that runs in this tab. New here? Run read readme.txt, or tap readme below. Your files stay in this browser.
@@ -107,13 +109,13 @@ The rest of this page takes the same ideas one command at a time.
 ## What you are looking at
 
 ```
-CommandLineReimagined                    wasm      <- runtime status
 +--------------------------------------------+
-| A command line that runs in this tab...    |     <- scrollback
-|                                            |
+| note                                       |     <- the banner
+| A command line that runs in this tab...    |
+|                                            |     <- scrollback
 +--------------------------------------------+
   where · Keep the rows a predicate is true for   <- detail line
-  /                                               <- working directory, with `out` below the root
+  [↶] [↷] [↑] [↓] /                               <- buttons and working directory, with `out` below the root
 +------------------------------------+ +-----+
 | wh                                 | | Run |    <- input and Run/Stop
 +------------------------------------+ +-----+
@@ -121,11 +123,18 @@ CommandLineReimagined                    wasm      <- runtime status
   [readme] [guide] [help] [ls] [where] [sort]    <- suggestions
 ```
 
-The scrollback keeps every command with its output. The line above the input shows the
-current directory. The rows below the input hold the completions for the word you are
-typing, and tappable suggestions. The small line at the top says what the selected
-completion is, which parameter of a command you are writing, or what a word you tapped
-in the scrollback is. [The web terminal](web-terminal.md#completions) covers all three.
+The scrollback starts at the top of the screen with the banner, and keeps every command
+with its output. What the terminal says of its own, the banner among it, is drawn in a
+panel with a small label and a plainer font, so it is never mistaken for output. The
+line above the input shows the current directory, after the buttons for undo (↶), redo
+(↷) and walking back and forward through the lines you have run (↑ and ↓). The rows
+below the input hold the completions for the word you are typing, and tappable
+suggestions. The small line at the top says what the selected completion is, which
+parameter of a command you are writing, or what a word you tapped in the scrollback is.
+[The web terminal](web-terminal.md#completions) covers all three.
+
+Selecting text in the scrollback copies it, and a short `copied` note says so. On a
+phone, that is a long press and a drag of the handles.
 
 ## Your first commands
 
@@ -147,6 +156,14 @@ cell inserts it into the input, which saves typing a path on a phone. Tapping a 
 header re-sorts what is on screen. Below the root the location line offers an `out`
 button, and it always has ↶ and ↷ for undo and redo.
 
+Under the table is a badge reading `live`: the listing redraws itself when something
+changes. The newest listing starts live and older ones pause, reading `paused`; tap
+`paused` to make one live again, as many as you like.
+
+While you type, the chips below the input offer what can come next. Type `ls ` with its
+space and the first chip is `|`: once a command has what it needs, sending its result on
+is offered first. Tap it and the chips turn to the commands that take a table.
+
 A listing is a value you can question:
 
 ```
@@ -164,8 +181,10 @@ Try: ls, in documents, mkdir scratch, echo "hello"
 ```
 
 Go into a folder with `in` and come back out with `out`, and notice that the working
-directory line changes. (If you know a shell, these were `cd`, `up` and `cat` here once;
-typing an old name offers the new one.)
+directory line changes. `back` goes to where you were before the last move, one step
+further each time, like a browser's back button. (If you know a shell, these were `cd`,
+`up` and `cat` here once; typing an old name offers the new one, and running one says
+`Unknown command : cd. Did you mean in?`.)
 
 ```
 $ in documents
@@ -174,6 +193,12 @@ $ pwd
 /documents
 $ out
 /
+$ back
+documents
+$ back
+/
+$ back
+Nowhere further back: you are in /
 ```
 
 Make something, then take it back:
@@ -305,6 +330,20 @@ text  true      true   a value  What to write
 While you type an argument, the detail line shows the same thing in one line, with the
 parameter you are writing in bold: `write <path> <text> · The file to write`.
 
+Call a command wrongly and its help comes to you: the line fails, and under the error
+the page draws the same description and table in a panel labelled `help`, shown here
+indented:
+
+```
+$ write note.txt
+'write' needs an argument for 'text'.
+  help
+  Write text to a file, replacing its contents
+  name  required  piped  takes    description
+  path  true      false  a path   The file to write
+  text  true      true   a value  What to write
+```
+
 Type `clear` to empty the screen. `clear` is not a command: the page handles it itself
 and it changes nothing but the scrollback. See
 [The web terminal](web-terminal.md#words-the-page-handles-itself).
@@ -336,9 +375,10 @@ with:
 ```
 
 **It survives a reload.** Make a file, close the tab, come back tomorrow, and it is
-still there. The status line at the top says `wasm` when the terminal is running; if it
-also says `not persisted`, this browser is not keeping anything and the session lasts
-only as long as the tab. A private window is the usual reason.
+still there. If the banner at the top of the scrollback says `not persisted`, this
+browser is not keeping anything and the session lasts only as long as the tab. A
+private window is the usual reason. The guide and the readme are kept up to date for
+you until you change them: one you have edited stays as you left it.
 
 Nothing is uploaded. Everything is stored by your browser, on your device, for this
 site alone, in the same place a website keeps its own data. Clearing site data removes

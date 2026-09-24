@@ -9,11 +9,11 @@ Type a command and press return, or tap Run. Tapping a result, a table cell or a
   help
   help where
 
-ls lists what is here, read shows what a file says, in goes into a folder and out comes back out (so does the out button above the input). If you know them as cat, cd and up, type those: the chips offer read, in and out. help lists every command, and help with a command's name says what it takes.
+ls lists what is here, read shows what a file says, in goes into a folder and out comes back out (so does the out button above the input). back goes to where you were before your last move, like a browser's back button. If you know them as cat, cd and up, type those: the chips offer read, in and out. help lists every command, and help with a command's name says what it takes. Call a command wrongly and the same help appears under the error.
 
-While you type, the chips under the input offer what can come next: commands, files, columns, variables. On a keyboard, Tab takes one. The line just above the input describes the command you are writing, or the chip that is selected. Tap a word in any line to see what it is.
+While you type, the chips under the input offer what can come next: commands, files, columns, variables. Once a command has everything it needs, the first chip is |, which sends its result on to another command. On a keyboard, Tab takes one. The line just above the input describes the command you are writing, or the chip that is selected. Tap a word in any line to see what it is.
 
-The arrows above the input undo and redo.
+The curved arrows above the input undo and redo. The up and down arrows beside them bring back the lines you have run, as the Up and Down keys do. Select text in the scrollback and it is copied.
 
 Your files live in this browser and are never sent anywhere.
 

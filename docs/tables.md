@@ -51,7 +51,14 @@ XML file.
 
 In the browser a table is drawn as a real table: tap a column header to re-sort what is
 on screen, and tap a cell to insert it into the line you are typing. Wide tables scroll
-sideways inside their own entry.
+sideways inside their own entry. A listing, from `ls` or `find`, keeps itself up to
+date while its badge reads `live`; the newest starts live, and tapping `paused` on an
+older one makes it live again ([Live listings](web-terminal.md#live-listings)).
+
+Once a stage has what it needs, completion offers `|` first, and taking it turns the
+chips to the commands that take a table: `ls ` offers `|` before the folders, and
+`ls | where $row.kind eq folder ` offers `|` before `and` and `or`
+([decision 0039](decisions/0039-the-pipe-comes-first.md)).
 
 ## Predicates
 

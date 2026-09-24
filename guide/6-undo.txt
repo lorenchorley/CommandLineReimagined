@@ -7,9 +7,9 @@ Everything you do is recorded, in order, in a log kept in this browser. The file
   redo
   history
 
-undo takes the last change back, and its line leaves the screen. redo puts both back. history lists every line, the undone ones included. The arrows above the input do the same as undo and redo.
+undo takes the last change back, and its line leaves the screen. redo puts both back. history lists every line, the undone ones included. A move made with in, out or back is a change like any other, so undo takes you back to where you were. The curved arrows above the input do the same as undo and redo.
 
-The log survives a reload. If the status at the top says "not persisted", this browser is not keeping it (a private window, for example), and everything goes when the tab closes.
+The log survives a reload. If the note at the top of the scrollback says "not persisted", this browser is not keeping it (a private window, for example), and everything goes when the tab closes. The guide files and the readme follow the terminal's own copy until you change them: one you have edited, renamed or tagged is yours, and stays as you left it.
 
 reset starts again from the files the terminal began with. It is the one thing that cannot be undone.
 
