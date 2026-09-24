@@ -230,6 +230,6 @@ reported, and answered on 2026-09-24:
 | Integration of A, B and C | orchestrator | merged | 197c76c |
 | Owner's answers (0045, 0046) | stream A, orchestrator | merged | 2f2446a |
 | 10.9 spec | sub-agent | merged | a5a594d |
-| 10.9 docs | sub-agent | in progress | |
-| 10.9 gaps the specification found | orchestrator | merged | 60ca241 |
+| 10.9 docs | sub-agent | merged | 9ecb6f8 |
+| 10.9 gaps the documents found | orchestrator | merged | 60ca241, 4bb1a51 |
 | 10.9 verifier, republish, As built | orchestrator | not started | |
