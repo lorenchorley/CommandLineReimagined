@@ -186,8 +186,10 @@ It is the help of the command that was called wrongly: `help where extra` shows
 brings it, and so do the other `binding` faults that name their command, such as
 `'count' needs a table, not text.` and `'select' needs at least one column.`. The
 messages here whose kind is `notfound`, an unknown variable and `$row` outside a
-predicate, do not, and nor does a question that never reads `$row`, which says what to
-write instead. A failure raised while a command runs, such as
+predicate, do not. A question that never reads `$row` does, under the sentence that
+says what to write instead, and so does a value of the wrong kind for a parameter, such
+as `ls | take x` (`'count' must be a whole number, not 'x'.`). A failure raised while a
+command runs, such as
 `File does not exist : /missing.txt`, is not a wrong call and shows no help; nor is an
 unknown command, which says what it probably meant. `else` and `try` see the same fault
 whether the page shows help or not.

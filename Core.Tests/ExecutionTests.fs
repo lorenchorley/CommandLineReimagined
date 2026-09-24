@@ -545,6 +545,32 @@ type GuidanceTests() =
               "echo 1 | sort name", "sort" ] do
             assertGuide harness line command
 
+    /// A value of the wrong kind for a parameter is a wrong call too (0038), though the
+    /// command, not the binder, refuses it: its message names the parameter.
+    [<TestMethod>]
+    member _.AValueOfTheWrongKindCarriesTheCommandsHelp() =
+        let harness = seeded ()
+
+        Assert.AreEqual<string>("'count' must be a whole number, not 'x'.", harness.Error "ls | take x")
+        assertGuide harness "ls | take x" "take"
+        assertGuide harness "ls | skip x" "skip"
+
+    /// A question that never reads `$row` is a predicate argument written wrongly: its own
+    /// sentence names the fix, and the command's help comes with it.
+    [<TestMethod>]
+    member _.AQuestionThatNeverReadsTheRowCarriesTheCommandsHelp() =
+        let harness = seeded ()
+
+        assertGuide harness "ls | where kind eq folder" "where"
+        assertGuide harness "find kind eq folder" "find"
+
+    /// One argument too many reads as one: "was given", not "were".
+    [<TestMethod>]
+    member _.OneExtraArgumentIsSingular() =
+        let harness = seeded ()
+
+        Assert.AreEqual<string>("'back' takes 0 arguments, but 1 was given.", harness.Error "back extra")
+
     /// The fault is the one it always was, and so is what `try` and `else` see of it.
     [<TestMethod>]
     member _.TheFaultIsUnchanged() =

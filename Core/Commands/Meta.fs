@@ -20,7 +20,7 @@ let private nothingToRedo = Value.Text "Nothing to redo."
 
 let undo (store: StoreAccess) =
     { Spec =
-        CommandSpec.create "undo" "Reverse the last line that changed something" [ "undo"; "revert"; "back" ] []
+        CommandSpec.create "undo" "Reverse the last line that changed something" [ "undo"; "revert" ] []
         |> CommandSpec.meta
       Run =
         fun _ ->

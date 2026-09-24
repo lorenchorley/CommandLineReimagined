@@ -111,15 +111,17 @@ Everything a command answers can be piped on, so once a stage has what it needs,
 pipe is offered before anything else
 ([decision 0039](decisions/0039-the-pipe-comes-first.md)). With the word under the caret
 empty and every required argument of the stage written, the first chip is `|`, with the
-detail `send the result on`, and what the next argument could be follows it. The caret is
-then after a command, so the [detail line](#the-detail-line) shows that command's
-parameters, as `vars · List the variables in scope`, rather than the chip's detail:
+detail `send the result on`, and what the next argument could be follows it. While the
+pipe is the selected chip, the [detail line](#the-detail-line) shows `| · send the result
+on`, rather than the command's parameters, since the command already has what it needs:
 
 | You have typed | The chips |
 | --- | --- |
 | `ls ` | `\| · send the result on`, then `documents/`, `examples/`, `guide/`, `projects/` |
 | `vars ` | `\|` and nothing else, since `vars` has nothing left to take |
 | `back ` | `\|` and nothing else |
+| `in documents ` | `\|`, then the comparisons that would make `documents` a question |
+| `$files ` | `\|` first: a variable standing as a stage is a whole stage |
 | `ls \| sort ` | the columns, `name · file`, `kind · text` and so on, and no `\|`: `sort` still needs its column |
 | `ls \| sort name ` | `\|`, then `desc · Write 'desc' to order downwards` and `asc` |
 | `ls \| where $row.kind eq folder ` | `\|`, then `and` and `or` |

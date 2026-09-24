@@ -51,7 +51,7 @@ entry ([Argument binding](execution-model.md#argument-binding)):
 
 - `'<command>' needs an argument for '<parameter>'.` (`Binding`) for a missing required
   parameter. A piped `Empty` or `None` does not count as an argument.
-- `'<command>' takes N argument(s), but M were given.` (`Binding`) for leftovers.
+- `'<command>' takes N argument(s), but M were given.` (`Binding`) for leftovers; `was given` when M is 1.
 - `'<command>' has no argument named '<name>'.` (`Binding`) for an unknown `name:` or
   `-name`.
 - `'<command>' does not take '<name>=' assignments.` (`Binding`) for an assignment

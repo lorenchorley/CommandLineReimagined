@@ -323,6 +323,37 @@ type Session(log: ILog, options: SessionOptions, seed: Seed) =
                 evaluator.Specs
                 |> List.tryFind (fun spec -> String.Equals(spec.Name, name, StringComparison.OrdinalIgnoreCase)))
             |> Option.filter (fun spec -> fault.Message.StartsWith(sprintf "'%s'" spec.Name, StringComparison.Ordinal))
+            |> Option.orElse (
+                name
+                |> Option.bind (fun name ->
+                    evaluator.Specs
+                    |> List.tryFind (fun spec -> String.Equals(spec.Name, name, StringComparison.OrdinalIgnoreCase)))
+                |> Option.filter (fun spec ->
+                    // A question that never reads `$row` is a predicate argument written
+                    // wrongly, and its own sentence names the fix; the help says the rest.
+                    fault.Message.Contains " never reads $row"
+                    && spec.Parameters |> List.exists (fun p -> p.Kind = ParamKind.Predicate)))
+        // A value the command refused as the wrong kind for one of its parameters, such
+        // as `ls | take x`: its message names the parameter (`'count' must be a whole
+        // number`), which is what tells it from a failure met while the command ran.
+        | Invalid, Some stage, Some pipeline when stage >= 1 && stage <= pipeline.OrderedCommands.Count ->
+            let expression = pipeline.OrderedCommands[stage - 1]
+
+            let name =
+                expression.Expression.Match(
+                    (fun (f: Tree.Function) -> Some f.Id.Name),
+                    (fun (c: Tree.Cli) -> Some c.Name.Name),
+                    (fun (_: Tree.InstanceTag) -> None),
+                    (fun (_: Tree.NestedPipeline) -> None),
+                    (fun (_: Tree.VariableReference) -> None))
+
+            name
+            |> Option.bind (fun name ->
+                evaluator.Specs
+                |> List.tryFind (fun spec -> String.Equals(spec.Name, name, StringComparison.OrdinalIgnoreCase)))
+            |> Option.filter (fun spec ->
+                spec.Parameters
+                |> List.exists (fun p -> fault.Message.StartsWith(sprintf "'%s' " p.Name, StringComparison.OrdinalIgnoreCase)))
         | _ -> None
 
     /// <summary>What `help &lt;command&gt;` answers, as a line's guide (decision 0038).</summary>

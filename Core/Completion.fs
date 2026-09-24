@@ -20,6 +20,13 @@ module Completion =
           Shapes = Shape.ofUpstream source
           Cancel = cancel }
 
+    /// Whether the stage before the cursor is a variable standing alone, such as `$files `.
+    let private valueStage =
+        System.Text.RegularExpressions.Regex(@"(?:^|\|)\s*\$[A-Za-z_][A-Za-z0-9_-]*(?:\.[A-Za-z_][A-Za-z0-9_-]*)*\s+$")
+
+    let private valueStageBefore (context: Context) =
+        valueStage.IsMatch(context.Text.Substring(0, min context.Cursor context.Text.Length))
+
     /// Asks the provider for the place the cursor is in.
     let complete (request: Request) : Async<CompletionResult> =
         async {
@@ -41,7 +48,22 @@ module Completion =
                         let! rest = PredicateCompletion.suggest request stage expression
                         return ArgumentCompletion.pipe request :: rest
                     }
+                // A plain name after `in` is a place, and already a whole argument, so
+                // the pipe comes before the operators that would make it a question.
+                | Place.Predicate(stage, (Expression.AfterOperand(Expr.Const _) as expression)) when
+                    request.Context.Word.Prefix = ""
+                    && stage.Spec
+                       |> Option.exists (fun spec -> spec.Parameters |> List.exists (fun p -> p.Takes = Takes.Place))
+                    ->
+                    async {
+                        let! rest = PredicateCompletion.suggest request stage expression
+                        return ArgumentCompletion.pipe request :: rest
+                    }
                 | Place.Predicate(stage, expression) -> PredicateCompletion.suggest request stage expression
+                // A variable standing as a stage (decision 0032) is a whole stage, so the
+                // pipe comes first after it (0039), before what the lexical rules offer.
+                | Place.Unknown when request.Context.Word.Prefix = "" && valueStageBefore request.Context ->
+                    async.Return(ArgumentCompletion.pipe request :: Lexical.answer request)
                 | Place.Unknown -> async.Return(Lexical.answer request)
 
             return

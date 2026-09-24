@@ -315,7 +315,7 @@ A command **may** declare at most one `Rest` parameter, and it **must** be the l
 that can take a positional argument.
 
 **Step 3: leftovers.** If the positional queue is not empty, fail with
-`'<command>' takes N arguments, but M were given.` where N is the number of parameters
+`'<command>' takes N arguments, but M were given.` (`but 1 was given` for one) where N is the number of parameters
 step 2 considered and M is N plus the number left over. The word `argument` is singular
 when N is 1. A command that declares a `Rest` parameter can never reach this step, and
 **must** report its own arity in its own words.
@@ -337,14 +337,19 @@ Every other response **must** carry none.
 A line called a command wrongly when all of these hold (`Session.calledWrongly`):
 
 - the line was executed, not refreshed: a [refresh](#refreshing) carries no guide;
-- the line failed, with a fault of kind `Binding` that carries a stage number;
+- the line failed, with a fault that carries a stage number, of kind `Binding`, or of
+  kind `Invalid` when its message begins with the name of one of that command's
+  parameters in quotes followed by a space, as `'count' must be a whole number, not 'x'.`
+  does: a value of the wrong kind for a parameter, refused by the command rather than
+  the binder;
 - that stage, in the line's pipeline, or in its last pipeline when it has `else`
   branches, since the fault is then the last branch's, is a command written in the
   function or the command-line form, not a tag, a value stage or a pipeline in
   parentheses;
 - the stage names a registered command, ignoring case;
-- the fault's message begins with that command's name in quotes, `'sort'`, compared
-  ordinally.
+- for a `Binding` fault, its message begins with that command's name in quotes,
+  `'sort'`, compared ordinally, or it is the fault of a predicate that never reads `$row`
+  and the command has a `Predicate` parameter.
 
 The last test keeps out a binding fault that the stage carries but did not make. A
 fault from inside a pipeline in parentheses names the inner command, and one from a line
@@ -355,8 +360,9 @@ not of kind `Binding`, and nor is a fault raised while a command runs over what 
 given, such as `File does not exist : /missing.txt`. A binding fault a command raises
 about its own arguments is a wrong call when its message begins with the command's
 name, as `'select' needs at least one column.` and
-`'find' needs a predicate, such as $row.kind eq note.` do, and is not when it begins with
-the predicate, as `name eq x never reads $row, so it is the same for every row.` does.
+`'find' needs a predicate, such as $row.kind eq note.` do, and so is a predicate that
+never reads `$row`, `kind eq folder never reads $row, so it is the same for every row.`,
+whose own sentence names the fix while the help says the rest.
 
 The guide **must** be what `help <command>` answers, asked the way a refresh asks, so
 that it cannot drift from `help`, commits nothing and writes nothing: a `List` of the

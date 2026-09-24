@@ -41,7 +41,7 @@ second table counts from `dotnet test`.
 | Path resolution over the projection, and kind inference | `Core.Tests/FilesTests` | 16 |
 | Committing, undo, redo, history, replay determinism, blobs, the store's own checks on names and folders | `Core.Tests/StoreTests` | 28 |
 | Binding, pipes, command forms, variables, tags, atomic lines, value stages, `$row` outside a predicate | `Core.Tests/ExecutionTests` | 51 |
-| The help a wrong call carries and when it carries none (decision 0038), and an old name leading to the new one | `Core.Tests/GuidanceTests` | 11 |
+| The help a wrong call carries and when it carries none (decision 0038), and an old name leading to the new one | `Core.Tests/GuidanceTests` | 14 |
 | File commands, attributes, saving tags, the name rule, renaming a folder with what it holds, and their undo | `Core.Tests/FileCommandTests` | 55 |
 | Variables and their undo | `Core.Tests/VariableCommandTests` | 14 |
 | Asynchronous commands, live output, cancellation | `Core.Tests/AsyncCommandTests` | 14 |
@@ -59,7 +59,7 @@ second table counts from `dotnet test`.
 | Command names: after a pipe, not a path command after a table, by keyword, a short word only by a first keyword nobody else has, by edit distance, with descriptions | `Core.Tests/CommandCompletionTests` | 25 |
 | Variables, `$row` only in a predicate, members by what a variable holds, tag types and attributes, the summaries | `Core.Tests/VariableCompletionTests` | 18 |
 | Every parameter of every command by what it takes, flags, assignments, quoted paths, the signature, the pipe first after a complete stage (decision 0039) | `Core.Tests/ArgumentCompletionTests` | 51 |
-| Inside a predicate: operands, operators, a column's values, `and` and `or` | `Core.Tests/PredicateCompletionTests` | 22 |
+| Inside a predicate: operands, operators, a column's values, `and` and `or`, and the pipe after a place and a value stage | `Core.Tests/PredicateCompletionTests` | 24 |
 | What flows into a stage: the upstream run, refusals, the budget, the cache | `Core.Tests/ShapeTests` | 23 |
 | What a tapped token is: variables, members, commands, operators, arguments | `Core.Tests/HoverTests` | 12 |
 | The phase's acceptance list, from a fresh session | `Core.Tests/AcceptanceTests` | 10 |
@@ -77,10 +77,10 @@ Cases actually run, which is what the suite reports:
 | Project | Cases |
 | --- | --- |
 | `Parser.Tests` | 375 |
-| `Core.Tests` | 818 |
+| `Core.Tests` | 823 |
 | `Web.Core.Tests` | 142 |
 | `Terminal.Tests` | 32 |
-| Total | 1367 |
+| Total | 1372 |
 
 Run them with:
 
@@ -261,8 +261,6 @@ case.
 | XML element text is read as an attribute `text` and written back as content, so mixed content comes back with its text gathered before the children, trimmed; an XML attribute called `text` on an element with content is replaced by it; comments and processing instructions are dropped. | Intended for this release; see [decision 0025](../decisions/0025-xml-text-content.md). |
 | A document with a DTD is refused rather than read. | Intended. A file in the store is anyone's, and entity expansion is a way to stop a tab. |
 | Messages are English only and the client is published with invariant globalisation. | Intended for now; see [Design doc](design-doc.md#internationalisation). |
-| A value of the wrong kind that a command refuses as it runs carries no guide: `ls \| take x` fails with `'count' must be a whole number, not 'x'.`, kind `Invalid`, and no help, although [decision 0038](../decisions/0038-a-wrong-call-shows-its-help.md) counts a value of the wrong kind as a call made wrongly. Only a `Binding` fault whose message begins with the command's name carries one, so `name eq x never reads $row, so it is the same for every row.` carries none either. | Open, reported for the owner to decide. The code is as [A wrong call carries its help](execution-model.md#a-wrong-call-carries-its-help) specifies. |
-| Two stages that are complete are offered no pipe: `in documents `, where a plain name is a whole argument but the place is a predicate's, after an operand, and offers the comparison operators; and a value stage, `$x `, whose place is `Unknown` and answered by the lexical rules. [Decision 0039](../decisions/0039-the-pipe-comes-first.md) puts the pipe first after every complete stage. | Open, reported for the owner to decide. The code is as [The pipe first](host-interfaces.md#the-pipe-first) specifies. |
 
 ## Changing this specification
 

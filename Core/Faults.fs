@@ -129,11 +129,12 @@ module Fault =
         create
             Binding
             (sprintf
-                "'%s' takes %d argument%s, but %d were given."
+                "'%s' takes %d argument%s, but %d %s given."
                 command
                 declared
                 (if declared = 1 then "" else "s")
-                given)
+                given
+                (if given = 1 then "was" else "were"))
 
     let noArgumentNamed command name =
         create Binding (sprintf "'%s' has no argument named '%s'." command name)

@@ -1107,7 +1107,10 @@ function drawDetail() {
   const detail = $('detail');
   const chip = completions[selected];
 
-  if (signature) detail.innerHTML = signatureHtml(signature);
+  // The pipe says what it does rather than the command's parameters: it is chosen when
+  // the command has what it needs, so the parameters are no longer the question.
+  if (chip && chip.text === '|' && chip.detail) detail.innerHTML = `<b class="t ${chip.kind}">|</b> · ${escape(chip.detail)}`;
+  else if (signature) detail.innerHTML = signatureHtml(signature);
   else if (chip && chip.detail) detail.innerHTML = `<b class="t ${chip.kind}">${escape(chip.text)}</b> · ${escape(chip.detail)}`;
   else if (lineError) detail.innerHTML = `<span class="problem">${escape(lineError.sentence)}</span>`;
   else detail.innerHTML = '';

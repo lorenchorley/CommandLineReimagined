@@ -265,3 +265,23 @@ type PredicateCompletionTests() =
             texts harness "in $row.mood ")
 
         Assert.AreEqual<string list>([ "|"; "and"; "or" ], texts harness "in $row.mood eq great ")
+
+    /// A plain name after `in` is a place and already a whole argument, so the pipe comes
+    /// before the operators that would make it a question (0039); a real operand does not.
+    [<TestMethod>]
+    member _.AfterAPlaceThePipeComesFirst() =
+        let harness = seeded ()
+
+        let offered = texts harness "in documents "
+        Assert.AreEqual<string>("|", List.head offered)
+        CollectionAssert.Contains(offered |> Array.ofList, "eq")
+        Assert.AreNotEqual<string>("|", List.head (texts harness "ls | where $row.kind "))
+
+    /// A variable standing as a stage is a whole stage, so the pipe comes first after it.
+    [<TestMethod>]
+    member _.AfterAValueStageThePipeComesFirst() =
+        let harness = seeded ()
+        harness.Run "ls | set files" |> ignore
+
+        Assert.AreEqual<string>("|", List.head (texts harness "$files "))
+        Assert.AreEqual<string>("|", List.head (texts harness "echo x | $files "))
