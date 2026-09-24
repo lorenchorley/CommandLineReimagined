@@ -1,7 +1,7 @@
 7. Files, data and scripts
 
   echo hello | write note.txt
-  cat note.txt
+  read note.txt
   rm note.txt
 
 CSV and XML are read as data and written from it, so a table can go out to a file and come back as a table:

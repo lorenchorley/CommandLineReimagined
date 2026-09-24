@@ -13,4 +13,4 @@ The log survives a reload. If the status at the top says "not persisted", this b
 
 reset starts again from the files the terminal began with. It is the one thing that cannot be undone.
 
-Next: cat guide/7-files.txt
+Next: read guide/7-files.txt

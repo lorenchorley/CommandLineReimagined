@@ -24,4 +24,4 @@ Tags build a value directly, without a command. Angle brackets make an object an
   <measurement unit=metres value=3/>
   {renderer colour=red/}
 
-Next: cat guide/3-tables.txt
+Next: read guide/3-tables.txt

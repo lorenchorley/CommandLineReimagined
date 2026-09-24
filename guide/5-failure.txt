@@ -2,15 +2,15 @@
 
 A failure is a value too, not a crash. A line that fails stops, changes nothing, and says why, with the kind of failure beside the message.
 
-  cat missing.txt
+  read missing.txt
 
 else runs something instead when the line before it fails:
 
-  cat missing.txt else echo "no such file"
+  read missing.txt else echo "no such file"
 
 try keeps the failure as a value, so it can be looked at:
 
-  try cat missing.txt | set problem
+  try read missing.txt | set problem
   $problem.kind
   $problem.message
 
@@ -20,4 +20,4 @@ try keeps the failure as a value, so it can be looked at:
 
 A line is all or nothing. If any part of it fails, nothing it did is kept.
 
-Next: cat guide/6-undo.txt
+Next: read guide/6-undo.txt
