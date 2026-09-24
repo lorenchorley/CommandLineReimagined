@@ -29,7 +29,7 @@ matches on: `$problem.kind` reads the word in the second column.
 
 | Tag on screen | `$problem.kind` | Meaning |
 | --- | --- | --- |
-| `syntax` | `Syntax` | The line could not be turned into a tree. |
+| `syntax` | `Syntax` | The line could not be turned into a tree, or a selector given to `pick` could not be read ([Selector errors](#selector-errors)). |
 | `binding` | `Binding` | What was written does not fit what the command declared. The page shows the command's help under it. |
 | `unknowncommand` | `UnknownCommand` | No command by that name. |
 | `notfound` | `NotFound` | A path, a variable or a record that is not there. |
@@ -123,6 +123,7 @@ Common causes:
 | `echo "unterminated` | A string was never closed. |
 | `echo a & b` | A symbol the language does not use. There is no `&&` and no `;`. |
 | `< thing` | A space after `<`. A tag's type follows the bracket directly. |
+| `$d \| pick book>author` | A selector with `>`, `[` or `,` in it, not quoted. Write `pick "book > author"`: see [Selector errors](#selector-errors). |
 
 ### `Column N: a column name belongs after the stop, as in $row.kind`
 
@@ -136,6 +137,20 @@ Column 16: a column name belongs after the stop, as in $row.kind
 
 Any variable gets the same answer: after `set v 5`, `$v.` says so at column 3. While
 you type, completion offers the names that can go there.
+
+### `Column N: a name belongs after the @, as in $v.@tag`
+
+A member written with `@` reads one of a tag's own parts, `@tag` or `@children`
+([Members](language.md#members)), and the `@` needs a name after it:
+
+```
+$ set v <thing a=1/>
+<thing a=1/>
+$ echo $v.@
+Column 9: a name belongs after the @, as in $v.@tag
+```
+
+An `@` on its own, where an argument goes, is a word: `echo @` answers `@`.
 
 ### `Column N: <operator> needs a value to compare with, such as <example>`
 
@@ -370,7 +385,7 @@ From the table functions, from predicates, and from reading a tag as a table.
 | `'<command>' has no column named '<name>'.` | No such column, from `select`, `sort`, `distinct` or `group`. `columns` lists what there is. |
 | `'select' needs at least one column.` | `select` with nothing to select. The pipe is the table, not the column list. |
 | `<items> is not a table: child N is <other> where the first is <item>.` | A tag whose children disagree about their type. |
-| `<items> is not a table: child N has children of its own.` | A child is a tree rather than a row. |
+| `<items> is not a table: child N has children of its own.` | A child is a tree rather than a row. A list of tags says `the list is not a table`, as `$d.@children \| count` does when the children have children. `pick` reads inside a tree: see [Selector errors](#selector-errors). |
 | `the list is not a table: child N is <kind>, not a tag.` | A list with an item that is not a tag, such as a piece of text. |
 | `'count' must be a whole number, not '<value>'.` | `take` or `skip` was given something that is not a whole number of zero or more, such as `x`, `1.5` or `-1`. |
 | `'where' needs an argument for 'predicate'.` | `where` with nothing to test. |
@@ -468,6 +483,71 @@ readers also give the two answers `read` gives: `File does not exist : <path>` a
 | `<path> has two columns named '<name>'.` | The header names a column twice, ignoring case, which would make `$row.<name>` mean whichever came first. Kind `invalid`. |
 | `<path> column <n> has no name.` | An empty header cell. Kind `invalid`. |
 | `'delimiter' must be one character, or 'tab', not '<text>'.` | `-delimiter` was given more than one character, a quote or a line break. Kind `invalid`. |
+
+## Selector errors
+
+From `pick`. [Reading a tree with `pick`](tables.md#reading-a-tree-with-pick) is the
+guide, and has the subset of CSS it reads.
+
+A selector that `pick` cannot read is a fault of kind `syntax`, like a line that does
+not parse, but it is raised when `pick` runs, so `else` and `try` catch it as they
+catch any other. The message quotes the selector, says where it stopped, a character
+counted from one or its end, and what it expected there. It is read before anything
+piped in, so a bad selector is its own fault whatever the document is. From a fresh
+tab:
+
+```
+$ set d <library city=paris><book title=dune year=1965><author name=herbert/></book><book title=emma year=1815><author name=austen/></book><shelf/></library>
+<library city=paris><book title=dune year=1965><author name=herbert/></book><book title=emma year=1815><author name=austen/></book><shelf/></library>
+$ $d | pick "book >"
+The selector 'book >' stops at its end: an element name, '*' or '[' is expected after '>'.
+$ $d | pick "book:first-child"
+The selector 'book:first-child' stops at character 5, ':': ':' is not part of the CSS that pick reads: names, *, [attribute] tests, spaces, > and commas.
+$ $d | pick "[title~=dune]"
+The selector '[title~=dune]' stops at character 7, '~': '~=' is not part of the CSS that pick reads, whose tests are =, ^=, $= and *=.
+$ $d | pick "[title"
+The selector '[title' stops at its end: ']' is expected to close '['.
+$ $d | pick ""
+The selector is empty: write an element name, such as 'book', or '*' for every element.
+$ $d | try pick "#main" | set problem
+The selector '#main' stops at character 1, '#': '#' is not part of the CSS that pick reads: names, *, [attribute] tests, spaces, > and commas.
+$ $problem.kind
+Syntax
+```
+
+| What it expected | Where |
+| --- | --- |
+| `an element name, '*' or '[' is expected after '>'` | A combinator with nothing after it, as in `book >` or `book > > author`; `after ','` for a group left unfinished, as in `book,`; and `at the start` for a selector that starts with `>` or `,`. |
+| `'<c>' is not part of the CSS that pick reads: names, *, [attribute] tests, spaces, > and commas` | A character outside the subset: `#` and `.` for ids and classes, `:` for pseudo-classes, `+` and `~` for sibling combinators. |
+| `'<c>=' is not part of the CSS that pick reads, whose tests are =, ^=, $= and *=` | An attribute test outside the subset, such as `~=` or `\|=`. |
+| `']' or one of =, ^=, $= and *= is expected after the attribute name` | Something else after the name, such as `[title!=dune]`. |
+| `an attribute name is expected after '['` | `[` with no name in it. |
+| `a value is expected after '<test>'` | A test with nothing to compare with, as in `[title=`. |
+| `the quote is not closed` | A value opened with `'` and not closed. |
+| `']' is expected after the value` | A value with more after it before the `]`, or none. |
+| `']' is expected to close '['` | The selector ended inside the brackets. |
+
+A selector with a space, `>`, `[` or `,` has to be in double quotes. Written bare, it is
+split or does not parse, and the message is the line's own, a
+[parse error](#syntax-error-at-column-n-expected-): `$d | pick book>author` says
+`Syntax error at column 14: …`.
+
+The piped value is the other half. `pick` reads a tag, a list of tags, or a table
+whose rows have an `@tag` column, which is what `pick` answers:
+
+```
+$ echo hello | pick book
+'pick' needs a tag, a list of tags or a table with a @tag column, not text.
+$ ls | pick book
+'pick' needs a tag, a list of tags or a table with a @tag column, not a table without a @tag column.
+$ pick book
+'pick' needs a tag, a list of tags or a table with a @tag column, not empty.
+```
+
+| Message | Meaning |
+| --- | --- |
+| `'pick' needs a tag, a list of tags or a table with a @tag column, not <kind>.` | Nothing with elements in it was piped in: text, a number, a listing, or, with `not empty`, nothing at all. A listing's rows are records, not elements; to read a file as a document, `from-xml` it first. A list with an item that is not a tag says `not a list whose item <n> is <kind>`. Kind `binding`, so the page draws `pick`'s help under it. |
+| `'pick' cannot read row <n> as an element: its @tag is empty.` | A table with an `@tag` column, read back as elements, has a row with nothing in it, as a table read from a CSV file with an `@tag` header can. Kind `invalid`. |
 
 ## View errors
 
