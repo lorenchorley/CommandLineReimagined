@@ -166,8 +166,12 @@ public sealed class TerminalSession
             fault,
             Describe(response.Location),
             Describe(response.Changes),
-            response.Guide?.Value is { IsEmpty: false } guide ? Describe(guide) : null);
+            response.Guide?.Value is { IsEmpty: false } guide ? Describe(guide) : null,
+            response.Notes.IsEmpty ? null : response.Notes.Select(Describe).ToList());
     }
+
+    private static NoteInfo Describe(Note note) =>
+        new(note.Kind, note.Text, NoteModule.fixLines(note).ToList());
 
     private static LogChangesInfo Describe(LogChanges changes) =>
         new(changes.Committed.ToList(), changes.Undone.ToList(), changes.Redone.ToList(), changes.Reset);
@@ -511,7 +515,17 @@ public sealed record ExecutionResponse(
     LocationInfo Location,
     LogChangesInfo Changes,
     // How to call the command when the line called it wrongly (decision 0038).
-    IReadOnlyList<ResultItem>? Guide = null);
+    IReadOnlyList<ResultItem>? Guide = null,
+    // What the terminal says of its own about the line, drawn as guidance (0041 to 0044).
+    IReadOnlyList<NoteInfo>? Notes = null);
+
+/// <summary>Something the terminal says of its own about a line (decision 0041).</summary>
+/// <remarks>
+/// <paramref name="Kind"/> is <c>suggestion</c> or <c>explanation</c>. Each of
+/// <paramref name="Fixes"/> is a whole corrected line, which the page offers as a chip
+/// that fills the input without running it (decision 0044).
+/// </remarks>
+public sealed record NoteInfo(string Kind, string Text, IReadOnlyList<string> Fixes);
 
 /// <summary>What a line did to the log, by the sequence numbers of the lines involved.</summary>
 /// <remarks>

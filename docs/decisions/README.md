@@ -50,6 +50,10 @@ a later record, **Rejected**.
 | [0038](0038-a-wrong-call-shows-its-help.md) | A command called wrongly shows its help | Accepted |
 | [0039](0039-the-pipe-comes-first.md) | After a complete stage, completion offers the pipe first | Accepted |
 | [0040](0040-seeded-files-follow-the-seed.md) | A seeded file nobody has changed follows the seed | Accepted |
+| [0041](0041-guidance-is-drawn-apart-from-output.md) | What the terminal says of its own is drawn apart from output | Accepted |
+| [0042](0042-a-missing-name-names-the-nearest.md) | A missing file or column names the nearest ones | Accepted |
+| [0043](0043-an-empty-filter-explains-itself.md) | An empty filter explains itself | Accepted |
+| [0044](0044-a-fault-may-carry-fixes.md) | A fault may carry fixes, which the page offers as chips | Accepted |
 
 Retrospective records document decisions taken before the log existed, so that the
 log is the one place to look. Their alternatives are the ones weighed at the time, as

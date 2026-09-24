@@ -53,6 +53,15 @@ public class TerminalSessionTests
         Assert.IsNull((await _session.ExecuteAsync("read missing.txt")).Guide);
     }
 
+    /// A line with nothing to say beyond its answer carries no notes (decision 0041):
+    /// the field is absent until a fault or a stage gives one.
+    [TestMethod]
+    public async Task ALineThatSucceedsCarriesNoNotes()
+    {
+        Assert.IsNull((await _session.ExecuteAsync("ls")).Notes);
+        Assert.IsNull((await _session.ExecuteAsync("echo hello")).Notes);
+    }
+
     /// <summary>A line that called a command wrongly carries its help (decision 0038).</summary>
     /// <remarks>
     /// As the page draws `help read`: the description as a line of text, then the table

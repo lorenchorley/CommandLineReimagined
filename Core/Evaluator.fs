@@ -15,7 +15,11 @@ type Execution =
       /// The transaction, when the line changed something. A read-only line commits
       /// nothing and leaves this empty, which is what keeps `undo` from having to step
       /// over an `ls`.
-      Committed: Transaction option }
+      Committed: Transaction option
+      /// What the stages said beyond their values, in the order they said it
+      /// (decision 0043). Only the stages whose work stood: a stage a `try` or an
+      /// `else` rolled back takes its notes with it.
+      Notes: Note list }
 
 /// <summary>Finding the pipelines in parentheses a stage wrote (decision 0023).</summary>
 /// <remarks>
@@ -152,6 +156,7 @@ type Evaluator(commands: Command list, store: Store, blobs: IBlobs) =
             /// so far folded in.
             let mutable working = store.Current
             let mutable pending: Event list = []
+            let mutable notes: Note list = []
 
             let record (events: Event list) =
                 pending <- pending @ events
@@ -164,11 +169,12 @@ type Evaluator(commands: Command list, store: Store, blobs: IBlobs) =
             /// projection and the pending events go back, so the stage after a `try`
             /// sees the store as it was before the stage that failed.
             /// </remarks>
-            let checkpoint () = working, pending
+            let checkpoint () = working, pending, notes
 
-            let restore (projection, events) =
+            let restore (projection, events, said) =
                 working <- projection
                 pending <- events
+                notes <- said
 
             /// Whether a fault is one the line may recover from. Stop is not: it is the
             /// person at the keyboard saying "no further", and a `try` or an `else`
@@ -216,6 +222,7 @@ type Evaluator(commands: Command list, store: Store, blobs: IBlobs) =
                                     if not command.Spec.Meta then
                                         record result.Events
 
+                                    notes <- notes @ result.Notes
                                     return Ok result.Value
                             with
                             | :? OperationCanceledException -> return Error(Fault.cancelled ())
@@ -360,7 +367,7 @@ type Evaluator(commands: Command list, store: Store, blobs: IBlobs) =
                         match result with
                         | Error fault when expression.Try && recoverable fault ->
                             restore before
-                            Ok(Value.Fault(Fault.atStage stage fault))
+                            Ok(Value.Fault(Fault.atStage stage (Fault.asValue fault)))
                         | other -> other
 
                     match result with
@@ -404,7 +411,7 @@ type Evaluator(commands: Command list, store: Store, blobs: IBlobs) =
                         | Error fault, [] -> return Error fault
                         | Error fault, (next: Tree.Pipeline) :: rest ->
                             restore start
-                            let! result = runPipeline (Value.Fault fault) next
+                            let! result = runPipeline (Value.Fault(Fault.asValue fault)) next
                             return! loop result rest
                     }
 
@@ -431,9 +438,11 @@ type Evaluator(commands: Command list, store: Store, blobs: IBlobs) =
             | Ok value when not commit ->
                 // A refresh reads and stops there: the events it gathered — a read-only
                 // line has none — are dropped rather than committed.
-                return Ok { Value = value; Committed = None }
+                return Ok { Value = value; Committed = None; Notes = notes }
             | Ok value ->
                 let! committed = store.Commit source pending
 
-                return committed |> Outcome.map (fun transaction -> { Value = value; Committed = transaction })
+                return
+                    committed
+                    |> Outcome.map (fun transaction -> { Value = value; Committed = transaction; Notes = notes })
         }

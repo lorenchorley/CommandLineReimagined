@@ -501,7 +501,7 @@ let read =
         fun invocation ->
             async {
                 let! content = readContent invocation (Invocation.text "path" invocation)
-                return content |> Outcome.map (fun (_, text) -> { Value = Value.Text text; Events = [] })
+                return content |> Outcome.map (fun (_, text) -> { Value = Value.Text text; Events = []; Notes = [] })
             } }
 
 // --------------------------------------------------------------------------- rm

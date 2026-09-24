@@ -31,7 +31,12 @@ let private pure' name description keywords parameters (run: Invocation -> Table
         |> CommandSpec.readOnly
       Run =
         fun invocation ->
-            async { return tableOf invocation |> Outcome.bind (run invocation) |> Outcome.map (fun value -> { Value = value; Events = [] }) } }
+            async {
+                return
+                    tableOf invocation
+                    |> Outcome.bind (run invocation)
+                    |> Outcome.map (fun value -> { Value = value; Events = []; Notes = [] })
+            } }
 
 /// The index of a column the user named, or a fault that names what is there instead.
 let private columnIndex (invocation: Invocation) (table: Table) (name: string) =

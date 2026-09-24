@@ -51,7 +51,14 @@ type Response =
       Changes: LogChanges
       /// <summary>How to call the command, when the line called it wrongly (decision 0038).</summary>
       /// <remarks>The value `help &lt;command&gt;` answers. `None` on every other line.</remarks>
-      Guide: Value option }
+      Guide: Value option
+      /// <summary>What the terminal says of its own about the line (decisions 0041 to 0044).</summary>
+      /// <remarks>
+      /// A failed line's are its fault's; a line that succeeded has those its stages
+      /// gave. Every fix is resolved to a whole `Fix.Line` of `Source`. Guidance, drawn
+      /// apart from output, and never part of `Result`.
+      /// </remarks>
+      Notes: Note list }
 
 /// <summary>Options a host can vary.</summary>
 /// <remarks>
@@ -542,7 +549,12 @@ type Session(log: ILog, options: SessionOptions, seed: Seed) =
                   Fault = fault
                   Location = store.Current.Location
                   Changes = since ()
-                  Guide = None }
+                  Guide = None
+                  Notes =
+                    fault
+                    |> Option.map (fun (f: Fault) -> f.Notes)
+                    |> Option.defaultValue []
+                    |> List.map (Note.resolve source) }
 
             if not initialised then
                 return respond (Some(Fault.notInitialised ())) None
@@ -569,7 +581,10 @@ type Session(log: ILog, options: SessionOptions, seed: Seed) =
                                     let! guide = guideFor spec
                                     return { respond (Some fault) None with Guide = guide }
                                 | None -> return respond (Some fault) None
-                            | Ok execution -> return respond None (Some execution.Value)
+                            | Ok execution ->
+                                return
+                                    { respond None (Some execution.Value) with
+                                        Notes = execution.Notes |> List.map (Note.resolve source) }
                         with
                         | :? OperationCanceledException -> return respond (Some(Fault.cancelled ())) None
                         | exn -> return respond (Some(Fault.internalError exn)) None
@@ -603,7 +618,12 @@ type Session(log: ILog, options: SessionOptions, seed: Seed) =
                   Fault = fault
                   Location = store.Current.Location
                   Changes = LogChanges.none
-                  Guide = None }
+                  Guide = None
+                  Notes =
+                    fault
+                    |> Option.map (fun (f: Fault) -> f.Notes)
+                    |> Option.defaultValue []
+                    |> List.map (Note.resolve source) }
 
             if not initialised then
                 return respond (Some(Fault.notInitialised ())) None
@@ -618,7 +638,10 @@ type Session(log: ILog, options: SessionOptions, seed: Seed) =
 
                         match result with
                         | Error fault -> return respond (Some fault) None
-                        | Ok execution -> return respond None (Some execution.Value)
+                        | Ok execution ->
+                            return
+                                { respond None (Some execution.Value) with
+                                    Notes = execution.Notes |> List.map (Note.resolve source) }
                     with exn ->
                         return respond (Some(Fault.internalError exn)) None
         }

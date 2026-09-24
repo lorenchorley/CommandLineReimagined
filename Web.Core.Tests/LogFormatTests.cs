@@ -363,9 +363,10 @@ public class LogFormatTests
     public void AFaultValueRoundTrips()
     {
         var cause = new Fault(FaultKind.Invalid, "inner", FSharpOption<int>.None,
-            FSharpOption<string>.None, FSharpOption<Fault>.None);
+            FSharpOption<string>.None, FSharpOption<Fault>.None, FSharpList<Note>.Empty);
         var fault = new Fault(FaultKind.NotFound, "File does not exist : /nowhere.txt",
-            FSharpOption<int>.Some(1), FSharpOption<string>.Some("/nowhere.txt"), FSharpOption<Fault>.Some(cause));
+            FSharpOption<int>.Some(1), FSharpOption<string>.Some("/nowhere.txt"), FSharpOption<Fault>.Some(cause),
+            FSharpList<Note>.Empty);
 
         var read = RoundTrip(Transaction(Event.NewVariableChanged(
             "problem", FSharpOption<Value>.None, FSharpOption<Value>.Some(Value.NewFault(fault)))));

@@ -660,3 +660,16 @@ type GuidanceTests() =
         Assert.AreEqual<string>("Unknown command : lss. Did you mean ls?", harness.Error "lss")
         Assert.AreEqual<string>("Unknown command : rn. Did you mean in, rm or run?", harness.Error "rn")
         Assert.AreEqual<string>("Unknown command : by", harness.Error "by")
+
+    // ------------------------------------------------------------ 0041
+
+    /// A line with nothing to say beyond its answer carries no notes, whether it
+    /// succeeded or failed: notes are guidance, and never stand in for a value.
+    [<TestMethod>]
+    member _.ALineWithNothingToSayCarriesNoNotes() =
+        let harness = seeded ()
+
+        for line in [ "ls"; "echo hello"; "ls | where $row.kind eq folder"; "mkdir fresh" ] do
+            let response = harness.Respond line
+            Assert.IsTrue(response.Fault.IsNone, line)
+            Assert.AreEqual<Note list>([], response.Notes, line)

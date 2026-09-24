@@ -162,8 +162,13 @@ type Invocation =
       Blobs: IBlobs
       Cancel: CancellationToken }
 
-/// What a command answers with: a value for the next stage, and what it changed.
-type CommandResult = { Value: Value; Events: Event list }
+/// What a command answers with: a value for the next stage, what it changed, and what
+/// the terminal should say about it beyond the value, such as why a filter kept
+/// nothing (decision 0043). Notes are guidance, never part of the value.
+type CommandResult =
+    { Value: Value
+      Events: Event list
+      Notes: Note list }
 
 type Command =
     { Spec: CommandSpec
@@ -305,6 +310,11 @@ module Invocation =
     let flag (name: string) (invocation: Invocation) = switch None name invocation
 
     /// A result that changed nothing, which is most of them.
-    let pure' (value: Value) = Ok { Value = value; Events = [] }
+    let pure' (value: Value) = Ok { Value = value; Events = []; Notes = [] }
 
-    let withEvents (value: Value) (events: Event list) = Ok { Value = value; Events = events }
+    let withEvents (value: Value) (events: Event list) = Ok { Value = value; Events = events; Notes = [] }
+
+    /// Adds notes to a result that succeeded, after any it already carries. A failed
+    /// one keeps its fault as it is: a fault's notes are the fault's own.
+    let withNotes (notes: Note list) (result: Outcome<CommandResult>) : Outcome<CommandResult> =
+        result |> Result.map (fun r -> { r with Notes = r.Notes @ notes })

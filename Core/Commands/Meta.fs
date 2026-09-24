@@ -34,7 +34,8 @@ let undo (store: StoreAccess) =
                             match transaction with
                             | Some t -> Value.Text($"Undone: {t.Source}")
                             | None -> nothingToUndo
-                          Events = [] })
+                          Events = []
+                          Notes = [] })
             } }
 
 let redo (store: StoreAccess) =
@@ -53,7 +54,8 @@ let redo (store: StoreAccess) =
                             match transaction with
                             | Some t -> Value.Text($"Redone: {t.Source}")
                             | None -> nothingToRedo
-                          Events = [] })
+                          Events = []
+                          Notes = [] })
             } }
 
 let history (store: StoreAccess) =
@@ -319,7 +321,7 @@ let run (store: StoreAccess) =
 
                     try
                         let! result = loop 1 lines Value.Empty
-                        return result |> Outcome.map (fun value -> { Value = value; Events = [] })
+                        return result |> Outcome.map (fun value -> { Value = value; Events = []; Notes = [] })
                     finally
                         depth <- depth - 1
             } }

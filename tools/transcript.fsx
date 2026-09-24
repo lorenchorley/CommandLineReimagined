@@ -7,7 +7,9 @@
 // fresh session, which is a fresh tab. Anything else is ignored, so a Markdown file's
 // transcript can be copied in as it stands. The output is each command, what it wrote
 // while it ran, and its result or the fault's message with the kind beside it in
-// brackets (the brackets are this script's, not the screen's).
+// brackets (the brackets are this script's, not the screen's). Then each note the
+// terminal adds (decision 0041), after its kind (`  suggestion:`, `  explanation:`), and
+// each of its fixes as `  fix:`, which the page draws as a guidance panel and a chip.
 //
 // The clock is pinned to the time every transcript in docs/ shows, and ids count up,
 // so two runs of the same input print the same thing. Syntax errors are worded by the
@@ -64,5 +66,9 @@ for raw in IO.File.ReadAllLines fsi.CommandLineArgs.[1] do
             match response.Result with
             | Some value when value <> Value.Empty -> printfn "%s" (Value.display value)
             | _ -> ()
+
+        for note in response.Notes do
+            printfn "  %s: %s" note.Kind note.Text
+            for fix in Note.fixLines note do printfn "  fix: %s" fix
 
         printfn ""

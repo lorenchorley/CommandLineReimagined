@@ -26,7 +26,7 @@ let private reader name description keywords extra (parse: Invocation -> string 
                 return
                     content
                     |> Outcome.bind (fun (path, text) -> parse invocation path text)
-                    |> Outcome.map (fun value -> { Value = value; Events = [] })
+                    |> Outcome.map (fun value -> { Value = value; Events = []; Notes = [] })
             } }
 
 /// <summary>A writer: something serialised, then written the way `write` writes.</summary>

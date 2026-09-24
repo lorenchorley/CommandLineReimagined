@@ -258,7 +258,9 @@ public static class LogFormat
             ReadOptionalString(node["path"]),
             node["cause"] is { } cause
                 ? FSharpOption<Fault>.Some(ReadFault(cause.AsObject()))
-                : FSharpOption<Fault>.None);
+                : FSharpOption<Fault>.None,
+            // A fault kept as a value never carries notes (decision 0041).
+            FSharpList<Note>.Empty);
     }
 
     private static JsonObject TagNode(string kind, Tag tag) =>

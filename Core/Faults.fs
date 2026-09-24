@@ -29,6 +29,34 @@ type FaultKind =
     /// A defect. The message names the exception; it is never the user's mistake.
     | Internal
 
+/// <summary>What the terminal says of its own about a line (decisions 0041 to 0044).</summary>
+/// <remarks>
+/// Not what a command answered, and never part of a value: a script cannot see a
+/// note, and `else`, `try` and pipes are unaffected by one. A host draws notes as
+/// guidance, apart from output. `Kind` is `suggestion` (what was probably meant) or
+/// `explanation` (why an answer is empty). Each fix becomes a whole corrected line,
+/// which the page offers to put in the input without running it (0044).
+/// </remarks>
+type Note =
+    { Kind: string
+      Text: string
+      Fixes: Fix list }
+
+/// <summary>A correction, as whatever found the mistake can say it (decision 0044).</summary>
+/// <remarks>
+/// A predicate or a command rarely knows the line it was written in, and a tree node
+/// does not know where in the line it was, so a fix is usually said as a replacement of
+/// what was written. The session turns each into the whole corrected line against the
+/// line the person typed (`Fix.apply`), and drops one whose text the line does not
+/// have, such as a mistake inside a script that `run` ran. By the time a response
+/// leaves the session every fix is a `Line`.
+/// </remarks>
+and [<RequireQualifiedAccess>] Fix =
+    /// The whole corrected line.
+    | Line of string
+    /// The first place the line has `written` as a whole word, written as `corrected`.
+    | Replace of written: string * corrected: string
+
 type Fault =
     { Kind: FaultKind
       Message: string
@@ -36,7 +64,11 @@ type Fault =
       /// evaluator, which is the only thing that knows.
       Stage: int option
       Path: string option
-      Cause: Fault option }
+      Cause: Fault option
+      /// What the terminal says about the failure beyond its message: the nearest
+      /// names, and the fixes (decisions 0042, 0044). Never part of the fault as a
+      /// value, so `$problem` does not carry them.
+      Notes: Note list }
 
 /// The railway. `Ok` carries the value, `Error` carries the fault.
 type Outcome<'T> = Result<'T, Fault>
@@ -75,10 +107,88 @@ module FaultKind =
         | _ -> None
 
 [<RequireQualifiedAccess>]
+module Fix =
+
+    /// A character that continues a word, a variable or a member access, so that
+    /// replacing `kind` does not reach into `kinds` or `$row.kind`.
+    let private continues (c: char) =
+        System.Char.IsLetterOrDigit c || c = '_' || c = '-' || c = '.' || c = '$'
+
+    /// <summary>The whole line the fix makes of `source`, if it makes one.</summary>
+    /// <remarks>
+    /// `None` when the line does not have what a replacement names as a whole word,
+    /// and when the fix would leave the line as it is.
+    /// </remarks>
+    let apply (source: string) (fix: Fix) : string option =
+        let fixedLine =
+            match fix with
+            | Fix.Line line -> Some line
+            | Fix.Replace(written, corrected) when System.String.IsNullOrEmpty written -> None
+            | Fix.Replace(written, corrected) ->
+                let rec search (from: int) =
+                    if from > source.Length - written.Length then
+                        None
+                    else
+                        match source.IndexOf(written, from, System.StringComparison.Ordinal) with
+                        | -1 -> None
+                        | at ->
+                            let before = at = 0 || not (continues source[at - 1])
+                            let after = at + written.Length
+                            let ends = after = source.Length || not (continues source[after])
+
+                            if before && ends then
+                                Some(source.Substring(0, at) + corrected + source.Substring after)
+                            else
+                                search (at + 1)
+
+                search 0
+
+        fixedLine |> Option.filter (fun line -> line <> source)
+
+    /// The line a fix is, once `apply` has made it one; a replacement is not a line yet.
+    let line (fix: Fix) =
+        match fix with
+        | Fix.Line line -> Some line
+        | Fix.Replace _ -> None
+
+[<RequireQualifiedAccess>]
+module Note =
+
+    let suggestion (text: string) (fixes: Fix list) : Note =
+        { Kind = "suggestion"; Text = text; Fixes = fixes }
+
+    let explanation (text: string) (fixes: Fix list) : Note =
+        { Kind = "explanation"; Text = text; Fixes = fixes }
+
+    /// <summary>The note with every fix made a whole line of `source`.</summary>
+    /// <remarks>
+    /// A fix the line has no place for is dropped, and so is a second fix that makes
+    /// the same line. The note itself stays even with no fix left: what it says is
+    /// still true.
+    /// </remarks>
+    let resolve (source: string) (note: Note) : Note =
+        { note with
+            Fixes = note.Fixes |> List.choose (Fix.apply source) |> List.distinct |> List.map Fix.Line }
+
+    /// The whole lines a resolved note offers, for a host.
+    let fixLines (note: Note) : string list = note.Fixes |> List.choose Fix.line
+
+[<RequireQualifiedAccess>]
 module Fault =
 
-    let create kind message =
-        { Kind = kind; Message = message; Stage = None; Path = None; Cause = None }
+    let create kind message : Fault =
+        { Kind = kind; Message = message; Stage = None; Path = None; Cause = None; Notes = [] }
+
+    /// Adds notes after any the fault already carries.
+    let withNotes (notes: Note list) (fault: Fault) = { fault with Notes = fault.Notes @ notes }
+
+    /// <summary>The fault as a script sees it, when `try` or `else` makes it a value.</summary>
+    /// <remarks>
+    /// Without its notes, at any depth: decision 0041 keeps guidance out of every value,
+    /// so `$problem` is the same whether or not the terminal had something to suggest.
+    /// </remarks>
+    let rec asValue (fault: Fault) : Fault =
+        { fault with Notes = []; Cause = fault.Cause |> Option.map asValue }
 
     let withPath path fault = { fault with Path = Some path }
 
