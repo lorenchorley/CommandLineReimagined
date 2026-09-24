@@ -13,6 +13,9 @@
     --command:#7aa2f7; --flag:#e0af68; --string:#9ece6a; --variable:#bb9af7;
     --identifier:#c0caf5; --type:#2ac3de; --attribute:#ff9e64; --punctuation:#565f89;
     --operator:#f7768e; --member:#7dcfff; --keyword:#ff9eb8;
+    /* What the terminal says itself, as against what a command answered: see .aside. */
+    --aside:rgba(107,138,253,.10); --aside-line:rgba(107,138,253,.45); --aside-ink:#8ea6ff;
+    --ui:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
   }
   @media (prefers-color-scheme: light) {
     :root {
@@ -20,6 +23,7 @@
       --command:#2f5fd0; --flag:#a35a00; --string:#2d7a2d; --variable:#7132b8;
       --identifier:#1a1b23; --type:#0b6e86; --attribute:#a34a00; --punctuation:#8b8fa3;
       --operator:#b1004a; --member:#0b5d86; --keyword:#8a1f6b;
+      --aside:rgba(47,95,208,.07); --aside-line:rgba(47,95,208,.35); --aside-ink:#2f5fd0;
     }
   }
   * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
@@ -39,10 +43,6 @@
     padding:max(10px,env(safe-area-inset-top)) 10px max(10px,env(safe-area-inset-bottom));
     -webkit-text-size-adjust:100%; overflow:hidden;
   }
-
-  header { flex:none; display:flex; align-items:baseline; gap:8px; margin-bottom:8px; }
-  h1 { font-size:14px; margin:0; flex:1; }
-  .status { font-size:11px; color:var(--dim); }
 
   /* Scrollback ------------------------------------------------------------ */
   #scroll {
@@ -68,6 +68,40 @@
     opacity:.8; vertical-align:1px;
   }
   .hint { color:var(--dim); }
+
+  /*
+    The terminal's own words. Everything the page shows that no command answered (the
+    banner, the help under a line called wrongly, the note that a selection was copied)
+    is drawn in a panel of its own: an accent border and background, a small label that
+    says what it is, and the interface's proportional face rather than the terminal's
+    monospace. Output keeps its own look, so the two are never mistaken for each other.
+  */
+  .aside {
+    font:13px/1.45 var(--ui); color:var(--fg); white-space:normal; overflow-wrap:anywhere;
+    background:var(--aside); border:1px solid var(--aside-line); border-left:3px solid var(--aside-ink);
+    border-radius:8px; padding:6px 10px 8px; margin-top:6px;
+  }
+  .aside .label {
+    display:block; font:600 10px/1.3 var(--ui); letter-spacing:.06em; color:var(--aside-ink);
+    margin-bottom:2px;
+  }
+  .aside code { font:12px ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; }
+  .aside .grid table { font-family:var(--ui); font-size:12.5px; }
+  .aside .grid th { background:transparent; }
+  .aside .grid th, .aside .grid td { border-bottom-color:var(--aside-line); }
+  .aside .problem { color:var(--bad); font-weight:600; }
+  #banner { margin:0 0 10px; }
+  /* Over the foot of the scrollback, so it moves nothing; it fades on its own. */
+  #pane { flex:1; min-height:0; position:relative; display:flex; flex-direction:column; }
+  #copied {
+    position:absolute; right:10px; bottom:10px; margin:0; pointer-events:none;
+    padding:4px 10px 5px; box-shadow:0 2px 10px rgba(0,0,0,.18); background:var(--panel);
+  }
+  #copied::before { content:''; position:absolute; inset:0; border-radius:inherit; background:var(--aside); }
+  #copied > * { position:relative; }
+  #copied .label { display:inline; margin:0 6px 0 0; }
+  #copied.fade { animation:fade 1.6s ease-in forwards; }
+  @keyframes fade { 0%, 55% { opacity:1; } 100% { opacity:0; } }
 
   /* Result chips ---------------------------------------------------------- */
   .items { display:flex; flex-wrap:wrap; gap:5px; margin-top:4px; }
@@ -234,12 +268,10 @@
 </style>
 </head>
 <body>
-  <header>
-    <h1>CommandLineReimagined</h1>
-    <span class="status" id="status">starting…</span>
-  </header>
-
-  <div id="scroll"><div class="hint" id="banner">Loading the terminal…</div></div>
+  <div id="pane">
+    <div id="scroll"><div class="aside" id="banner"><span class="label">note</span><span id="said">Loading the terminal…</span></div></div>
+    <div class="aside" id="copied" hidden><span class="label">note</span><span>copied</span></div>
+  </div>
 
   <div id="bar">
     <div id="detail"></div>
@@ -464,6 +496,15 @@ function faultHtml(r) {
   return `<div class="err">${kind}${escape(r.error)}</div>`;
 }
 
+/// How to call a command, under a line that called it wrongly (decision 0038): the
+/// table `help <command>` answers, drawn as that answer is, in the panel the terminal
+/// keeps for its own words, since this is the terminal helping rather than the line's
+/// answer. A line that failed any other way has no guide, and gets no panel.
+function guideHtml(guide) {
+  if (!guide || !guide.length) return '';
+  return `<div class="aside guide"><span class="label">help</span>${itemsHtml(guide)}</div>`;
+}
+
 /// A fault that `try` or `else` made into a value (Phase 5). It reads like the failure
 /// it was, because it is that failure, and looks unlike one, because the line did not
 /// stop: the kind is the word `$problem.kind` would read, so what is on screen is what a
@@ -615,7 +656,7 @@ function finishEntry(entry, r) {
 
   let tail = '';
   if (r.error === 'Stopped.') tail = `<div class="stopped">${escape(r.error)}</div>`;
-  else if (r.error) tail = faultHtml(r);
+  else if (r.error) tail = faultHtml(r) + guideHtml(r.guide);
   else tail = itemsHtml(r.result);
 
   entry.querySelector('.tail').innerHTML = tail;
@@ -1395,12 +1436,15 @@ runButton.onclick = run;
 /// in `readme.txt` and the guide it points to, where it is read with the terminal
 /// itself and can be as long as it needs. The banner says only where to begin and the
 /// one thing a visitor must know before typing: whether this browser keeps the files.
+///
+/// It is also where the page says how its start went, now that there is no status line
+/// at the top: loading, restoring the log, and either failure.
 /// </remarks>
 function bannerFor(store) {
-  const start = 'New here? Run <b>read readme.txt</b>, or tap <b>readme</b> below.';
+  const start = 'New here? Run <code>read readme.txt</code>, or tap <b>readme</b> below.';
 
   if (!store.persistent) {
-    return `${start} This browser is not keeping your files: they go when the tab does.`;
+    return `${start} This browser is not keeping your files: they go when the tab does. ${notPersisted(store)}`;
   }
 
   if (store.replayed > 0) {
@@ -1408,6 +1452,23 @@ function bannerFor(store) {
   }
 
   return `A command line that runs in this tab. ${start} Your files stay in this browser.`;
+}
+
+/// The mark that says the log is not being kept, with the reason the browser gave.
+const notPersisted = store =>
+  `<span class="warn" title="${escape(store.reason || 'This browser is not keeping the log.')}">not persisted</span>`;
+
+/// Says something in the banner. `clear` empties the scrollback, banner and all, so a
+/// banner that has gone comes back at the end of the scrollback to say it.
+function say(html) {
+  let banner = $('banner');
+  if (!banner) {
+    banner = document.createElement('div');
+    banner.className = 'aside'; banner.id = 'banner';
+    banner.innerHTML = '<span class="label">note</span><span id="said"></span>';
+    scroll.appendChild(banner);
+  }
+  $('said').innerHTML = html;
 }
 
 // ---- boot -----------------------------------------------------------------
@@ -1421,9 +1482,8 @@ function bannerFor(store) {
     }
 
     // Replaying the log is asynchronous, and nothing may run until it has finished:
-    // an empty filesystem looks exactly like a lost one. Today it returns at once;
-    // in Phase 2 it reads IndexedDB, and the wait is already in the right place.
-    $('status').innerHTML = '<span style="color:var(--dim)">restoring…</span>';
+    // an empty filesystem looks exactly like a lost one.
+    say('restoring…');
 
     DotNet.invokeMethodAsync('WebClient', 'Initialize')
       .then(status => finishBoot(JSON.parse(status)))
@@ -1431,14 +1491,14 @@ function bannerFor(store) {
         // The message matters: a session that cannot restore is showing the user an
         // empty filesystem that may not be empty, and "failed" alone says nothing about
         // whether their files are gone or the code is broken.
-        $('status').innerHTML = '<span style="color:var(--bad)">failed to restore</span>';
+        say('<span class="problem">failed to restore</span> Nothing can run until the session is restored.');
         addEntry(`<div class="err">Could not restore the session: ${escape(String(e && e.message || e))}</div>`);
       });
     return;
   }
 
   if (attempt < 400) setTimeout(() => waitForRuntime(attempt + 1), 100);
-  else $('status').innerHTML = '<span style="color:var(--bad)">failed to load</span>';
+  else say('<span class="problem">failed to load</span> The terminal did not start. Reloading the page may help.');
 })(0);
 
 /*
@@ -1446,18 +1506,15 @@ function bannerFor(store) {
   The log falls back to memory at once; this is how the page finds out, after every
   line, so `not persisted` appears when it becomes true rather than only at load.
 */
+let persisted = true;
+
 function refreshStatus() {
   let store;
   try { store = JSON.parse(DotNet.invokeMethod('WebClient', 'Status')); } catch { return; }
-  if (!store.persistent && !$('status').querySelector('.warn')) showStatus(store);
-}
-
-function showStatus(store) {
-  $('status').innerHTML = store.persistent
-    ? '<span style="color:var(--ok)">wasm</span>'
-    : '<span style="color:var(--ok)">wasm</span> <span class="warn" title="' +
-      escape(store.reason || 'This browser is not keeping the log.') +
-      '">not persisted</span>';
+  if (!store.persistent && persisted) {
+    persisted = false;
+    say(`This browser has stopped keeping your files: they go when the tab does. ${notPersisted(store)}`);
+  }
 }
 
 function finishBoot(store) {
@@ -1467,9 +1524,8 @@ function finishBoot(store) {
     // `not persisted` is said up front, before anything is typed. Finding out after a
     // morning's work that none of it was being kept would be the worst moment to learn
     // it, and a private window is the common case rather than a broken one.
-    showStatus(store);
-
-    $('banner').innerHTML = bannerFor(store);
+    persisted = store.persistent;
+    say(bannerFor(store));
 
     if (store.unreadable > 0) {
       addEntry(`<div class="err">${store.unreadable} stored line(s) could not be read and were skipped. ` +
@@ -1479,6 +1535,9 @@ function finishBoot(store) {
     refreshPrompt();
     refreshMirror();
     refocus();
+
+    // What the browser check waits on: the log is replayed and the input is open.
+    document.body.dataset.ready = 'true';
 }
 
 refreshMirror();

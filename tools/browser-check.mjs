@@ -304,14 +304,15 @@ async function serve(root, port, basePath) {
   throw new Error(`The static server did not start in ${root}.`);
 }
 
-/** Waits for the page to finish booting and returns its status line. */
+/** Waits for the page to finish booting and returns what its banner says. */
 async function boot(page) {
-  // The runtime takes a few seconds to download and start, and the page shows
-  // "restoring…" while it replays the log. Ready means the input is enabled.
-  await page.waitForSelector('#status:has-text("wasm")', { timeout: 120000 });
+  // The runtime takes a few seconds to download and start, and the banner says
+  // "restoring…" while it replays the log. The page marks its body `data-ready` once it
+  // has, which is what is waited on: there is no status line at the top any more (R12).
+  await page.waitForSelector('body[data-ready]', { state: 'attached', timeout: 120000 });
   await page.waitForFunction(() => !document.getElementById('cmd').disabled, null, { timeout: 30000 });
 
-  return (await page.locator('#status').innerText()).trim();
+  return (await page.locator('#banner').innerText()).replace(/\s+/g, ' ').trim();
 }
 
 /** Runs a table of lines and reports any mismatch through `note`. */
@@ -523,7 +524,7 @@ async function main() {
     }
 
     const status = await boot(page);
-    console.log(`Booted at ${VIEWPORT.width}x${VIEWPORT.height}. Status: ${status}`);
+    console.log(`Booted at ${VIEWPORT.width}x${VIEWPORT.height}. Banner: ${status}`);
 
     // A headless Chromium has IndexedDB, so a run that reports otherwise means the
     // store failed to open, which the reload cases below would then fail on for a
@@ -531,6 +532,17 @@ async function main() {
     if (status.includes('not persisted')) {
       note('the page reports `not persisted`; the log is not reaching IndexedDB');
     }
+
+    // R12: no title and no `wasm` at the top. The scrollback is the first thing on the
+    // screen, and the banner, in it, is where the page says how its start went.
+    const top = await page.evaluate(() => ({
+      header: document.querySelectorAll('header, h1, #status').length,
+      wasm: document.body.innerText.includes('wasm'),
+      scrollTop: Math.round(document.getElementById('scroll').getBoundingClientRect().top),
+    }));
+    if (top.header > 0) note(`the page still has ${top.header} title or status element(s) at the top`);
+    if (top.wasm) note('the page still says `wasm` somewhere');
+    if (top.scrollTop > 12) note(`the scrollback starts ${top.scrollTop} pixels down, below something at the top`);
 
     // A listing is a real table from Phase 3: a header row from the columns and a cell
     // per value, not a run of chips and not preformatted text.
@@ -725,7 +737,7 @@ async function main() {
 
     await page.reload({ waitUntil: 'domcontentloaded' });
     const restored = await boot(page);
-    console.log(`Reloaded. Status: ${restored}`);
+    console.log(`Reloaded. Banner: ${restored}`);
 
     const banner = await page.locator('#banner').innerText();
 
