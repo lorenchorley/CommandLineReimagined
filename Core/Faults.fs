@@ -57,6 +57,18 @@ and [<RequireQualifiedAccess>] Fix =
     /// The first place the line has `written` as a whole word, written as `corrected`.
     | Replace of written: string * corrected: string
 
+/// <summary>What a fault says is not there, for the notes that name the nearest (0042).</summary>
+/// <remarks>
+/// A command that finds a path or a variable missing cannot see what else there is
+/// (`Nearest` is compiled after the commands), so the session reads this off the fault
+/// and names the nearest itself. A path is absolute; a variable's name has no `$`.
+/// </remarks>
+[<RequireQualifiedAccess>]
+type Missing =
+    | File of path: string
+    | Folder of path: string
+    | Variable of name: string
+
 type Fault =
     { Kind: FaultKind
       Message: string
@@ -230,6 +242,29 @@ module Fault =
             explained,
             (fun (lexical: Commands.Parser.LexicalError) -> explained lexical.SyntaxError))
 
+    // ------------------------------------------------------------------ Suggestions
+
+    /// Names joined the way a sentence lists them: `a`, `a or b`, `a, b or c`.
+    let private either (names: string list) =
+        match names with
+        | [] -> ""
+        | [ only ] -> only
+        | several ->
+            let last = List.last several
+            let others = several |> List.take (several.Length - 1) |> String.concat ", "
+            sprintf "%s or %s" others last
+
+    /// <summary>The note naming what was probably meant (decisions 0041, 0042, 0044).</summary>
+    /// <remarks>
+    /// `Did you mean a, b or c?`, nearest first and at most three: a longer list is a
+    /// menu, and the page's completion is already one. `fixes` are the corrections, one
+    /// for each name where there is one, in the same order. Nothing near, no note.
+    /// </remarks>
+    let nearestNote (named: string list) (fixes: Fix list) : Note list =
+        match List.truncate 3 named with
+        | [] -> []
+        | shown -> [ Note.suggestion (sprintf "Did you mean %s?" (either shown)) (List.truncate 3 fixes) ]
+
     // ------------------------------------------------------------- Argument errors
 
     let needsArgument command parameter =
@@ -272,7 +307,8 @@ module Fault =
     /// `$row` is the one name that is never set by hand, so an unknown `$row` is
     /// answered with where it exists instead (<see cref="rowOutsidePredicate"/>). Every
     /// lookup comes through here, which is what makes that true of an argument, a
-    /// stage and a predicate evaluated with no row alike.
+    /// stage and a predicate evaluated with no row alike. The nearest variables are
+    /// named by the session, which knows which there are (decision 0042, `missing`).
     /// </remarks>
     let unknownVariable name =
         if name = "row" then
@@ -312,28 +348,32 @@ module Fault =
     /// <remarks>
     /// It is the same for every row, so it keeps all of them or none, and the empty
     /// table it usually answers looks like a real answer. `suggestion` is the predicate
-    /// with the bare words it compared read as columns, when there were any.
+    /// with the bare words it compared read as columns, when there were any. It is said
+    /// in a note rather than in the sentence (decision 0041), with the fix that writes
+    /// it in place of the predicate as written (0044).
     /// </remarks>
     let neverReadsTheRow (text: string) (suggestion: string option) =
-        let hint =
+        create Binding (sprintf "%s never reads $row, so it is the same for every row." text)
+        |> withNotes (
             match suggestion with
-            | Some suggested -> sprintf " Did you mean %s?" suggested
-            | None -> ""
-
-        create Binding (sprintf "%s never reads $row, so it is the same for every row.%s" text hint)
+            | Some suggested -> nearestNote [ suggested ] [ Fix.Replace(text, suggested) ]
+            | None -> []
+        )
 
     /// <summary>A predicate whose value for a row is not true or false (decision 0033).</summary>
     /// <remarks>
     /// `kind` is the value's kind and `shown` what it displays as, both for the row it
-    /// was first seen on. `fix` is the line to write instead, when there is one.
+    /// was first seen on. `suggestion` is how to ask a question of it, when there is a
+    /// way: what the note says (`Compare it: $row.kind eq folder.`, `Did you mean
+    /// $row.kind?`) and the fix that writes it. A note, not part of the message (0041).
     /// </remarks>
-    let notTrueOrFalse (text: string) (kind: string) (shown: string) (fix: string option) =
-        let hint =
-            match fix with
-            | Some fix -> " " + fix
-            | None -> ""
-
-        create Invalid (sprintf "%s is %s (%s), not true or false.%s" text kind shown hint)
+    let notTrueOrFalse (text: string) (kind: string) (shown: string) (suggestion: (string * Fix) option) =
+        create Invalid (sprintf "%s is %s (%s), not true or false." text kind shown)
+        |> withNotes (
+            match suggestion with
+            | Some(said, fix) -> [ Note.suggestion said [ fix ] ]
+            | None -> []
+        )
 
     // ---------------------------------------------------------------- Table errors
 
@@ -352,26 +392,47 @@ module Fault =
 
     /// <summary>A name that is not a command, and the commands it was probably meant to be.</summary>
     /// <remarks>
-    /// `nearest` comes nearest first (`Nearest.names`), and at most three are named: a
-    /// longer list is a menu, and the page's completion is already one.
+    /// `nearest` comes nearest first (`Nearest.names`). They are named in a note, with a
+    /// fix for each that writes it in place of the name (decisions 0041, 0044), at most
+    /// three of them (`nearestNote`).
     /// </remarks>
     let unknownCommand name (nearest: string list) =
-        let suggestion =
-            match List.truncate 3 nearest with
-            | [] -> ""
-            | [ only ] -> sprintf ". Did you mean %s?" only
-            | several ->
-                let last = List.last several
-                let others = several |> List.take (several.Length - 1) |> String.concat ", "
-                sprintf ". Did you mean %s or %s?" others last
+        create UnknownCommand (sprintf "Unknown command : %s" name)
+        |> withNotes (nearestNote nearest [ for near in nearest -> Fix.Replace(name, near) ])
 
-        create UnknownCommand (sprintf "Unknown command : %s%s" name suggestion)
+    let private folderMissing = "Directory does not exist : "
+    let private fileMissing = "File does not exist : "
 
+    /// <summary>A folder that is not there.</summary>
+    /// <remarks>
+    /// The path is as the caller has it: absolute, except from `Files.resolveFolder`,
+    /// which names it as written, and `$problem.path` reads it so. The session makes it
+    /// absolute to name the nearest folders (decision 0042, `missing`).
+    /// </remarks>
     let directoryDoesNotExist path =
-        create NotFound (sprintf "Directory does not exist : %s" path) |> withPath path
+        create NotFound (folderMissing + path) |> withPath path
 
+    /// A file that is not there. The session names the nearest paths (0042, `missing`).
     let fileDoesNotExist path =
-        create NotFound (sprintf "File does not exist : %s" path) |> withPath path
+        create NotFound (fileMissing + path) |> withPath path
+
+    /// <summary>What a fault says is not there, when it is a file, a folder or a variable.</summary>
+    /// <remarks>
+    /// Read from the kind, the path and the sentence the constructors here wrote, which
+    /// a script's name and line number may have been put in front of. A file's path is
+    /// absolute; a folder's may be as written (`directoryDoesNotExist`). `$row` is never
+    /// set by anyone, so it is never missing in this sense.
+    /// </remarks>
+    let missing (fault: Fault) : Missing option =
+        match fault.Kind, fault.Path with
+        | NotFound, Some path when path.StartsWith "$" ->
+            if path <> "$row" && fault.Message.Contains("Unknown variable: " + path) then
+                Some(Missing.Variable(path.Substring 1))
+            else
+                None
+        | NotFound, Some path when fault.Message.Contains(fileMissing + path) -> Some(Missing.File path)
+        | NotFound, Some path when fault.Message.Contains(folderMissing + path) -> Some(Missing.Folder path)
+        | _ -> None
 
     let isADirectory path =
         create Invalid (sprintf "That is a directory, not a file : %s" path) |> withPath path

@@ -75,29 +75,37 @@ type TableCommandTests() =
     [<TestMethod>]
     member _.APredicateThatNeverReadsTheRowIsABindingFault() =
         let harness = seeded ()
-        let fault = harness.Fail "ls | where kind eq folder"
+        let response = harness.Respond "ls | where kind eq folder"
+        let fault = response.Fault.Value
 
         Assert.AreEqual<FaultKind>(Binding, fault.Kind)
 
-        Assert.AreEqual<string>(
-            "kind eq folder never reads $row, so it is the same for every row. Did you mean $row.kind eq folder?",
-            fault.Message)
+        Assert.AreEqual<string>("kind eq folder never reads $row, so it is the same for every row.", fault.Message)
+
+        Assert.AreEqual<string list>(
+            [ "Did you mean $row.kind eq folder?" ],
+            response.Notes |> List.map (fun note -> note.Text))
 
     [<TestMethod>]
     member _.EveryBareWordComparedIsNamedAsAColumn() =
         let harness = seeded ()
 
-        Assert.AreEqual<string>(
-            "kind eq folder and size gt 3 never reads $row, so it is the same for every row. Did you mean $row.kind eq folder and $row.size gt 3?",
-            harness.Error "ls | where kind eq folder and size gt 3")
+        let said line =
+            let response = harness.Respond line
+            response.Fault.Value.Message, response.Notes |> List.map (fun note -> note.Text)
 
-        Assert.AreEqual<string>(
-            "3 lt size never reads $row, so it is the same for every row. Did you mean 3 lt $row.size?",
-            harness.Error "ls | where 3 lt size")
+        Assert.AreEqual<string * string list>(
+            ("kind eq folder and size gt 3 never reads $row, so it is the same for every row.",
+             [ "Did you mean $row.kind eq folder and $row.size gt 3?" ]),
+            said "ls | where kind eq folder and size gt 3")
 
-        Assert.AreEqual<string>(
-            "not done never reads $row, so it is the same for every row. Did you mean not $row.done?",
-            harness.Error "ls | where not done")
+        Assert.AreEqual<string * string list>(
+            ("3 lt size never reads $row, so it is the same for every row.", [ "Did you mean 3 lt $row.size?" ]),
+            said "ls | where 3 lt size")
+
+        Assert.AreEqual<string * string list>(
+            ("not done never reads $row, so it is the same for every row.", [ "Did you mean not $row.done?" ]),
+            said "ls | where not done")
 
     /// With no bare word to read as a column, the fault says what is wrong and no more.
     [<TestMethod>]
@@ -133,23 +141,26 @@ type TableCommandTests() =
     [<TestMethod>]
     member _.APredicateThatIsNotTrueOrFalseIsAnInvalidFault() =
         let harness = seeded ()
-        let fault = harness.Fail "ls | where $row.kind"
+        let response = harness.Respond "ls | where $row.kind"
+        let fault = response.Fault.Value
 
         Assert.AreEqual<FaultKind>(Invalid, fault.Kind)
 
-        Assert.AreEqual<string>(
-            "$row.kind is text (folder), not true or false. Compare it: $row.kind eq folder.",
-            fault.Message)
+        Assert.AreEqual<string>("$row.kind is text (folder), not true or false.", fault.Message)
+
+        Assert.AreEqual<string list>(
+            [ "Compare it: $row.kind eq folder." ],
+            response.Notes |> List.map (fun note -> note.Text))
 
     /// A bare word as the whole predicate is a plain operand, so it binds; on the first
     /// row it is found not to be a question, and the word is named as a column.
     [<TestMethod>]
     member _.ABareWordIsNotTrueOrFalse() =
         let harness = seeded ()
+        let response = harness.Respond "ls | where done"
 
-        Assert.AreEqual<string>(
-            "done is text (done), not true or false. Did you mean $row.done?",
-            harness.Error "ls | where done")
+        Assert.AreEqual<string>("done is text (done), not true or false.", response.Fault.Value.Message)
+        Assert.AreEqual<string list>([ "Did you mean $row.done?" ], response.Notes |> List.map (fun note -> note.Text))
 
     /// A boolean read bare stays valid (decision 0033): `history`'s `undone` is one.
     [<TestMethod>]
@@ -189,17 +200,22 @@ type TableCommandTests() =
     [<TestMethod>]
     member _.AnOperandThatIsNotTrueOrFalseIsAnInvalidFault() =
         let harness = seeded ()
+
+        let said line =
+            let response = harness.Respond line
+            response.Fault.Value.Message, response.Notes |> List.map (fun note -> note.Text)
+
         let fault = harness.Fail "ls | where not $row.kind"
 
         Assert.AreEqual<FaultKind>(Invalid, fault.Kind)
 
-        Assert.AreEqual<string>(
-            "$row.kind is text (folder), not true or false. Compare it: $row.kind eq folder.",
-            fault.Message)
+        Assert.AreEqual<string * string list>(
+            ("$row.kind is text (folder), not true or false.", [ "Compare it: $row.kind eq folder." ]),
+            said "ls | where not $row.kind")
 
-        Assert.AreEqual<string>(
-            "$row.kind is text (folder), not true or false. Compare it: $row.kind eq folder.",
-            harness.Error "ls | where $row.kind eq text or $row.kind")
+        Assert.AreEqual<string * string list>(
+            ("$row.kind is text (folder), not true or false.", [ "Compare it: $row.kind eq folder." ]),
+            said "ls | where $row.kind eq text or $row.kind")
 
     /// Short circuiting still holds: an `and` whose left is false never reads its right,
     /// so the right is not held to the rule on that row.

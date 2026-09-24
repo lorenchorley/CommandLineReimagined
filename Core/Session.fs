@@ -294,6 +294,45 @@ type Session(log: ILog, options: SessionOptions, seed: Seed) =
                         return result |> Outcome.map (fun execution -> execution.Value)
                 }
 
+    /// <summary>What a line's fault says, notes and all, for its response.</summary>
+    /// <remarks>
+    /// A missing file, folder or variable is found by a command that cannot see what
+    /// else there is, so the nearest ones are named here (decision 0042), from what
+    /// there is now: after a failed line, what there was before it. Every fix is then
+    /// made a whole line of `source` (0044), except a replacement of words the line has
+    /// in more than one place: the fault does not say which it was about, and the first
+    /// can be the wrong one (`where $row.kind eq text or $row.kind`).
+    /// </remarks>
+    let faultNotes (source: string) (fault: Fault) : Note list =
+        let projection = store.Current
+
+        let rec places (line: string) (written: string) count =
+            if count > 1 then
+                count
+            else
+                match Fix.apply line (Fix.Replace(written, "\u0001")) with
+                | Some rest -> places rest written (count + 1)
+                | None -> count
+
+        let unambiguous (note: Note) =
+            { note with
+                Fixes =
+                    note.Fixes
+                    |> List.filter (fun fix ->
+                        match fix with
+                        | Fix.Replace(written, _) -> places source written 0 <= 1
+                        | Fix.Line _ -> true) }
+
+        let nearest =
+            match Fault.missing fault with
+            | Some(Missing.File path) -> Nearest.pathNote projection projection.Location source path false
+            | Some(Missing.Folder path) -> Nearest.pathNote projection projection.Location source path true
+            | Some(Missing.Variable name) ->
+                Nearest.variableNote (projection.Variables |> Map.toList |> List.map fst) source name
+            | None -> []
+
+        fault.Notes @ nearest |> List.map (unambiguous >> Note.resolve source)
+
     /// <summary>The command a line called wrongly, when that is why it failed (decision 0038).</summary>
     /// <remarks>
     /// A binding fault, stamped with the stage it failed in, where that stage names a
@@ -552,9 +591,8 @@ type Session(log: ILog, options: SessionOptions, seed: Seed) =
                   Guide = None
                   Notes =
                     fault
-                    |> Option.map (fun (f: Fault) -> f.Notes)
-                    |> Option.defaultValue []
-                    |> List.map (Note.resolve source) }
+                    |> Option.map (faultNotes source)
+                    |> Option.defaultValue [] }
 
             if not initialised then
                 return respond (Some(Fault.notInitialised ())) None
@@ -621,9 +659,8 @@ type Session(log: ILog, options: SessionOptions, seed: Seed) =
                   Guide = None
                   Notes =
                     fault
-                    |> Option.map (fun (f: Fault) -> f.Notes)
-                    |> Option.defaultValue []
-                    |> List.map (Note.resolve source) }
+                    |> Option.map (faultNotes source)
+                    |> Option.defaultValue [] }
 
             if not initialised then
                 return respond (Some(Fault.notInitialised ())) None
