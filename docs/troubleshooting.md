@@ -42,7 +42,7 @@ lines are skipped rather than stopping the page; `reset` starts over cleanly.
 Undo works on lines that changed something. A line that changed nothing, such as `ls`
 or `pwd`, is not recorded, so it is never what undo reaches for — and the filesystem
 you started with is recorded but is not yours to take back, so undo stops before it.
-Moving is a change: where you are is kept in the log, so `undo` after `cd documents`
+Moving is a change: where you are is kept in the log, so `undo` after `in documents`
 takes you back.
 
 If you have only run read-only lines in a fresh session, there is genuinely nothing to
@@ -68,9 +68,9 @@ is not one of the suggestion keys.
 Quote it: `write "my notes.txt" hello`. Unquoted words end at a space. Tapping a chip or
 a cell inserts the file's path for you, quoted when it needs to be.
 
-## `cd ..` shows an odd path
+## `in ..` shows an odd path
 
-It should not. Paths are normalised, so `cd ..` reports the parent's real name. If you
+It should not. Paths are normalised, so `in ..` reports the parent's real name. If you
 see a path containing `..`, the build predates that fix.
 
 ## Tab does nothing

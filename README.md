@@ -14,23 +14,24 @@ $ ls | where $row.kind eq folder | select name
 name
 documents
 examples
+guide
 projects
 
-$ cat documents/notes.txt | write backup.txt
+$ read documents/notes.txt | write backup.txt
 backup.txt
 
 $ undo
-Undone: cat documents/notes.txt | write backup.txt
+Undone: read documents/notes.txt | write backup.txt
 
-$ cd $row.kind eq folder
+$ in $row.kind eq folder
 $row.kind eq folder
 
-$ cat notes-from-yesterday.txt else echo "starting fresh"
+$ read notes-from-yesterday.txt else echo "starting fresh"
 starting fresh
 ```
 
 A listing is a table, a predicate over it is a question, and a question is somewhere
-you can be: after the `cd`, `ls` answers the query rather than a directory. A failure
+you can be: after the `in`, `ls` answers the query rather than a directory. A failure
 is a value too: `else` recovers without leaving the line, and `try` keeps a fault for a
 later stage to read. And a table can be kept: `to-xml` and `to-csv` write one to a
 file, and `from-xml` and `from-csv` read it back as the same table.

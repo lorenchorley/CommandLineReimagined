@@ -19,7 +19,7 @@ documents   folder  /       0     2026-09-22T09:30:00.0000000+00:00
 examples    folder  /       0     2026-09-22T09:30:00.0000000+00:00
 guide       folder  /       0     2026-09-22T09:30:00.0000000+00:00
 projects    folder  /       0     2026-09-22T09:30:00.0000000+00:00
-readme.txt  text    /       192   2026-09-22T09:30:00.0000000+00:00
+readme.txt  text    /       193   2026-09-22T09:30:00.0000000+00:00
 ```
 
 Five columns are always there: `name`, `kind`, `folder`, `size` and `modified`. Any
@@ -27,7 +27,7 @@ other attribute anything in the folder carries becomes a column of its own, afte
 five, ordered by name. A file that does not carry it has a gap in that column.
 
 `size` is not stored anywhere. It is the length of the file's content, worked out when
-the table is built, so it can never disagree with what `cat` shows you. `created` is on
+the table is built, so it can never disagree with what `read` shows you. `created` is on
 every record and is not a column: it is rarely what a listing is for, and `attr` shows
 it.
 
@@ -83,7 +83,7 @@ Combine them with `and`, `or` and `not`. `and` binds tighter than `or`, so
 `a or b and c` means `a or (b and c)`. `not` takes the whole comparison after it.
 
 The same predicate is also somewhere you can be. `find` runs one over the whole
-terminal, and `cd` on one moves into it, so every `ls` afterwards asks it again:
+terminal, and `in` on one moves into it, so every `ls` afterwards asks it again:
 [The filesystem](filesystem.md#views).
 
 The examples that follow are in a folder of stock items, made with `save`:
@@ -92,7 +92,7 @@ The examples that follow are in a folder of stock items, made with `save`:
 $ mkdir stock
 stock
 
-$ cd stock
+$ in stock
 stock
 
 $ save <item name=bolts sku=A1 qty=120 min=50/>
@@ -163,7 +163,7 @@ $row.kind is text (folder), not true or false. Compare it: $row.kind eq folder.
 
 The first compares the word `kind` with the word `folder`, which is false whatever the
 row is, and never looks at a row at all. It is caught before any row is tested, and
-`find`, `cd` and `save-view` catch it the same way. The second asks whether a kind is
+`find`, `in` and `save-view` catch it the same way. The second asks whether a kind is
 true, and a kind is text. It is caught on the first row whose answer is neither true
 nor false, which here is `documents`, whose kind is `folder`. Both used to answer an
 empty table in silence, which reads as a real answer; `else` and `try` recover from
@@ -193,7 +193,7 @@ because `attr` stores the word it was given. From a fresh tab:
 $ mkdir chores
 chores
 
-$ cd chores
+$ in chores
 chores
 
 $ save <task name=laundry/>
@@ -280,11 +280,11 @@ documents   0
 examples    0
 guide       0
 projects    0
-readme.txt  192
+readme.txt  193
 
 $ ls | sort size desc | select name size
 name        size
-readme.txt  192
+readme.txt  193
 documents   0
 examples    0
 guide       0
@@ -327,7 +327,7 @@ it as a tag:
 
 ```
 $ ls | sort name desc | first
-<row name=readme.txt kind=text folder=/ size=192 modified=2026-09-22T09:30:00.0000000+00:00/>
+<row name=readme.txt kind=text folder=/ size=193 modified=2026-09-22T09:30:00.0000000+00:00/>
 ```
 
 Nothing to answer is an answer: `first` on an empty table gives nothing rather than
@@ -369,7 +369,7 @@ coercion is implicit, so `where`, `count` and the rest take a tag directly.
 
 A table can live in a file, as XML or as CSV, and comes back out as the same value it
 went in as. Four commands do it: `to-xml` and `to-csv` write, `from-xml` and `from-csv`
-read. A document is an ordinary file in the terminal: it shows up in `ls`, `cat` reads
+read. A document is an ordinary file in the terminal: it shows up in `ls`, `read` shows
 it as text, and `undo` takes a write away like any other.
 
 From a fresh tab, and continuing in the same one to the end of this section:
@@ -377,11 +377,11 @@ From a fresh tab, and continuing in the same one to the end of this section:
 ```
 $ mkdir stock
 stock
-$ cd stock
+$ in stock
 stock
 $ <items><item sku=A1 name=bolts qty=120 min=50/><item sku=B2 name=nuts qty=12 min=40/><item sku=C3 name=washers qty=0 min=20/></items> | to-xml items.xml
 items.xml
-$ cat items.xml
+$ read items.xml
 <items>
   <item sku="A1" name="bolts" qty="120" min="50"/>
   <item sku="B2" name="nuts" qty="12" min="40"/>
@@ -410,7 +410,7 @@ a number column only when every cell in it reads as a number:
 ```
 $ from-xml items.xml | where $row.qty lt $row.min | sort qty | select sku qty | to-csv reorder.csv
 reorder.csv
-$ cat reorder.csv
+$ read reorder.csv
 sku,qty
 C3,0
 B2,12
@@ -437,7 +437,7 @@ begins the file with an XML declaration:
 ```
 $ from-xml items.xml | select sku qty | to-xml short.xml -root stock -row line -declaration
 short.xml
-$ cat short.xml
+$ read short.xml
 <?xml version="1.0" encoding="UTF-8"?>
 <stock>
   <line sku="A1" qty="120"/>
@@ -463,7 +463,7 @@ $ from-xml memo.xml
 <memo to=ann text=Back at ten./>
 $ from-xml memo.xml | to-xml memo-copy.xml
 memo-copy.xml
-$ cat memo-copy.xml
+$ read memo-copy.xml
 <memo to="ann">Back at ten.</memo>
 ```
 
@@ -518,7 +518,7 @@ table   false     true   a value      The table to work on; taken from the pipe 
 | `'echo' takes a value for 'text', not an expression.` | A comparison was written for a command that does not take a predicate. |
 | `kind eq folder never reads $row, so it is the same for every row. Did you mean $row.kind eq folder?` | A predicate that compares two fixed words. Name the column with `$row.`. |
 | `$row.kind is text (folder), not true or false. Compare it: $row.kind eq folder.` | A predicate that is a value rather than a question. Compare it with something. |
-| `$row is the row a predicate is testing. It exists only inside where, find, cd and save-view: ls \| where $row.kind eq folder.` | `$row` read outside a predicate, where no row is being tested. |
+| `$row is the row a predicate is testing. It exists only inside where, find, in and save-view: ls \| where $row.kind eq folder.` | `$row` read outside a predicate, where no row is being tested. |
 | `Column 16: a column name belongs after the stop, as in $row.kind` | `$row.` with no column after the full stop. |
 | `Column 23: eq needs a value to compare with, such as folder` | A comparison with nothing on its right. |
 | `Not well-formed XML : /stock/broken.xml line 1, position 16` | `from-xml` was given a file that is not XML. The line and position are where the parser gave up. |

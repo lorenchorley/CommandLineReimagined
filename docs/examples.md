@@ -17,7 +17,7 @@ documents   folder  /       0     2026-09-22T09:30:00.0000000+00:00
 examples    folder  /       0     2026-09-22T09:30:00.0000000+00:00
 guide       folder  /       0     2026-09-22T09:30:00.0000000+00:00
 projects    folder  /       0     2026-09-22T09:30:00.0000000+00:00
-readme.txt  text    /       192   2026-09-22T09:30:00.0000000+00:00
+readme.txt  text    /       193   2026-09-22T09:30:00.0000000+00:00
 
 $ mkdir scratch
 scratch
@@ -25,33 +25,33 @@ scratch
 $ write scratch/plan.txt "first draft"
 plan.txt
 
-$ cat scratch/plan.txt
+$ read scratch/plan.txt
 first draft
 
 $ write scratch/plan.txt "second draft"
 plan.txt
 
-$ cat scratch/plan.txt
+$ read scratch/plan.txt
 second draft
 
 $ undo
 Undone: write scratch/plan.txt "second draft"
 
-$ cat scratch/plan.txt
+$ read scratch/plan.txt
 first draft
 ```
 
-One `undo` was enough. The two `cat` lines changed nothing, so they were never
+One `undo` was enough. The two `read` lines changed nothing, so they were never
 recorded, and `undo` reached past them to the last line that did something — naming it,
 so you can see what you are about to take back.
 
 ## 2. Copy a file through a pipe
 
 ```
-$ cat documents/notes.txt
-Try: ls, cd documents, mkdir scratch, echo "hello"
+$ read documents/notes.txt
+Try: ls, in documents, mkdir scratch, echo "hello"
 
-$ cat documents/notes.txt | write scratch/notes-copy.txt
+$ read documents/notes.txt | write scratch/notes-copy.txt
 notes-copy.txt
 
 $ ls scratch
@@ -60,7 +60,7 @@ notes-copy.txt  text  /scratch  50    2026-09-22T09:30:00.0000000+00:00
 plan.txt        text  /scratch  11    2026-09-22T09:30:00.0000000+00:00
 ```
 
-`cat` returned text, and `write` used it for the parameter you did not write out. The
+`read` returned text, and `write` used it for the parameter you did not write out. The
 text never became a command-line string in between, so quoting could not go wrong.
 
 ## 3. Name results and reuse them
@@ -73,7 +73,7 @@ examples    folder  /       0     2026-09-22T09:30:00.0000000+00:00
 guide       folder  /       0     2026-09-22T09:30:00.0000000+00:00
 projects    folder  /       0     2026-09-22T09:30:00.0000000+00:00
 scratch     folder  /       0     2026-09-22T09:30:00.0000000+00:00
-readme.txt  text    /       192   2026-09-22T09:30:00.0000000+00:00
+readme.txt  text    /       193   2026-09-22T09:30:00.0000000+00:00
 
 $ set target documents
 documents
@@ -227,7 +227,7 @@ examples    folder  /       0     2026-09-22T09:30:00.0000000+00:00
 guide       folder  /       0     2026-09-22T09:30:00.0000000+00:00
 projects    folder  /       0     2026-09-22T09:30:00.0000000+00:00
 scratch     folder  /       0     2026-09-22T09:30:00.0000000+00:00
-readme.txt  text    /       192   2026-09-22T09:30:00.0000000+00:00
+readme.txt  text    /       193   2026-09-22T09:30:00.0000000+00:00
 ```
 
 `rm` refuses a directory that still has anything in it, which is why the files went
@@ -243,7 +243,7 @@ things about them.
 $ mkdir journal
 journal
 
-$ cd journal
+$ in journal
 journal
 
 $ save <note name=monday mood=good tag=work/>
@@ -304,11 +304,11 @@ documents   folder  /       0     2026-09-22T09:30:00.0000000+00:00
 examples    folder  /       0     2026-09-22T09:30:00.0000000+00:00
 guide       folder  /       0     2026-09-22T09:30:00.0000000+00:00
 projects    folder  /       0     2026-09-22T09:30:00.0000000+00:00
-readme.txt  text    /       192   2026-09-22T09:30:00.0000000+00:00
+readme.txt  text    /       193   2026-09-22T09:30:00.0000000+00:00
 > ls | where $row.kind eq folder | count
 4
 > ls | sort name desc | first
-<row name=readme.txt kind=text folder=/ size=192 modified=2026-09-22T09:30:00.0000000+00:00/>
+<row name=readme.txt kind=text folder=/ size=193 modified=2026-09-22T09:30:00.0000000+00:00/>
 > ls | select name kind | take 2
 name       kind
 documents  folder
@@ -339,7 +339,7 @@ $ undo
 Undone: set answer 42
 ```
 
-`cat examples/tables.clr` shows the program. `journal.clr`, `resilient.clr` and
+`read examples/tables.clr` shows the program. `journal.clr`, `resilient.clr` and
 `inventory.clr` run too: [Programs](#programs) has all four, and examples 11, 12 and 13
 take the ideas in the last three a line at a time.
 
@@ -353,7 +353,7 @@ question that does not care which.
 $ mkdir journal
 journal
 
-$ cd journal
+$ in journal
 journal
 
 $ save <note name=monday mood=good tag=work/>
@@ -362,7 +362,7 @@ monday
 $ save <note name=saturday mood=great tag=home/>
 saturday
 
-$ up
+$ out
 /
 
 $ save <note name=postcard mood=great tag=home/>
@@ -374,11 +374,11 @@ postcard  note  /         0     2026-09-22T09:30:00.0000000+00:00  great  home
 saturday  note  /journal  0     2026-09-22T09:30:00.0000000+00:00  great  home
 ```
 
-`find` asked once. `cd` on the same predicate moves in, so every `ls` afterwards asks
+`find` asked once. `in` on the same predicate moves in, so every `ls` afterwards asks
 it again:
 
 ```
-$ cd $row.mood eq great
+$ in $row.mood eq great
 $row.mood eq great
 
 $ pwd
@@ -398,7 +398,7 @@ directory made while it is set still lands in the directory underneath:
 $ mkdir keepsakes
 keepsakes
 
-$ up
+$ out
 /
 
 $ ls
@@ -410,17 +410,17 @@ journal     folder  /       0     2026-09-22T09:30:00.0000000+00:00
 keepsakes   folder  /       0     2026-09-22T09:30:00.0000000+00:00
 projects    folder  /       0     2026-09-22T09:30:00.0000000+00:00
 postcard    note    /       0     2026-09-22T09:30:00.0000000+00:00  great  home
-readme.txt  text    /       192   2026-09-22T09:30:00.0000000+00:00
+readme.txt  text    /       193   2026-09-22T09:30:00.0000000+00:00
 ```
 
-`up` put the view down and left you where you already were. A question worth asking
+`out` put the view down and left you where you already were. A question worth asking
 twice is worth keeping, and keeping one means making it a file:
 
 ```
 $ save-view cheerful $row.mood eq great
 cheerful
 
-$ cd cheerful
+$ in cheerful
 $row.mood eq great
 
 $ ls
@@ -428,7 +428,7 @@ name      kind  folder    size  modified                           mood   tag
 postcard  note  /         0     2026-09-22T09:30:00.0000000+00:00  great  home
 saturday  note  /journal  0     2026-09-22T09:30:00.0000000+00:00  great  home
 
-$ up
+$ out
 /
 
 $ rm cheerful
@@ -448,7 +448,7 @@ true. What is new is that the line can say what to do instead. This is
 `else` runs the pipeline after it only when the one before it failed:
 
 ```
-$ cat notes-from-yesterday.txt else echo "starting fresh"
+$ read notes-from-yesterday.txt else echo "starting fresh"
 starting fresh
 ```
 
@@ -456,10 +456,10 @@ starting fresh
 is written only because yesterday's notes could not be read:
 
 ```
-$ cat notes-from-yesterday.txt else echo "starting fresh" | write today.txt
+$ read notes-from-yesterday.txt else echo "starting fresh" | write today.txt
 today.txt
 
-$ cat today.txt
+$ read today.txt
 starting fresh
 ```
 
@@ -468,7 +468,7 @@ and the next stage gets it like any other value. The terminal draws it in amber,
 red, because the line succeeded:
 
 ```
-$ try cat nowhere.txt | set problem
+$ try read nowhere.txt | set problem
 File does not exist : /nowhere.txt
 
 $ echo $problem.kind
@@ -494,11 +494,11 @@ no views yet
 ```
 
 The last line is the one that shows what recovery does not do. `mkdir today` succeeds,
-`cd nowhere` fails, and the pipeline on the left of the `else` fails with it. The right
+`in nowhere` fails, and the pipeline on the left of the `else` fails with it. The right
 side answers, and only the right side commits:
 
 ```
-$ mkdir today | cd nowhere else echo "the whole line was rolled back"
+$ mkdir today | in nowhere else echo "the whole line was rolled back"
 the whole line was rolled back
 
 $ ls
@@ -507,7 +507,7 @@ documents   folder  /       0     2026-09-22T09:30:00.0000000+00:00
 examples    folder  /       0     2026-09-22T09:30:00.0000000+00:00
 guide       folder  /       0     2026-09-22T09:30:00.0000000+00:00
 projects    folder  /       0     2026-09-22T09:30:00.0000000+00:00
-readme.txt  text    /       192   2026-09-22T09:30:00.0000000+00:00
+readme.txt  text    /       193   2026-09-22T09:30:00.0000000+00:00
 today.txt   text    /       14    2026-09-22T09:30:00.0000000+00:00
 
 $ find $row.name eq today | count
@@ -535,12 +535,12 @@ questioned, and the answer exported as CSV.
 $ mkdir stock
 stock
 
-$ cd stock
+$ in stock
 stock
 ```
 
 A tag whose children share a type is a table already. `to-xml` writes it out as a
-document, and the file is an ordinary one: it is in `ls`, `cat` reads it, and `undo`
+document, and the file is an ordinary one: it is in `ls`, `read` shows it, and `undo`
 would take it away.
 
 ```
@@ -572,7 +572,7 @@ reorder.csv
 $ from-csv reorder.csv | count
 2
 
-$ cat reorder.csv
+$ read reorder.csv
 sku,qty
 C3,0
 B2,12
@@ -599,7 +599,7 @@ Both files have the kind of what is in them. Writing one is a line like any othe
 $ undo
 Undone: from-xml items.xml | where $row.qty lt $row.min | sort qty | select sku qty | to-csv reorder.csv
 
-$ cat reorder.csv
+$ read reorder.csv
 File does not exist : /stock/reorder.csv
 
 $ redo
@@ -614,7 +614,7 @@ Redone: from-xml items.xml | where $row.qty lt $row.min | sort qty | select sku 
 Four programs are seeded into `/examples`, one for each pillar of the design. Each is
 one screen long and is also an acceptance test: the
 [implementation plan](plan/examples.md) states what every line must answer, and the
-test suite and the browser check hold the terminal to it. `cat` shows a program and
+test suite and the browser check hold the terminal to it. `read` shows a program and
 `run` executes it. Each output below is from a fresh tab.
 
 `run` echoes each line with `> ` in front of it, then that line's result. Every line
@@ -648,7 +648,7 @@ steps back with `undo`.
 ### journal.clr
 
 A journal kept as attribute records. `save` turns a tag into a file, so `mood` and
-`tag` become columns. `attr` changes one of them, `find` and `cd` ask a question across
+`tag` become columns. `attr` changes one of them, `find` and `in` ask a question across
 directories, and `undo` restores a deleted record with its attributes, which `history`
 then counts as undone. [Example 11](#11-a-question-is-somewhere-you-can-be) takes views
 more slowly.
@@ -657,18 +657,18 @@ more slowly.
 # A journal kept as attribute records, queried as views, protected by the event log.
 # Needs Phase 4.
 mkdir journal
-cd journal
+in journal
 save <note name=monday mood=good tag=work/>
 save <note name=tuesday mood=tired tag=work/>
 save <note name=saturday mood=great tag=home/>
 echo "Stand-up moved to ten." | write monday
-cat monday
+read monday
 attr tuesday mood=better
 ls
 find $row.kind eq note and $row.tag eq work | count
-cd $row.mood eq great
+in $row.mood eq great
 ls
-up
+out
 rm tuesday
 undo
 history | where $row.undone eq true | count
@@ -678,7 +678,7 @@ history | where $row.undone eq true | count
 $ run examples/journal.clr
 > mkdir journal
 journal
-> cd journal
+> in journal
 journal
 > save <note name=monday mood=good tag=work/>
 monday
@@ -688,7 +688,7 @@ tuesday
 saturday
 > echo "Stand-up moved to ten." | write monday
 monday
-> cat monday
+> read monday
 Stand-up moved to ten.
 > attr tuesday mood=better
 tuesday
@@ -699,12 +699,12 @@ saturday  note  /journal  0     2026-09-22T09:30:00.0000000+00:00  great   home
 tuesday   note  /journal  0     2026-09-22T09:30:00.0000000+00:00  better  work
 > find $row.kind eq note and $row.tag eq work | count
 2
-> cd $row.mood eq great
+> in $row.mood eq great
 $row.mood eq great
 > ls
 name      kind  folder    size  modified                           mood   tag
 saturday  note  /journal  0     2026-09-22T09:30:00.0000000+00:00  great  home
-> up
+> out
 /journal
 > rm tuesday
 Removed tuesday
@@ -725,28 +725,28 @@ walks through it a line at a time.
 ```
 # Failure is a value: recover with else, inspect with try, default with ??.
 # Needs Phase 5.
-cat notes-from-yesterday.txt else echo "starting fresh"
-cat notes-from-yesterday.txt else echo "starting fresh" | write today.txt
-cat today.txt
-try cat nowhere.txt | set problem
+read notes-from-yesterday.txt else echo "starting fresh"
+read notes-from-yesterday.txt else echo "starting fresh" | write today.txt
+read today.txt
+try read nowhere.txt | set problem
 echo $problem.kind
 echo $problem.message
 first (ls | where $row.kind eq view) ?? "no views yet"
 first (ls | where $row.kind eq view) ?? "no views yet" | set latest
 echo $latest
-mkdir today | cd nowhere else echo "the whole line was rolled back"
+mkdir today | in nowhere else echo "the whole line was rolled back"
 ls
 ```
 
 ```
 $ run examples/resilient.clr
-> cat notes-from-yesterday.txt else echo "starting fresh"
+> read notes-from-yesterday.txt else echo "starting fresh"
 starting fresh
-> cat notes-from-yesterday.txt else echo "starting fresh" | write today.txt
+> read notes-from-yesterday.txt else echo "starting fresh" | write today.txt
 today.txt
-> cat today.txt
+> read today.txt
 starting fresh
-> try cat nowhere.txt | set problem
+> try read nowhere.txt | set problem
 File does not exist : /nowhere.txt
 > echo $problem.kind
 NotFound
@@ -758,7 +758,7 @@ no views yet
 no views yet
 > echo $latest
 no views yet
-> mkdir today | cd nowhere else echo "the whole line was rolled back"
+> mkdir today | in nowhere else echo "the whole line was rolled back"
 the whole line was rolled back
 > ls
 name        kind    folder  size  modified
@@ -766,14 +766,14 @@ documents   folder  /       0     2026-09-22T09:30:00.0000000+00:00
 examples    folder  /       0     2026-09-22T09:30:00.0000000+00:00
 guide       folder  /       0     2026-09-22T09:30:00.0000000+00:00
 projects    folder  /       0     2026-09-22T09:30:00.0000000+00:00
-readme.txt  text    /       192   2026-09-22T09:30:00.0000000+00:00
+readme.txt  text    /       193   2026-09-22T09:30:00.0000000+00:00
 today.txt   text    /       14    2026-09-22T09:30:00.0000000+00:00
 name        kind    folder  size  modified
 documents   folder  /       0     2026-09-22T09:30:00.0000000+00:00
 examples    folder  /       0     2026-09-22T09:30:00.0000000+00:00
 guide       folder  /       0     2026-09-22T09:30:00.0000000+00:00
 projects    folder  /       0     2026-09-22T09:30:00.0000000+00:00
-readme.txt  text    /       192   2026-09-22T09:30:00.0000000+00:00
+readme.txt  text    /       193   2026-09-22T09:30:00.0000000+00:00
 today.txt   text    /       14    2026-09-22T09:30:00.0000000+00:00
 ```
 
@@ -787,13 +787,13 @@ as CSV. [Example 13](#13-keep-a-table-in-a-file) walks through it a line at a ti
 # Stock levels as a table: built from a tag, saved as XML, queried, exported as CSV.
 # Needs Phase 6.
 mkdir stock
-cd stock
+in stock
 <items><item sku=A1 name=bolts qty=120 min=50/><item sku=B2 name=nuts qty=12 min=40/><item sku=C3 name=washers qty=0 min=20/></items> | to-xml items.xml
 from-xml items.xml | count
 from-xml items.xml | where $row.qty lt $row.min | sort qty | select sku name qty min
 from-xml items.xml | where $row.qty lt $row.min | sort qty | select sku qty | to-csv reorder.csv
 from-csv reorder.csv | count
-cat reorder.csv
+read reorder.csv
 from-xml items.xml | sort qty desc | first
 ```
 
@@ -801,7 +801,7 @@ from-xml items.xml | sort qty desc | first
 $ run examples/inventory.clr
 > mkdir stock
 stock
-> cd stock
+> in stock
 stock
 > <items><item sku=A1 name=bolts qty=120 min=50/><item sku=B2 name=nuts qty=12 min=40/><item sku=C3 name=washers qty=0 min=20/></items> | to-xml items.xml
 items.xml
@@ -815,7 +815,7 @@ B2   nuts     12   40
 reorder.csv
 > from-csv reorder.csv | count
 2
-> cat reorder.csv
+> read reorder.csv
 sku,qty
 C3,0
 B2,12

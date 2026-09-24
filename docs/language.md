@@ -28,8 +28,8 @@ The same command can be written three ways. They produce the same call.
 The name, then arguments separated by spaces.
 
 ```
-$ cat documents/notes.txt
-Try: ls, cd documents, mkdir scratch, echo "hello"
+$ read documents/notes.txt
+Try: ls, in documents, mkdir scratch, echo "hello"
 ```
 
 A name may be several words joined by hyphens, as `save-view` is. The hyphen has to
@@ -44,8 +44,8 @@ against the name. Use `name: value` to pick a parameter by name.
 ```
 $ write(note.txt, hello)
 note.txt
-$ cat(path: documents/notes.txt)
-Try: ls, cd documents, mkdir scratch, echo "hello"
+$ read(path: documents/notes.txt)
+Try: ls, in documents, mkdir scratch, echo "hello"
 ```
 
 Function form is the only form that takes `name: value`. In command line form, name an
@@ -59,7 +59,7 @@ argument:
 $ first(ls)
 'first' needs a table, not text.
 $ first (ls | sort name desc)
-<row name=readme.txt kind=text folder=/ size=192 modified=2026-09-22T09:30:00.0000000+00:00/>
+<row name=readme.txt kind=text folder=/ size=193 modified=2026-09-22T09:30:00.0000000+00:00/>
 ```
 
 The first line calls `first` with the word `ls`; the second runs `ls | sort name desc`
@@ -302,13 +302,13 @@ Column 12: a column name belongs after the stop, as in $row.kind
 ```
 
 This is what a predicate uses to read a column: `$row.size` is a member access like
-any other. What is particular to `$row` is where it exists. `where`, `find`, `cd` and
+any other. What is particular to `$row` is where it exists. `where`, `find`, `in` and
 `save-view` bind it to each row they test, and nothing else does, so reading it
 anywhere else says where it can be used:
 
 ```
 $ echo $row
-$row is the row a predicate is testing. It exists only inside where, find, cd and save-view: ls | where $row.kind eq folder.
+$row is the row a predicate is testing. It exists only inside where, find, in and save-view: ls | where $row.kind eq folder.
 ```
 
 ## Expressions
@@ -331,7 +331,7 @@ as `a or (b and c)`. `not` takes the whole comparison after it, so
 `not $row.kind eq folder` negates the comparison rather than its left operand. There
 are no symbol operators, no parenthesised sub-expressions, and no arithmetic.
 
-An operand with no operator around it is just that operand: `cd documents` has not
+An operand with no operator around it is just that operand: `in documents` has not
 become an expression because expressions exist. Only a line that actually writes an
 operator produces one.
 
@@ -345,7 +345,7 @@ $ echo $a eq b
 ```
 
 What the operators mean is in [Tables and predicates](tables.md#predicates). An
-expression is also what `cd`, `find` and `save-view` take, which is how a question
+expression is also what `in`, `find` and `save-view` take, which is how a question
 becomes somewhere you can be: see [The filesystem](filesystem.md#views).
 
 A parenthesis in operand position is a [nested pipeline](#pipelines-in-parentheses), not
@@ -355,7 +355,7 @@ value it answered:
 ```
 $ ls | where $row.size gt (ls | count)
 name        kind  folder  size  modified
-readme.txt  text  /       192   2026-09-22T09:30:00.0000000+00:00
+readme.txt  text  /       193   2026-09-22T09:30:00.0000000+00:00
 ```
 
 ## How arguments reach parameters
@@ -392,21 +392,21 @@ documents   folder  /       0     2026-09-22T09:30:00.0000000+00:00
 examples    folder  /       0     2026-09-22T09:30:00.0000000+00:00
 guide       folder  /       0     2026-09-22T09:30:00.0000000+00:00
 projects    folder  /       0     2026-09-22T09:30:00.0000000+00:00
-readme.txt  text    /       192   2026-09-22T09:30:00.0000000+00:00
-$ echo documents | cd
+readme.txt  text    /       193   2026-09-22T09:30:00.0000000+00:00
+$ echo documents | in
 documents
-$ cat notes.txt | write copy.txt
+$ read notes.txt | write copy.txt
 copy.txt
 ```
 
 A command uses the piped value only for a parameter that accepts one and that you did
-not write out yourself. `cat` and `cd` take their path that way; `write` takes its text
+not write out yourself. `read` and `in` take their path that way; `write` takes its text
 that way, because its path is the argument you are most likely to write.
 
 If a stage fails, the pipeline stops there and reports that stage's error.
 
 ```
-$ echo nowhere | cd
+$ echo nowhere | in
 Directory does not exist : nowhere
 ```
 
@@ -438,7 +438,7 @@ view saved with one asks the question as it stood when it was saved:
 ```
 $ save-view big $row.size gt (ls | count)
 big
-$ cd big
+$ in big
 $row.size gt 5
 ```
 
@@ -456,21 +456,21 @@ there are three ways for a line to say what should happen instead.
 given the failure through the pipe.
 
 ```
-$ cat missing.txt else echo "none"
+$ read missing.txt else echo "none"
 none
-$ cat missing.txt else echo
+$ read missing.txt else echo
 File does not exist : /missing.txt
 ```
 
 `else` binds looser than `|`, so each side is a whole pipeline:
-`cat x else echo "starting fresh" | write today.txt` writes `today.txt` only when `x`
+`read x else echo "starting fresh" | write today.txt` writes `today.txt` only when `x`
 could not be read, and `a | b else c | d` means `(a | b) else (c | d)`. Several can be
 chained; each branch runs only if the one before it failed, and is given that failure.
 
 ```
-$ cat missing.txt else cat other.txt else echo "neither"
+$ read missing.txt else read other.txt else echo "neither"
 neither
-$ cat missing.txt else cat other.txt
+$ read missing.txt else read other.txt
 File does not exist : /other.txt
 ```
 
@@ -478,7 +478,7 @@ A failed branch leaves nothing behind, exactly as a failed line does. Only the b
 that answered commits, so after this line there is no folder called `today`:
 
 ```
-$ mkdir today | cd nowhere else echo "rolled back"
+$ mkdir today | in nowhere else echo "rolled back"
 rolled back
 ```
 
@@ -488,7 +488,7 @@ rolled back
 with it. What the next stage receives is the fault itself.
 
 ```
-$ try cat missing.txt | set problem
+$ try read missing.txt | set problem
 File does not exist : /missing.txt
 $ echo $problem.kind
 NotFound
@@ -510,7 +510,7 @@ line succeeded. A fault reads as its message, and these members can be read off 
 | `cause` | The fault underneath, when there was one; nothing otherwise. |
 
 `try` covers the one stage it is written in front of. Put the part that may fail in
-parentheses to cover more than one command: `try (mkdir inside | cd nowhere) | set r`.
+parentheses to cover more than one command: `try (mkdir inside | in nowhere) | set r`.
 Whatever the failed stage had done is discarded, so `inside` is not created.
 
 `is-fault` answers whether a value is one:
@@ -541,7 +541,7 @@ hello
 The default belongs to the stage, so it flows on down the pipe:
 `first (ls) ?? "none" | set latest` sets `$latest` either way. It is only evaluated when
 it is needed, so a default that would fail does no harm on a line that does not reach it.
-A fault is an answer, not nothing, so `try cat missing.txt ?? fine` keeps the fault.
+A fault is an answer, not nothing, so `try read missing.txt ?? fine` keeps the fault.
 
 ## Variables
 
@@ -558,7 +558,7 @@ documents   folder  /       0     2026-09-22T09:30:00.0000000+00:00
 examples    folder  /       0     2026-09-22T09:30:00.0000000+00:00
 guide       folder  /       0     2026-09-22T09:30:00.0000000+00:00
 projects    folder  /       0     2026-09-22T09:30:00.0000000+00:00
-readme.txt  text    /       192   2026-09-22T09:30:00.0000000+00:00
+readme.txt  text    /       193   2026-09-22T09:30:00.0000000+00:00
 $ vars
 name      value
 entries   5 rows
@@ -599,13 +599,13 @@ documents   folder  /       0     2026-09-22T09:30:00.0000000+00:00
 examples    folder  /       0     2026-09-22T09:30:00.0000000+00:00
 guide       folder  /       0     2026-09-22T09:30:00.0000000+00:00
 projects    folder  /       0     2026-09-22T09:30:00.0000000+00:00
-readme.txt  text    /       192   2026-09-22T09:30:00.0000000+00:00
+readme.txt  text    /       193   2026-09-22T09:30:00.0000000+00:00
 $ $files | count
 5
 $ $files | where $row.size gt 10
 name        kind  folder  size  modified
-readme.txt  text  /       192   2026-09-22T09:30:00.0000000+00:00
-$ try cat missing.txt | set problem
+readme.txt  text  /       193   2026-09-22T09:30:00.0000000+00:00
+$ try read missing.txt | set problem
 File does not exist : /missing.txt
 $ $problem.kind
 NotFound
@@ -700,7 +700,7 @@ These are absent by design or not built yet. Nothing here silently half-works.
 
 | Not supported | What to do instead |
 | --- | --- |
-| Wildcards in paths, such as `cat *.txt` | Name files individually. `*` is a glob for `like` in a predicate, and nothing else. |
+| Wildcards in paths, such as `read *.txt` | Name files individually. `*` is a glob for `like` in a predicate, and nothing else. |
 | Redirection `>` and `>>` | Pipe into `write`. |
 | Several commands per line with `;` or `&&` | Run them one at a time, or put them in a [script](commands.md#run). `else` is the one way to join pipelines on a line. |
 | Escapes inside strings | Strings cannot contain a double quote at all. |
