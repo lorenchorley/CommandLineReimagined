@@ -159,6 +159,20 @@ to the pipeline that recovers, and `??` defaults an empty result
 ([decision 0014](../decisions/0014-recovery-operator.md)). Stop is not a failure a line
 can recover from ([decision 0024](../decisions/0024-stop-is-not-recoverable.md)).
 
+**Guidance is drawn apart from output.** Output is what a command answered, a fault's
+message included; everything else the terminal says is guidance, carried beside the
+answer as notes and drawn in one style of its own
+([decision 0041](../decisions/0041-guidance-is-drawn-apart-from-output.md)). A message
+says what went wrong and no more. What was probably meant is a suggestion, naming the
+nearest command, path, folder or variable
+([decision 0042](../decisions/0042-a-missing-name-names-the-nearest.md)); why a filter
+kept nothing is an explanation, naming the column no row has or the values the column
+does have ([decisions 0043](../decisions/0043-an-empty-filter-explains-itself.md) and
+[0045](../decisions/0045-a-near-value-offers-a-fix.md)). Either may carry fixes, whole
+corrected lines that the page puts in the input and does not run
+([decision 0044](../decisions/0044-a-fault-may-carry-fixes.md)). No value carries a
+note, so a script, a pipe, `try` and `else` behave as though none had been made.
+
 **Undo is a compensating transaction.** Every event carries both sides of its change, so
 inverting one needs nothing but the event. `undo` appends the last line's events
 inverted and reversed, marked as compensating it; `redo` compensates the compensation
@@ -350,7 +364,7 @@ means rather than a command reaching for a window.
 ### Failure handling
 
 A command failure is a `Fault` carrying a kind and a message for the user. The session
-returns it in the response, and the line commits nothing. Unexpected exceptions are
+returns it in the response, with any notes about it, and the line commits nothing. Unexpected exceptions are
 caught at the same boundary and reported as a fault of kind `Internal` naming their
 type, so a defect surfaces as a message rather than a dead terminal. A failed line
 leaves the session usable.
@@ -364,8 +378,8 @@ decode is skipped and counted rather than refusing to open the session.
 
 The parse response carries the token stream and the re-serialised text, so a host can
 detect a lossy parse. The execution response carries the output lines, the result, the
-error with its structured fault, and the location, which is enough to reconstruct what
-happened without inspecting internals. `history` shows every committed transaction and
+error with its structured fault, the location, and the notes the terminal added, which
+is enough to reconstruct what happened without inspecting internals. `history` shows every committed transaction and
 what it compensated, and the log itself is the audit trail.
 
 ### Accessibility
@@ -373,10 +387,11 @@ what it compensated, and the log itself is the audit trail.
 The browser terminal is text in the document, so screen readers, text zoom and text
 selection work. Colour is never the only carrier of meaning: an error is a sentence with
 its kind as a word beside it, a caught fault is drawn differently from a failed line and
-says so, results are structurally distinct from output, and the token inspector names a
-role in words. The layout targets a 390 pixel wide viewport without horizontal page
-scrolling. The input, the run button, result chips, table cells and the suggestion and
-completion chips are at least 44 pixels tall.
+says so, results are structurally distinct from output, guidance is a labelled panel in
+a different face, and the token inspector names a role in words. The layout targets a
+390 pixel wide viewport without horizontal page scrolling. The input, the run button,
+result chips, table cells, fix chips and the suggestion and completion chips are at
+least 44 pixels tall.
 
 ### Internationalisation
 
