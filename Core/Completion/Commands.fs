@@ -28,8 +28,10 @@ module CommandCompletion =
     /// two away (`Nearest`), which is correcting it: `lss` finds `ls`. Keywords and slips
     /// need three letters: two start too many keywords (`se` would find `where` by
     /// `select`), and every two-letter word is one slip from half the short commands.
-    /// A shorter word that is a whole keyword is the exception, because it is not a
-    /// guess: `cd` and `up` are the old names of `in` and `out` (decision 0037).
+    /// A shorter word that is a whole keyword is the exception when that keyword is a
+    /// name rather than a word the command is described by (`Nearest.keywordOf`): `cd`
+    /// and `up` are the old names of `in` and `out` (decision 0037), and `by`, which
+    /// describes both `sort` and `group`, finds neither.
     ///
     /// Each chip carries the command's description, or for a keyword match the keyword
     /// it matched, so the chip says what it is before it is tapped.
@@ -47,19 +49,19 @@ module CommandCompletion =
 
         let searching = word.Length >= 3
 
-        let matchesKeyword (keyword: string) =
+        // Whether a keyword is a name is asked of every command, not only of those
+        // offered here: after a pipe `sort` and `group` are both offered, and `by`
+        // describes both wherever it is typed.
+        let keywordOf (spec: CommandSpec) =
             if searching then
-                startsWith word keyword
+                spec.Keywords |> List.tryFind (startsWith word)
             else
-                word <> "" && String.Equals(word, keyword, StringComparison.OrdinalIgnoreCase)
+                Nearest.keywordOf request.Specs spec word
 
         let byKeyword =
             specs
             |> List.filter (unmatched prefixed)
-            |> List.choose (fun spec ->
-                spec.Keywords
-                |> List.tryFind matchesKeyword
-                |> Option.map (fun keyword -> spec, keyword))
+            |> List.choose (fun spec -> keywordOf spec |> Option.map (fun keyword -> spec, keyword))
 
         let near =
             if not searching then

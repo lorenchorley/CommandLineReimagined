@@ -203,6 +203,22 @@ type Session(log: ILog, options: SessionOptions, seed: Seed) =
                     return! applySeed ()
                 } }
 
+    /// <summary>The command that reports an unknown name, with keywords among the nearest.</summary>
+    /// <remarks>
+    /// The evaluator hands it the names a slip away, and only names; an old name such as
+    /// `cd` is a keyword of `in` (decision 0037), not a slip of it, so the nearest are
+    /// worked out again here, where the specs and their keywords are known. The same
+    /// function answers `help cd`.
+    /// </remarks>
+    let unknownByKeyword =
+        { Commands.Meta.unknown with
+            Run =
+                fun invocation ->
+                    async {
+                        let name = Invocation.text "name" invocation
+                        return Error(Fault.unknownCommand name (Nearest.commands specs name))
+                    } }
+
     let commands =
         [ Commands.Files.ls
           Commands.Files.into
@@ -245,9 +261,9 @@ type Session(log: ILog, options: SessionOptions, seed: Seed) =
           Commands.Meta.history storeAccess
           Commands.Meta.reset storeAccess
           Commands.Meta.run storeAccess
-          Commands.Meta.helpWith Nearest.names (fun () -> specs)
+          Commands.Meta.helpWith (fun _ word -> Nearest.commands specs word) (fun () -> specs)
           Commands.Meta.exit storeAccess
-          Commands.Meta.unknown ]
+          unknownByKeyword ]
 
     let evaluator = Evaluator(commands, store, blobs)
     let outputChanged = Event<int * string list>()

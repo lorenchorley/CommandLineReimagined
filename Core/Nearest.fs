@@ -2,7 +2,9 @@
 ///
 /// Used twice: by completion, so `lss` still finds `ls`, and by the evaluator, so
 /// `lss` says `Did you mean ls?` rather than only that it is unknown. Registered before
-/// the evaluator for that second use.
+/// the evaluator for that second use. From Phase 9 a word can also name a command by
+/// one of its keywords, which is how an old name leads to the new one (decision 0037):
+/// `cd` says `Did you mean in?`.
 namespace CommandLineReimagined.Core
 
 open System
@@ -64,3 +66,53 @@ module Nearest =
             |> List.filter (fun (_, d) -> d > 0 && d <= limit)
             |> List.sortBy snd
             |> List.map fst
+
+    let private equal (a: string) (b: string) =
+        String.Equals(a, b, StringComparison.OrdinalIgnoreCase)
+
+    /// <summary>The keyword of a command that a word, written whole, is.</summary>
+    /// <remarks>
+    /// A word of three letters or more is any keyword it equals: `delete` is one of
+    /// `rm`'s. A shorter one is a keyword only when that keyword is a name, not a word
+    /// the command is described by, and what tells the two apart is where 0037 put the
+    /// old names: each is its command's first keyword, and no other command's. `cd` is
+    /// `in`'s first keyword and nobody else's, so it names `in`. `by` is `group`'s first
+    /// and one of `sort`'s as well, so it is a word two commands are described by and
+    /// names neither; `as` is not `table`'s first, so it does not name `table`.
+    /// `specs` is every command, which is what "nobody else's" is counted over.
+    /// </remarks>
+    let keywordOf (specs: CommandSpec list) (spec: CommandSpec) (word: string) : string option =
+        if String.IsNullOrEmpty word then
+            None
+        elif word.Length >= 3 then
+            spec.Keywords |> List.tryFind (equal word)
+        else
+            match spec.Keywords with
+            | first :: _ when equal word first ->
+                let others =
+                    specs
+                    |> List.filter (fun other -> not (equal other.Name spec.Name))
+                    |> List.exists (fun other -> other.Keywords |> List.exists (equal word))
+
+                if others then None else Some first
+            | _ -> None
+
+    /// <summary>The commands a word that names none was probably meant to be.</summary>
+    /// <remarks>
+    /// A word that is one of a command's keywords (`keywordOf`) was not mistyped: it
+    /// says what the command does, or what it used to be called, so the commands it is
+    /// a keyword of are the answer, in the order given, and slips are not looked for.
+    /// `cd` is `in`'s old name and one slip from `cp`, and it means `in`. Any other word
+    /// is corrected as a slip, as `names` corrects it.
+    /// </remarks>
+    let commands (specs: CommandSpec list) (word: string) : string list =
+        let byKeyword =
+            specs
+            |> List.filter (fun spec -> (keywordOf specs spec word).IsSome)
+            |> List.map (fun spec -> spec.Name)
+            |> List.distinct
+
+        if List.isEmpty byKeyword then
+            names (specs |> List.map (fun spec -> spec.Name)) word
+        else
+            byKeyword

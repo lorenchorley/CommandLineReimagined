@@ -485,7 +485,7 @@ type ExecutionTests() =
 /// <remarks>
 /// Decision 0038: a line that called a command wrongly fails with the same fault as
 /// before, and carries that command's help as its guide: the description `help`
-/// writes, then the table it answers.
+/// writes, then the table it answers. Decision 0037: an old name leads to the new one.
 /// </remarks>
 [<TestClass>]
 type GuidanceTests() =
@@ -568,7 +568,7 @@ type GuidanceTests() =
     member _.AFailureThatIsNotAWrongCallCarriesNoGuide() =
         let harness = seeded ()
 
-        for line in [ "read missing.txt"; "lss"; "ls | sort nosuch"; "in nowhere"; "echo $nothing" ] do
+        for line in [ "read missing.txt"; "cd documents"; "lss"; "ls | sort nosuch"; "in nowhere"; "echo $nothing" ] do
             assertNoGuide harness line
 
     /// A line that works carries no guide.
@@ -612,3 +612,25 @@ type GuidanceTests() =
         let harness = seeded ()
 
         Assert.AreEqual<Value option>(None, (harness.Refresh "ls | sort").Guide)
+
+    // ------------------------------------------------------------ 0037
+
+    /// `cd documents` says which command to use now, and so do the other old names.
+    [<TestMethod>]
+    member _.AnOldNameSaysWhichCommandToUse() =
+        let harness = seeded ()
+
+        Assert.AreEqual<string>("Unknown command : cd. Did you mean in?", harness.Error "cd documents")
+        Assert.AreEqual<string>("Unknown command : up. Did you mean out?", harness.Error "up")
+        Assert.AreEqual<string>("Unknown command : cat. Did you mean read?", harness.Error "cat readme.txt")
+        Assert.AreEqual<string>("Unknown command : cd. Did you mean in?", harness.Error "help cd")
+        Assert.AreEqual<string>("Unknown command : delete. Did you mean rm?", harness.Error "delete readme.txt")
+
+    /// Slips are corrected as they were, and a word two commands are described by names neither.
+    [<TestMethod>]
+    member _.ASlipIsStillCorrected() =
+        let harness = seeded ()
+
+        Assert.AreEqual<string>("Unknown command : lss. Did you mean ls?", harness.Error "lss")
+        Assert.AreEqual<string>("Unknown command : rn. Did you mean in, rm or run?", harness.Error "rn")
+        Assert.AreEqual<string>("Unknown command : by", harness.Error "by")
