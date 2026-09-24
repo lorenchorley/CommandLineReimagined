@@ -18,7 +18,7 @@ The terminal teaches itself. Type `read readme.txt` in it, and the readme leads 
 | [Getting started](getting-started.md) | Open a terminal and run your first commands. |
 | [Worked examples](examples.md) | Follow complete sessions, keystroke by keystroke. |
 | [The command language](language.md) | Understand every syntax the parser accepts. |
-| [Tables and predicates](tables.md) | Question a listing: filter, sort, count, group; keep a table in an XML or CSV file. |
+| [Tables and predicates](tables.md) | Question a listing: filter, sort, count, group; keep a table in an XML or CSV file; read inside a nested tag or document with `pick`. |
 | [The filesystem](filesystem.md) | Files as attribute records, and queries as places. |
 | [Command reference](commands.md) | Look up one command's arguments and behaviour. |
 | [The web terminal](web-terminal.md) | Learn the screen: chips, completion, notes and fixes, Stop, undo. |

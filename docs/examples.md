@@ -626,6 +626,57 @@ Redone: from-xml items.xml | where $row.qty lt $row.min | sort qty | select sku 
 [Reading and writing files](tables.md#reading-and-writing-files) is the guide, and
 `run examples/inventory.clr` is the same program in one go.
 
+## 14. Find your way round a nested document
+
+A document deeper than a table is a tree, and `pick` reads it with a CSS selector.
+From a fresh tab, a shop's catalogue with a department inside another, written with `'`
+around its values since a string cannot hold a `"`:
+
+```
+$ write shop.xml "<shop><dept name='tools'><item sku='A1' price='4.5'>Hammer</item><item sku='A2' price='12'>Saw</item></dept><dept name='garden'><item sku='B1' price='3'>Trowel</item><dept name='seeds'><item sku='B7' price='1.2'>Basil</item></dept></dept></shop>"
+shop.xml
+```
+
+First, what is in it. `pick "*"` is every element, and `group @tag` counts them by
+name:
+
+```
+$ from-xml shop.xml | pick "*" | group @tag
+key   rows
+shop  1 row
+dept  3 rows
+item  4 rows
+
+$ from-xml shop.xml | pick dept | select name @children
+name    @children
+tools   2 children
+garden  2 children
+seeds   1 child
+```
+
+Then a question of it: the garden's items, the ones in its seeds department included,
+cheapest first. The space in the selector means anywhere inside, and `sort` compares
+the prices as numbers:
+
+```
+$ from-xml shop.xml | pick "dept[name=garden] item" | sort price | select sku text price
+sku  text    price
+B7   Basil   1.2
+B1   Trowel  3
+
+$ from-xml shop.xml | pick "dept[name=garden] item" | sort price | first | set cheapest
+<row @tag=item sku=B7 price=1.2 text=Basil @children=/>
+
+$ echo $cheapest.text
+Basil
+
+$ echo $cheapest.@tag
+item
+```
+
+A row answers its columns by name, so `$cheapest.@tag` is the element's name.
+[Reading a tree with `pick`](tables.md#reading-a-tree-with-pick) is the guide.
+
 ## Programs
 
 Four programs are seeded into `/examples`, one for each pillar of the design. Each is
