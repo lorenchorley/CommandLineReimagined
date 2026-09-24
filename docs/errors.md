@@ -529,7 +529,7 @@ Syntax
 
 A selector with a space, `>`, `[` or `,` has to be in double quotes. Written bare, it is
 split or does not parse, and the message is the line's own, a
-[parse error](#syntax-error-at-column-n-expected-): `$d | pick book>author` says
+[parse error](#parse-errors): `$d | pick book>author` says
 `Syntax error at column 14: …`.
 
 The piped value is the other half. `pick` reads a tag, a list of tags, or a table
