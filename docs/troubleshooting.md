@@ -34,8 +34,8 @@ clears site data for it takes the filesystem with it: clearing browsing data, a
 "clear cookies and site data" setting, or some privacy extensions. There is no copy
 anywhere else, because nothing is uploaded.
 
-If the page reports that stored lines could not be read and were skipped, a log was
-written by a different build of the terminal than the one loading it. The unreadable
+If a `note` in the scrollback says that stored lines could not be read and were
+skipped, a log was written by a different build of the terminal than the one loading it. The unreadable
 lines are skipped rather than stopping the page; `reset` starts over cleanly.
 
 ## `undo` said there was nothing to undo
@@ -67,9 +67,11 @@ is not one of the suggestion keys.
 ## `cd`, `up` or `cat` says `Unknown command`
 
 They were renamed `in`, `out` and `read`
-([decision 0037](decisions/0037-in-out-back-and-read.md)), and the message says which to
-use: `Unknown command : cd. Did you mean in?`. Typing the old name offers the new one as
-a chip. To go back to where you were before a move, use `back`.
+([decision 0037](decisions/0037-in-out-back-and-read.md)). The message is
+`Unknown command : cd`, and the note under it, labelled `did you mean`, says which to
+use and offers the line with it, `in documents` for `cd documents`, as a chip to tap.
+Typing the old name offers the new one as a completion too. To go back to where you
+were before a move, use `back`.
 
 ## The guide in my filesystem changed
 
@@ -90,6 +92,42 @@ That is the command's help, in a panel labelled `help`: the command was called w
 with an argument missing, one too many or a flag it does not have, and the panel says
 what it takes ([decision 0038](decisions/0038-a-wrong-call-shows-its-help.md)). The line
 failed as it would have anyway.
+
+A panel labelled `did you mean` is a note: the terminal's guess at what you meant, a
+command, a file, a folder, a variable or a question, with a chip for each corrected
+line. Neither panel is part of the failure, and a script never sees them.
+
+## I tapped the chip under an error and it did not run my line
+
+It is not meant to. A chip in a `did you mean` or `why` panel is a fix: it puts the
+whole corrected line in the input, in place of what was there, with the caret at the
+end, and stops there ([decision 0044](decisions/0044-a-fault-may-carry-fixes.md)). The
+guess can be wrong, and running it for you could change your files without your having
+asked. Read the line, change it if you need to, and press Run or Enter.
+
+The tap leaves the keyboard as it was, as every button does, so on a phone with the
+keyboard down the line is in the input and the keyboard stays down until you tap into
+it. A mistake inside a script that `run` ran has no chip at all, since the line to
+correct is in the script: open it with `read`, and `write` it corrected.
+
+## My filter answered an empty table
+
+Look under the table for a panel labelled `why`. When `where`, `find` or a view keeps no
+row of a table that had some, it says why
+([decision 0043](decisions/0043-an-empty-filter-explains-itself.md)):
+
+- `No row has knd; did you mean kind?`: the column is misspelt, or no row carries it.
+  Columns are matched exactly, so `$row.Kind` is not `$row.kind`.
+- `kind is folder or text`: the column is there, and none of its values is the one you
+  compared with. The panel lists the values it does have, most frequent first. A value
+  a slip from one of them comes with the corrected line as a chip.
+- `size runs from 0 to 193`: a comparison of numbers that none of them passes.
+
+With no panel, the question was answered and the answer really is none: every part of
+it keeps a row on its own, as `$row.kind eq folder and $row.size gt 0` does at the root,
+or it is an `or`, a `not`, `ne` or `has`, which are not explained. `ls | columns` lists
+the columns, and `ls | distinct kind` the values of one. A table that was empty before
+the filter needs no reason, and gets none.
 
 ## A file name with a space is split into two arguments
 
@@ -125,7 +163,7 @@ After a command that has what it needs, such as `ls `, the first chip is `|`
 `ls | where kind eq folder` and `ls | where $row.kind` were never questions about the
 row, and answered an empty table whatever the rows held. They are faults now
 ([decision 0033](decisions/0033-a-predicate-is-a-question-about-the-row.md)), and the
-message says what to write:
+note under the message says what to write, with the line as a chip:
 [A predicate is a question about the row](tables.md#a-predicate-is-a-question-about-the-row).
 
 ## The Run button says Stop and will not run my line

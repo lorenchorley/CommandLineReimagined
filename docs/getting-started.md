@@ -125,7 +125,9 @@ The rest of this page takes the same ideas one command at a time.
 
 The scrollback starts at the top of the screen with the banner, and keeps every command
 with its output. What the terminal says of its own, the banner among it, is drawn in a
-panel with a small label and a plainer font, so it is never mistaken for output. The
+panel with a small label and a plainer font, so it is never mistaken for output: the
+banner, the help under a command called wrongly, and the notes under a line that went
+wrong, which say what you probably meant. The
 line above the input shows the current directory, after the buttons for undo (↶), redo
 (↷) and walking back and forward through the lines you have run (↑ and ↓). The rows
 below the input hold the completions for the word you are typing, and tappable
@@ -171,6 +173,19 @@ $ ls | where $row.kind eq folder | count
 4
 ```
 
+Ask it something no row answers and the empty table says why. The indented lines are a
+note the terminal adds beside the answer, drawn on the page as a panel labelled `why`:
+
+```
+$ ls | where $row.kind eq foldr
+name  kind  folder  size  modified
+  explanation: kind is folder or text
+  fix: ls | where $row.kind eq folder
+```
+
+The `fix` is the line it thinks you meant, drawn as a chip. Tapping it puts that line in
+the input, and does not run it: you run it, or change it first.
+
 [Tables and predicates](tables.md) is the guide to that.
 
 You have read one file already. A path reaches into a folder:
@@ -180,11 +195,25 @@ $ read documents/notes.txt
 Try: ls, in documents, mkdir scratch, echo "hello"
 ```
 
+Leave the folder out and the line fails, and a note under the error, labelled
+`did you mean` on the page, says where the file is, with the line that reads it as a
+chip:
+
+```
+$ read notes
+File does not exist : /notes
+  suggestion: Did you mean documents/notes.txt?
+  fix: read documents/notes.txt
+```
+
+A mistyped command, folder or variable is answered the same way. The note is for you
+to read: the failure itself, which a script would see, is only the red line.
+
 Go into a folder with `in` and come back out with `out`, and notice that the working
 directory line changes. `back` goes to where you were before the last move, one step
 further each time, like a browser's back button. (If you know a shell, these were `cd`,
-`up` and `cat` here once; typing an old name offers the new one, and running one says
-`Unknown command : cd. Did you mean in?`.)
+`up` and `cat` here once; typing an old name offers the new one, and running one fails
+with `Unknown command : cd`, with a note that offers `in` in its place.)
 
 ```
 $ in documents
