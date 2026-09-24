@@ -30,7 +30,7 @@ matches on: `$problem.kind` reads the word in the second column.
 | Tag on screen | `$problem.kind` | Meaning |
 | --- | --- | --- |
 | `syntax` | `Syntax` | The line could not be turned into a tree. |
-| `binding` | `Binding` | What was written does not fit what the command declared. |
+| `binding` | `Binding` | What was written does not fit what the command declared. The page shows the command's help under it. |
 | `unknowncommand` | `UnknownCommand` | No command by that name. |
 | `notfound` | `NotFound` | A path, a variable or a record that is not there. |
 | `conflict` | `Conflict` | Something is already there. |
@@ -166,6 +166,32 @@ $ run bad.clr
 
 These come from matching what you wrote against what the command declared.
 
+A command called wrongly shows its help
+([decision 0038](decisions/0038-a-wrong-call-shows-its-help.md)). The line fails with
+the fault below, as it always did, and under it the page draws a panel labelled `help`
+with that command's description and the table `help <command>` answers, so what is
+right is on the screen beside what was wrong. The indented lines are that panel:
+
+```
+$ ls documents extra
+'ls' takes 1 argument, but 2 were given.
+  help
+  List files and directories in a directory, the current directory by default
+  name  required  piped  takes               description
+  path  false     false  a folder or a view  Directory to list; defaults to the current one
+```
+
+It is the help of the command that was called wrongly: `help where extra` shows
+`help`'s own help, not `where`'s. Every message in this section whose kind is `binding`
+brings it, and so do the other `binding` faults that name their command, such as
+`'count' needs a table, not text.` and `'select' needs at least one column.`. The
+messages here whose kind is `notfound`, an unknown variable and `$row` outside a
+predicate, do not, and nor does a question that never reads `$row`, which says what to
+write instead. A failure raised while a command runs, such as
+`File does not exist : /missing.txt`, is not a wrong call and shows no help; nor is an
+unknown command, which says what it probably meant. `else` and `try` see the same fault
+whether the page shows help or not.
+
 ### `'<command>' needs an argument for '<parameter>'.`
 
 A required parameter was not given, nothing was piped in, and it has no default.
@@ -173,6 +199,10 @@ A required parameter was not given, nothing was piped in, and it has no default.
 ```
 $ in
 'in' needs an argument for 'TargetPath'.
+  help
+  Go into a folder, a saved view, or a question written out
+  name        required  piped  takes        description
+  TargetPath  true      true   a predicate  The directory, view or predicate to enter
 ```
 
 Give the argument, or pipe a value into a parameter that accepts one.
@@ -187,7 +217,7 @@ $ ls documents extra
 'ls' takes 1 argument, but 2 were given.
 ```
 
-Quote an argument that was meant to be one word: `write note.txt "two words"`.
+The help under it is the one shown [above](#argument-errors). Quote an argument that was meant to be one word: `write note.txt "two words"`.
 
 ### `'<command>' has no argument named '<name>'.`
 
@@ -196,9 +226,13 @@ A flag or a named argument that the command does not declare.
 ```
 $ echo -verbose
 'echo' has no argument named 'verbose'.
+  help
+  Writes its argument, or whatever was piped into it
+  name  required  piped  takes    description
+  text  true      true   a value  What to write
 ```
 
-Run `help` to see the parameters a command actually takes.
+The help under it lists the parameters the command actually takes.
 
 ### `Unknown variable: $<name>`
 
@@ -374,9 +408,11 @@ resolved against the current directory.
 
 ### `Unknown command : <name>. Did you mean <command>?`
 
-No command by that name. When one or more commands are a slip or two away, up to three
-are named, nearest first; when none is, the message stops at the name. Run `help`, or
-type the start of a name to see the commands as completions. Kind `unknowncommand`.
+No command by that name. When one or more commands are a slip or two away, or the
+name is one of a command's keywords, up to three are named, nearest first; when none
+is, the message stops at the name. Run `help`, or type the start of a name to see the
+commands as completions. Kind `unknowncommand`. It shows no help under it: there is no
+command whose help it could be.
 
 ```
 $ lss
@@ -386,12 +422,28 @@ Unknown command : sot. Did you mean set or sort?
 $ rn
 Unknown command : rn. Did you mean in, rm or run?
 $ delete readme.txt
-Unknown command : delete
+Unknown command : delete. Did you mean rm?
 ```
 
-The message only corrects spelling. Completion also finds a command by what it does:
-typing `delete` offers `rm`. Typing `UnknownCommand`, the name of the command that
-reports this, gets `Unknown command : UnknownCommand` like any other unknown name.
+The keywords are how the old names lead to the new ones. `cd`, `up` and `cat` were
+renamed `in`, `out` and `read`
+([decision 0037](decisions/0037-in-out-back-and-read.md)), and each old name is the new
+command's first keyword:
+
+```
+$ cd documents
+Unknown command : cd. Did you mean in?
+$ up
+Unknown command : up. Did you mean out?
+$ cat readme.txt
+Unknown command : cat. Did you mean read?
+```
+
+Completion finds them the same way: typing `cd` offers `in`, and `delete` offers `rm`.
+A short word that merely equals a keyword by accident is not taken for one: `by` is
+`Unknown command : by`, with nothing after it. Typing `UnknownCommand`, the name of the
+command that reports this, gets `Unknown command : UnknownCommand` like any other
+unknown name.
 
 | Message | Meaning |
 | --- | --- |
@@ -452,17 +504,18 @@ Not errors from the language, but from the session.
 
 ## Page messages
 
-Written by the browser page itself rather than by the session. See
-[The web terminal](web-terminal.md#loading).
+Written by the browser page itself rather than by the session. There is no status
+line: the page says how its start went in the banner, the panel labelled `note` at the
+top of the scrollback. See [The web terminal](web-terminal.md#loading).
 
 | Message | Meaning |
 | --- | --- |
-| `starting…` | The status while the .NET runtime loads. The input is disabled. |
-| `restoring…` | The status while the log is replayed. The input is still disabled. |
-| `wasm` | The status once the terminal is ready. |
-| `not persisted` | Beside `wasm`: this browser is not keeping the log. Hover it for the browser's reason. |
-| `failed to load` | The status when the runtime did not start within about forty seconds. |
-| `failed to restore` | The status when replaying the log failed, with `Could not restore the session: <message>` in the scrollback. The input stays disabled. |
+| `Loading the terminal…` | The banner while the .NET runtime loads. The input is disabled. |
+| `restoring…` | The banner while the log is replayed. The input is still disabled. |
+| `not persisted` | A mark at the end of the banner: this browser is not keeping the log. Hover it for the browser's reason. |
+| `failed to load` | In red in the banner, when the runtime did not start within about forty seconds. Reloading may help. |
+| `failed to restore` | In red in the banner, when replaying the log failed, with `Could not restore the session: <message>` in the scrollback. The input stays disabled. |
+| `copied` | A `note` over the foot of the scrollback, when text selected there has been copied to the clipboard. It fades on its own. |
 | `<n> stored line(s) could not be read and were skipped. reset starts over.` | The log holds lines this build cannot decode, usually from a different build. The rest were replayed. |
 
 ## Reading a path in a message
