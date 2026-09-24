@@ -45,10 +45,11 @@ const DEVICE_SCALE_FACTOR = 3;
  * undo and history only mean anything against what came before them.
  */
 const SCRIPT = [
+  // `up` was the parent row a listing began with before Phase 3; it must not come back.
   { line: 'ls', expect: ['documents', 'projects', 'readme.txt'], absent: ['up'] },
 
   // A failed line leaves nothing behind, whatever its earlier stages managed.
-  { line: 'mkdir a | cd nowhere', fault: 'notfound', expect: ['Directory does not exist : nowhere'] },
+  { line: 'mkdir a | in nowhere', fault: 'notfound', expect: ['Directory does not exist : nowhere'] },
   { line: 'ls', absent: ['a '] },
 
   { line: 'mkdir alpha', expect: ['alpha'] },
@@ -62,14 +63,14 @@ const SCRIPT = [
   { line: 'write note.txt first', expect: ['note.txt'] },
   { line: 'write note.txt second', expect: ['note.txt'] },
   { line: 'undo', hides: 'write note.txt second' },
-  { line: 'cat note.txt', expect: ['first'] },
+  { line: 'read note.txt', expect: ['first'] },
 
   { line: 'attr note.txt tag=work', expect: ['note.txt'] },
   // A table of name and value from Phase 3, rather than a line per attribute.
   { line: 'attr note.txt', expect: ['name', 'note.txt', 'kind', 'text', 'folder', 'tag', 'work', 'created', 'modified'] },
 
   { line: 'save <note name=todo due=2026-10-01/>', expect: ['todo'] },
-  { line: 'cat todo', expect: [] },
+  { line: 'read todo', expect: [] },
 
   // Decision 0007: a path in a tag needs no quotes, and reads back unchanged.
   { line: '<file path=documents/notes.txt/>', expect: ['<file path=documents/notes.txt/>'] },
@@ -118,24 +119,24 @@ const PHASE_3 = [
  * the prompt says, what a listing shows across folders, and the way back out.
  */
 const PHASE_4 = [
-  { line: 'run examples/journal.clr', expect: ['> cd $row.mood eq great', '> up', 'Undone: rm tuesday'] },
+  { line: 'run examples/journal.clr', expect: ['> in $row.mood eq great', '> out', 'Undone: rm tuesday'] },
 
   // The program leaves you in /journal. The rest of these are about views as such,
   // so they start from the root.
-  { line: 'cd /', expect: ['/'] },
+  { line: 'in /', expect: ['/'] },
 
-  { line: 'cd $row.kind eq folder', expect: ['$row.kind eq folder'] },
+  { line: 'in $row.kind eq folder', expect: ['$row.kind eq folder'] },
   // A view lists across folders, so the seeded tree and the journal appear together.
   { line: 'ls', expect: ['documents', 'examples', 'projects', 'journal'], absent: ['readme.txt'] },
   // Both work notes are back: journal.clr's last act was to undo the `rm`.
   { line: 'find $row.kind eq note and $row.tag eq work | count', expect: ['2'] },
-  { line: 'up', expect: ['/'] },
+  { line: 'out', expect: ['/'] },
   { line: 'ls', expect: ['readme.txt'] },
 
   { line: 'save-view weekend $row.mood eq great', expect: ['weekend'] },
-  { line: 'cd weekend', expect: ['$row.mood eq great'] },
+  { line: 'in weekend', expect: ['$row.mood eq great'] },
   { line: 'ls', expect: ['saturday'], absent: ['monday'] },
-  { line: 'up', expect: ['/'] },
+  { line: 'out', expect: ['/'] },
 ];
 
 /**
@@ -147,12 +148,12 @@ const PHASE_4 = [
  */
 const PHASE_5 = [
   { line: 'run examples/resilient.clr',
-    expect: ['> try cat nowhere.txt | set problem', '> mkdir today | cd nowhere else echo', 'today.txt'] },
+    expect: ['> try read nowhere.txt | set problem', '> mkdir today | in nowhere else echo', 'today.txt'] },
   // The program's point: the folder on the failed side of its last `else` never existed.
   { line: 'find $row.name eq today | count', expect: ['0'] },
 
-  { line: 'cat missing.txt else echo "none"', expect: ['none'] },
-  { line: 'try cat missing.txt | set r', caught: 'NotFound', expect: ['File does not exist : /missing.txt'] },
+  { line: 'read missing.txt else echo "none"', expect: ['none'] },
+  { line: 'try read missing.txt | set r', caught: 'NotFound', expect: ['File does not exist : /missing.txt'] },
   { line: 'echo $r.kind', expect: ['NotFound'] },
   { line: 'first (ls | where $row.kind eq note) ?? "no notes"', expect: ['no notes'] },
   { line: 'is-fault $r', expect: ['true'] },
@@ -167,12 +168,12 @@ const PHASE_5 = [
  */
 const PHASE_6 = [
   { line: 'run examples/inventory.clr',
-    expect: ['> cat reorder.csv', 'sku,qty', 'C3,0', '<row sku=A1 name=bolts qty=120 min=50/>'] },
+    expect: ['> read reorder.csv', 'sku,qty', 'C3,0', '<row sku=A1 name=bolts qty=120 min=50/>'] },
   { line: 'from-csv reorder.csv', expect: ['sku', 'qty', 'C3', 'B2'], absent: ['A1'] },
   { line: 'from-xml items.xml | where $row.qty lt $row.min | count', expect: ['2'] },
   { line: 'echo "not xml" | write broken.xml', expect: ['broken.xml'] },
   { line: 'from-xml broken.xml', fault: 'invalid', expect: ['Not well-formed XML : /stock/broken.xml line 1'] },
-  { line: 'cd /', expect: ['/'] },
+  { line: 'in /', expect: ['/'] },
 ];
 
 /**
@@ -193,7 +194,7 @@ const PHASE_6 = [
 const PHASE_8 = [
   { line: 'set v 5', expect: ['5'] },
   { line: 'ls | set files', expect: ['documents', 'readme.txt'] },
-  { line: 'try cat missing.txt | set problem', caught: 'NotFound' },
+  { line: 'try read missing.txt | set problem', caught: 'NotFound' },
   { line: '$v', expect: ['5'] },
   { line: '$files | count', expect: ['5'] },
   // A name that is not a command says which one it is near.
@@ -208,7 +209,7 @@ const BEFORE_RELOAD = [
 
 const AFTER_RELOAD = [
   { line: 'ls', expect: ['persisted', 'kept.txt', 'documents', 'readme.txt'] },
-  { line: 'cat kept.txt', expect: ['remembered'] },
+  { line: 'read kept.txt', expect: ['remembered'] },
   { line: 'echo $survivor', expect: ['yes'] },
   // Undo reaches back across the reload, because the compensation chain is in the log.
   // The line it reverses is not on screen any more, so the undo says what it did.
@@ -560,25 +561,33 @@ async function main() {
       note(`sorting a listing by its first column twice did not change the first row (${before})`);
     }
 
-    // Below the root the page offers `up`, which is where the parent row went.
-    await submit(page, 'cd documents');
+    // The readme key writes the line that reads it, with the command's name (0037).
+    await page.locator('#keys .key', { hasText: /^readme$/ }).click();
+    const fromKey = await page.evaluate(() => document.getElementById('cmd').value);
+    if (fromKey !== 'read readme.txt') note(`the readme key wrote ${JSON.stringify(fromKey)}`);
+    await page.fill('#cmd', '');
+
+    // Below the root the page offers `out`, which is where the parent row went.
+    await submit(page, 'in documents');
 
     try {
       // The prompt is refreshed after the entry finishes, so this waits rather than
       // asking once.
-      await page.waitForSelector('#prompt .up', { timeout: 10000 });
-      await page.locator('#prompt .up').click();
+      await page.waitForSelector('#prompt .out', { timeout: 10000 });
+      const label = (await page.locator('#prompt .out').innerText()).trim();
+      if (label !== 'out') note(`the location line's way out reads ${JSON.stringify(label)}, not 'out'`);
+      await page.locator('#prompt .out').click();
       await page.waitForFunction(
         () => document.getElementById('where').innerText.trim() === '/', null, { timeout: 10000 });
     } catch {
-      note('below the root the location line does not offer a working `up`');
-      await submit(page, 'up');
+      note('below the root the location line does not offer a working `out`');
+      await submit(page, 'out');
     }
 
     await runScript(page, SCRIPT, note);
     console.log(`Ran ${SCRIPT.length} lines.`);
 
-    // Undo and redo sit beside `up`, at the root too. A tap is the line it stands for,
+    // Undo and redo sit beside `out`, at the root too. A tap is the line it stands for,
     // so the entry it takes back goes and comes back, and what was being typed stays.
     await submit(page, 'mkdir tapped');
     await page.fill('#cmd', 'half typed');
@@ -623,14 +632,14 @@ async function main() {
     console.log(`Ran ${PHASE_4.length} more for Phase 4.`);
 
     // The location line says which of the two ways of being somewhere this is.
-    await submit(page, 'cd $row.kind eq folder');
+    await submit(page, 'in $row.kind eq folder');
     const viewing = (await page.locator('#where').innerText()).trim();
 
     if (!viewing.includes('view:') || !viewing.includes('$row.kind eq folder')) {
       note(`in a view the location line reads ${JSON.stringify(viewing)}`);
     }
 
-    await page.locator('#prompt .up').click();
+    await page.locator('#prompt .out').click();
     await page.waitForFunction(
       () => document.getElementById('where').innerText.trim() === '/', null, { timeout: 10000 });
 
@@ -676,7 +685,7 @@ async function main() {
     console.log(`Ran ${PHASE_5.length} more for Phase 5.`);
 
     // The keywords are coloured as keywords as they are typed, not as arguments.
-    await page.fill('#cmd', 'try cat x else echo y');
+    await page.fill('#cmd', 'try read x else echo y');
     try {
       await page.waitForFunction(
         () => document.querySelectorAll('#mirror .t.keyword').length === 2, null, { timeout: 10000 });
@@ -746,11 +755,11 @@ async function main() {
     // tapping it would hand the next command two arguments.
     await submit(page, 'write "my notes.txt" hi');
     await submit(page, 'ls');
-    await page.fill('#cmd', 'cat');
+    await page.fill('#cmd', 'read');
     await page.locator('.entry').last().locator('.grid tbody td', { hasText: 'my notes.txt' }).first().click();
     const tapped = await page.evaluate(() => document.getElementById('cmd').value);
 
-    if (tapped !== 'cat "/my notes.txt"') {
+    if (tapped !== 'read "/my notes.txt"') {
       note(`tapping 'my notes.txt' in a listing made the line ${JSON.stringify(tapped)}`);
     }
 
@@ -761,14 +770,14 @@ async function main() {
     // Completion is asked asynchronously since Phase 8, and Tab waits for the answer to
     // the last keystroke before it fills, so the line is read once it has changed rather
     // than straight after the key: read at once, it is still what was typed.
-    await page.fill('#cmd', 'cd doc');
+    await page.fill('#cmd', 'in doc');
     await page.press('#cmd', 'Tab');
     await page.waitForFunction(
-      () => document.getElementById('cmd').value !== 'cd doc', null, { timeout: 10000 }).catch(() => {});
+      () => document.getElementById('cmd').value !== 'in doc', null, { timeout: 10000 }).catch(() => {});
     const completed = await page.evaluate(() => document.getElementById('cmd').value);
 
-    if (completed !== 'cd documents/') {
-      note(`completing 'cd doc' made the line ${JSON.stringify(completed)}`);
+    if (completed !== 'in documents/') {
+      note(`completing 'in doc' made the line ${JSON.stringify(completed)}`);
     }
 
     await page.fill('#cmd', '');
@@ -868,19 +877,19 @@ async function main() {
     }
 
     // Completing mid-line replaces the word at the caret and keeps the rest of the line.
-    const middle = await offered(page, 'cat re documents', 'readme.txt', ' documents'.length);
+    const middle = await offered(page, 'read re documents', 'readme.txt', ' documents'.length);
 
     if (!middle) {
-      note(`'cat re| documents' did not offer 'readme.txt'. The chips were ${JSON.stringify(await chips(page))}`);
+      note(`'read re| documents' did not offer 'readme.txt'. The chips were ${JSON.stringify(await chips(page))}`);
     } else {
       await page.locator('#complete .key', { hasText: 'readme.txt' }).first().click();
       const kept = await page.waitForFunction(
-        () => document.getElementById('cmd').value === 'cat readme.txt documents', null, { timeout: 10000 })
+        () => document.getElementById('cmd').value === 'read readme.txt documents', null, { timeout: 10000 })
         .then(() => true, () => false);
       const caret = await page.evaluate(() => document.getElementById('cmd').selectionStart);
 
-      if (!kept || caret !== 'cat readme.txt'.length) {
-        note(`applying 'readme.txt' in 'cat re| documents' made the line ` +
+      if (!kept || caret !== 'read readme.txt'.length) {
+        note(`applying 'readme.txt' in 'read re| documents' made the line ` +
              `${JSON.stringify(await page.evaluate(() => document.getElementById('cmd').value))} with the caret at ${caret}`);
       }
     }
@@ -949,9 +958,9 @@ async function main() {
     await afterTap('#prompt #redo', await finishedNow());
     if (await focused()) note('tapping redo with the keyboard down brought it up');
 
-    // A listing is shown to its last row, even when the location line grows an `up`
+    // A listing is shown to its last row, even when the location line grows an `out`
     // button after the line has finished, which takes height from the scrollback.
-    await submit(page, 'cd documents');
+    await submit(page, 'in documents');
     await submit(page, 'ls');
     await page.waitForTimeout(150);
     if (!await atTheEnd()) note('after ls below the root, the scrollback stopped short of its last line');
