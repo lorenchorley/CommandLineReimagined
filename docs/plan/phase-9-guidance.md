@@ -215,7 +215,7 @@ After 9.1, A, B and C start together from its commit.
 | 9.0 Foundation | orchestrator | merged | aef5fea |
 | 9.1 The rename | sub-agent | merged | 75d105f |
 | A. `back` | stream agent | merged | e62c9df |
-| B. Guidance in the core | stream agent | in progress | |
+| B. Guidance in the core | stream agent | merged | 2dc822f |
 | C. The page | stream agent | in progress | |
 | 9.9 docs, spec | two sub-agents | not started | |
 | 9.9 verifier, republish, As built | orchestrator | not started | |
@@ -234,7 +234,7 @@ From a fresh tab, at 390 by 844:
 | `cd documents` | `Unknown command : cd. Did you mean in?` |
 | `cd` typed | the chip `in`, detail `in · matches "cd"` |
 | `read readme.txt` | the readme |
-| `help where extra` | the fault, and under it the table `help where` answers |
+| `help where extra` | the fault, and under it `help`'s own help, since `help` is the command called wrongly (0038) |
 | `read` with no argument | the fault, and under it `read`'s help |
 | `read missing.txt` | the fault, and no help |
 | `vars ` | only `|` |

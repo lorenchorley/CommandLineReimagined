@@ -117,13 +117,14 @@ type PredicateCompletionTests() =
 
     // -------------------------------------------------------- AfterComparison
 
-    /// Finding 23: after a whole comparison, only the words that join another.
+    /// Finding 23: after a whole comparison, the words that join another, after the pipe:
+    /// a whole question is a complete argument, so its result can be sent on (0039).
     [<TestMethod>]
-    member _.AfterAComparisonComeAndAndOr() =
+    member _.AfterAComparisonComeThePipeAndAndOr() =
         let harness = seeded ()
         let offered = complete harness "ls | where $row.kind eq folder "
 
-        Assert.AreEqual<string list>([ "and"; "or" ], offered |> List.map (fun c -> c.Text))
+        Assert.AreEqual<string list>([ "|"; "and"; "or" ], offered |> List.map (fun c -> c.Text))
         Assert.IsTrue(offered |> List.forall (fun c -> c.Kind = "operator"))
         Assert.AreEqual<string list>([ "and" ], texts harness "ls | where $row.kind eq folder a")
 
@@ -263,4 +264,4 @@ type PredicateCompletionTests() =
             [ "eq"; "ne"; "gt"; "ge"; "lt"; "le"; "like"; "has" ],
             texts harness "in $row.mood ")
 
-        Assert.AreEqual<string list>([ "and"; "or" ], texts harness "in $row.mood eq great ")
+        Assert.AreEqual<string list>([ "|"; "and"; "or" ], texts harness "in $row.mood eq great ")

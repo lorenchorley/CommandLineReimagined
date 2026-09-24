@@ -34,6 +34,13 @@ module Completion =
                 | Place.TagType -> VariableCompletion.tagTypes request
                 | Place.TagAttribute typeName -> VariableCompletion.tagAttributes request typeName
                 | Place.Argument(stage, slot) -> ArgumentCompletion.suggest request stage slot
+                // A whole question is a complete argument, so the pipe comes first
+                // there as it does after any complete stage (decision 0039).
+                | Place.Predicate(stage, (Expression.AfterComparison as expression)) when request.Context.Word.Prefix = "" ->
+                    async {
+                        let! rest = PredicateCompletion.suggest request stage expression
+                        return ArgumentCompletion.pipe request :: rest
+                    }
                 | Place.Predicate(stage, expression) -> PredicateCompletion.suggest request stage expression
                 | Place.Unknown -> async.Return(Lexical.answer request)
 
