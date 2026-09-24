@@ -65,6 +65,8 @@ type ArgumentCompletionTests() =
           ("mkdir", "FolderName"), Takes.NewName
           ("progress", "steps"), Takes.Count
           ("progress", "delay"), Takes.Number
+          ("pick", "selector"), Takes.Selector
+          ("pick", "document"), Takes.Value
           ("rm", "path"), Takes.Path
           ("rows", "table"), Takes.Value
           ("run", "path"), Takes.Path
