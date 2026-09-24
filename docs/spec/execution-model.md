@@ -212,7 +212,8 @@ that no other command can reach.
 re-run (see [Refreshing](#refreshing)). It **must** be declared rather than inferred. A
 command that emits events under any arguments **must not** be marked: `attr`, which
 writes with assignments and reads without, is not, and neither is a command that only
-moves the location, such as `in` or `out`, because `LocationChanged` is an event.
+moves the location, such as `in`, `out` or `back`, because `LocationChanged` is an
+event.
 
 ## Resolving a command
 
@@ -236,13 +237,40 @@ any other failure. `UnknownCommand` is not listed by `help`, and **must not** it
 resolvable by name: typing `UnknownCommand` is an unknown command,
 `Unknown command : UnknownCommand`.
 
-A name is near a command's name when the edit distance between them, ignoring case, is
-at least one and at most one for a written name of up to four letters, or two for a
-longer one. The distance counts an insertion, a deletion, a substitution and a swap of
-two neighbouring letters as one each (Damerau–Levenshtein, optimal string alignment;
-`Nearest.fs`), so `sotr` is one from `sort`. The nearest come first, equally near ones
-in name order. A command's keywords play no part in the message; completion uses them
-([Host interfaces](host-interfaces.md#completion)).
+The nearest names are found in two ways, the first before the second (`Nearest.fs`,
+`Nearest.commands`), over every registered command but `UnknownCommand`:
+
+1. **By keyword.** A written name that is one of a command's keywords was not mistyped:
+   it says what the command does, or what it was called before
+   ([decision 0037](../decisions/0037-in-out-back-and-read.md)). A name of three letters
+   or more is a keyword of every command that has a keyword equal to it, ignoring case.
+   A shorter one is a keyword of a command only when it equals that command's *first*
+   keyword and no other command has it among its keywords, because a short word shared
+   by two commands describes them rather than naming either (`Nearest.keywordOf`).
+   When the name is a keyword of any command, those commands are the nearest, in name
+   order, and slips **must not** be looked for.
+2. **By slip.** Otherwise a name is near a command's name when the edit distance between
+   them, ignoring case, is at least one and at most one for a written name of up to four
+   letters, or two for a longer one. The distance counts an insertion, a deletion, a
+   substitution and a swap of two neighbouring letters as one each (Damerau–Levenshtein,
+   optimal string alignment), so `sotr` is one from `sort`. The nearest come first,
+   equally near ones in name order.
+
+```
+Unknown command : cd. Did you mean in?
+Unknown command : cat. Did you mean read?
+Unknown command : delete. Did you mean rm?
+Unknown command : navigate. Did you mean back, in or out?
+Unknown command : by
+Unknown command : as. Did you mean ls?
+```
+
+`cd` is `in`'s first keyword and nobody else's, so it names `in`, although it is one slip
+from `cp`. `by` is `group`'s first keyword and one of `sort`'s as well, so it names
+neither, and nothing is one slip from it. `as` is a keyword of `table` but not its first,
+so it is corrected as a slip. The same nearest names answer `help` for a name that is not
+a command, and completion finds a command by keyword by the same rule for a word of one
+or two letters ([Host interfaces](host-interfaces.md#reading-the-place)).
 
 If `UnknownCommand` is not registered, fail with the same message directly.
 
@@ -298,6 +326,54 @@ order written, and the events evaluating the arguments produced.
 Evaluating an argument can bind a variable (a named tag), so the scope is threaded
 through the walk: a variable a tag binds is visible to the arguments evaluated after
 it, and its `VariableChanged` event is part of what binding returns.
+
+### A wrong call carries its help
+
+Decision [0038](../decisions/0038-a-wrong-call-shows-its-help.md). A line that fails
+because it called a command wrongly fails with the same fault as before, and its
+response **must** also carry that command's help as its `Guide` (`Session.Response`).
+Every other response **must** carry none.
+
+A line called a command wrongly when all of these hold (`Session.calledWrongly`):
+
+- the line was executed, not refreshed: a [refresh](#refreshing) carries no guide;
+- the line failed, with a fault of kind `Binding` that carries a stage number;
+- that stage, in the line's pipeline, or in its last pipeline when it has `else`
+  branches, since the fault is then the last branch's, is a command written in the
+  function or the command-line form, not a tag, a value stage or a pipeline in
+  parentheses;
+- the stage names a registered command, ignoring case;
+- the fault's message begins with that command's name in quotes, `'sort'`, compared
+  ordinally.
+
+The last test keeps out a binding fault that the stage carries but did not make. A
+fault from inside a pipeline in parentheses names the inner command, and one from a line
+of a script `run` ran begins with the script's path, so neither carries a guide:
+`echo (read) | count` fails with `'read' needs an argument for 'path'.` and no guide. A
+line that `try` or `else` recovered did not fail, and carries none. An unknown name is
+not of kind `Binding`, and nor is a fault raised while a command runs over what it was
+given, such as `File does not exist : /missing.txt`. A binding fault a command raises
+about its own arguments is a wrong call when its message begins with the command's
+name, as `'select' needs at least one column.` and
+`'find' needs a predicate, such as $row.kind eq note.` do, and is not when it begins with
+the predicate, as `name eq x never reads $row, so it is the same for every row.` does.
+
+The guide **must** be what `help <command>` answers, asked the way a refresh asks, so
+that it cannot drift from `help`, commits nothing and writes nothing: a `List` of the
+lines `help` wrote to its output, each as `Text`, followed by the table it answered. For
+`read`, whose wrong call fails with `'read' needs an argument for 'path'.`, the guide
+holds the text and the table of
+
+```
+$ help read
+Show what a file says
+name  required  piped  takes   description
+path  true      true   a path  The file to read
+```
+
+For `help where extra`, the command called wrongly is `help`, so the guide is `help`'s
+own help. A host carries the guide as `guide` on the wire
+([Execution response](host-interfaces.md#execution-response)).
 
 ### Evaluating a written value
 
@@ -656,6 +732,34 @@ bound to a row of the same shape `ls` produces — so `$row.kind`, `$row.folder`
 `$row.size` and any attribute the record carries all mean in a view what they mean
 after `ls |`.
 
+### The trail
+
+Decision [0037](../decisions/0037-in-out-back-and-read.md). The projection holds the
+**trail**, the places `in` and `out` have left, the most recent first
+(`Projection.Trail`). It is what [`back`](command-catalogue.md#back) retraces, and like
+the rest of the projection it is a fold over the log, so it survives a reload and
+`undo` changes it.
+
+- Every move `in` or `out` makes **must** emit `TrailPushed` of the location it leaves,
+  then `LocationChanged`, in that order, in the same line. A move to where you already
+  are emits neither.
+- `back` **must** emit a `TrailPopped` for each place it takes off, most recent first,
+  then its `LocationChanged`. It **must not** push.
+- No other command touches the trail. Renaming a folder you are in moves the location
+  without a step on the trail, and a place on the trail under the old name is one whose
+  folder no longer exists, which `back` passes over.
+- Folding `TrailPushed p` puts `p` on top of the trail. Folding `TrailPopped p` removes
+  the most recent entry that is the same place as `p`, and changes nothing when there is
+  none, so the fold stays total.
+- Two places are the same when their folders are equal and their views' display texts
+  are equal (`Projection.samePlace`). A view is compared by its text because that is how
+  it is stored: a view read back from the log is parsed again, and a nested pipeline in
+  it would not compare equal to the tree it was parsed from.
+
+`TrailPushed` and `TrailPopped` are each other's inverse ([The store](#the-store)), so
+undoing a move takes its place off the trail, and undoing a `back` puts back every place
+it took, in order. A fresh session, and one after `reset`, starts with an empty trail.
+
 ## Refreshing
 
 An implementation **may** offer a way to re-run a line without committing it, so a host
@@ -696,6 +800,12 @@ because a later event can depend on an earlier one having happened.
 | `ContentChanged (id, b, a)` | `ContentChanged (id, a, b)` |
 | `VariableChanged (n, b, a)` | `VariableChanged (n, a, b)` |
 | `LocationChanged (b, a)` | `LocationChanged (a, b)` |
+| `TrailPushed p` | `TrailPopped p` |
+| `TrailPopped p` | `TrailPushed p` |
+
+A trail event carries only the place: a push and a pop of the same place are each
+other's record of both sides, and a whole trail before and after would make every move
+cost the length of the trail ([The trail](#the-trail)).
 
 The identity holds for events that describe a change that happened: an event's `before`
 side **must** be what the projection holds. Commands build events by reading the
@@ -769,8 +879,45 @@ A log begun before the seed had a `/guide` folder is given it once, after replay
 one transaction with the source `guide`, marked not undoable, creating the folder and its
 files. It **must not** be added to a log that has ever created a `/guide`, so one deleted
 on purpose stays deleted, and `/readme.txt` is given the new text **only** if it still
-holds the old seed's text exactly. A host that seeds the standard filesystem calls it
-after `Initialize`; on any other log it does nothing.
+holds the old seed's text exactly.
+
+Then every seeded file nobody has changed is brought to the seed's current content
+([decision 0040](../decisions/0040-seeded-files-follow-the-seed.md), `Seed.updatesFor`).
+For each file the standard seed describes with content, the record at that folder and
+name in the projection **must** have its content replaced by the seed's when:
+
+- there is a record at that path, and it is not a folder;
+- no undoable transaction in the log has named that record, by creating, deleting,
+  renaming, moving, tagging or writing to it. `undo` and `redo` commit undoable
+  transactions, so a file written to and put back by `undo` has been named, and so has
+  every file in a folder renamed and renamed back. A record no undoable transaction
+  has named was made by a system transaction, the seed's or the guide's;
+- its content's hash differs from the hash of the seed's text.
+
+The replacements are one `ContentChanged` each, in the seed's order, committed as one
+transaction with the source `seed update`, marked not undoable, so `undo` reaches past
+it. A record's attributes, `modified` included, are left as they were. A seeded file that
+was deleted is not brought back, one that was renamed or moved is not at the path any
+more, and a file made again at a seeded path is the user's. When nothing differs, no
+transaction is committed, so a second load commits nothing. For a log seeded with older
+texts, in which one guide file was then written to and one example program tagged, the
+load after it gives:
+
+```
+$ history
+seq  at        source                                undone  compensates
+1    09:30:00  seed                                  false
+2    09:30:00  echo mine | write guide/1-start.txt   false
+3    09:30:00  attr examples/tables.clr level=first  false
+4    09:30:00  seed update                           false
+
+$ undo
+Undone: attr examples/tables.clr level=first
+```
+
+`BringUpToDate` answers how many records it created, which only the guide can. A host
+that seeds the standard filesystem calls it after `Initialize`; on a fresh log, or a
+second time, it finds nothing to do and commits nothing.
 
 A session runs one line at a time. A line submitted while another is running **must**
 be refused with a fault of kind `Invalid`, `A command is already running. Stop it
