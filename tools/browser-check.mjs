@@ -411,6 +411,55 @@ async function submit(page, line) {
   };
 }
 
+/**
+ * Phase 9, the page (stream C): R5, in a fresh store at `/`.
+ *
+ * R12, no title and no status at the top, is checked straight after the first boot.
+ */
+async function checkPhase9(page, note) {
+  const lastId = () => page.evaluate(() => Number(document.body.dataset.finished || 0));
+  const entry = id => page.locator(`.entry[data-id="${id}"]`);
+  const rows = id => entry(id).locator('.grid tbody tr').count();
+  const badge = async id => (await entry(id).locator('.watch .badge').innerText()).trim();
+  const value = () => page.evaluate(() => document.getElementById('cmd').value);
+  const focused = () => page.evaluate(() => document.activeElement === document.getElementById('cmd'));
+
+  /** Waits for a listing to have more than `count` rows; false if it never does. */
+  const grows = (id, count) => page.waitForFunction(
+    ({ id, count }) => document.querySelectorAll(`.entry[data-id="${id}"] .grid tbody tr`).length > count,
+    { id, count }, { timeout: 10000 }).then(() => true, () => false);
+
+  // ---- R5: any listing can be live, and a paused one made live again ----------
+
+  await submit(page, 'ls');
+  const older = await lastId();
+  await submit(page, 'ls | select name');
+  const newer = await lastId();
+
+  // The newest starts live; the one above it pauses, and keeps its badge saying so.
+  if (await badge(newer) !== 'live') note(`the newest listing's badge reads ${JSON.stringify(await badge(newer))}, not 'live'`);
+  if (await badge(older) !== 'paused') note(`a listing above a newer one reads ${JSON.stringify(await badge(older))}, not 'paused'`);
+
+  // While paused it is left alone; the live one below it refreshes.
+  const olderAt = await rows(older), newerAt = await rows(newer);
+  await submit(page, 'mkdir while-paused');
+  if (!await grows(newer, newerAt)) note('the live listing did not gain a row for `mkdir while-paused`');
+  await page.waitForTimeout(300);
+  if (await rows(older) !== olderAt) note('a paused listing refreshed anyway');
+
+  // Tapping `paused` makes it live, and it catches up at once.
+  await entry(older).locator('.watch .badge').tap();
+  if (await badge(older) !== 'live') note(`tapping 'paused' left the badge reading ${JSON.stringify(await badge(older))}`);
+  if (!await grows(older, olderAt)) note('a listing made live again did not catch up with `mkdir while-paused`');
+
+  // Two live at once: one change refreshes both.
+  const olderNow = await rows(older), newerNow = await rows(newer);
+  await submit(page, 'mkdir both-live');
+  if (!await grows(older, olderNow)) note('with two listings live, the older did not gain a row for `mkdir both-live`');
+  if (!await grows(newer, newerNow)) note('with two listings live, the newer did not gain a row for `mkdir both-live`');
+
+}
+
 /** The chips in the completion row, in order. */
 const chips = page => page.locator('#complete .key:not(.more)').allInnerTexts();
 
@@ -929,6 +978,12 @@ async function main() {
     }
 
     console.log(`Ran ${PHASE_8.length + 1} more for Phase 8, then checked the chips, the detail line, Tab and a tap.`);
+
+    // ---- Phase 9: the page ----------------------------------------------------
+
+    await submit(page, 'reset');
+    await checkPhase9(page, note);
+    console.log('Checked Phase 9: live listings.');
 
     // ---- On a phone: nothing moves, opens or closes on its own ----------------
 

@@ -158,9 +158,9 @@
   .grid td.fault { color:var(--flag); }
   .grid td.none::before { content:'—'; }
   /*
-    A live listing. The badge says the table is being kept up to date and is the way to
-    stop it; the flash is how a table that changed under you says that it did, which a
-    silent redraw could not.
+    A listing's badge. `live` says the table is being kept up to date, `paused` that it
+    is not, and tapping it changes which; the flash is how a table that changed under
+    you says that it did, which a silent redraw could not.
   */
   .watch:empty { display:none; }
   .watch { margin-top:4px; }
@@ -169,7 +169,6 @@
     border:1px solid var(--line); background:var(--panel); color:var(--dim); cursor:pointer;
   }
   .watch .badge.on { color:var(--ok); border-color:var(--ok); }
-  .watch .frozen { font-size:11px; color:var(--punctuation); }
   @keyframes flash { from { background:rgba(107,138,253,.28); } to { background:transparent; } }
   .flash { animation:flash .8s ease-out; }
   .running .out:last-child::after { content:''; display:inline-block; width:6px; height:11px;
@@ -719,7 +718,7 @@ function forgetLines() {
   for (const entry of new Set(committedBy.values())) {
     if (entry.classList.contains('undone')) { forgetTables(entry); entry.remove(); }
   }
-  if (live && !live.entry.isConnected) live = null;
+  forgetWatches();
   committedBy.clear();
 }
 
@@ -744,16 +743,20 @@ function applyChanges(entry, r) {
 // ---- live listings --------------------------------------------------------
 
 /*
-  The newest listing keeps itself up to date.
+  Listings keep themselves up to date.
 
   A listing is a question about the store, and the store changes under it: `mkdir x`
   in the next entry makes the answer above it wrong. Because the log says when it
   changed, the page can ask the question again — through `Refresh`, which re-reads and
-  commits nothing — and replace the table in place. Only the newest listing does this;
-  the ones above it froze when they scrolled out of the conversation, which is what a
-  scrollback is for.
+  commits nothing — and replace the table in place.
+
+  Every listing keeps its badge. The newest starts live; the ones above it pause when
+  a newer one arrives, which is what a scrollback is for, and read `paused`. Tapping
+  `paused` makes a listing live again, and tapping `live` pauses it, so any number can
+  be live at once, each asked again whenever the store changes. One made live by a tap
+  stays live when a newer listing arrives: it was asked for, not left over.
 */
-let live = null;       // { entry, source, on } for the newest listing
+const watches = new Set();   // { entry, source, on, chosen, shown } for every listing on screen
 let refreshWanted = false;
 
 /// Which lines are worth keeping live: the two that ask what is there.
@@ -763,43 +766,66 @@ function isListing(text) {
   return listings.includes(text.trim().split(/[\s|]/)[0]);
 }
 
-function markLive(entry, source) {
-  if (live && live.entry !== entry) {
-    const bar = live.entry.querySelector('.watch');
-    if (bar) bar.innerHTML = '<span class="frozen">frozen</span>';
+function markLive(entry, source, result) {
+  for (const other of watches) {
+    if (other.on && !other.chosen) { other.on = false; drawWatch(other); }
   }
 
-  live = { entry, source, on: true };
-  drawWatch();
+  const watch = { entry, source, on: true, chosen: false, shown: JSON.stringify(result || null) };
+  watches.add(watch);
+  drawWatch(watch);
 }
 
-function drawWatch() {
-  if (!live) return;
-  const bar = live.entry.querySelector('.watch');
+function drawWatch(watch) {
+  const bar = watch.entry.querySelector('.watch');
   if (!bar) return;
 
-  bar.innerHTML = `<button class="badge ${live.on ? 'on' : ''}">${live.on ? 'live' : 'paused'}</button>`;
+  bar.innerHTML =
+    `<button class="badge ${watch.on ? 'on' : ''}" aria-pressed="${watch.on}" ` +
+    `title="${watch.on ? 'kept up to date: tap to pause' : 'paused: tap to keep it up to date'}">` +
+    `${watch.on ? 'live' : 'paused'}</button>`;
 
   bar.querySelector('button').onclick = () => {
-    live.on = !live.on;
-    drawWatch();
-    if (live.on) refreshLive();
+    watch.on = !watch.on;
+    watch.chosen = watch.on;
+    drawWatch(watch);
+    // Made live again, it catches up at once rather than at the next change.
+    if (watch.on) refreshListing(watch);
+    refocus();
   };
 }
 
-/// Asks the same question again and redraws the answer. A refusal or a failure leaves
-/// what is on screen alone: a listing that has gone wrong is better than a blank one.
+/// Forgets the listings whose entries have left the screen, after `clear` or `reset`.
+function forgetWatches() {
+  for (const watch of watches) if (!watch.entry.isConnected) watches.delete(watch);
+}
+
+/// Asks every live listing its question again, one after another.
 async function refreshLive() {
   refreshWanted = false;
-  if (!live || !live.on || running || !ready) return;
+  forgetWatches();
+  for (const watch of [...watches]) {
+    if (watch.on) await refreshListing(watch);
+  }
+}
 
-  const target = live;
+/// Asks one listing's question again and redraws the answer, with a flash, when it
+/// changed. A refusal or a failure leaves what is on screen alone: a listing that has
+/// gone wrong is better than a blank one.
+async function refreshListing(watch) {
+  if (!watch.on || running || !ready || !watch.entry.isConnected) return;
+
+  const asked = watch.asked = (watch.asked || 0) + 1;
 
   try {
-    const response = JSON.parse(await DotNet.invokeMethodAsync('WebClient', 'Refresh', target.source));
-    if (response.error || live !== target) return;
+    const response = JSON.parse(await DotNet.invokeMethodAsync('WebClient', 'Refresh', watch.source));
+    if (response.error || !watch.on || asked !== watch.asked || !watches.has(watch)) return;
 
-    const tail = target.entry.querySelector('.tail');
+    const answer = JSON.stringify(response.result || null);
+    if (answer === watch.shown) return;
+    watch.shown = answer;
+
+    const tail = watch.entry.querySelector('.tail');
     forgetTables(tail);
     tail.innerHTML = itemsHtml(response.result);
 
@@ -1149,7 +1175,7 @@ async function run() {
   // Phase 3; both are real commands now, so they go through the evaluator like
   // everything else and can be piped.
   if (text === 'clear') {
-    scroll.innerHTML = ''; tables.clear(); committedBy.clear(); live = null; afterRun(text); return;
+    scroll.innerHTML = ''; tables.clear(); committedBy.clear(); watches.clear(); afterRun(text); return;
   }
 
   const id = nextId++;
@@ -1172,10 +1198,10 @@ async function run() {
     } else {
       finishEntry(entry, result);
 
-      // The newest listing is the one kept live, and only when it answered a table:
+      // The newest listing starts live, and only when it answered a table:
       // a failed `ls` has nothing to keep up to date.
       if (!result.error && isListing(text) && (result.result || []).some(item => item.kind === 'table')) {
-        markLive(entry, text);
+        markLive(entry, text, result.result);
       }
     }
   } catch (e) {
