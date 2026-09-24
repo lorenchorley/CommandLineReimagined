@@ -310,7 +310,7 @@ font rather than the terminal's monospace. Output keeps the look it has always h
 | --- | --- | --- |
 | The banner, at the top of the scrollback | `note` | Where to begin, whether this browser is keeping your files, and how loading went: see [Loading](#loading). |
 | Under a line that failed, when something near was meant | `did you mean` | The command, file, folder, variable or question you probably meant, with a chip for each corrected line: see [Notes and fixes](#notes-and-fixes). |
-| Under an empty answer from `where`, `find` or a view | `why` | Why nothing was kept, with a chip when a column or value was a slip away. |
+| Under an answer, when a `where`, a `find` or a view in the line kept no row | `why` | Why nothing was kept, with a chip when a column or value was a slip away. |
 | Under a line that called a command wrongly | `help` | That command's help: see [How a failure looks](#how-a-failure-looks). |
 | The note after a selection | `note` | `copied`: see [Copying](#copying). |
 | In the scrollback, when a stored session could not be restored in full | `note` | How many stored lines were skipped, or why the session could not be restored: see [Loading](#loading). |
